@@ -6,5 +6,6 @@ interface IPrivilegeServer {
     int getMode();
     int getProtocolVersion();
     String getServerVersion();
+    void updateOwnerDeathConfig(long followDeathDelayMillis, boolean activeReconnectOnOwnerDeath);
     void shutdown();
 }

@@ -14,7 +14,7 @@ internal class PrivilegeOwnerTokenStore(
         synchronized(lock) {
             val file = ownerTokenFile()
             if (file.isFile) {
-                return@synchronized readExistingOrMigrate(file)
+                return@synchronized readExisting(file)
             }
 
             val token = PrivilegeToken.generate()
@@ -25,10 +25,10 @@ internal class PrivilegeOwnerTokenStore(
     fun readIfExists(): String? =
         synchronized(lock) {
             val file = ownerTokenFile()
-            if (file.isFile) readExistingOrMigrate(file) else null
+            if (file.isFile) readExisting(file) else null
         }
 
-    private fun readExistingOrMigrate(file: File): String {
+    private fun readExisting(file: File): String {
         val token = runCatching {
             file.readText(StandardCharsets.UTF_8).trim()
         }.getOrElse { throwable ->
@@ -38,9 +38,7 @@ internal class PrivilegeOwnerTokenStore(
             throw PrivilegeStartupException("Owner token file is empty: ${file.absolutePath}")
         }
         if (!PrivilegeToken.isValid(token)) {
-            val migratedToken = PrivilegeToken.generate()
-            writeNew(file, migratedToken)
-            return migratedToken
+            throw PrivilegeStartupException("Owner token file is invalid: ${file.absolutePath}")
         }
         return token
     }

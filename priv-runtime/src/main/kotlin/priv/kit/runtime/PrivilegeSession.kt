@@ -4,6 +4,7 @@ import android.os.IBinder
 import android.os.RemoteException
 import priv.kit.core.IPrivilegeServer
 import priv.kit.core.PrivilegeServerInfo
+import java.util.concurrent.CopyOnWriteArraySet
 
 class PrivilegeSession internal constructor(
     val serverInfo: PrivilegeServerInfo,
@@ -21,6 +22,7 @@ class PrivilegeSession internal constructor(
     }
 
     init {
+        connectedSessions += this
         try {
             serverBinder.asBinder().linkToDeath(deathRecipient, 0)
         } catch (_: RemoteException) {
@@ -62,6 +64,31 @@ class PrivilegeSession internal constructor(
             state = PrivilegeSessionState.DISCONNECTED
             listener = onDisconnected
         }
+        connectedSessions -= this
         listener?.invoke(this)
+    }
+
+    internal fun syncOwnerDeathConfig(config: PrivilegeOwnerDeathConfig) {
+        if (state != PrivilegeSessionState.CONNECTED) {
+            return
+        }
+        try {
+            serverBinder.updateOwnerDeathConfig(
+                config.followDeathDelayMillis,
+                config.activeReconnectOnOwnerDeath,
+            )
+        } catch (_: RemoteException) {
+            markDisconnected()
+        }
+    }
+
+    companion object {
+        private val connectedSessions = CopyOnWriteArraySet<PrivilegeSession>()
+
+        internal fun syncOwnerDeathConfigToConnectedSessions(config: PrivilegeOwnerDeathConfig) {
+            connectedSessions.forEach { session ->
+                session.syncOwnerDeathConfig(config)
+            }
+        }
     }
 }

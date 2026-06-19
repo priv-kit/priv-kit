@@ -9,6 +9,8 @@ import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
 import priv.kit.core.PrivilegeHandshakeContract
+import priv.kit.core.PrivilegeMode
+import priv.kit.core.PrivilegeProtocol
 import priv.kit.core.PrivilegeServerHandshakeRegistry
 import priv.kit.core.PrivilegeServerInfo
 import java.util.concurrent.ConcurrentHashMap
@@ -28,23 +30,62 @@ class PrivilegeHandshakeProvider : ContentProvider() {
             "Handshake call received tokenMatches=${token == arg}, hasExtras=${extras != null}, " +
                 "hasBinder=${serverBinder != null}",
         )
-        val accepted = if (extras != null && token == arg && token == ownerToken()) {
+        val tokenAccepted = extras != null && token == arg && token == ownerToken()
+        val serverInfo = if (tokenAccepted) {
+            requireNotNull(extras).toServerInfo()
+        } else {
+            null
+        }
+        val restartCommandLine = if (
+            tokenAccepted &&
+            token != null &&
+            serverInfo != null &&
+            !serverInfo.matchesCurrentRuntime()
+        ) {
+            buildRestartCommandLine(token, serverInfo)
+        } else {
+            null
+        }
+        val shouldShutdown = if (tokenAccepted && serverInfo != null && !serverInfo.matchesCurrentRuntime()) {
+            Log.w(
+                TAG,
+                "Rejecting server version mismatch protocol=${serverInfo.protocolVersion}, " +
+                    "serverVersion=${serverInfo.serverVersion}",
+            )
+            true
+        } else {
+            false
+        }
+        val accepted = if (tokenAccepted && !shouldShutdown && serverInfo != null) {
             PrivilegeServerHandshakeRegistry.deliverReady(
                 token = token,
                 serverBinder = serverBinder,
-                serverInfo = extras.toServerInfo(),
+                serverInfo = serverInfo,
             )
         } else {
             false
         }
-        Log.i(TAG, "Handshake call accepted=$accepted")
+        Log.i(TAG, "Handshake call accepted=$accepted, shouldShutdown=$shouldShutdown")
 
         return Bundle().apply {
             putBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, accepted)
+            putBoolean(PrivilegeHandshakeContract.RESULT_SHOULD_SHUTDOWN, shouldShutdown)
+            restartCommandLine?.let {
+                putString(PrivilegeHandshakeContract.RESULT_RESTART_COMMAND_LINE, it)
+            }
             if (accepted && token != null) {
                 putBinder(
                     PrivilegeHandshakeContract.RESULT_OWNER_BINDER,
                     ownerBinders.getOrPut(token) { Binder() },
+                )
+                val ownerDeathConfig = ownerDeathConfig()
+                putLong(
+                    PrivilegeHandshakeContract.RESULT_FOLLOW_DEATH_DELAY_MILLIS,
+                    ownerDeathConfig.followDeathDelayMillis,
+                )
+                putBoolean(
+                    PrivilegeHandshakeContract.RESULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
+                    ownerDeathConfig.activeReconnectOnOwnerDeath,
                 )
             }
         }
@@ -75,11 +116,6 @@ class PrivilegeHandshakeProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
     ): Int = 0
 
-    companion object {
-        private const val TAG = "PrivKitRuntime"
-        private val ownerBinders = ConcurrentHashMap<String, IBinder>()
-    }
-
     private fun ownerToken(): String? =
         runCatching {
             context?.let { PrivilegeOwnerTokenStore(it).readIfExists() }
@@ -88,17 +124,61 @@ class PrivilegeHandshakeProvider : ContentProvider() {
             null
         }
 
+    private fun ownerDeathConfig(): PrivilegeOwnerDeathConfig =
+        runCatching {
+            context?.let { PrivilegeOwnerDeathConfigStore(it).read() }
+        }.getOrElse { throwable ->
+            Log.e(TAG, "Failed to read owner death config for handshake response", throwable)
+            null
+        } ?: PrivilegeOwnerDeathConfig()
+
+    private fun PrivilegeServerInfo.matchesCurrentRuntime(): Boolean =
+        protocolVersion == PrivilegeProtocol.VERSION &&
+            serverVersion == PrivilegeProtocol.SERVER_VERSION
+
+    private fun buildRestartCommandLine(
+        token: String,
+        serverInfo: PrivilegeServerInfo,
+    ): String? {
+        val context = context ?: return null
+        val ownerDeathConfig = ownerDeathConfig()
+        return PrivilegeServerLaunchCommandBuilder.build(
+            context = context,
+            token = token,
+            mode = serverInfo.toPrivilegeMode(),
+            followDeathDelayMillis = ownerDeathConfig.followDeathDelayMillis,
+            activeReconnectOnOwnerDeath = ownerDeathConfig.activeReconnectOnOwnerDeath,
+        ).detachedCommandLine
+    }
+
+    private fun PrivilegeServerInfo.toPrivilegeMode(): PrivilegeMode =
+        if (mode == PrivilegeMode.ROOT.value) {
+            PrivilegeMode.ROOT
+        } else {
+            PrivilegeMode.SHELL
+        }
+
     private fun Bundle.toServerInfo(): PrivilegeServerInfo =
         PrivilegeServerInfo(
-            uid = getInt(PrivilegeHandshakeContract.EXTRA_UID),
-            pid = getInt(PrivilegeHandshakeContract.EXTRA_PID),
-            mode = getInt(PrivilegeHandshakeContract.EXTRA_MODE),
-            protocolVersion = getInt(
-                PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION,
-            ),
-            serverVersion = getString(
-                PrivilegeHandshakeContract.EXTRA_SERVER_VERSION,
-                "",
-            ),
+            uid = requireIntExtra(PrivilegeHandshakeContract.EXTRA_UID),
+            pid = requireIntExtra(PrivilegeHandshakeContract.EXTRA_PID),
+            mode = requireIntExtra(PrivilegeHandshakeContract.EXTRA_MODE),
+            protocolVersion = requireIntExtra(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION),
+            serverVersion = requireStringExtra(PrivilegeHandshakeContract.EXTRA_SERVER_VERSION),
         )
+
+    private fun Bundle.requireIntExtra(key: String): Int {
+        require(containsKey(key)) { "Handshake request is missing $key" }
+        return getInt(key)
+    }
+
+    private fun Bundle.requireStringExtra(key: String): String =
+        requireNotNull(getString(key)?.takeIf { it.isNotBlank() }) {
+            "Handshake request is missing $key"
+        }
+
+    companion object {
+        private const val TAG = "PrivKitRuntime"
+        private val ownerBinders = ConcurrentHashMap<String, IBinder>()
+    }
 }

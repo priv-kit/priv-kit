@@ -18,6 +18,16 @@ internal class PrivilegeServerBinder(
 
     override fun getServerVersion(): String = config.serverVersion
 
+    override fun updateOwnerDeathConfig(
+        followDeathDelayMillis: Long,
+        activeReconnectOnOwnerDeath: Boolean,
+    ) {
+        PrivilegeServerMain.updateOwnerDeathConfig(
+            followDeathDelayMillis = followDeathDelayMillis,
+            activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
+        )
+    }
+
     override fun shutdown() {
         Log.i(TAG, "Shutdown requested by client")
         Thread {

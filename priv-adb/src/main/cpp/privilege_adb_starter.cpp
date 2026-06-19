@@ -17,6 +17,8 @@ constexpr const char* DEFAULT_MAIN_CLASS = "priv.kit.server.PrivilegeServerMain"
 constexpr const char* DEFAULT_MODE = "2";
 constexpr const char* DEFAULT_PROTOCOL_VERSION = "1";
 constexpr const char* DEFAULT_SERVER_VERSION = "0.1.0-SNAPSHOT";
+constexpr const char* DEFAULT_FOLLOW_DEATH_DELAY_MILLIS = "600000";
+constexpr const char* DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH = "false";
 constexpr const char* DEFAULT_PROCESS_SUFFIX = ":priv-kit-server";
 constexpr const char* DEFAULT_PROVIDER_SUFFIX = ".privilege.handshake";
 constexpr const char* DEFAULT_LOG_PREFIX = "/data/local/tmp/priv-kit-server-manual-";
@@ -32,6 +34,8 @@ struct StarterConfig {
     const char* mode = DEFAULT_MODE;
     const char* protocol_version = DEFAULT_PROTOCOL_VERSION;
     const char* server_version = DEFAULT_SERVER_VERSION;
+    const char* follow_death_delay_millis = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS;
+    const char* active_reconnect_on_owner_death = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH;
     int server_arg_start = -1;
 
     char classpath_buffer[MAX_CLASSPATH_LENGTH] = {};
@@ -274,9 +278,9 @@ void kill_existing_server(const char* process_name) {
             continue;
         }
         if (kill(pid, SIGKILL) == 0) {
-            printf("priv-kit-killed-old-server-pid=%d\n", pid);
+            printf("priv-kit-killed-existing-server-pid=%d\n", pid);
         } else {
-            fprintf(stderr, "warn: failed to kill old server pid=%d: %s\n", pid, strerror(errno));
+            fprintf(stderr, "warn: failed to kill existing server pid=%d: %s\n", pid, strerror(errno));
         }
     }
     closedir(proc);
@@ -309,6 +313,10 @@ bool parse_args(int argc, char** argv, StarterConfig* config) {
             config->protocol_version = require_value(argc, argv, &i, arg);
         } else if (strcmp(arg, "--server-version") == 0) {
             config->server_version = require_value(argc, argv, &i, arg);
+        } else if (strcmp(arg, "--follow-death-delay-millis") == 0) {
+            config->follow_death_delay_millis = require_value(argc, argv, &i, arg);
+        } else if (strcmp(arg, "--active-reconnect-on-owner-death") == 0) {
+            config->active_reconnect_on_owner_death = require_value(argc, argv, &i, arg);
         } else {
             fprintf(stderr, "fatal: unknown option %s\n", arg);
             return false;
@@ -322,7 +330,11 @@ bool parse_args(int argc, char** argv, StarterConfig* config) {
             (strcmp(arg, "--provider-authority") == 0 && config->provider_authority == nullptr) ||
             (strcmp(arg, "--mode") == 0 && config->mode == nullptr) ||
             (strcmp(arg, "--protocol-version") == 0 && config->protocol_version == nullptr) ||
-            (strcmp(arg, "--server-version") == 0 && config->server_version == nullptr)) {
+            (strcmp(arg, "--server-version") == 0 && config->server_version == nullptr) ||
+            (strcmp(arg, "--follow-death-delay-millis") == 0 &&
+                config->follow_death_delay_millis == nullptr) ||
+            (strcmp(arg, "--active-reconnect-on-owner-death") == 0 &&
+                config->active_reconnect_on_owner_death == nullptr)) {
             return false;
         }
     }
@@ -375,7 +387,7 @@ void exec_app_process(const StarterConfig& config, int argc, char** argv) {
     }
 
     const bool use_argv_server_args = config.server_arg_start >= 0;
-    const int server_arg_count = use_argv_server_args ? argc - config.server_arg_start : 12;
+    const int server_arg_count = use_argv_server_args ? argc - config.server_arg_start : 16;
     const int app_arg_count = 5 + server_arg_count;
     char** app_argv = static_cast<char**>(calloc(app_arg_count + 1, sizeof(char*)));
     if (app_argv == nullptr) {
@@ -406,6 +418,10 @@ void exec_app_process(const StarterConfig& config, int argc, char** argv) {
         app_argv[index++] = const_cast<char*>(config.protocol_version);
         app_argv[index++] = const_cast<char*>("--server-version");
         app_argv[index++] = const_cast<char*>(config.server_version);
+        app_argv[index++] = const_cast<char*>("--follow-death-delay-millis");
+        app_argv[index++] = const_cast<char*>(config.follow_death_delay_millis);
+        app_argv[index++] = const_cast<char*>("--active-reconnect-on-owner-death");
+        app_argv[index++] = const_cast<char*>(config.active_reconnect_on_owner_death);
     }
     app_argv[index] = nullptr;
 

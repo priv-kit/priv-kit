@@ -10,4 +10,6 @@ internal data class PrivilegeServerConfig(
     val mode: Int = PrivilegeMode.ROOT.value,
     val protocolVersion: Int = PrivilegeProtocol.VERSION,
     val serverVersion: String = PrivilegeProtocol.SERVER_VERSION,
+    val followDeathDelayMillis: Long = PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
+    val activeReconnectOnOwnerDeath: Boolean = PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
 )

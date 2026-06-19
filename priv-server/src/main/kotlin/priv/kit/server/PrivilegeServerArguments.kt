@@ -1,8 +1,5 @@
 package priv.kit.server
 
-import priv.kit.core.PrivilegeMode
-import priv.kit.core.PrivilegeProtocol
-
 internal object PrivilegeServerArguments {
     fun parse(args: Array<String>): PrivilegeServerConfig {
         val values = mutableMapOf<String, String>()
@@ -20,12 +17,36 @@ internal object PrivilegeServerArguments {
             token = values.required("token"),
             providerAuthority = values.required("provider-authority"),
             packageName = values.required("package-name"),
-            mode = values["mode"]?.toIntOrNull() ?: PrivilegeMode.ROOT.value,
-            protocolVersion = values["protocol-version"]?.toIntOrNull() ?: PrivilegeProtocol.VERSION,
-            serverVersion = values["server-version"] ?: PrivilegeProtocol.SERVER_VERSION,
+            mode = values.requiredInt("mode"),
+            protocolVersion = values.requiredInt("protocol-version"),
+            serverVersion = values.required("server-version"),
+            followDeathDelayMillis = values.requiredNonNegativeLong("follow-death-delay-millis"),
+            activeReconnectOnOwnerDeath = values.requiredBoolean("active-reconnect-on-owner-death"),
         )
     }
 
     private fun Map<String, String>.required(key: String): String =
         requireNotNull(this[key]?.takeIf { it.isNotBlank() }) { "Missing required argument --$key" }
+
+    private fun Map<String, String>.requiredInt(key: String): Int {
+        val rawValue = required(key)
+        return rawValue.toIntOrNull()
+            ?: throw IllegalArgumentException("--$key must be an integer")
+    }
+
+    private fun Map<String, String>.requiredNonNegativeLong(key: String): Long {
+        val rawValue = required(key)
+        val value = rawValue.toLongOrNull()
+        require(value != null && value >= 0L) { "--$key must be a non-negative millisecond value" }
+        return value
+    }
+
+    private fun Map<String, String>.requiredBoolean(key: String): Boolean {
+        val rawValue = required(key)
+        return when (rawValue.lowercase()) {
+            "true" -> true
+            "false" -> false
+            else -> throw IllegalArgumentException("--$key must be true or false")
+        }
+    }
 }
