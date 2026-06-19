@@ -12,6 +12,7 @@ object PrivilegeHandshakeContract {
     const val EXTRA_SERVER_VERSION = "privilege_server_version"
 
     const val RESULT_ACCEPTED = "privilege_accepted"
+    const val RESULT_OWNER_BINDER = "privilege_owner_binder"
 
     fun providerAuthority(packageName: String): String = "$packageName.privilege.handshake"
 }

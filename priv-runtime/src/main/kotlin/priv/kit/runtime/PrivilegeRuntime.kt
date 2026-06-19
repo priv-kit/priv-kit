@@ -3,6 +3,7 @@ package priv.kit.runtime
 import android.content.Context
 import android.os.IBinder
 import android.os.RemoteException
+import android.util.Log
 import priv.kit.core.IPrivilegeServer
 import priv.kit.core.PrivilegeHandshakeContract
 import priv.kit.core.PrivilegeMode
@@ -12,17 +13,23 @@ import priv.kit.core.PrivilegeServerHandshakeRegistry
 import priv.kit.core.PrivilegeServerHandshakeResult
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeStartupException
-import priv.kit.core.PrivilegeToken
+import priv.kit.adb.PrivilegeAdbCommand
+import priv.kit.adb.PrivilegeAdbStartOptions
+import priv.kit.adb.PrivilegeAdbStartResult
+import priv.kit.adb.PrivilegeAdbStarter
 import priv.kit.root.PrivilegeRootCommand
 import priv.kit.root.PrivilegeRootStartResult
 import priv.kit.root.PrivilegeRootStarter
+import java.io.Closeable
 
 class PrivilegeRuntime private constructor(
     private val context: Context,
 ) {
+    private val ownerTokenStore = PrivilegeOwnerTokenStore(context)
+
     @Throws(PrivilegeStartupException::class)
     fun startRoot(timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS): PrivilegeSession {
-        val token = PrivilegeToken.generate()
+        val token = ownerTokenStore.readOrCreate()
         val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
         var startResult: PrivilegeRootStartResult? = null
 
@@ -45,8 +52,9 @@ class PrivilegeRuntime private constructor(
         }
     }
 
+    @Throws(PrivilegeStartupException::class)
     fun prepareManualShell(): PrivilegeManualShellConnection {
-        val token = PrivilegeToken.generate()
+        val token = ownerTokenStore.readOrCreate()
         val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
         val command = buildManualShellCommand(token)
         return PrivilegeManualShellConnection(
@@ -54,6 +62,77 @@ class PrivilegeRuntime private constructor(
             pendingHandshake = pendingHandshake,
             onHandshake = ::createSession,
         )
+    }
+
+    @Throws(PrivilegeStartupException::class)
+    fun createAdbStarter(adbDeviceName: String? = null): PrivilegeAdbStarter =
+        buildAdbStarter(
+            ownerToken = ownerTokenStore.readOrCreate(),
+            adbDeviceName = adbDeviceName,
+        )
+
+    @Throws(PrivilegeStartupException::class)
+    fun connectReadyServer(): PrivilegeSession? {
+        val token = ownerTokenStore.readOrCreate()
+        val handshakeResult = PrivilegeServerHandshakeRegistry.claimReady(token) ?: return null
+        return createSession(handshakeResult)
+    }
+
+    @Throws(PrivilegeStartupException::class)
+    fun watchReadyServers(
+        onReady: (PrivilegeSession) -> Unit,
+        onFailure: (Throwable) -> Unit = {},
+    ): Closeable {
+        val token = ownerTokenStore.readOrCreate()
+        return PrivilegeServerHandshakeRegistry.addReadyListener(token) { handshakeResult ->
+            try {
+                onReady(createSession(handshakeResult))
+            } catch (throwable: Throwable) {
+                onFailure(throwable)
+            }
+        }
+    }
+
+    @Throws(PrivilegeStartupException::class)
+    fun startAdb(
+        options: PrivilegeAdbStartOptions = PrivilegeAdbStartOptions(),
+        timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
+        adbDeviceName: String? = null,
+    ): PrivilegeSession {
+        val token = ownerTokenStore.readOrCreate()
+        val adbStarter = buildAdbStarter(
+            ownerToken = token,
+            adbDeviceName = adbDeviceName,
+        )
+        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
+        var startResult: PrivilegeAdbStartResult? = null
+
+        try {
+            Log.i(TAG, "Starting through ADB keySignature=<redacted>")
+            val adbStartResult = adbStarter.start(buildAdbCommand(token), options)
+            startResult = adbStartResult
+            Log.i(
+                TAG,
+                "ADB command completed on ${adbStartResult.host}:${adbStartResult.port}; waiting for Binder handshake",
+            )
+            val handshakeResult = pendingHandshake.await(timeoutMillis)
+            Log.i(TAG, "ADB Binder handshake received")
+            return createSession(handshakeResult)
+        } catch (e: PrivilegeStartupException) {
+            Log.e(TAG, "ADB startup failed", e)
+            val adbResult = startResult
+            if (adbResult != null) {
+                val serverLog = readAdbServerDiagnosticLog(adbResult, adbStarter)
+                throw PrivilegeStartupException(
+                    "ADB start did not complete the Privileged Server handshake on " +
+                        "${adbResult.host}:${adbResult.port}: ${adbResult.output.text()}$serverLog",
+                    e,
+                )
+            }
+            throw e
+        } finally {
+            PrivilegeServerHandshakeRegistry.cancel(token)
+        }
     }
 
     @Throws(PrivilegeStartupException::class)
@@ -85,7 +164,7 @@ class PrivilegeRuntime private constructor(
         )
         return PrivilegeManualShellCommand(
             token = token,
-            commandLine = launchCommand.detachedCommandLine,
+            commandLine = buildShortAdbStarterCommand(token),
             classpath = launchCommand.classpath,
             mainClass = launchCommand.mainClass,
             providerAuthority = launchCommand.providerAuthority,
@@ -107,6 +186,96 @@ class PrivilegeRuntime private constructor(
         )
     }
 
+    private fun buildAdbCommand(token: String): PrivilegeAdbCommand {
+        val launchCommand = buildServerLaunchCommand(
+            token = token,
+            mode = PrivilegeMode.SHELL,
+        )
+        val diagnosticLogPath = PrivilegeAdbStarter.DIAGNOSTIC_LOG_PREFIX +
+            System.currentTimeMillis() +
+            ".log"
+        return PrivilegeAdbCommand(
+            commandLine = buildAdbStarterCommand(
+                launchCommand = launchCommand,
+                starterPath = buildAdbStarterPath(),
+                diagnosticLogPath = diagnosticLogPath,
+            ),
+            classpath = launchCommand.classpath,
+            mainClass = launchCommand.mainClass,
+            providerAuthority = launchCommand.providerAuthority,
+            launchCommand = launchCommand,
+            diagnosticLogPath = diagnosticLogPath,
+        )
+    }
+
+    private fun buildAdbStarterCommand(
+        launchCommand: PrivilegeServerLaunchCommand,
+        starterPath: String,
+        diagnosticLogPath: String,
+    ): String =
+        buildString {
+            append(shellArg(starterPath))
+            append(" --classpath ")
+            append(shellArg(launchCommand.classpath))
+            append(" --main-class ")
+            append(shellArg(launchCommand.mainClass))
+            append(" --process-name ")
+            append(shellArg(buildServerProcessName(launchCommand.packageName)))
+            append(" --log-path ")
+            append(shellArg(diagnosticLogPath))
+            append(" --")
+            append(" --token ")
+            append(shellArg(launchCommand.token))
+            append(" --provider-authority ")
+            append(shellArg(launchCommand.providerAuthority))
+            append(" --package-name ")
+            append(shellArg(launchCommand.packageName))
+            append(" --mode ")
+            append(launchCommand.mode.value)
+            append(" --protocol-version ")
+            append(launchCommand.protocolVersion)
+            append(" --server-version ")
+            append(shellArg(launchCommand.serverVersion))
+        }
+
+    private fun buildShortAdbStarterCommand(token: String): String =
+        buildString {
+            append(shellArg(buildAdbStarterPath()))
+            append(" --token ")
+            append(shellArg(token))
+        }
+
+    private fun buildAdbStarterPath(): String =
+        context.applicationInfo.nativeLibraryDir.trimEnd('/') + "/" + STARTER_LIBRARY_NAME
+
+    private fun buildAdbStarter(
+        ownerToken: String,
+        adbDeviceName: String?,
+    ): PrivilegeAdbStarter =
+        PrivilegeAdbStarter.forOwnerToken(
+            context = context,
+            ownerToken = ownerToken,
+            adbDeviceName = adbDeviceName,
+        )
+
+    private fun readAdbServerDiagnosticLog(
+        adbResult: PrivilegeAdbStartResult,
+        adbStarter: PrivilegeAdbStarter,
+    ): String {
+        val path = adbResult.command.diagnosticLogPath ?: return ""
+        val output = runCatching {
+            adbStarter.readDiagnosticLog(
+                host = adbResult.host,
+                port = adbResult.port,
+                path = path,
+            )
+                .text()
+        }.getOrElse { throwable ->
+            "[diag] Failed to fetch server diagnostic log: ${throwable.javaClass.simpleName}: ${throwable.message}"
+        }
+        return "\n[server diagnostic log: $path]\n$output"
+    }
+
     private fun buildServerLaunchCommand(
         token: String,
         mode: PrivilegeMode,
@@ -114,26 +283,27 @@ class PrivilegeRuntime private constructor(
         val packageName = context.packageName
         val classpath = buildClasspath()
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(packageName)
+        val processName = buildServerProcessName(packageName)
         val foregroundCommandLine = buildString {
             append("CLASSPATH=")
-            append(shellQuote(classpath))
+            append(shellArg(classpath))
             append(" /system/bin/app_process /system/bin")
             append(" --nice-name=")
-            append(shellQuote(SERVER_PROCESS_NAME))
+            append(shellArg(processName))
             append(' ')
-            append(shellQuote(SERVER_MAIN_CLASS))
+            append(shellArg(SERVER_MAIN_CLASS))
             append(" --token ")
-            append(shellQuote(token))
+            append(shellArg(token))
             append(" --provider-authority ")
-            append(shellQuote(providerAuthority))
+            append(shellArg(providerAuthority))
             append(" --package-name ")
-            append(shellQuote(packageName))
+            append(shellArg(packageName))
             append(" --mode ")
             append(mode.value)
             append(" --protocol-version ")
             append(PrivilegeProtocol.VERSION)
             append(" --server-version ")
-            append(shellQuote(PrivilegeProtocol.SERVER_VERSION))
+            append(shellArg(PrivilegeProtocol.SERVER_VERSION))
         }
 
         return PrivilegeServerLaunchCommand(
@@ -159,8 +329,31 @@ class PrivilegeRuntime private constructor(
         return apkPaths.joinToString(":")
     }
 
-    private fun shellQuote(value: String): String =
-        "'" + value.replace("'", "'\"'\"'") + "'"
+    private fun shellArg(value: String): String =
+        if (value.isNotEmpty() && value.all(::isShellBareChar)) {
+            value
+        } else {
+            "'" + value.replace("'", "'\"'\"'") + "'"
+        }
+
+    private fun isShellBareChar(char: Char): Boolean =
+        char in 'A'..'Z' ||
+            char in 'a'..'z' ||
+            char in '0'..'9' ||
+            char == '/' ||
+            char == '.' ||
+            char == '_' ||
+            char == '-' ||
+            char == ':' ||
+            char == '=' ||
+            char == '@' ||
+            char == '%' ||
+            char == '+' ||
+            char == ',' ||
+            char == '~'
+
+    private fun buildServerProcessName(packageName: String): String =
+        "$packageName$SERVER_PROCESS_SUFFIX"
 
     @Throws(PrivilegeStartupException::class)
     private fun readServerInfo(server: IPrivilegeServer): PrivilegeServerInfo {
@@ -179,8 +372,10 @@ class PrivilegeRuntime private constructor(
 
     companion object {
         private const val DEFAULT_START_TIMEOUT_MILLIS = 15_000L
-        private const val SERVER_PROCESS_NAME = "priv-kit-server"
+        private const val SERVER_PROCESS_SUFFIX = ":priv-kit-server"
         private const val SERVER_MAIN_CLASS = "priv.kit.server.PrivilegeServerMain"
+        private const val STARTER_LIBRARY_NAME = "libprivkitstarter.so"
+        private const val TAG = "PrivKitRuntime"
 
         fun create(context: Context): PrivilegeRuntime =
             PrivilegeRuntime(context.applicationContext)

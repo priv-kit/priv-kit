@@ -6,9 +6,27 @@ android {
     namespace = "priv.kit.adb"
     compileSdk = libs.versions.compileSdk.get().toInt()
     buildToolsVersion = libs.versions.buildTools.get()
+    ndkVersion = "30.0.14904198"
 
     defaultConfig {
         minSdk = libs.versions.minSdk.get().toInt()
+
+        externalNativeBuild {
+            cmake {
+                arguments += "-DANDROID_STL=none"
+            }
+        }
+    }
+
+    buildFeatures {
+        prefab = true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "4.1.2"
+        }
     }
 
     compileOptions {
@@ -19,4 +37,9 @@ android {
 
 dependencies {
     api(project(":priv-core"))
+    implementation(libs.boringssl)
+    implementation(libs.bouncycastle.bcpkix)
+    implementation(libs.hiddenapibypass)
+    implementation(libs.libcxx)
+    testImplementation(libs.junit)
 }

@@ -4,6 +4,7 @@ import android.os.Binder
 import android.os.Bundle
 import android.os.IBinder
 import android.os.Process
+import android.util.Log
 import java.lang.reflect.InvocationTargetException
 
 internal object PrivilegeServerProviderCall {
@@ -15,6 +16,7 @@ internal object PrivilegeServerProviderCall {
     ): Bundle? {
         val activityManager = activityManager()
         val providerToken = Binder()
+        Log.i(TAG, "Requesting content provider authority=$authority")
         val holder = getContentProviderExternal(
             activityManager = activityManager,
             authority = authority,
@@ -24,6 +26,7 @@ internal object PrivilegeServerProviderCall {
 
         return try {
             val provider = providerFrom(holder)
+            Log.i(TAG, "Content provider acquired providerClass=${provider.javaClass.name}")
             invokeProviderCall(
                 provider = provider,
                 callingPackage = callingPackageName(),
@@ -33,6 +36,7 @@ internal object PrivilegeServerProviderCall {
                 extras = extras,
             )
         } finally {
+            Log.i(TAG, "Releasing content provider authority=$authority")
             removeContentProviderExternal(
                 activityManager = activityManager,
                 authority = authority,
@@ -112,6 +116,7 @@ internal object PrivilegeServerProviderCall {
             }.getOrNull() ?: continue
 
             try {
+                Log.i(TAG, "Invoking provider.call signatureArgs=${candidate.parameterTypes.size}")
                 return callMethod.invoke(provider, *candidate.arguments) as Bundle?
             } catch (exception: InvocationTargetException) {
                 val cause = exception.targetException
@@ -260,4 +265,5 @@ internal object PrivilegeServerProviderCall {
     private const val USER_SYSTEM = 0
     private const val SHELL_UID = 2000
     private const val SHELL_PACKAGE_NAME = "com.android.shell"
+    private const val TAG = "PrivKitServer"
 }

@@ -20,3 +20,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 }
+
+dependencies {
+    testImplementation(libs.junit)
+}

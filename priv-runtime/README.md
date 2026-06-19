@@ -7,6 +7,7 @@ Namespace and package root: `priv.kit.runtime`.
 Phase 1 contents:
 
 - `PrivilegeRuntime.startRoot()` for the minimal Root runtime loop.
+- `PrivilegeRuntime.startAdb()` for Wireless Debugging / TCP ADB startup, including custom `PrivilegeAdbIdentity`.
 - `PrivilegeRuntime.prepareManualShell()` for generating a token-scoped command that a developer can paste into `adb shell`.
 - `PrivilegeSession`, which stores `serverInfo`, `serverBinder`, and the connected/disconnected state.
 - `PrivilegeHandshakeProvider`, the app-side Binder handoff endpoint protected by a random token.

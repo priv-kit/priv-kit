@@ -6,4 +6,5 @@ interface IPrivilegeServer {
     int getMode();
     int getProtocolVersion();
     String getServerVersion();
+    void shutdown();
 }

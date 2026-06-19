@@ -47,6 +47,12 @@ class PrivilegeSession internal constructor(
         markDisconnected()
     }
 
+    @Throws(RemoteException::class)
+    fun shutdown() {
+        serverBinder.shutdown()
+        close()
+    }
+
     private fun markDisconnected() {
         val listener: ((PrivilegeSession) -> Unit)?
         synchronized(lock) {

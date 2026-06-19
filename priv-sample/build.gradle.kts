@@ -16,8 +16,22 @@ android {
         versionName = "0.1.0"
     }
 
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
+        }
+    }
+
     buildFeatures {
         compose = true
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 
     compileOptions {
@@ -27,6 +41,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":priv-adb"))
     implementation(project(":priv-runtime"))
     implementation(project(":priv-server"))
     implementation(libs.androidx.activity.compose)

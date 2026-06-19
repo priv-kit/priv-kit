@@ -4,10 +4,14 @@ import android.content.ContentProvider
 import android.content.ContentValues
 import android.database.Cursor
 import android.net.Uri
+import android.os.Binder
 import android.os.Bundle
+import android.os.IBinder
+import android.util.Log
 import priv.kit.core.PrivilegeHandshakeContract
 import priv.kit.core.PrivilegeServerHandshakeRegistry
 import priv.kit.core.PrivilegeServerInfo
+import java.util.concurrent.ConcurrentHashMap
 
 class PrivilegeHandshakeProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
@@ -19,29 +23,30 @@ class PrivilegeHandshakeProvider : ContentProvider() {
 
         val token = extras?.getString(PrivilegeHandshakeContract.EXTRA_TOKEN)
         val serverBinder = extras?.getBinder(PrivilegeHandshakeContract.EXTRA_SERVER_BINDER)
-        val accepted = if (extras != null && token == arg) {
-            PrivilegeServerHandshakeRegistry.deliver(
+        Log.i(
+            TAG,
+            "Handshake call received tokenMatches=${token == arg}, hasExtras=${extras != null}, " +
+                "hasBinder=${serverBinder != null}",
+        )
+        val accepted = if (extras != null && token == arg && token == ownerToken()) {
+            PrivilegeServerHandshakeRegistry.deliverReady(
                 token = token,
                 serverBinder = serverBinder,
-                serverInfo = PrivilegeServerInfo(
-                    uid = extras.getInt(PrivilegeHandshakeContract.EXTRA_UID),
-                    pid = extras.getInt(PrivilegeHandshakeContract.EXTRA_PID),
-                    mode = extras.getInt(PrivilegeHandshakeContract.EXTRA_MODE),
-                    protocolVersion = extras.getInt(
-                        PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION,
-                    ),
-                    serverVersion = extras.getString(
-                        PrivilegeHandshakeContract.EXTRA_SERVER_VERSION,
-                        "",
-                    ),
-                ),
+                serverInfo = extras.toServerInfo(),
             )
         } else {
             false
         }
+        Log.i(TAG, "Handshake call accepted=$accepted")
 
         return Bundle().apply {
             putBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, accepted)
+            if (accepted && token != null) {
+                putBinder(
+                    PrivilegeHandshakeContract.RESULT_OWNER_BINDER,
+                    ownerBinders.getOrPut(token) { Binder() },
+                )
+            }
         }
     }
 
@@ -69,4 +74,31 @@ class PrivilegeHandshakeProvider : ContentProvider() {
         selection: String?,
         selectionArgs: Array<out String>?,
     ): Int = 0
+
+    companion object {
+        private const val TAG = "PrivKitRuntime"
+        private val ownerBinders = ConcurrentHashMap<String, IBinder>()
+    }
+
+    private fun ownerToken(): String? =
+        runCatching {
+            context?.let { PrivilegeOwnerTokenStore(it).readIfExists() }
+        }.getOrElse { throwable ->
+            Log.e(TAG, "Failed to read owner token for handshake validation", throwable)
+            null
+        }
+
+    private fun Bundle.toServerInfo(): PrivilegeServerInfo =
+        PrivilegeServerInfo(
+            uid = getInt(PrivilegeHandshakeContract.EXTRA_UID),
+            pid = getInt(PrivilegeHandshakeContract.EXTRA_PID),
+            mode = getInt(PrivilegeHandshakeContract.EXTRA_MODE),
+            protocolVersion = getInt(
+                PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION,
+            ),
+            serverVersion = getString(
+                PrivilegeHandshakeContract.EXTRA_SERVER_VERSION,
+                "",
+            ),
+        )
 }
