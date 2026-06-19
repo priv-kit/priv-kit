@@ -15,6 +15,8 @@ Phase 1 contents:
 
 Runtime owns token generation, shared server launch command construction, pending handshakes, protocol validation, session creation, and Binder death handling. Startup strategy modules only execute or transport the launch command.
 
+The runtime module carries `priv-server` as a runtime-only dependency so apps do not need to declare the server module separately. The server module contributes the R8 consumer rule that keeps its `app_process` entry point.
+
 `startRoot()`, `startAdb()`, `createManualShellCommand()`, and `prepareManualShell()` accept `followDeathDelayMillis`. When the app-side owner process dies, the Privileged Server waits for that grace period before exiting. The default is `PrivilegeRuntime.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS` (10 minutes). Use `0` to exit immediately.
 
 By default, owner-death reconnect is passive: the server waits until the app main process is already running again, then sends the Binder handoff. Set `activeReconnectOnOwnerDeath = true` only if the server should actively call the app handshake provider while the app process is dead, which may start the app process.

@@ -10,5 +10,6 @@ Phase 1 contents:
 - A minimal `IPrivilegeServer` implementation exposing uid, pid, mode, protocol version, and server version.
 - Token-checked Binder handoff back to the app-side runtime provider.
 - Delayed owner-death follow behavior with passive reconnect during the configured grace period, optional active reconnect, runtime-synced reconnect configuration, and in-place replacement startup when the app runtime rejects a stale server version.
+- A consumer R8 rule that keeps the `PrivilegeServerMain.main(String[])` `app_process` entry point while still allowing method-body optimization.
 
 The server entry point does not initialize AndroidX Startup, app ContentProviders, an app `Application`, third-party libraries, UserService, Binder registry, or Android system service wrappers.

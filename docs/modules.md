@@ -146,6 +146,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 状态观察；
 - 启动策略组合；
 - 构造项目自有 Privileged Server 的 `app_process` 启动命令；
+- 以 runtime-only 依赖携带 `:priv-server`，让接入应用只需声明运行时模块；
 - token、pending handshake、Session 创建和 Binder death handling。
 
 禁止：

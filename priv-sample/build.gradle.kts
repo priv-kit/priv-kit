@@ -17,7 +17,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+        }
+
         release {
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             isDebuggable = false
@@ -43,7 +48,6 @@ android {
 dependencies {
     implementation(project(":priv-adb"))
     implementation(project(":priv-runtime"))
-    implementation(project(":priv-server"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.runtime)
