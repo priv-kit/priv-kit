@@ -70,7 +70,7 @@ internal data class PrivilegeSampleScreenState(
     val connectPortText: String = "",
     val pairingCode: String = "",
     val pairingStatus: PrivilegeAdbPairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
-    val pairingMessage: String = "Enter the pairing code shown by Wireless debugging.",
+    val pairingMessage: String = "Enter the pairing code shown by Wireless debugging. Ports are discovered automatically.",
     val tcpPortText: String = PrivilegeAdbStartOptions.DEFAULT_TCP_PORT.toString(),
     val message: String = "Ready",
     val logText: String = "",
@@ -89,8 +89,8 @@ internal fun PrivilegeSampleScreenState.wirelessDebugLogText(): String =
         appendLine("adbDeviceName=$adbDeviceName")
         appendLine("adbKeySource=owner-token")
         appendLine("adbKeyFingerprint=${adbKeyFingerprint ?: "not loaded"}")
-        appendLine("pairingPort=${pairingPortText.ifBlank { "blank" }}")
-        appendLine("connectPort=${connectPortText.ifBlank { "blank" }}")
+        appendLine("pairingPort=${pairingPortText.ifBlank { "auto" }}")
+        appendLine("connectPort=${connectPortText.ifBlank { "auto" }}")
         appendLine("tcpPort=${tcpPortText.ifBlank { "blank" }}")
         appendLine("serverInfo=${serverInfo ?: "none"}")
         appendLine()
@@ -103,17 +103,13 @@ internal fun PrivilegeSampleScreen(
     state: PrivilegeSampleScreenState,
     onPageSelected: (PrivilegeSamplePage) -> Unit,
     onAdbDeviceNameChanged: (String) -> Unit,
-    onPairingPortChanged: (String) -> Unit,
-    onConnectPortChanged: (String) -> Unit,
     onRefreshAdbFingerprint: () -> Unit,
     onCheckAdbPairing: () -> Unit,
     onPairingCodeChanged: (String) -> Unit,
     onTcpPortChanged: (String) -> Unit,
     onStartRootRuntime: () -> Unit,
     onCopyManualCommand: () -> Unit,
-    onDiscoverPairingPort: () -> Unit,
     onPairWirelessAdb: () -> Unit,
-    onDiscoverConnectPort: () -> Unit,
     onStartWirelessAdb: () -> Unit,
     onSwitchToTcp: () -> Unit,
     onRestartTcp: () -> Unit,
@@ -157,21 +153,16 @@ internal fun PrivilegeSampleScreen(
             PrivilegeSamplePage.ADB -> WirelessAdbPage(
                 state = state,
                 onAdbDeviceNameChanged = onAdbDeviceNameChanged,
-                onPairingPortChanged = onPairingPortChanged,
-                onConnectPortChanged = onConnectPortChanged,
                 onRefreshAdbFingerprint = onRefreshAdbFingerprint,
                 onCheckAdbPairing = onCheckAdbPairing,
                 onPairingCodeChanged = onPairingCodeChanged,
                 onCopyLog = onCopyLog,
-                onDiscoverPairingPort = onDiscoverPairingPort,
                 onPairWirelessAdb = onPairWirelessAdb,
-                onDiscoverConnectPort = onDiscoverConnectPort,
                 onStartWirelessAdb = onStartWirelessAdb,
             )
             PrivilegeSamplePage.TCP -> TcpPage(
                 state = state,
                 onTcpPortChanged = onTcpPortChanged,
-                onConnectPortChanged = onConnectPortChanged,
                 onSwitchToTcp = onSwitchToTcp,
                 onRestartTcp = onRestartTcp,
                 onStopTcp = onStopTcp,
@@ -373,15 +364,11 @@ private fun PairingStatusPanel(
 private fun WirelessAdbPage(
     state: PrivilegeSampleScreenState,
     onAdbDeviceNameChanged: (String) -> Unit,
-    onPairingPortChanged: (String) -> Unit,
-    onConnectPortChanged: (String) -> Unit,
     onRefreshAdbFingerprint: () -> Unit,
     onCheckAdbPairing: () -> Unit,
     onPairingCodeChanged: (String) -> Unit,
     onCopyLog: () -> Unit,
-    onDiscoverPairingPort: () -> Unit,
     onPairWirelessAdb: () -> Unit,
-    onDiscoverConnectPort: () -> Unit,
     onStartWirelessAdb: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -417,41 +404,20 @@ private fun WirelessAdbPage(
             onClick = onCopyLog,
         )
         SampleField("Pairing code", state.pairingCode, onPairingCodeChanged)
-        SampleField("Pairing port (optional)", state.pairingPortText, onPairingPortChanged)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SampleAction(
-                label = "Find Pairing Port",
-                enabled = !state.busy,
-                background = Color(0xFF5E4FA2),
-                modifier = Modifier.weight(1f),
-                onClick = onDiscoverPairingPort,
-            )
-            SampleAction(
-                label = "Pair by Code",
-                enabled = !state.busy,
-                background = Color(0xFF1769E0),
-                modifier = Modifier.weight(1f),
-                onClick = onPairWirelessAdb,
-            )
-        }
-
-        SampleField("Connect port", state.connectPortText, onConnectPortChanged)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SampleAction(
-                label = "Discover Connect Port",
-                enabled = !state.busy,
-                background = Color(0xFF5E6873),
-                modifier = Modifier.weight(1f),
-                onClick = onDiscoverConnectPort,
-            )
-            SampleAction(
-                label = "Start Wireless ADB",
-                enabled = !state.busy,
-                background = Color(0xFF1769E0),
-                modifier = Modifier.weight(1f),
-                onClick = onStartWirelessAdb,
-            )
-        }
+        RuntimeInfoRow(label = "pairing port", value = state.pairingPortText.ifBlank { "auto" })
+        RuntimeInfoRow(label = "connect port", value = state.connectPortText.ifBlank { "auto" })
+        SampleAction(
+            label = "Pair by Code",
+            enabled = !state.busy,
+            background = Color(0xFF1769E0),
+            onClick = onPairWirelessAdb,
+        )
+        SampleAction(
+            label = "Start Wireless ADB",
+            enabled = !state.busy,
+            background = Color(0xFF1769E0),
+            onClick = onStartWirelessAdb,
+        )
     }
 }
 
@@ -459,13 +425,12 @@ private fun WirelessAdbPage(
 private fun TcpPage(
     state: PrivilegeSampleScreenState,
     onTcpPortChanged: (String) -> Unit,
-    onConnectPortChanged: (String) -> Unit,
     onSwitchToTcp: () -> Unit,
     onRestartTcp: () -> Unit,
     onStopTcp: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SampleField("Current wireless port", state.connectPortText, onConnectPortChanged)
+        RuntimeInfoRow(label = "last connect port", value = state.connectPortText.ifBlank { "auto" })
         SampleField("TCP port", state.tcpPortText, onTcpPortChanged)
         SampleAction(
             label = "Switch to TCP Mode",

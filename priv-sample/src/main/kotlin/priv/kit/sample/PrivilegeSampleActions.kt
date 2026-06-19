@@ -33,26 +33,6 @@ internal fun MainActivity.selectPage(page: PrivilegeSamplePage) {
     screenState = screenState.copy(page = page)
 }
 
-internal fun MainActivity.updatePairingPort(value: String) {
-    screenState = screenState.copy(
-        pairingPortText = value,
-        pairingStatus = if (screenState.pairingStatus == PrivilegeAdbPairingStatus.FAILED) {
-            PrivilegeAdbPairingStatus.NOT_PAIRED
-        } else {
-            screenState.pairingStatus
-        },
-        pairingMessage = if (screenState.pairingStatus == PrivilegeAdbPairingStatus.FAILED) {
-            "Enter the pairing code shown by Wireless debugging."
-        } else {
-            screenState.pairingMessage
-        },
-    )
-}
-
-internal fun MainActivity.updateConnectPort(value: String) {
-    screenState = screenState.copy(connectPortText = value)
-}
-
 internal fun MainActivity.updatePairingCode(value: String) {
     screenState = screenState.copy(
         pairingCode = value,
@@ -62,7 +42,7 @@ internal fun MainActivity.updatePairingCode(value: String) {
             screenState.pairingStatus
         },
         pairingMessage = if (screenState.pairingStatus == PrivilegeAdbPairingStatus.FAILED) {
-            "Enter the pairing code shown by Wireless debugging."
+            "Enter the pairing code shown by Wireless debugging. Ports are discovered automatically."
         } else {
             screenState.pairingMessage
         },
@@ -163,23 +143,8 @@ internal fun MainActivity.refreshAdbFingerprint() {
 internal fun MainActivity.checkWirelessAdbPairing(showBusy: Boolean) {
     if (showBusy && screenState.busy) return
 
-    val portText = screenState.connectPortText.trim()
-    val port = if (portText.isBlank()) null else portText.toIntOrNull()
-    if (portText.isNotBlank() && port == null) {
-        screenState = screenState.copy(
-            message = "Connect port must be a number",
-            pairingStatus = PrivilegeAdbPairingStatus.FAILED,
-            pairingMessage = "Connect port must be a number.",
-        )
-        return
-    }
-
     val adbDeviceName = currentAdbDeviceNameOverride()
-    val message = if (port == null) {
-        "Checking Wireless ADB pairing by discovering connect port..."
-    } else {
-        "Checking Wireless ADB pairing on port $port..."
-    }
+    val message = "Checking Wireless ADB pairing by discovering the connect port..."
     screenState = screenState.copy(
         busy = if (showBusy) true else screenState.busy,
         pairingStatus = PrivilegeAdbPairingStatus.CHECKING,
@@ -190,10 +155,7 @@ internal fun MainActivity.checkWirelessAdbPairing(showBusy: Boolean) {
 
     executor.execute {
         try {
-            val result = createAdbStarter(adbDeviceName).checkPairing(
-                port = port,
-                discoverPort = port == null,
-            )
+            val result = createAdbStarter(adbDeviceName).checkPairing()
             runOnUiThread {
                 val resultMessage = if (result.paired) {
                     "Current owner-token key is paired on ${result.host}:${result.port}."
@@ -278,73 +240,26 @@ internal fun MainActivity.startRootRuntime() {
     }
 }
 
-internal fun MainActivity.discoverPairingPort() {
-    val adbDeviceName = currentAdbDeviceNameOverride()
-    screenState = screenState.copy(
-        pairingStatus = PrivilegeAdbPairingStatus.SEARCHING,
-        pairingMessage = "Searching for the Wireless debugging pairing service...",
-    )
-    runBusy(
-        message = "Discovering ADB pairing port...",
-        action = { createAdbStarter(adbDeviceName).discoverPairingPort() },
-        onFailure = {
-            screenState = screenState.copy(
-                pairingStatus = PrivilegeAdbPairingStatus.FAILED,
-                pairingMessage = it.message ?: it.javaClass.name,
-            )
-        },
-    ) { port ->
-        screenState = screenState.copy(
-            pairingPortText = port.toString(),
-            pairingStatus = PrivilegeAdbPairingStatus.FOUND,
-            pairingMessage = "Pairing service found on port $port. Enter the pairing code to pair.",
-        )
-        "Pairing port: $port"
-    }
-}
-
 internal fun MainActivity.pairWirelessAdb() {
-    val portText = screenState.pairingPortText.trim()
-    val port = if (portText.isBlank()) null else portText.toIntOrNull()
     val code = screenState.pairingCode.trim()
     val adbDeviceName = currentAdbDeviceNameOverride()
-    if (portText.isNotBlank() && port == null) {
-        screenState = screenState.copy(
-            message = "Pairing port must be a number",
-            pairingStatus = PrivilegeAdbPairingStatus.FAILED,
-            pairingMessage = "Pairing port must be a number.",
-        )
-        return
-    }
     if (code.isBlank()) {
         screenState = screenState.copy(
             message = "Pairing code is required",
             pairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
-            pairingMessage = "Enter the pairing code shown by Wireless debugging.",
+            pairingMessage = "Enter the pairing code shown by Wireless debugging. Ports are discovered automatically.",
         )
         return
     }
 
     screenState = screenState.copy(
-        pairingStatus = if (port == null) {
-            PrivilegeAdbPairingStatus.SEARCHING
-        } else {
-            PrivilegeAdbPairingStatus.PAIRING
-        },
-        pairingMessage = if (port == null) {
-            "Searching for the pairing service before pairing..."
-        } else {
-            "Pairing with Wireless debugging on port $port..."
-        },
+        pairingStatus = PrivilegeAdbPairingStatus.SEARCHING,
+        pairingMessage = "Searching for the pairing service before pairing...",
     )
     runBusy(
-        message = if (port == null) {
-            "Discovering ADB pairing port and pairing..."
-        } else {
-            "Pairing with wireless ADB on port $port..."
-        },
+        message = "Discovering ADB pairing port and pairing...",
         action = {
-            createAdbStarter(adbDeviceName).pair(pairingCode = code, port = port)
+            createAdbStarter(adbDeviceName).pair(pairingCode = code)
         },
         onFailure = {
             screenState = screenState.copy(
@@ -365,40 +280,24 @@ internal fun MainActivity.pairWirelessAdb() {
     }
 }
 
-internal fun MainActivity.discoverConnectPort() {
-    val adbDeviceName = currentAdbDeviceNameOverride()
-    runBusy(
-        message = "Discovering ADB connect port...",
-        action = { createAdbStarter(adbDeviceName).discoverConnectPort() },
-    ) { port ->
-        screenState = screenState.copy(connectPortText = port.toString())
-        "Connect port: $port"
-    }
-}
-
 internal fun MainActivity.startWirelessAdb() {
-    val port = screenState.connectPortText.toIntOrNull()
     val adbDeviceName = currentAdbDeviceNameOverride()
-    runSessionStart("Starting through Wireless ADB...") {
+    runSessionStart("Discovering ADB connect port and starting Wireless ADB...") {
         PrivilegeRuntime.create(applicationContext).startAdb(
-            options = PrivilegeAdbStartOptions(
-                port = port,
-                discoverPort = port == null,
-            ),
+            options = PrivilegeAdbStartOptions(),
             adbDeviceName = adbDeviceName,
         )
     }
 }
 
 internal fun MainActivity.switchToTcp() {
-    val connectPort = screenState.connectPortText.toIntOrNull()
     val tcpPort = screenState.tcpPortText.toIntOrNull() ?: PrivilegeAdbStartOptions.DEFAULT_TCP_PORT
     val adbDeviceName = currentAdbDeviceNameOverride()
     runBusy(
-        message = "Switching ADB to TCP port $tcpPort...",
+        message = "Discovering current ADB connect port and switching to TCP port $tcpPort...",
         action = {
             val starter = createAdbStarter(adbDeviceName)
-            val activeConnectPort = connectPort ?: starter.discoverConnectPort()
+            val activeConnectPort = starter.discoverConnectPort()
             starter.switchToTcp(currentPort = activeConnectPort, tcpPort = tcpPort)
         },
     ) {
