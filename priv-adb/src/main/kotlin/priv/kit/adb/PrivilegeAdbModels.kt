@@ -32,8 +32,10 @@ class PrivilegeAdbIdentity private constructor(
         }
     }
 
+    // Android parses the ADB public key comment with whitespace splitting, so
+    // names written to the key comment must be a single token.
     internal val adbDeviceName: String
-        get() = deviceName.trim()
+        get() = deviceName.filterNot { it.isWhitespace() }
 
     companion object {
         const val DEFAULT_DEVICE_NAME = "priv-kit"

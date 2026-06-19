@@ -8,7 +8,7 @@ class PrivilegeAdbIdentityTest {
     fun defaultIdentityUsesPrivKitName() {
         val identity = PrivilegeAdbIdentity.default(" Demo App ")
 
-        assertEquals("Demo App", identity.adbDeviceName)
+        assertEquals("DemoApp", identity.adbDeviceName)
         assertEquals(PrivilegeAdbIdentity.DEFAULT_STORAGE_SIGNATURE, identity.storageSignature)
     }
 
@@ -19,8 +19,16 @@ class PrivilegeAdbIdentityTest {
             deviceName = " Demo App ",
         )
 
-        assertEquals("Demo App", identity.adbDeviceName)
+        assertEquals("DemoApp", identity.adbDeviceName)
         assertEquals("owner-token", identity.storageSignature)
+    }
+
+    @Test
+    fun whitespaceInDeviceNameIsRemovedForAdbName() {
+        val identity = PrivilegeAdbIdentity.default("Priv\tKit Sample")
+
+        assertEquals("PrivKitSample", identity.adbDeviceName)
+        assertEquals("Priv\tKit Sample", identity.deviceName)
     }
 
     @Test(expected = IllegalArgumentException::class)
