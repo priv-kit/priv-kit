@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.PrivKitSample" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:colorAccent">#1769E0</item>
+    </style>
+</resources>

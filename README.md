@@ -1,0 +1,132 @@
+# Priv Kit
+
+`Priv Kit`（仓库名 `priv-kit`）是一个面向 Android 单应用的自管理 Privileged Runtime。
+
+这个项目只解决一件很窄的事：帮助一个应用启动、连接并使用自己的 Privileged Server 进程。项目提供运行时生命周期、Binder 接入、UserService 支持和多种启动策略，不提供 Android 系统 API 兼容层，也不提供高级系统能力封装。
+
+## 项目状态
+
+当前仓库处于设计阶段。在项目宪章、架构和模块边界被确认并保持一致之前，不应开始源码实现。
+
+项目边界以 [docs/project-constitution.md](docs/project-constitution.md) 为准。后续所有设计和实现都必须遵守该文档。
+
+## 命名规范
+
+项目身份：
+
+- GitHub Organization：`priv-kit`
+- GitHub Repository：`priv-kit`
+- 项目对外名称：`Priv Kit`
+
+Maven 坐标：
+
+- `groupId`：`io.github.priv-kit`
+- `artifactId`：`priv-core`、`priv-runtime`、`priv-server`、`priv-binder`、`priv-user-service`、`priv-adb`、`priv-root`、`priv-delegate`、`priv-ui`
+
+示例：
+
+```kotlin
+implementation("io.github.priv-kit:priv-runtime:1.0.0")
+```
+
+Gradle 模块必须使用 `priv-*` 命名：
+
+- `:priv-core`
+- `:priv-runtime`
+- `:priv-server`
+- `:priv-binder`
+- `:priv-user-service`
+- `:priv-adb`
+- `:priv-root`
+- `:priv-delegate`
+- `:priv-ui`
+- `:priv-sample`
+
+Kotlin package 必须统一使用 `priv.kit.*`：
+
+- `priv.kit.core`
+- `priv.kit.runtime`
+- `priv.kit.server`
+- `priv.kit.binder`
+- `priv.kit.userservice`
+- `priv.kit.adb`
+- `priv.kit.root`
+- `priv.kit.delegate`
+- `priv.kit.ui`
+
+禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*` 作为源码 package。
+
+公开 API 必须使用完整单词 `Privilege*` 命名，例如 `PrivilegeKit`、`PrivilegeSession`、`PrivilegeMode`、`PrivilegeServer`、`PrivilegeBinder`、`PrivilegeUserService`、`PrivilegeRuntime` 和 `PrivilegeConnection`。
+
+禁止公开 API 使用 `Priv*` 缩写，例如 `PrivKit`、`PrivSession`、`PrivMode`、`PrivServer`、`PrivBinder` 和 `PrivUserService`。
+
+## 目标
+
+- 启动 Privileged Server。
+- 连接 Privileged Server。
+- 提供 Binder 能力。
+- 提供 UserService 能力。
+- 支持 Root 启动。
+- 支持 ADB 启动。
+- 支持 Delegate 启动。
+- 让单个应用可以管理自己的特权进程运行时。
+
+## 非目标
+
+本项目不是 Android 系统 API 兼容层，也不能发展成兼容层。
+
+本项目不提供以下封装：
+
+- ActivityManager
+- PackageManager
+- InputManager
+- Settings
+- AppOps
+- 其他高级 Android 系统能力
+
+以下风格的 API 明确不属于本项目范围：
+
+- `session.input.tap(...)`
+- `session.package.install(...)`
+- `session.settings.put(...)`
+- `session.appops.setMode(...)`
+
+需要这些能力的接入方，应基于本项目提供的 Binder 或 UserService 原语自行实现。
+
+## 模块
+
+计划模块：
+
+- `:priv-core`
+- `:priv-runtime`
+- `:priv-server`
+- `:priv-binder`
+- `:priv-user-service`
+- `:priv-adb`
+- `:priv-root`
+- `:priv-delegate`
+- `:priv-ui`
+- `:priv-sample`
+
+各模块职责和依赖规则见 [docs/modules.md](docs/modules.md)。
+
+## 架构
+
+项目整体分为几层：
+
+- 客户端运行时，负责选择启动策略并连接服务端；
+- Privileged Server 进程，只暴露项目自己的底层特权能力；
+- Binder 和 UserService 原语，供应用定义自己的能力；
+- 可选 Compose UI 帮助层和示例代码，用来展示运行时状态和启动流程，不扩展核心范围。
+
+完整设计见 [docs/architecture.md](docs/architecture.md)。
+
+## 语言和构建约束
+
+- 除 hidden-api stub、framework mirror class、AIDL 兼容桥接外，所有手写源码都必须使用 Kotlin。
+- 所有 Gradle 构建脚本都必须使用 Kotlin DSL，也就是 `.gradle.kts`。
+- 普通业务模块不得新增 Java 源码。
+
+## 开发规则
+
+新增任何源码实现之前，必须先对照 [docs/project-constitution.md](docs/project-constitution.md)。如果某个设计需要高级 Android API 封装，它属于接入应用，不属于本项目。

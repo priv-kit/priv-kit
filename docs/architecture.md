@@ -1,0 +1,272 @@
+# 架构设计
+
+`Priv Kit`（仓库名 `priv-kit`）围绕一个小型特权运行时闭环组织：
+
+1. 应用请求客户端运行时启动或连接；
+2. 运行时选择启动策略；
+3. 启动策略启动或触达 Privileged Server；
+4. 运行时建立 Binder 连接；
+5. 应用使用 Binder 或 UserService 原语运行自己的特权逻辑。
+
+架构有意停在这些原语上。包管理、输入注入、设置修改、activity 控制、app-ops 修改等领域操作属于应用职责。
+
+## 设计原则
+
+- 公开接口保持原语化，不做领域封装。
+- 将 Privileged Server 视为应用自有基础设施。
+- 启动策略可替换，并隔离各自细节。
+- Binder 和 UserService 是下游能力的扩展点。
+- UI 模块只观察和控制生命周期。
+- 优先提供明确状态和错误报告，不把恢复行为藏起来。
+- 避免发展成兼容层。
+
+## 命名约束
+
+架构命名必须与 [project-constitution.md](project-constitution.md) 保持一致：
+
+- GitHub Organization 和 Repository 都固定为 `priv-kit`。
+- 项目对外名称固定为 `Priv Kit`。
+- Maven `groupId` 固定为 `io.github.priv-kit`。
+- 发布模块的 Maven `artifactId` 使用 `priv-*`：`priv-core`、`priv-runtime`、`priv-server`、`priv-binder`、`priv-user-service`、`priv-adb`、`priv-root`、`priv-delegate`、`priv-ui`。
+- Gradle 模块使用 `:priv-core`、`:priv-runtime`、`:priv-server`、`:priv-binder`、`:priv-user-service`、`:priv-adb`、`:priv-root`、`:priv-delegate`、`:priv-ui`、`:priv-sample`。
+- Kotlin package 统一使用 `priv.kit.*`，例如 `priv.kit.runtime`、`priv.kit.server`、`priv.kit.binder`、`priv.kit.userservice`。
+- 禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*` 作为源码 package。
+- 公开 API 使用完整单词 `Privilege*`，例如 `PrivilegeKit`、`PrivilegeSession`、`PrivilegeRuntime`、`PrivilegeConnection`。
+- 公开 API 禁止使用 `Priv*` 缩写，例如 `PrivKit`、`PrivSession`、`PrivRuntime`、`PrivConnection`。
+
+示例依赖坐标：
+
+```kotlin
+implementation("io.github.priv-kit:priv-runtime:1.0.0")
+```
+
+## 语言和构建约束
+
+除以下情况外，所有手写源码统一使用 Kotlin：
+
+- hidden-api stub；
+- framework mirror class；
+- AIDL 兼容桥接。
+
+所有 Gradle 脚本统一使用 Kotlin DSL，即 `*.gradle.kts`。
+
+禁止在普通模块新增 Java 源码。
+
+## 高层组件
+
+```text
+Application
+    |
+    v
+:priv-runtime
+    |
+    +-------------------+--------------------+----------------------+
+    |                   |                    |                      |
+    v                   v                    v                      v
+:priv-root          :priv-adb          :priv-delegate          :priv-ui
+    |                   |                    |
+    +-------------------+--------------------+
+                        |
+                        v
+                  :priv-server
+                        |
+              +---------+----------+
+              |                    |
+              v                    v
+          :priv-binder       :priv-user-service
+              |                    |
+              +---------+----------+
+                        |
+                        v
+                   :priv-core
+```
+
+`:priv-core` 是共享契约基础。其他模块通过它共享值类型、状态模型和错误分类。
+
+## 运行时生命周期
+
+运行时是客户端侧的协调者，负责以下状态机：
+
+- idle；
+- starting；
+- connecting；
+- connected；
+- reconnecting；
+- stopping；
+- stopped；
+- failed。
+
+运行时必须提供足够信息，让应用决定下一步动作，但不得把这些状态转成领域化 Android 操作。
+
+运行时预期职责：
+
+- 接收启动配置；
+- 选择启动策略；
+- 启动或触达 Privileged Server；
+- 建立 Binder 连接；
+- 监听服务端死亡；
+- 在配置允许时重连；
+- 向可选 UI 模块暴露连接状态；
+- 提供 Binder 和 UserService 原语入口。
+
+## 服务端角色
+
+Privileged Server 是以特权运行的运行时端点。
+
+服务端预期职责：
+
+- 使用启动策略传入的参数完成 bootstrap；
+- 发布项目自有 Binder 端点；
+- 在平台允许时验证连接客户端是否为目标应用；
+- 管理 Binder 端点交换；
+- 托管或协调 UserService 生命周期；
+- 报告服务端身份、协议版本和生命周期状态。
+
+服务端不得暴露项目定义的高级系统 API。它可以执行应用自定义的 UserService 逻辑，但这些逻辑不属于本项目的公开能力面。
+
+## 启动策略
+
+项目支持三类启动：
+
+- `:priv-root` 中的 Root 启动
+- `:priv-adb` 中的 ADB 启动
+- `:priv-delegate` 中的 Delegate 启动
+
+每种策略把应用配置转换成服务端启动或连接尝试。策略模块可以了解 shell 命令、启动参数、传输搭建和策略特有诊断。运行时通过共享契约消费它们的结果。
+
+共享的 `app_process` 服务端启动命令由运行时根据核心启动值模型构造。Root、ADB 和 Delegate 模块只负责各自的命令执行通道和失败诊断。运行时负责 token、pending handshake、Binder 校验、Session 创建和 death handling。
+
+启动策略和服务端实际权限模式是两个概念：Root、ADB 或 Delegate 描述命令如何被执行；Root 或 Shell mode 描述服务端最终运行身份。
+
+启动策略不得变成操作库。Root 模块可以通过 root 启动服务端，但不得提供用于包安装、输入事件、设置写入、app-ops 修改或其他系统操作的公开 root helper。
+
+## Binder 架构
+
+Binder 是最低层的特权通信原语。
+
+Binder 支持应覆盖：
+
+- 连接 Privileged Server 的 Binder 端点；
+- Binder 端点注册；
+- Binder 端点查找；
+- Binder death recipient 处理；
+- transaction 失败传播；
+- 项目自有契约的协议和版本检查。
+
+Binder 支持不应覆盖：
+
+- Android framework service 的类型化封装；
+- 高级特权操作 facade；
+- hidden framework API 的兼容层。
+
+应用可以基于本项目的 Binder 管线定义自己的 Binder 契约。
+
+## UserService 架构
+
+UserService 是应用自定义特权逻辑的扩展机制。
+
+项目负责生命周期管线：
+
+- 声明 UserService 身份；
+- 请求 start 或 bind；
+- 将客户端 Binder 连接到服务 Binder；
+- 观察服务死亡；
+- unbind 或 stop；
+- 暴露生命周期错误。
+
+服务行为由应用负责。本项目不应在 UserService API 中定义可复用特权功能。
+
+## UI 架构
+
+`:priv-ui` 是可选 Compose UI 层。
+
+它可以提供：
+
+- 运行时状态展示；
+- 启动方式选择界面；
+- 连接和错误展示帮助能力；
+- start、stop、reconnect、bind、unbind 等生命周期动作控件。
+
+它不得提供：
+
+- 系统操作界面；
+- 包管理工具；
+- 输入工具；
+- 设置编辑器；
+- app-ops 编辑器；
+- 特权自动化控制台。
+
+UI 模块只映射运行时原语，不扩展项目范围。
+
+项目 UI 策略统一使用 Jetpack Compose。`:priv-ui` 和 `:priv-sample` 都禁止使用传统 Android View UI 逻辑，例如手写 `android.view.*` / `android.widget.*` 视图树、通过 `Activity#setContentView(...)` 装配界面、或新增用于界面结构的 XML layout 文件。
+
+## 错误模型
+
+错误应按项目自有关注点分组：
+
+- startup unavailable；
+- startup denied；
+- startup command failed；
+- server bootstrap failed；
+- connection timeout；
+- protocol mismatch；
+- Binder died；
+- UserService failed to start；
+- UserService disconnected；
+- delegate unavailable；
+- invalid configuration。
+
+错误应携带可行动的诊断上下文，但不得把某个策略的内部细节泄漏到无关模块。
+
+## 安全模型
+
+安全姿态很简单：本项目帮助一个应用管理自己的特权运行时，应避免发展成通用特权代理。
+
+设计要求：
+
+- 在平台允许时优先做显式应用身份校验；
+- 保持服务端入口收窄；
+- 让启动参数可审计；
+- 不暴露特权操作的全局注册表；
+- 不把跨应用访问作为默认能力；
+- 将 Delegate 启动视为启动策略，而不是广泛的第三方能力共享。
+
+## 兼容模型
+
+项目只能在运行时自身需要时包含兼容桥接代码。
+
+允许的兼容区域：
+
+- 服务端或 Binder bootstrap 所需的 hidden-api stub；
+- 编译或绑定运行时契约所需的 framework mirror class；
+- 项目自有 Binder 协议所需的 AIDL 兼容桥接。
+
+禁止的兼容区域：
+
+- 大范围 Android 系统服务封装；
+- 面向下游应用功能的便利兼容 API；
+- 类似 AndroidX 的 framework 抽象层。
+
+## 扩展模型
+
+下游应用通过以下方式扩展本项目：
+
+- 定义自己的 Binder 契约；
+- 实现自己的 UserService 逻辑；
+- 选择启动策略；
+- 自行决定自己的代码执行哪些特权操作。
+
+本项目应让这些扩展点可靠，但不应把下游操作吸收到自己的 API 中。
+
+## 验证预期
+
+后续实现应通过以下方式验证：
+
+- 运行时状态转换测试；
+- 启动策略契约测试；
+- Binder 连接和死亡处理测试；
+- UserService 生命周期测试；
+- 在可行时检查 sample app 的 Root、ADB 和 Delegate 流程；
+- API 评审时检查项目宪章。
+
+验证必须包含负向检查，确保禁止的高级 API 不会被引入。
