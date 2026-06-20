@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,6 +28,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import priv.kit.adb.PrivilegeAdbStartOptions
@@ -70,7 +72,7 @@ internal data class PrivilegeSampleScreenState(
     val connectPortText: String = "",
     val pairingCode: String = "",
     val pairingStatus: PrivilegeAdbPairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
-    val pairingMessage: String = "Enter the pairing code shown by Wireless debugging. Ports are discovered automatically.",
+    val pairingMessage: String = "Enter the Wireless debugging pairing code, or reply from the pairing notification.",
     val tcpPortText: String = PrivilegeAdbStartOptions.DEFAULT_TCP_PORT.toString(),
     val message: String = "Ready",
     val logText: String = "",
@@ -110,6 +112,7 @@ internal fun PrivilegeSampleScreen(
     onStartRootRuntime: () -> Unit,
     onCopyManualCommand: () -> Unit,
     onPairWirelessAdb: () -> Unit,
+    onStartNotificationPairing: () -> Unit,
     onStartWirelessAdb: () -> Unit,
     onSwitchToTcp: () -> Unit,
     onRestartTcp: () -> Unit,
@@ -158,6 +161,7 @@ internal fun PrivilegeSampleScreen(
                 onPairingCodeChanged = onPairingCodeChanged,
                 onCopyLog = onCopyLog,
                 onPairWirelessAdb = onPairWirelessAdb,
+                onStartNotificationPairing = onStartNotificationPairing,
                 onStartWirelessAdb = onStartWirelessAdb,
             )
             PrivilegeSamplePage.TCP -> TcpPage(
@@ -369,6 +373,7 @@ private fun WirelessAdbPage(
     onPairingCodeChanged: (String) -> Unit,
     onCopyLog: () -> Unit,
     onPairWirelessAdb: () -> Unit,
+    onStartNotificationPairing: () -> Unit,
     onStartWirelessAdb: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -403,14 +408,24 @@ private fun WirelessAdbPage(
             background = Color(0xFF2A3541),
             onClick = onCopyLog,
         )
-        SampleField("Pairing code", state.pairingCode, onPairingCodeChanged)
-        RuntimeInfoRow(label = "pairing port", value = state.pairingPortText.ifBlank { "auto" })
+        SampleField(
+            label = "Pairing code",
+            value = state.pairingCode,
+            onValueChange = onPairingCodeChanged,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+        )
         RuntimeInfoRow(label = "connect port", value = state.connectPortText.ifBlank { "auto" })
         SampleAction(
             label = "Pair by Code",
             enabled = !state.busy,
             background = Color(0xFF1769E0),
             onClick = onPairWirelessAdb,
+        )
+        SampleAction(
+            label = "Pair via Notification",
+            enabled = !state.busy,
+            background = Color(0xFF1769E0),
+            onClick = onStartNotificationPairing,
         )
         SampleAction(
             label = "Start Wireless ADB",
@@ -527,6 +542,7 @@ private fun SampleField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         BasicText(
@@ -542,6 +558,7 @@ private fun SampleField(
             value = value,
             onValueChange = onValueChange,
             singleLine = true,
+            keyboardOptions = keyboardOptions,
             textStyle = TextStyle(
                 color = Color(0xFF101418),
                 fontFamily = FontFamily.Monospace,

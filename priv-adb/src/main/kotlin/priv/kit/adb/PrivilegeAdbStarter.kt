@@ -245,8 +245,9 @@ class PrivilegeAdbStarter private constructor(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             throw PrivilegeStartupException("Wireless ADB pairing requires Android 11 or above")
         }
+        val normalizedPairingCode = pairingCode.toPrivilegeAdbPairingCode()
         require(port == null || port in 1..65535) { "port must be between 1 and 65535" }
-        require(pairingCode.isNotBlank()) { "pairingCode must not be blank" }
+        require(normalizedPairingCode.isNotBlank()) { "pairingCode must contain digits" }
         require(host.isNotBlank()) { "host must not be blank" }
         require(portDiscoveryTimeoutMillis > 0L) { "portDiscoveryTimeoutMillis must be positive" }
 
@@ -257,7 +258,7 @@ class PrivilegeAdbStarter private constructor(
             } else {
                 throw PrivilegeAdbException("ADB pairing port is not available")
             }
-            PrivilegeAdbPairingClient(host, activePort, pairingCode, key).use { client ->
+            PrivilegeAdbPairingClient(host, activePort, normalizedPairingCode, key).use { client ->
                 if (!client.start()) {
                     throw PrivilegeAdbException("ADB pairing failed")
                 }
@@ -465,5 +466,11 @@ class PrivilegeAdbStarter private constructor(
 private fun String.shellQuote(): String =
     "'" + replace("'", "'\"'\"'") + "'"
 
+internal fun String.toPrivilegeAdbPairingCode(): String =
+    filter(Char::isDigit)
+        .take(ADB_PAIRING_CODE_LENGTH)
+
 private fun Throwable.toFailureMessage(): String =
     "${javaClass.simpleName}: ${message.orEmpty()}".trim()
+
+private const val ADB_PAIRING_CODE_LENGTH = 6

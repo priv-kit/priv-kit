@@ -1,8 +1,12 @@
 package priv.kit.sample
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStarter
 import priv.kit.runtime.PrivilegeRuntime
@@ -34,15 +38,16 @@ internal fun MainActivity.selectPage(page: PrivilegeSamplePage) {
 }
 
 internal fun MainActivity.updatePairingCode(value: String) {
+    val pairingCode = value.toPairingCodeDigits()
     screenState = screenState.copy(
-        pairingCode = value,
+        pairingCode = pairingCode,
         pairingStatus = if (screenState.pairingStatus == PrivilegeAdbPairingStatus.FAILED) {
             PrivilegeAdbPairingStatus.NOT_PAIRED
         } else {
             screenState.pairingStatus
         },
         pairingMessage = if (screenState.pairingStatus == PrivilegeAdbPairingStatus.FAILED) {
-            "Enter the pairing code shown by Wireless debugging. Ports are discovered automatically."
+            DEFAULT_PAIRING_MESSAGE
         } else {
             screenState.pairingMessage
         },
@@ -247,7 +252,7 @@ internal fun MainActivity.pairWirelessAdb() {
         screenState = screenState.copy(
             message = "Pairing code is required",
             pairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
-            pairingMessage = "Enter the pairing code shown by Wireless debugging. Ports are discovered automatically.",
+            pairingMessage = DEFAULT_PAIRING_MESSAGE,
         )
         return
     }
@@ -278,6 +283,70 @@ internal fun MainActivity.pairWirelessAdb() {
         )
         "Wireless ADB paired on port ${result.port}"
     }
+}
+
+internal fun MainActivity.startNotificationPairing() {
+    if (screenState.busy) return
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+    ) {
+        startNotificationPairingAfterPermission = true
+        screenState = screenState.copy(
+            pairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
+            pairingMessage = "Allow notifications, then use the pairing notification to enter the code without leaving Settings.",
+            message = "Notification permission required",
+        )
+        requestPermissions(
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+            NOTIFICATION_PERMISSION_REQUEST_CODE,
+        )
+        return
+    }
+
+    val message = "Notification pairing started. Open Wireless debugging pairing and reply with the code from the notification."
+    screenState = screenState.copy(
+        pairingStatus = PrivilegeAdbPairingStatus.SEARCHING,
+        pairingMessage = message,
+        message = message,
+    )
+    appendLog(message)
+    PrivilegeSampleAdbPairingService.start(
+        context = this,
+        adbDeviceName = currentAdbDeviceNameOverride(),
+    )
+}
+
+internal fun MainActivity.handleNotificationPairingEvent(intent: Intent) {
+    if (intent.action != PrivilegeSampleAdbPairingService.ACTION_PAIRING_EVENT) return
+
+    val event = intent.getStringExtra(PrivilegeSampleAdbPairingService.EXTRA_EVENT) ?: return
+    val eventMessage = intent.getStringExtra(PrivilegeSampleAdbPairingService.EXTRA_MESSAGE)
+        ?: "Wireless ADB notification pairing event: $event"
+    val port = intent.getIntExtra(PrivilegeSampleAdbPairingService.EXTRA_PAIRING_PORT, -1)
+        .takeIf { it in 1..65535 }
+    val adbDeviceName = intent.getStringExtra(PrivilegeSampleAdbPairingService.EXTRA_ADB_DEVICE_NAME)
+    val fingerprint = intent.getStringExtra(PrivilegeSampleAdbPairingService.EXTRA_ADB_KEY_FINGERPRINT)
+    val pairingStatus = when (event) {
+        PrivilegeSampleAdbPairingService.EVENT_SEARCHING -> PrivilegeAdbPairingStatus.SEARCHING
+        PrivilegeSampleAdbPairingService.EVENT_FOUND -> PrivilegeAdbPairingStatus.FOUND
+        PrivilegeSampleAdbPairingService.EVENT_PAIRING -> PrivilegeAdbPairingStatus.PAIRING
+        PrivilegeSampleAdbPairingService.EVENT_PAIRED -> PrivilegeAdbPairingStatus.PAIRED
+        PrivilegeSampleAdbPairingService.EVENT_FAILED -> PrivilegeAdbPairingStatus.FAILED
+        PrivilegeSampleAdbPairingService.EVENT_STOPPED -> PrivilegeAdbPairingStatus.NOT_PAIRED
+        else -> screenState.pairingStatus
+    }
+
+    screenState = screenState.copy(
+        pairingStatus = pairingStatus,
+        pairingMessage = eventMessage,
+        pairingPortText = port?.toString() ?: screenState.pairingPortText,
+        adbDeviceName = adbDeviceName ?: screenState.adbDeviceName,
+        adbKeyFingerprint = fingerprint ?: screenState.adbKeyFingerprint,
+        adbKeyFingerprintLoading = false,
+        message = eventMessage,
+    )
+    appendLog("Notification pairing: $eventMessage")
 }
 
 internal fun MainActivity.startWirelessAdb() {
@@ -503,6 +572,15 @@ internal fun MainActivity.copySessionLog() {
 }
 
 private const val MAX_LOG_CHARS = 32_000
+internal const val NOTIFICATION_PERMISSION_REQUEST_CODE = 41
 private const val SAMPLE_CONFIG_DIRECTORY = ".priv-kit"
 private const val ADB_DEVICE_NAME_FILE = "adb-device-name.txt"
 private const val DEFAULT_ADB_DEVICE_NAME = "priv-kit"
+private const val DEFAULT_PAIRING_MESSAGE =
+    "Enter the Wireless debugging pairing code, or reply from the pairing notification."
+
+internal fun String.toPairingCodeDigits(): String =
+    filter(Char::isDigit)
+        .take(PAIRING_CODE_LENGTH)
+
+private const val PAIRING_CODE_LENGTH = 6
