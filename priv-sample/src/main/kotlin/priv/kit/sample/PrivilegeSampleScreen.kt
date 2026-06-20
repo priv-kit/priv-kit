@@ -89,10 +89,8 @@ internal data class PrivilegeSampleScreenState(
     val pairingStatus: PrivilegeAdbPairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
     val pairingMessage: String = "Enter the Wireless debugging pairing code, or reply from the pairing notification.",
     val tcpPortText: String = PrivilegeAdbStartOptions.DEFAULT_TCP_PORT.toString(),
-    val binderRegistered: Boolean = false,
-    val binderEndpointAlive: Boolean? = null,
     val userManagerCached: Boolean = false,
-    val binderMessage: String = "Connect to a Privileged Server, then register a local Binder endpoint.",
+    val binderMessage: String = "Connect to a Privileged Server, then get IUserManager.",
     val binderLastException: String = "",
     val message: String = "Ready",
     val logText: String = "",
@@ -113,8 +111,6 @@ internal fun PrivilegeSampleScreenState.wirelessDebugLogText(): String =
         appendLine("pairingPort=${pairingPortText.ifBlank { "auto" }}")
         appendLine("connectPort=${connectPortText.ifBlank { "auto" }}")
         appendLine("tcpPort=${tcpPortText.ifBlank { "blank" }}")
-        appendLine("binderRegistered=$binderRegistered")
-        appendLine("binderEndpointAlive=${binderEndpointAlive ?: "unknown"}")
         appendLine("userManagerCached=$userManagerCached")
         appendLine("binderMessage=$binderMessage")
         appendLine("serverInfo=${serverInfo ?: "none"}")
@@ -142,11 +138,8 @@ internal fun PrivilegeSampleScreen(
     onRestartTcp: () -> Unit,
     onStopTcp: () -> Unit,
     onStopServer: () -> Unit,
-    onRegisterBinder: () -> Unit,
-    onGetBinder: () -> Unit,
+    onGetUserManager: () -> Unit,
     onGetUsers: () -> Unit,
-    onRequireBinderAfterUnregister: () -> Unit,
-    onUnregisterBinder: () -> Unit,
     onClearLog: () -> Unit,
     onCopyLog: () -> Unit,
 ) {
@@ -186,11 +179,8 @@ internal fun PrivilegeSampleScreen(
                         state = state,
                         selectedDestination = PrivilegeSampleDestination.Binder,
                         onDestinationSelected = onDestinationSelected,
-                        onRegisterBinder = onRegisterBinder,
-                        onGetBinder = onGetBinder,
+                        onGetUserManager = onGetUserManager,
                         onGetUsers = onGetUsers,
-                        onRequireBinderAfterUnregister = onRequireBinderAfterUnregister,
-                        onUnregisterBinder = onUnregisterBinder,
                         onStopServer = onStopServer,
                     )
                 }
@@ -332,11 +322,8 @@ private fun BinderTestPage(
     state: PrivilegeSampleScreenState,
     selectedDestination: PrivilegeSampleDestination,
     onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
-    onRegisterBinder: () -> Unit,
-    onGetBinder: () -> Unit,
+    onGetUserManager: () -> Unit,
     onGetUsers: () -> Unit,
-    onRequireBinderAfterUnregister: () -> Unit,
-    onUnregisterBinder: () -> Unit,
     onStopServer: () -> Unit,
 ) {
     SamplePageScaffold(
@@ -348,11 +335,8 @@ private fun BinderTestPage(
         StatusPanel(state, onStopServer)
         BinderPage(
             state = state,
-            onRegisterBinder = onRegisterBinder,
-            onGetBinder = onGetBinder,
+            onGetUserManager = onGetUserManager,
             onGetUsers = onGetUsers,
-            onRequireBinderAfterUnregister = onRequireBinderAfterUnregister,
-            onUnregisterBinder = onUnregisterBinder,
         )
     }
 }
@@ -373,53 +357,30 @@ private fun SectionTitle(text: String) {
 @Composable
 private fun BinderPage(
     state: PrivilegeSampleScreenState,
-    onRegisterBinder: () -> Unit,
-    onGetBinder: () -> Unit,
+    onGetUserManager: () -> Unit,
     onGetUsers: () -> Unit,
-    onRequireBinderAfterUnregister: () -> Unit,
-    onUnregisterBinder: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         BinderStatusPanel(state)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SampleAction(
-                label = "Register",
-                enabled = !state.busy && state.status == PrivilegeSampleStatus.CONNECTED,
-                background = Color(0xFF1769E0),
-                modifier = Modifier.weight(1f),
-                onClick = onRegisterBinder,
-            )
-            SampleAction(
-                label = "Get",
-                enabled = !state.busy && state.status == PrivilegeSampleStatus.CONNECTED,
+                label = if (state.userManagerCached) "IUserManager Cached" else "Get IUserManager",
+                enabled = !state.busy &&
+                    state.status == PrivilegeSampleStatus.CONNECTED &&
+                    !state.userManagerCached,
                 background = Color(0xFF5E4FA2),
                 modifier = Modifier.weight(1f),
-                onClick = onGetBinder,
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SampleAction(
-                label = "Require After Unregister",
-                enabled = !state.busy && state.status == PrivilegeSampleStatus.CONNECTED,
-                background = Color(0xFF2A3541),
-                modifier = Modifier.weight(1f),
-                onClick = onRequireBinderAfterUnregister,
+                onClick = onGetUserManager,
             )
             SampleAction(
-                label = "Unregister",
-                enabled = !state.busy && state.status == PrivilegeSampleStatus.CONNECTED,
-                background = Color(0xFFB42318),
+                label = "Get Users",
+                enabled = !state.busy &&
+                    (state.status == PrivilegeSampleStatus.CONNECTED || state.userManagerCached),
+                background = Color(0xFF087443),
                 modifier = Modifier.weight(1f),
-                onClick = onUnregisterBinder,
+                onClick = onGetUsers,
             )
         }
-        SampleAction(
-            label = "Get Users",
-            enabled = !state.busy &&
-                (state.status == PrivilegeSampleStatus.CONNECTED || state.userManagerCached),
-            background = Color(0xFF087443),
-            onClick = onGetUsers,
-        )
         if (state.binderLastException.isNotBlank()) {
             DiagnosticBlock(state.binderLastException)
         }
@@ -436,8 +397,6 @@ private fun BinderStatusPanel(state: PrivilegeSampleScreenState) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        RuntimeInfoRow(label = "registered", value = state.binderRegistered.toString())
-        RuntimeInfoRow(label = "alive", value = state.binderEndpointAlive?.toString() ?: "-")
         RuntimeInfoRow(label = "IUserManager", value = if (state.userManagerCached) "cached" else "-")
         SelectionContainer {
             BasicText(

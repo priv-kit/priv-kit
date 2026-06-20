@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import priv.kit.binder.PrivilegeBinderEndpointNotFoundException
 import priv.kit.binder.PrivilegeServerDisconnectedException
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStarter
@@ -62,7 +61,6 @@ internal fun MainActivity.clearLog() {
 }
 
 internal fun MainActivity.releasePrivilegeSample() {
-    clearSampleBinderHandles(closeRegistration = true)
     sampleUserManager = null
     readyServerWatcher?.close()
     readyServerWatcher = null
@@ -431,14 +429,17 @@ internal fun MainActivity.stopServer() {
         try {
             PrivilegeRuntime.shutdownServer()
             runOnUiThread {
-                clearSampleBinderHandles(closeRegistration = false)
+                val userManagerCached = screenState.userManagerCached || sampleUserManager != null
                 screenState = screenState.copy(
                     busy = false,
                     status = PrivilegeSampleStatus.DISCONNECTED,
                     serverInfo = null,
-                    binderRegistered = false,
-                    binderEndpointAlive = false,
-                    binderMessage = "Server stopped; Binder endpoint cleared",
+                    userManagerCached = userManagerCached,
+                    binderMessage = if (userManagerCached) {
+                        "Server stopped; cached IUserManager remains"
+                    } else {
+                        "Server stopped"
+                    },
                     binderLastException = "",
                     message = "Server stopped",
                 )
@@ -452,49 +453,15 @@ internal fun MainActivity.stopServer() {
     }
 }
 
-internal fun MainActivity.registerSampleBinderEndpoint() {
-    runBinderAction("Registering Binder endpoint...") {
-        clearSampleBinderHandles(closeRegistration = true)
-        val binder = android.os.Binder()
-        val registration = PrivilegeRuntime.registerBinderEndpoint(binder)
-        val endpoint = PrivilegeRuntime.requireBinderEndpoint()
-        val deathWatcher = endpoint.watchDeath {
-            runOnUiThread {
-                screenState = screenState.copy(
-                    binderRegistered = false,
-                    binderEndpointAlive = false,
-                    binderMessage = "Binder endpoint died",
-                )
-                appendLog("Binder endpoint died")
-            }
+internal fun MainActivity.getUserManagerBinder() {
+    runBinderAction("Getting IUserManager...") {
+        if (sampleUserManager == null) {
+            sampleUserManager = PrivilegeSampleUserManager.create()
         }
-        sampleBinder = binder
-        sampleBinderRegistration = registration
-        sampleBinderDeathWatcher = deathWatcher
         BinderActionResult(
-            message = "Binder endpoint registered",
-            registered = true,
-            alive = endpoint.isAlive,
+            message = "IUserManager cached",
+            userManagerCached = true,
         )
-    }
-}
-
-internal fun MainActivity.getSampleBinderEndpoint() {
-    runBinderAction("Getting Binder endpoint...") {
-        val endpoint = PrivilegeRuntime.getBinderEndpoint()
-        if (endpoint == null) {
-            BinderActionResult(
-                message = "Binder endpoint not found",
-                registered = sampleBinderRegistration != null,
-                alive = false,
-            )
-        } else {
-            BinderActionResult(
-                message = "Binder endpoint found",
-                registered = sampleBinderRegistration != null,
-                alive = endpoint.isAlive,
-            )
-        }
     }
 }
 
@@ -510,47 +477,7 @@ internal fun MainActivity.getUserManagerUsers() {
         val users = userManager.getUsers()
         BinderActionResult(
             message = users.toBinderMessage(),
-            registered = null,
-            alive = PrivilegeRuntime.pingServer(),
             userManagerCached = true,
-        )
-    }
-}
-
-internal fun MainActivity.requireSampleBinderAfterUnregister() {
-    runBinderAction("Requiring Binder endpoint after unregister...") {
-        PrivilegeRuntime.unregisterBinderEndpoint()
-        clearSampleBinderHandles(closeRegistration = false)
-        try {
-            PrivilegeRuntime.requireBinderEndpoint()
-            BinderActionResult(
-                message = "Unexpectedly found Binder endpoint",
-                registered = false,
-                alive = null,
-            )
-        } catch (exception: PrivilegeBinderEndpointNotFoundException) {
-            BinderActionResult(
-                message = "Typed exception captured: ${exception.javaClass.simpleName}",
-                registered = false,
-                alive = false,
-                exceptionText = exception.toDiagnosticString(),
-            )
-        }
-    }
-}
-
-internal fun MainActivity.unregisterSampleBinderEndpoint() {
-    runBinderAction("Unregistering Binder endpoint...") {
-        val removed = PrivilegeRuntime.unregisterBinderEndpoint()
-        clearSampleBinderHandles(closeRegistration = false)
-        BinderActionResult(
-            message = if (removed) {
-                "Binder endpoint unregistered"
-            } else {
-                "Binder endpoint was not registered"
-            },
-            registered = false,
-            alive = false,
         )
     }
 }
@@ -563,8 +490,6 @@ private fun MainActivity.runBinderAction(
     if (screenState.busy) return
     if (requireConnected && !PrivilegeRuntime.pingServer()) {
         screenState = screenState.copy(
-            binderRegistered = false,
-            binderEndpointAlive = false,
             binderMessage = "No server connected",
             binderLastException = "",
             message = "No server connected",
@@ -587,8 +512,6 @@ private fun MainActivity.runBinderAction(
             runOnUiThread {
                 screenState = screenState.copy(
                     busy = false,
-                    binderRegistered = result.registered ?: screenState.binderRegistered,
-                    binderEndpointAlive = result.alive,
                     userManagerCached = result.userManagerCached ?: screenState.userManagerCached,
                     binderMessage = result.message,
                     binderLastException = result.exceptionText,
@@ -607,15 +530,10 @@ private fun MainActivity.runBinderAction(
 private fun MainActivity.setBinderFailure(throwable: Throwable) {
     val message = throwable.message ?: throwable.javaClass.name
     val disconnected = throwable is PrivilegeServerDisconnectedException
-    if (disconnected) {
-        clearSampleBinderHandles(closeRegistration = false)
-    }
     screenState = screenState.copy(
         busy = false,
         status = if (disconnected) PrivilegeSampleStatus.DISCONNECTED else screenState.status,
         serverInfo = if (disconnected) null else screenState.serverInfo,
-        binderRegistered = if (disconnected) false else screenState.binderRegistered,
-        binderEndpointAlive = if (disconnected) false else screenState.binderEndpointAlive,
         userManagerCached = screenState.userManagerCached || sampleUserManager != null,
         binderMessage = message,
         binderLastException = throwable.toDiagnosticString(),
@@ -625,24 +543,8 @@ private fun MainActivity.setBinderFailure(throwable: Throwable) {
     appendLog(throwable.toDiagnosticString())
 }
 
-private fun MainActivity.clearSampleBinderHandles(closeRegistration: Boolean) {
-    runCatching {
-        sampleBinderDeathWatcher?.close()
-    }
-    sampleBinderDeathWatcher = null
-    if (closeRegistration) {
-        runCatching {
-            sampleBinderRegistration?.close()
-        }
-    }
-    sampleBinderRegistration = null
-    sampleBinder = null
-}
-
 private data class BinderActionResult(
     val message: String,
-    val registered: Boolean?,
-    val alive: Boolean?,
     val userManagerCached: Boolean? = null,
     val exceptionText: String = "",
 )
@@ -720,15 +622,18 @@ private fun MainActivity.connectServer(
     serverInfo: PrivilegeServerInfo,
     commandLine: String?,
 ) {
-    clearSampleBinderHandles(closeRegistration = true)
+    val userManagerCached = screenState.userManagerCached || sampleUserManager != null
     screenState = screenState.copy(
         busy = false,
         status = PrivilegeSampleStatus.CONNECTED,
         serverInfo = serverInfo,
         manualShellCommandLine = commandLine ?: screenState.manualShellCommandLine,
-        binderRegistered = false,
-        binderEndpointAlive = null,
-        binderMessage = "Connected. Register a local Binder endpoint to test the binder module.",
+        userManagerCached = userManagerCached,
+        binderMessage = if (userManagerCached) {
+            "Connected. Cached IUserManager is ready."
+        } else {
+            "Connected. Get IUserManager to test Binder remote transact."
+        },
         binderLastException = "",
         message = "Connected",
     )
@@ -736,19 +641,16 @@ private fun MainActivity.connectServer(
 }
 
 private fun MainActivity.handleServerDisconnected() {
-    clearSampleBinderHandles(closeRegistration = false)
     val userManagerCached = screenState.userManagerCached || sampleUserManager != null
     screenState = screenState.copy(
         busy = false,
         status = PrivilegeSampleStatus.DISCONNECTED,
         serverInfo = null,
-        binderRegistered = false,
-        binderEndpointAlive = false,
         userManagerCached = userManagerCached,
         binderMessage = if (userManagerCached) {
             "Server disconnected; cached IUserManager remains clickable for the expected error test"
         } else {
-            "Server disconnected; Binder endpoint cleared"
+            "Server disconnected"
         },
         binderLastException = "",
         message = "Binder died",
@@ -762,9 +664,8 @@ private fun MainActivity.setFailure(throwable: Throwable) {
         busy = false,
         status = PrivilegeSampleStatus.DISCONNECTED,
         serverInfo = null,
-        binderRegistered = false,
-        binderEndpointAlive = false,
-        binderMessage = "Connection failed; no Binder endpoint is active",
+        userManagerCached = screenState.userManagerCached || sampleUserManager != null,
+        binderMessage = "Connection failed",
         binderLastException = throwable.toDiagnosticString(),
         message = message,
     )

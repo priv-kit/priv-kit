@@ -5,13 +5,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.os.Binder
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
-import priv.kit.binder.PrivilegeBinderRegistration
 import priv.kit.runtime.PrivilegeRuntime
 import java.io.Closeable
 import java.util.concurrent.Executors
@@ -21,9 +19,6 @@ class MainActivity : ComponentActivity() {
     internal val executor = Executors.newSingleThreadExecutor()
     internal var readyServerWatcher: Closeable? = null
     internal var serverDisconnectedWatcher: Closeable? = null
-    internal var sampleBinder: Binder? = null
-    internal var sampleBinderRegistration: PrivilegeBinderRegistration? = null
-    internal var sampleBinderDeathWatcher: Closeable? = null
     internal var sampleUserManager: PrivilegeSampleUserManagerProxy? = null
     internal var startNotificationPairingAfterPermission = false
     private val pairingEventReceiver = object : BroadcastReceiver() {
@@ -63,11 +58,8 @@ class MainActivity : ComponentActivity() {
                 onRestartTcp = { restartTcp() },
                 onStopTcp = { stopTcp() },
                 onStopServer = { stopServer() },
-                onRegisterBinder = { registerSampleBinderEndpoint() },
-                onGetBinder = { getSampleBinderEndpoint() },
+                onGetUserManager = { getUserManagerBinder() },
                 onGetUsers = { getUserManagerUsers() },
-                onRequireBinderAfterUnregister = { requireSampleBinderAfterUnregister() },
-                onUnregisterBinder = { unregisterSampleBinderEndpoint() },
                 onClearLog = { clearLog() },
                 onCopyLog = { copySessionLog() },
             )
