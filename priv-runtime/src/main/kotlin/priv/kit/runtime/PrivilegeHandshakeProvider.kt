@@ -13,6 +13,8 @@ import priv.kit.core.PrivilegeLaunchMode
 import priv.kit.core.PrivilegeProtocol
 import priv.kit.core.PrivilegeServerHandshakeRegistry
 import priv.kit.core.PrivilegeServerInfo
+import priv.kit.userservice.PrivilegeUserServiceContract
+import priv.kit.userservice.PrivilegeUserServiceHandshakeRegistry
 import java.util.concurrent.ConcurrentHashMap
 
 class PrivilegeHandshakeProvider : ContentProvider() {
@@ -22,6 +24,12 @@ class PrivilegeHandshakeProvider : ContentProvider() {
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
+        if (method == PrivilegeUserServiceContract.METHOD_USER_SERVICE_READY) {
+            return handleUserServiceReady(arg, extras)
+        }
+        if (method == PrivilegeUserServiceContract.METHOD_USER_SERVICE_CLAIM) {
+            return handleUserServiceClaim(arg, extras)
+        }
         if (method != PrivilegeHandshakeContract.METHOD_SERVER_READY) {
             return super.call(method, arg, extras)
         }
@@ -35,25 +43,30 @@ class PrivilegeHandshakeProvider : ContentProvider() {
         )
         val tokenAccepted = extras != null && token == arg && token == ownerToken()
         val serverInfo = if (tokenAccepted) {
-            requireNotNull(extras).toServerInfo()
+            extras.toServerInfo()
         } else {
             null
         }
+        val matchesCurrentRuntime = extras != null &&
+            serverInfo != null &&
+            serverInfo.matchesCurrentRuntime(extras)
+        val classpathIdentityMatches = extras?.classpathIdentityMatches() == true
         val restartCommandLine = if (
             tokenAccepted &&
             token != null &&
             serverInfo != null &&
-            !serverInfo.matchesCurrentRuntime()
+            !matchesCurrentRuntime
         ) {
             buildRestartCommandLine(token, serverInfo)
         } else {
             null
         }
-        val shouldShutdown = if (tokenAccepted && serverInfo != null && !serverInfo.matchesCurrentRuntime()) {
+        val shouldShutdown = if (tokenAccepted && serverInfo != null && !matchesCurrentRuntime) {
             Log.w(
                 TAG,
-                "Rejecting server version mismatch protocol=${serverInfo.protocolVersion}, " +
-                    "serverVersion=${serverInfo.serverVersion}",
+                "Rejecting server mismatch protocol=${serverInfo.protocolVersion}, " +
+                    "serverVersion=${serverInfo.serverVersion}, " +
+                    "classpathIdentityMatches=$classpathIdentityMatches",
             )
             true
         } else {
@@ -90,6 +103,41 @@ class PrivilegeHandshakeProvider : ContentProvider() {
                     PrivilegeHandshakeContract.RESULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
                     ownerDeathConfig.activeReconnectOnOwnerDeath,
                 )
+            }
+        }
+    }
+
+    private fun handleUserServiceReady(
+        arg: String?,
+        extras: Bundle?,
+    ): Bundle {
+        val token = extras?.getString(PrivilegeUserServiceContract.EXTRA_TOKEN)
+        val processBinder = extras?.getBinder(PrivilegeUserServiceContract.EXTRA_PROCESS_BINDER)
+        val pid = extras?.getInt(PrivilegeUserServiceContract.EXTRA_PID, 0) ?: 0
+        val accepted = token == arg &&
+            PrivilegeUserServiceHandshakeRegistry.deliverReady(
+                token = token,
+                processBinder = processBinder,
+                pid = pid,
+            )
+        Log.i(TAG, "UserService ready received accepted=$accepted pid=$pid")
+        return Bundle().apply {
+            putBoolean(PrivilegeUserServiceContract.KEY_SUCCESS, accepted)
+        }
+    }
+
+    private fun handleUserServiceClaim(
+        arg: String?,
+        extras: Bundle?,
+    ): Bundle {
+        val token = extras?.getString(PrivilegeUserServiceContract.EXTRA_TOKEN) ?: arg
+        val ready = PrivilegeUserServiceHandshakeRegistry.claimReady(token)
+        Log.i(TAG, "UserService claim tokenPresent=${!token.isNullOrBlank()} ready=${ready != null}")
+        return Bundle().apply {
+            putBoolean(PrivilegeUserServiceContract.KEY_SUCCESS, ready != null)
+            if (ready != null) {
+                putBinder(PrivilegeUserServiceContract.EXTRA_PROCESS_BINDER, ready.processBinder)
+                putInt(PrivilegeUserServiceContract.EXTRA_PID, ready.pid)
             }
         }
     }
@@ -135,9 +183,18 @@ class PrivilegeHandshakeProvider : ContentProvider() {
             null
         } ?: PrivilegeOwnerDeathConfig()
 
-    private fun PrivilegeServerInfo.matchesCurrentRuntime(): Boolean =
+    private fun PrivilegeServerInfo.matchesCurrentRuntime(extras: Bundle): Boolean =
         protocolVersion == PrivilegeProtocol.VERSION &&
-            serverVersion == PrivilegeProtocol.SERVER_VERSION
+            serverVersion == PrivilegeProtocol.SERVER_VERSION &&
+            extras.classpathIdentityMatches()
+
+    private fun Bundle.classpathIdentityMatches(): Boolean {
+        val currentContext = context ?: return false
+        val expected = PrivilegeServerLaunchCommandBuilder.buildClasspathIdentity(
+            PrivilegeServerLaunchCommandBuilder.buildClasspath(currentContext),
+        )
+        return getString(PrivilegeHandshakeContract.EXTRA_CLASSPATH_IDENTITY) == expected
+    }
 
     private fun buildRestartCommandLine(
         token: String,

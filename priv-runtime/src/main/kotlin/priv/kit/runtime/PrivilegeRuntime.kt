@@ -24,6 +24,11 @@ import priv.kit.core.PrivilegeStartupException
 import priv.kit.root.PrivilegeRootCommand
 import priv.kit.root.PrivilegeRootStartResult
 import priv.kit.root.PrivilegeRootStarter
+import priv.kit.userservice.PrivilegeUserServiceClient
+import priv.kit.userservice.PrivilegeUserServiceConnection
+import priv.kit.userservice.PrivilegeUserServiceManagerUnavailableException
+import priv.kit.userservice.PrivilegeUserServiceSpec
+import priv.kit.userservice.PrivilegeUserServiceStatus
 import java.io.Closeable
 import java.util.concurrent.CopyOnWriteArraySet
 
@@ -39,6 +44,7 @@ object PrivilegeRuntime {
     private var currentServer: ServerConnection? = null
     private val disconnectedListeners = CopyOnWriteArraySet<() -> Unit>()
     private val binderClient = PrivilegeBinderClient()
+    private val userServiceClient = PrivilegeUserServiceClient(::getUserServiceManagerBinder)
 
     init {
         PrivilegeBinderRuntime.installServerProvider(::requireServerInterface)
@@ -249,6 +255,18 @@ object PrivilegeRuntime {
     fun createRemoteBinderWrapper(targetBinder: IBinder): PrivilegeRemoteBinderWrapper =
         PrivilegeRemoteBinderWrapper(targetBinder)
 
+    fun startUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
+        userServiceClient.start(spec)
+
+    fun bindUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceConnection =
+        userServiceClient.bind(spec)
+
+    fun stopUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
+        userServiceClient.stop(spec)
+
+    fun getUserServiceStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
+        userServiceClient.getStatus(spec)
+
     internal fun connectHandshake(handshakeResult: PrivilegeServerHandshakeResult): PrivilegeServerInfo =
         connectServer(handshakeResult.serverBinder)
 
@@ -332,6 +350,13 @@ object PrivilegeRuntime {
 
     private fun requireServerInterface(): IPrivilegeServer =
         requireServerConnection().server
+
+    private fun getUserServiceManagerBinder(): IBinder? =
+        try {
+            requireServerInterface().getUserServiceManager()
+        } catch (exception: RemoteException) {
+            throw PrivilegeUserServiceManagerUnavailableException(exception)
+        }
 
     internal fun requireServerBinder(): IBinder =
         requireServerConnection().server.asBinder()
@@ -488,6 +513,8 @@ object PrivilegeRuntime {
             append(launchCommand.protocolVersion)
             append(" --server-version ")
             append(PrivilegeServerLaunchCommandBuilder.shellArg(launchCommand.serverVersion))
+            append(" --classpath-identity ")
+            append(PrivilegeServerLaunchCommandBuilder.shellArg(launchCommand.classpathIdentity))
             append(" --follow-death-delay-millis ")
             append(launchCommand.followDeathDelayMillis)
             append(" --active-reconnect-on-owner-death ")

@@ -5,6 +5,7 @@ data class PrivilegeServerLaunchCommand(
     val foregroundCommandLine: String,
     val detachedCommandLine: String,
     val classpath: String,
+    val classpathIdentity: String,
     val mainClass: String,
     val providerAuthority: String,
     val packageName: String,

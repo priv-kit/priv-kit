@@ -53,8 +53,12 @@ internal sealed interface PrivilegeSampleDestination {
         override val title: String = "Test Binder"
     }
 
+    data object UserService : PrivilegeSampleDestination {
+        override val title: String = "Test UserService"
+    }
+
     companion object {
-        val entries: List<PrivilegeSampleDestination> = listOf(Connection, Binder)
+        val entries: List<PrivilegeSampleDestination> = listOf(Connection, Binder, UserService)
     }
 }
 
@@ -92,6 +96,12 @@ internal data class PrivilegeSampleScreenState(
     val userManagerCached: Boolean = false,
     val binderMessage: String = "Connect to a Privileged Server, then get IUserManager.",
     val binderLastException: String = "",
+    val dedicatedUserServiceBound: Boolean = false,
+    val embeddedUserServiceBound: Boolean = false,
+    val dedicatedUserServiceMessage: String = "-",
+    val embeddedUserServiceMessage: String = "-",
+    val userServiceMessage: String = "Connect to a Privileged Server, then bind a UserService.",
+    val userServiceLastException: String = "",
     val message: String = "Ready",
     val logText: String = "",
 )
@@ -113,6 +123,9 @@ internal fun PrivilegeSampleScreenState.wirelessDebugLogText(): String =
         appendLine("tcpPort=${tcpPortText.ifBlank { "blank" }}")
         appendLine("userManagerCached=$userManagerCached")
         appendLine("binderMessage=$binderMessage")
+        appendLine("dedicatedUserServiceBound=$dedicatedUserServiceBound")
+        appendLine("embeddedUserServiceBound=$embeddedUserServiceBound")
+        appendLine("userServiceMessage=$userServiceMessage")
         appendLine("serverInfo=${serverInfo ?: "none"}")
         appendLine()
         appendLine("Session log:")
@@ -140,6 +153,12 @@ internal fun PrivilegeSampleScreen(
     onStopServer: () -> Unit,
     onGetUserManager: () -> Unit,
     onGetUsers: () -> Unit,
+    onBindDedicatedUserService: () -> Unit,
+    onCallDedicatedUserService: () -> Unit,
+    onStopDedicatedUserService: () -> Unit,
+    onBindEmbeddedUserService: () -> Unit,
+    onCallEmbeddedUserService: () -> Unit,
+    onStopEmbeddedUserService: () -> Unit,
     onClearLog: () -> Unit,
     onCopyLog: () -> Unit,
 ) {
@@ -181,6 +200,20 @@ internal fun PrivilegeSampleScreen(
                         onDestinationSelected = onDestinationSelected,
                         onGetUserManager = onGetUserManager,
                         onGetUsers = onGetUsers,
+                        onStopServer = onStopServer,
+                    )
+                }
+                entry<PrivilegeSampleDestination.UserService> {
+                    UserServiceTestPage(
+                        state = state,
+                        selectedDestination = PrivilegeSampleDestination.UserService,
+                        onDestinationSelected = onDestinationSelected,
+                        onBindDedicatedUserService = onBindDedicatedUserService,
+                        onCallDedicatedUserService = onCallDedicatedUserService,
+                        onStopDedicatedUserService = onStopDedicatedUserService,
+                        onBindEmbeddedUserService = onBindEmbeddedUserService,
+                        onCallEmbeddedUserService = onCallEmbeddedUserService,
+                        onStopEmbeddedUserService = onStopEmbeddedUserService,
                         onStopServer = onStopServer,
                     )
                 }
@@ -342,6 +375,38 @@ private fun BinderTestPage(
 }
 
 @Composable
+private fun UserServiceTestPage(
+    state: PrivilegeSampleScreenState,
+    selectedDestination: PrivilegeSampleDestination,
+    onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
+    onBindDedicatedUserService: () -> Unit,
+    onCallDedicatedUserService: () -> Unit,
+    onStopDedicatedUserService: () -> Unit,
+    onBindEmbeddedUserService: () -> Unit,
+    onCallEmbeddedUserService: () -> Unit,
+    onStopEmbeddedUserService: () -> Unit,
+    onStopServer: () -> Unit,
+) {
+    SamplePageScaffold(
+        title = "Test UserService",
+        selectedDestination = selectedDestination,
+        busy = state.busy,
+        onDestinationSelected = onDestinationSelected,
+    ) {
+        StatusPanel(state, onStopServer)
+        UserServicePage(
+            state = state,
+            onBindDedicatedUserService = onBindDedicatedUserService,
+            onCallDedicatedUserService = onCallDedicatedUserService,
+            onStopDedicatedUserService = onStopDedicatedUserService,
+            onBindEmbeddedUserService = onBindEmbeddedUserService,
+            onCallEmbeddedUserService = onCallEmbeddedUserService,
+            onStopEmbeddedUserService = onStopEmbeddedUserService,
+        )
+    }
+}
+
+@Composable
 private fun SectionTitle(text: String) {
     BasicText(
         text = text,
@@ -401,6 +466,110 @@ private fun BinderStatusPanel(state: PrivilegeSampleScreenState) {
         SelectionContainer {
             BasicText(
                 text = state.binderMessage,
+                style = TextStyle(
+                    color = Color(0xFF48525C),
+                    fontFamily = FontFamily.SansSerif,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun UserServicePage(
+    state: PrivilegeSampleScreenState,
+    onBindDedicatedUserService: () -> Unit,
+    onCallDedicatedUserService: () -> Unit,
+    onStopDedicatedUserService: () -> Unit,
+    onBindEmbeddedUserService: () -> Unit,
+    onCallEmbeddedUserService: () -> Unit,
+    onStopEmbeddedUserService: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        UserServiceStatusPanel(state)
+        SectionTitle("Dedicated Process")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SampleAction(
+                label = if (state.dedicatedUserServiceBound) "Dedicated Bound" else "Bind Dedicated",
+                enabled = !state.busy &&
+                    state.status == PrivilegeSampleStatus.CONNECTED &&
+                    !state.dedicatedUserServiceBound,
+                background = Color(0xFF1769E0),
+                modifier = Modifier.weight(1f),
+                onClick = onBindDedicatedUserService,
+            )
+            SampleAction(
+                label = "Call",
+                enabled = !state.busy && state.dedicatedUserServiceBound,
+                background = Color(0xFF087443),
+                modifier = Modifier.weight(1f),
+                onClick = onCallDedicatedUserService,
+            )
+            SampleAction(
+                label = "Stop",
+                enabled = !state.busy &&
+                    state.status == PrivilegeSampleStatus.CONNECTED &&
+                    state.dedicatedUserServiceBound,
+                background = Color(0xFFB42318),
+                modifier = Modifier.weight(1f),
+                onClick = onStopDedicatedUserService,
+            )
+        }
+        SectionTitle("Embedded")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SampleAction(
+                label = if (state.embeddedUserServiceBound) "Embedded Bound" else "Bind Embedded",
+                enabled = !state.busy &&
+                    state.status == PrivilegeSampleStatus.CONNECTED &&
+                    !state.embeddedUserServiceBound,
+                background = Color(0xFF5E4FA2),
+                modifier = Modifier.weight(1f),
+                onClick = onBindEmbeddedUserService,
+            )
+            SampleAction(
+                label = "Call",
+                enabled = !state.busy && state.embeddedUserServiceBound,
+                background = Color(0xFF087443),
+                modifier = Modifier.weight(1f),
+                onClick = onCallEmbeddedUserService,
+            )
+            SampleAction(
+                label = "Stop",
+                enabled = !state.busy &&
+                    state.status == PrivilegeSampleStatus.CONNECTED &&
+                    state.embeddedUserServiceBound,
+                background = Color(0xFFB42318),
+                modifier = Modifier.weight(1f),
+                onClick = onStopEmbeddedUserService,
+            )
+        }
+        if (state.userServiceLastException.isNotBlank()) {
+            DiagnosticBlock(state.userServiceLastException)
+        }
+    }
+}
+
+@Composable
+private fun UserServiceStatusPanel(state: PrivilegeSampleScreenState) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        RuntimeInfoRow(label = "dedicated", value = if (state.dedicatedUserServiceBound) "bound" else "-")
+        RuntimeInfoRow(label = "embedded", value = if (state.embeddedUserServiceBound) "bound" else "-")
+        SelectionContainer {
+            BasicText(
+                text = buildString {
+                    appendLine(state.userServiceMessage)
+                    appendLine("dedicated: ${state.dedicatedUserServiceMessage}")
+                    append("embedded: ${state.embeddedUserServiceMessage}")
+                },
                 style = TextStyle(
                     color = Color(0xFF48525C),
                     fontFamily = FontFamily.SansSerif,

@@ -237,7 +237,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 职责：
 
-- 面向应用自定义特权服务的 UserService 生命周期管线。
+- 面向应用自定义特权服务的 UserService Binder 管线。
 
 允许：
 
@@ -246,6 +246,14 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - service Binder handoff；
 - service 生命周期状态；
 - service 失败报告。
+- 可选的 reserved destroy transaction；
+- 多个 `serviceClassName + tag` UserService 实例；
+- `version` 变化触发同一实例替换，而不是创建并行实例；
+- 默认独立 `app_process` 子进程模式；
+- 显式 opt-in 的 server 进程嵌入模式；
+- owner app death 时的 UserService 销毁策略；
+- 独立 UserService destroy 后等待进程自行退出的可配置超时，并允许用负数关闭超时强杀兜底；
+- UserService 子进程 ready/claim handoff 协议。
 
 禁止：
 
@@ -253,6 +261,8 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 内置特权操作服务；
 - 高级系统操作模板；
 - 执行 package、input、settings、app-ops 或 activity 管理的可复用 service 实现。
+- 解析、生成或封装应用自定义 AIDL 业务接口；
+- 把 UserService 扩展成跨应用服务发现、全局服务枚举或多租户服务注册中心。
 
 ## `:priv-adb`
 

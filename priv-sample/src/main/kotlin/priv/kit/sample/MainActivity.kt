@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import priv.kit.runtime.PrivilegeRuntime
+import priv.kit.userservice.PrivilegeUserServiceConnection
 import java.io.Closeable
 import java.util.concurrent.Executors
 
@@ -20,6 +21,10 @@ class MainActivity : ComponentActivity() {
     internal var readyServerWatcher: Closeable? = null
     internal var serverDisconnectedWatcher: Closeable? = null
     internal var sampleUserManager: PrivilegeSampleUserManagerProxy? = null
+    internal var dedicatedUserServiceConnection: PrivilegeUserServiceConnection? = null
+    internal var embeddedUserServiceConnection: PrivilegeUserServiceConnection? = null
+    internal var dedicatedUserService: IPrivilegeSampleDedicatedUserService? = null
+    internal var embeddedUserService: IPrivilegeSampleEmbeddedUserService? = null
     internal var startNotificationPairingAfterPermission = false
     private val pairingEventReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -60,6 +65,12 @@ class MainActivity : ComponentActivity() {
                 onStopServer = { stopServer() },
                 onGetUserManager = { getUserManagerBinder() },
                 onGetUsers = { getUserManagerUsers() },
+                onBindDedicatedUserService = { bindDedicatedUserService() },
+                onCallDedicatedUserService = { callDedicatedUserService() },
+                onStopDedicatedUserService = { stopDedicatedUserService() },
+                onBindEmbeddedUserService = { bindEmbeddedUserService() },
+                onCallEmbeddedUserService = { callEmbeddedUserService() },
+                onStopEmbeddedUserService = { stopEmbeddedUserService() },
                 onClearLog = { clearLog() },
                 onCopyLog = { copySessionLog() },
             )

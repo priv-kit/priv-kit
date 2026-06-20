@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -13,9 +14,10 @@
 namespace {
 
 constexpr size_t MAX_CLASSPATH_LENGTH = 8192;
+constexpr size_t MAX_CLASSPATH_IDENTITY_LENGTH = 16384;
 constexpr const char* DEFAULT_MAIN_CLASS = "priv.kit.server.PrivilegeServerMain";
 constexpr const char* DEFAULT_MODE = "2";
-constexpr const char* DEFAULT_PROTOCOL_VERSION = "1";
+constexpr const char* DEFAULT_PROTOCOL_VERSION = "7";
 constexpr const char* DEFAULT_SERVER_VERSION = "0.1.0-SNAPSHOT";
 constexpr const char* DEFAULT_FOLLOW_DEATH_DELAY_MILLIS = "600000";
 constexpr const char* DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH = "false";
@@ -29,6 +31,7 @@ struct StarterConfig {
     const char* process_name = nullptr;
     const char* log_path = nullptr;
     const char* token = nullptr;
+    const char* classpath_identity = nullptr;
     const char* package_name = nullptr;
     const char* provider_authority = nullptr;
     const char* mode = DEFAULT_MODE;
@@ -39,6 +42,7 @@ struct StarterConfig {
     int server_arg_start = -1;
 
     char classpath_buffer[MAX_CLASSPATH_LENGTH] = {};
+    char classpath_identity_buffer[MAX_CLASSPATH_IDENTITY_LENGTH] = {};
     char package_name_buffer[256] = {};
     char provider_authority_buffer[320] = {};
     char process_name_buffer[320] = {};
@@ -187,6 +191,59 @@ bool build_classpath(const char* install_dir, char* output, size_t output_size) 
     return true;
 }
 
+bool append_path_identity(char* output, size_t output_size, const char* path) {
+    struct stat stat_buffer = {};
+    if (stat(path, &stat_buffer) != 0) {
+        fprintf(stderr, "fatal: can't stat classpath entry %s\n", path);
+        return false;
+    }
+    char metadata[64] = {};
+    snprintf(
+        metadata,
+        sizeof(metadata),
+        "@%lld@%lld",
+        static_cast<long long>(stat_buffer.st_size),
+        static_cast<long long>(stat_buffer.st_mtime));
+    return string_append(output, output_size, path) &&
+        string_append(output, output_size, metadata);
+}
+
+bool build_classpath_identity(const char* classpath, char* output, size_t output_size) {
+    output[0] = '\0';
+    const char* cursor = classpath;
+    while (cursor != nullptr && *cursor != '\0') {
+        const char* separator = strchr(cursor, ':');
+        const size_t length = separator == nullptr
+            ? strlen(cursor)
+            : static_cast<size_t>(separator - cursor);
+        if (length > 0) {
+            char path[PATH_MAX] = {};
+            if (length >= sizeof(path)) {
+                fprintf(stderr, "fatal: classpath entry is too long\n");
+                return false;
+            }
+            memcpy(path, cursor, length);
+            path[length] = '\0';
+            if (output[0] != '\0' && !string_append(output, output_size, ":")) {
+                fprintf(stderr, "fatal: classpath identity is too long\n");
+                return false;
+            }
+            if (!append_path_identity(output, output_size, path)) {
+                return false;
+            }
+        }
+        if (separator == nullptr) {
+            break;
+        }
+        cursor = separator + 1;
+    }
+    if (output[0] == '\0') {
+        fprintf(stderr, "fatal: classpath identity is empty\n");
+        return false;
+    }
+    return true;
+}
+
 bool infer_defaults(int argc, char** argv, StarterConfig* config) {
     char starter_path[PATH_MAX] = {};
     char install_dir[PATH_MAX] = {};
@@ -206,6 +263,15 @@ bool infer_defaults(int argc, char** argv, StarterConfig* config) {
             return false;
         }
         config->classpath = config->classpath_buffer;
+    }
+    if (config->classpath_identity == nullptr) {
+        if (!build_classpath_identity(
+                config->classpath,
+                config->classpath_identity_buffer,
+                sizeof(config->classpath_identity_buffer))) {
+            return false;
+        }
+        config->classpath_identity = config->classpath_identity_buffer;
     }
     if (config->provider_authority == nullptr) {
         if (!string_copy(config->provider_authority_buffer, sizeof(config->provider_authority_buffer), config->package_name) ||
@@ -303,11 +369,13 @@ bool parse_args(int argc, char** argv, StarterConfig* config) {
             config->log_path = require_value(argc, argv, &i, arg);
         } else if (strcmp(arg, "--token") == 0) {
             config->token = require_value(argc, argv, &i, arg);
+        } else if (strcmp(arg, "--classpath-identity") == 0) {
+            config->classpath_identity = require_value(argc, argv, &i, arg);
         } else if (strcmp(arg, "--package-name") == 0) {
             config->package_name = require_value(argc, argv, &i, arg);
         } else if (strcmp(arg, "--provider-authority") == 0) {
             config->provider_authority = require_value(argc, argv, &i, arg);
-        } else if (strcmp(arg, "--mode") == 0) {
+        } else if (strcmp(arg, "--mode") == 0 || strcmp(arg, "--launch-mode") == 0) {
             config->mode = require_value(argc, argv, &i, arg);
         } else if (strcmp(arg, "--protocol-version") == 0) {
             config->protocol_version = require_value(argc, argv, &i, arg);
@@ -326,9 +394,10 @@ bool parse_args(int argc, char** argv, StarterConfig* config) {
             (strcmp(arg, "--process-name") == 0 && config->process_name == nullptr) ||
             (strcmp(arg, "--log-path") == 0 && config->log_path == nullptr) ||
             (strcmp(arg, "--token") == 0 && config->token == nullptr) ||
+            (strcmp(arg, "--classpath-identity") == 0 && config->classpath_identity == nullptr) ||
             (strcmp(arg, "--package-name") == 0 && config->package_name == nullptr) ||
             (strcmp(arg, "--provider-authority") == 0 && config->provider_authority == nullptr) ||
-            (strcmp(arg, "--mode") == 0 && config->mode == nullptr) ||
+            ((strcmp(arg, "--mode") == 0 || strcmp(arg, "--launch-mode") == 0) && config->mode == nullptr) ||
             (strcmp(arg, "--protocol-version") == 0 && config->protocol_version == nullptr) ||
             (strcmp(arg, "--server-version") == 0 && config->server_version == nullptr) ||
             (strcmp(arg, "--follow-death-delay-millis") == 0 &&
@@ -387,7 +456,7 @@ void exec_app_process(const StarterConfig& config, int argc, char** argv) {
     }
 
     const bool use_argv_server_args = config.server_arg_start >= 0;
-    const int server_arg_count = use_argv_server_args ? argc - config.server_arg_start : 16;
+    const int server_arg_count = use_argv_server_args ? argc - config.server_arg_start : 18;
     const int app_arg_count = 5 + server_arg_count;
     char** app_argv = static_cast<char**>(calloc(app_arg_count + 1, sizeof(char*)));
     if (app_argv == nullptr) {
@@ -412,12 +481,14 @@ void exec_app_process(const StarterConfig& config, int argc, char** argv) {
         app_argv[index++] = const_cast<char*>(config.provider_authority);
         app_argv[index++] = const_cast<char*>("--package-name");
         app_argv[index++] = const_cast<char*>(config.package_name);
-        app_argv[index++] = const_cast<char*>("--mode");
+        app_argv[index++] = const_cast<char*>("--launch-mode");
         app_argv[index++] = const_cast<char*>(config.mode);
         app_argv[index++] = const_cast<char*>("--protocol-version");
         app_argv[index++] = const_cast<char*>(config.protocol_version);
         app_argv[index++] = const_cast<char*>("--server-version");
         app_argv[index++] = const_cast<char*>(config.server_version);
+        app_argv[index++] = const_cast<char*>("--classpath-identity");
+        app_argv[index++] = const_cast<char*>(config.classpath_identity);
         app_argv[index++] = const_cast<char*>("--follow-death-delay-millis");
         app_argv[index++] = const_cast<char*>(config.follow_death_delay_millis);
         app_argv[index++] = const_cast<char*>("--active-reconnect-on-owner-death");

@@ -86,6 +86,8 @@ class PrivilegeRemoteBinderWrapperTest {
         override fun getBinderEndpoint(): IBinder? = null
 
         override fun unregisterBinderEndpoint(): Boolean = false
+
+        override fun getUserServiceManager(): IBinder? = null
     }
 
     private class FakeBinder(

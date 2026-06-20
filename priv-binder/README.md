@@ -15,4 +15,6 @@ Current contents:
 - `PrivilegeBinderException`, the sealed Binder primitive error base type.
 - `PrivilegeServerDisconnectedException`, `PrivilegeBinderEndpointDeadException`, `PrivilegeBinderEndpointNotFoundException`, and `PrivilegeBinderRemoteCallException`, typed failures for server death, dead endpoints, missing endpoints, and non-death remote call failures.
 
-This module does not provide Android system service wrappers, `ServiceManager` helpers, endpoint ids, endpoint enumeration, or package/input/settings/app-ops/activity APIs.
+`IPrivilegeServer` also exposes the opaque UserService manager Binder used by `:priv-user-service`; the UserService protocol itself stays in that module.
+
+This module does not provide Android system service wrappers, `ServiceManager` helpers, endpoint ids, endpoint enumeration, UserService lifecycle APIs, or package/input/settings/app-ops/activity APIs.

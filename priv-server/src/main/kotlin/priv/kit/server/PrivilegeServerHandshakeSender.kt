@@ -19,6 +19,7 @@ internal object PrivilegeServerHandshakeSender {
             putInt(PrivilegeHandshakeContract.EXTRA_LAUNCH_MODE, config.launchMode)
             putInt(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION, config.protocolVersion)
             putString(PrivilegeHandshakeContract.EXTRA_SERVER_VERSION, config.serverVersion)
+            putString(PrivilegeHandshakeContract.EXTRA_CLASSPATH_IDENTITY, config.classpathIdentity)
         }
         Log.i(TAG, "Calling handshake provider authority=${config.providerAuthority}")
         val response = PrivilegeServerProviderCall.call(

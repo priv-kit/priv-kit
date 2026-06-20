@@ -10,6 +10,7 @@ object PrivilegeHandshakeContract {
     const val EXTRA_LAUNCH_MODE = "privilege_launch_mode"
     const val EXTRA_PROTOCOL_VERSION = "privilege_protocol_version"
     const val EXTRA_SERVER_VERSION = "privilege_server_version"
+    const val EXTRA_CLASSPATH_IDENTITY = "privilege_classpath_identity"
 
     const val RESULT_ACCEPTED = "privilege_accepted"
     const val RESULT_SHOULD_SHUTDOWN = "privilege_should_shutdown"

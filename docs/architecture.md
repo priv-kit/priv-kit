@@ -185,6 +185,23 @@ UserService 是应用自定义特权逻辑的扩展机制。
 - unbind 或 stop；
 - 暴露生命周期错误。
 
+当前实现由 `:priv-user-service` 承载：
+
+- `PrivilegeUserServiceSpec` 使用 `serviceClassName + tag` 标识一个应用自定义 UserService 实例；
+- `version` 不是实例身份的一部分，只控制同一 `serviceClassName + tag` 是否复用现有实例；
+- 当 `serviceClassName + tag` 相同但 `version` 变化时，旧实例会被销毁并由新实例替换；
+- 默认 `PrivilegeUserServiceProcessMode.DEDICATED_PROCESS` 为每个实例启动独立 `app_process` 子进程；
+- `PrivilegeUserServiceProcessMode.IN_SERVER_PROCESS` 只作为显式 opt-in，用于低风险、短耗时、可接受污染 server 进程的服务；
+- `PrivilegeUserServiceOwnerDeathPolicy.DESTROY_ON_OWNER_DEATH` 是默认 owner death 行为；
+- `PrivilegeUserServiceSpec.destroyTimeoutMillis` 只作用于独立进程模式，默认 `10_000` 毫秒，`0` 表示不等待，负数表示关闭 destroy 超时强杀兜底；
+- UserService 类本身必须实现 `IBinder` 或 `IInterface`，常见形式是直接继承应用自己的 AIDL `Stub`；
+- 应用自己的 AIDL Binder 由 UserService 暴露，项目只做 Binder handoff，不理解业务接口；
+- 如果应用 AIDL 定义了 `void destroy() = 16777114;`，项目会在移除实例时调用该预留 transaction 供应用清理资源；一旦 AIDL 中有方法显式指定 id，该接口内所有方法都需要显式指定 id。
+
+独立进程模式下，Privileged Server 是控制平面，UserService 子进程是执行平面。server 通过 app 侧 handshake provider claim 子进程的控制 Binder，再向客户端返回 gate Binder。owner app 死亡或 server shutdown 时，server 会按策略向 UserService 发出 destroy 请求；复杂服务应在自己的 `destroy()` 中完成资源释放，并在释放完成后自行调用 `System.exit(0)`。如果 `destroyTimeoutMillis` 到期后子进程仍然存活，server 会强制 kill 该进程作为兜底；如果该值为负数，server 只发出 destroy 请求，不等待也不因为 destroy 超时强杀进程。
+
+嵌入模式下，server 在自己的进程内用当前 APK classpath 反射创建 UserService 对象。该模式只面向轻量、短耗时、低风险逻辑；`destroy()` 可以不实现，如果实现也只应做快速资源释放，不能调用 `System.exit()`。销毁只能移除 registry 记录、关闭 gate Binder 并调用可选的 reserved destroy transaction，不能卸载 class、清理 static/native 状态或阻止服务代码杀死 server 进程。
+
 服务行为由应用负责。本项目不应在 UserService API 中定义可复用特权功能。
 
 ## UI 架构

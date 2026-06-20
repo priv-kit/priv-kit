@@ -17,6 +17,8 @@ internal object PrivilegeServerArguments {
             token = values.required("token"),
             providerAuthority = values.required("provider-authority"),
             packageName = values.required("package-name"),
+            classpath = values["classpath"] ?: System.getenv("CLASSPATH").orEmpty(),
+            classpathIdentity = values.required("classpath-identity"),
             launchMode = values.requiredInt("launch-mode"),
             protocolVersion = values.requiredInt("protocol-version"),
             serverVersion = values.required("server-version"),

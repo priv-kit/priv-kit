@@ -9,6 +9,11 @@ android {
 
     defaultConfig {
         minSdk = libs.versions.minSdk.get().toInt()
+        consumerProguardFiles("consumer-rules.pro")
+    }
+
+    buildFeatures {
+        aidl = true
     }
 
     compileOptions {
@@ -20,4 +25,6 @@ android {
 dependencies {
     api(project(":priv-core"))
     api(project(":priv-binder"))
+    compileOnly(project(":hidden-api"))
+    testImplementation(libs.junit)
 }

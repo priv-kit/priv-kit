@@ -7,6 +7,8 @@ internal data class PrivilegeServerConfig(
     val token: String,
     val providerAuthority: String,
     val packageName: String,
+    val classpath: String = System.getenv("CLASSPATH").orEmpty(),
+    val classpathIdentity: String = "",
     val launchMode: Int = PrivilegeLaunchMode.ROOT.value,
     val protocolVersion: Int = PrivilegeProtocol.VERSION,
     val serverVersion: String = PrivilegeProtocol.SERVER_VERSION,

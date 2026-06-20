@@ -11,7 +11,8 @@ Phase 1 contents:
 - Token-checked Binder handoff back to the app-side runtime provider.
 - A server-side single Binder endpoint slot that unregisters the endpoint when its Binder owner dies.
 - Remote transact execution for an explicit target Binder, used by low-level Binder wrapper tests.
-- Delayed owner-death follow behavior with passive reconnect during the configured grace period, optional active reconnect, runtime-synced reconnect configuration, and in-place replacement startup when the app runtime rejects a stale server version.
+- A UserService manager that can start dedicated UserService child processes by default or embed explicitly opted-in services inside the server process.
+- Delayed owner-death follow behavior with passive reconnect during the configured grace period, optional active reconnect, runtime-synced reconnect configuration, and in-place replacement startup when the app runtime rejects a stale server version or APK classpath identity.
 - A consumer R8 rule that keeps the `PrivilegeServerMain.main(String[])` `app_process` entry point while still allowing method-body optimization.
 
-The server entry point does not initialize AndroidX Startup, app ContentProviders, an app `Application`, third-party libraries, UserService, or Android system service wrappers.
+The server entry point does not initialize AndroidX Startup, an app `Application`, third-party libraries, Android system service wrappers, or app business logic outside app-defined UserService instances.

@@ -6,7 +6,7 @@ import priv.kit.core.PrivilegeProtocol
 
 class PrivilegeBinderProtocolTest {
     @Test
-    fun launchModeProtocolRequiresVersion5() {
-        assertEquals(5, PrivilegeProtocol.VERSION)
+    fun serverClasspathIdentityProtocolRequiresVersion7() {
+        assertEquals(7, PrivilegeProtocol.VERSION)
     }
 }

@@ -11,4 +11,5 @@ interface IPrivilegeServer {
     void registerBinderEndpoint(IBinder binder);
     IBinder getBinderEndpoint();
     boolean unregisterBinderEndpoint();
+    IBinder getUserServiceManager();
 }

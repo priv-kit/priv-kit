@@ -8,12 +8,19 @@ import android.util.Log
 import priv.kit.binder.IPrivilegeServer
 import priv.kit.binder.PrivilegeBinderRegistry
 import priv.kit.binder.PrivilegeRemoteBinderWrapper
+import priv.kit.userservice.PrivilegeUserServiceManagerBinder
+import priv.kit.userservice.PrivilegeUserServiceRegistry
 import kotlin.system.exitProcess
 
 internal class PrivilegeServerBinder(
     private val config: PrivilegeServerConfig,
 ) : IPrivilegeServer.Stub() {
     private val binderRegistry = PrivilegeBinderRegistry()
+    private val userServiceManager = PrivilegeUserServiceManagerBinder(
+        PrivilegeUserServiceRegistry(
+            host = PrivilegeServerUserServiceHost(config),
+        ),
+    )
 
     override fun getUid(): Int = Process.myUid()
 
@@ -45,6 +52,9 @@ internal class PrivilegeServerBinder(
     override fun unregisterBinderEndpoint(): Boolean =
         binderRegistry.unregister()
 
+    override fun getUserServiceManager(): IBinder =
+        userServiceManager.asBinder()
+
     override fun onTransact(
         code: Int,
         data: Parcel,
@@ -62,10 +72,15 @@ internal class PrivilegeServerBinder(
     override fun shutdown() {
         Log.i(TAG, "Shutdown requested by client")
         binderRegistry.clear()
+        userServiceManager.destroyAll()
         Thread {
             Thread.sleep(SHUTDOWN_DELAY_MILLIS)
             exitProcess(0)
         }.start()
+    }
+
+    fun destroyUserServicesOnOwnerDeath() {
+        userServiceManager.destroyOnOwnerDeath()
     }
 
     private fun transactRemote(

@@ -13,6 +13,7 @@ class PrivilegeServerArgumentsTest {
     fun parseAcceptsRequiredOwnerDeathConfig() {
         val config = PrivilegeServerArguments.parse(requiredArgs())
 
+        assertEquals("classpath@1@2", config.classpathIdentity)
         assertEquals(PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS, config.followDeathDelayMillis)
         assertFalse(config.activeReconnectOnOwnerDeath)
     }
@@ -86,6 +87,8 @@ class PrivilegeServerArgumentsTest {
             PrivilegeProtocol.VERSION.toString(),
             "--server-version",
             PrivilegeProtocol.SERVER_VERSION,
+            "--classpath-identity",
+            "classpath@1@2",
             "--follow-death-delay-millis",
             PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS.toString(),
             "--active-reconnect-on-owner-death",
@@ -107,5 +110,7 @@ class PrivilegeServerArgumentsTest {
             PrivilegeProtocol.VERSION.toString(),
             "--server-version",
             PrivilegeProtocol.SERVER_VERSION,
+            "--classpath-identity",
+            "classpath@1@2",
         )
 }

@@ -5,6 +5,7 @@ import priv.kit.core.PrivilegeHandshakeContract
 import priv.kit.core.PrivilegeLaunchMode
 import priv.kit.core.PrivilegeProtocol
 import priv.kit.core.PrivilegeServerLaunchCommand
+import java.io.File
 
 internal object PrivilegeServerLaunchCommandBuilder {
     fun build(
@@ -16,6 +17,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
     ): PrivilegeServerLaunchCommand {
         val packageName = context.packageName
         val classpath = buildClasspath(context)
+        val classpathIdentity = buildClasspathIdentity(classpath)
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(packageName)
         val processName = buildServerProcessName(packageName)
         val foregroundCommandLine = buildString {
@@ -38,6 +40,8 @@ internal object PrivilegeServerLaunchCommandBuilder {
             append(PrivilegeProtocol.VERSION)
             append(" --server-version ")
             append(shellArg(PrivilegeProtocol.SERVER_VERSION))
+            append(" --classpath-identity ")
+            append(shellArg(classpathIdentity))
             append(" --follow-death-delay-millis ")
             append(followDeathDelayMillis)
             append(" --active-reconnect-on-owner-death ")
@@ -49,6 +53,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
             foregroundCommandLine = foregroundCommandLine,
             detachedCommandLine = "($foregroundCommandLine </dev/null >/dev/null 2>&1 &)",
             classpath = classpath,
+            classpathIdentity = classpathIdentity,
             mainClass = SERVER_MAIN_CLASS,
             providerAuthority = providerAuthority,
             packageName = packageName,
@@ -70,7 +75,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
             "'" + value.replace("'", "'\"'\"'") + "'"
         }
 
-    private fun buildClasspath(context: Context): String {
+    internal fun buildClasspath(context: Context): String {
         val applicationInfo = context.applicationInfo
         val apkPaths = buildList {
             add(applicationInfo.sourceDir)
@@ -78,6 +83,14 @@ internal object PrivilegeServerLaunchCommandBuilder {
         }
         return apkPaths.joinToString(":")
     }
+
+    internal fun buildClasspathIdentity(classpath: String): String =
+        classpath.split(':')
+            .filter { it.isNotBlank() }
+            .joinToString(":") { path ->
+                val file = File(path)
+                "$path@${file.length()}@${file.lastModified() / 1000L}"
+            }
 
     private fun isShellBareChar(char: Char): Boolean =
         char in 'A'..'Z' ||

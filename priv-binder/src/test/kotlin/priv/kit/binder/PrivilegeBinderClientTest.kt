@@ -119,6 +119,8 @@ class PrivilegeBinderClientTest {
         }
 
         override fun unregisterBinderEndpoint(): Boolean = false
+
+        override fun getUserServiceManager(): IBinder? = null
     }
 
     private class FakeBinder(
