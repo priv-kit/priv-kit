@@ -58,7 +58,7 @@ object PrivilegeServerMain {
             Log.i(
                 TAG,
                 "Config parsed package=${config.packageName}, provider=${config.providerAuthority}, " +
-                    "mode=${config.mode}, protocol=${config.protocolVersion}, version=${config.serverVersion}, " +
+                    "launchMode=${config.launchMode}, protocol=${config.protocolVersion}, version=${config.serverVersion}, " +
                     "followDeathDelayMillis=${config.followDeathDelayMillis}, " +
                     "activeReconnectOnOwnerDeath=${config.activeReconnectOnOwnerDeath}",
             )

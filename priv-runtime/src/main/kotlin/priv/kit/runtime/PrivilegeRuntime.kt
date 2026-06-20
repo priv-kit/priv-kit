@@ -1,40 +1,57 @@
 package priv.kit.runtime
 
-import android.content.Context
 import android.os.IBinder
 import android.os.RemoteException
 import android.util.Log
-import priv.kit.core.IPrivilegeServer
-import priv.kit.core.PrivilegeMode
-import priv.kit.core.PrivilegeProtocol
-import priv.kit.core.PrivilegeServerLaunchCommand
-import priv.kit.core.PrivilegeServerHandshakeRegistry
-import priv.kit.core.PrivilegeServerHandshakeResult
-import priv.kit.core.PrivilegeServerInfo
-import priv.kit.core.PrivilegeStartupException
 import priv.kit.adb.PrivilegeAdbCommand
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStartResult
 import priv.kit.adb.PrivilegeAdbStarter
+import priv.kit.binder.IPrivilegeServer
+import priv.kit.binder.PrivilegeBinderClient
+import priv.kit.binder.PrivilegeBinderEndpoint
+import priv.kit.binder.PrivilegeBinderRegistration
+import priv.kit.binder.PrivilegeBinderRuntime
+import priv.kit.binder.PrivilegeRemoteBinderWrapper
+import priv.kit.binder.PrivilegeServerDisconnectedException
+import priv.kit.core.PrivilegeLaunchMode
+import priv.kit.core.PrivilegeProtocol
+import priv.kit.core.PrivilegeServerHandshakeRegistry
+import priv.kit.core.PrivilegeServerHandshakeResult
+import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.PrivilegeServerLaunchCommand
+import priv.kit.core.PrivilegeStartupException
 import priv.kit.root.PrivilegeRootCommand
 import priv.kit.root.PrivilegeRootStartResult
 import priv.kit.root.PrivilegeRootStarter
 import java.io.Closeable
+import java.util.concurrent.CopyOnWriteArraySet
 
-class PrivilegeRuntime private constructor(
-    private val context: Context,
-) {
-    private val ownerTokenStore = PrivilegeOwnerTokenStore(context)
-    private val ownerDeathConfigStore = PrivilegeOwnerDeathConfigStore(context)
+object PrivilegeRuntime {
+    private const val DEFAULT_START_TIMEOUT_MILLIS = 15_000L
+    const val DEFAULT_FOLLOW_DEATH_DELAY_MILLIS = PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS
+    const val DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH =
+        PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH
+    private const val STARTER_LIBRARY_NAME = "libprivkitstarter.so"
+    private const val TAG = "PrivKitRuntime"
+
+    private val serverLock = Any()
+    private var currentServer: ServerConnection? = null
+    private val disconnectedListeners = CopyOnWriteArraySet<() -> Unit>()
+    private val binderClient = PrivilegeBinderClient()
+
+    init {
+        PrivilegeBinderRuntime.installServerProvider(::requireServerInterface)
+    }
 
     @Throws(PrivilegeStartupException::class)
     fun startRoot(
         timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
         followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
         activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-    ): PrivilegeSession {
+    ): PrivilegeServerInfo {
         recordOwnerDeathConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
-        val token = ownerTokenStore.readOrCreate()
+        val token = ownerTokenStore().readOrCreate()
         val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
         var startResult: PrivilegeRootStartResult? = null
 
@@ -47,7 +64,7 @@ class PrivilegeRuntime private constructor(
                 ),
             )
             val handshakeResult = pendingHandshake.await(timeoutMillis)
-            return createSession(handshakeResult)
+            return connectHandshake(handshakeResult)
         } catch (e: PrivilegeStartupException) {
             val rootProcess = startResult?.process
             if (rootProcess != null && !rootProcess.isAlive) {
@@ -69,7 +86,7 @@ class PrivilegeRuntime private constructor(
         activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
     ): PrivilegeManualShellCommand {
         recordOwnerDeathConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
-        val token = ownerTokenStore.readOrCreate()
+        val token = ownerTokenStore().readOrCreate()
         return buildManualShellCommand(
             token = token,
             followDeathDelayMillis = followDeathDelayMillis,
@@ -90,14 +107,16 @@ class PrivilegeRuntime private constructor(
         return PrivilegeManualShellConnection(
             command = command,
             pendingHandshake = pendingHandshake,
-            onHandshake = ::createSession,
+            onHandshake = ::connectHandshake,
         )
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun createAdbStarter(adbDeviceName: String? = null): PrivilegeAdbStarter =
+    fun createAdbStarter(
+        adbDeviceName: String? = null,
+    ): PrivilegeAdbStarter =
         buildAdbStarter(
-            ownerToken = ownerTokenStore.readOrCreate(),
+            ownerToken = ownerTokenStore().readOrCreate(),
             adbDeviceName = adbDeviceName,
         )
 
@@ -113,25 +132,25 @@ class PrivilegeRuntime private constructor(
     fun connectReadyServer(
         followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
         activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-    ): PrivilegeSession? {
+    ): PrivilegeServerInfo? {
         recordOwnerDeathConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
-        val token = ownerTokenStore.readOrCreate()
+        val token = ownerTokenStore().readOrCreate()
         val handshakeResult = PrivilegeServerHandshakeRegistry.claimReady(token) ?: return null
-        return createSession(handshakeResult)
+        return connectHandshake(handshakeResult)
     }
 
     @Throws(PrivilegeStartupException::class)
     fun watchReadyServers(
-        onReady: (PrivilegeSession) -> Unit,
+        onReady: (PrivilegeServerInfo) -> Unit,
         onFailure: (Throwable) -> Unit = {},
         followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
         activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
     ): Closeable {
         recordOwnerDeathConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
-        val token = ownerTokenStore.readOrCreate()
+        val token = ownerTokenStore().readOrCreate()
         return PrivilegeServerHandshakeRegistry.addReadyListener(token) { handshakeResult ->
             try {
-                onReady(createSession(handshakeResult))
+                onReady(connectHandshake(handshakeResult))
             } catch (throwable: Throwable) {
                 onFailure(throwable)
             }
@@ -145,9 +164,9 @@ class PrivilegeRuntime private constructor(
         adbDeviceName: String? = null,
         followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
         activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-    ): PrivilegeSession {
+    ): PrivilegeServerInfo {
         recordOwnerDeathConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
-        val token = ownerTokenStore.readOrCreate()
+        val token = ownerTokenStore().readOrCreate()
         val adbStarter = buildAdbStarter(
             ownerToken = token,
             adbDeviceName = adbDeviceName,
@@ -172,7 +191,7 @@ class PrivilegeRuntime private constructor(
             )
             val handshakeResult = pendingHandshake.await(timeoutMillis)
             Log.i(TAG, "ADB Binder handshake received")
-            return createSession(handshakeResult)
+            return connectHandshake(handshakeResult)
         } catch (e: PrivilegeStartupException) {
             Log.e(TAG, "ADB startup failed", e)
             val adbResult = startResult
@@ -190,12 +209,51 @@ class PrivilegeRuntime private constructor(
         }
     }
 
-    @Throws(PrivilegeStartupException::class)
-    internal fun createSession(handshakeResult: PrivilegeServerHandshakeResult): PrivilegeSession =
-        createSession(handshakeResult.serverBinder)
+    fun getServerInfo(): PrivilegeServerInfo =
+        requireServerConnection().serverInfo
+
+    fun pingServer(): Boolean =
+        runCatching { requireServerBinder().pingBinder() }.getOrDefault(false)
+
+    fun addServerDisconnectedListener(listener: () -> Unit): Closeable {
+        disconnectedListeners += listener
+        return Closeable {
+            disconnectedListeners -= listener
+        }
+    }
+
+    @Throws(RemoteException::class)
+    fun shutdownServer() {
+        try {
+            requireServerInterface().shutdown()
+        } finally {
+            clearCurrentServer(notify = true)
+        }
+    }
+
+    fun registerBinderEndpoint(binder: IBinder): PrivilegeBinderRegistration =
+        binderClient.register(binder)
+
+    fun registerBinderEndpoint(endpoint: PrivilegeBinderEndpoint): PrivilegeBinderRegistration =
+        binderClient.register(endpoint)
+
+    fun getBinderEndpoint(): PrivilegeBinderEndpoint? =
+        binderClient.get()
+
+    fun requireBinderEndpoint(): PrivilegeBinderEndpoint =
+        binderClient.require()
+
+    fun unregisterBinderEndpoint(): Boolean =
+        binderClient.unregister()
+
+    fun createRemoteBinderWrapper(targetBinder: IBinder): PrivilegeRemoteBinderWrapper =
+        PrivilegeRemoteBinderWrapper(targetBinder)
+
+    internal fun connectHandshake(handshakeResult: PrivilegeServerHandshakeResult): PrivilegeServerInfo =
+        connectServer(handshakeResult.serverBinder)
 
     @Throws(PrivilegeStartupException::class)
-    private fun createSession(serverBinder: IBinder): PrivilegeSession {
+    private fun connectServer(serverBinder: IBinder): PrivilegeServerInfo {
         val server = IPrivilegeServer.Stub.asInterface(serverBinder)
             ?: throw PrivilegeStartupException("Privileged Server returned an invalid Binder")
 
@@ -208,11 +266,124 @@ class PrivilegeRuntime private constructor(
             )
         }
 
-        return PrivilegeSession(
-            serverInfo = serverInfo,
-            serverBinder = server,
-        ).also { session ->
-            session.syncOwnerDeathConfig(ownerDeathConfigStore.read())
+        val connectedInfo = installCurrentServer(serverInfo, server)
+        syncOwnerDeathConfig(ownerDeathConfigStore().read())
+        return connectedInfo
+    }
+
+    private fun installCurrentServer(
+        serverInfo: PrivilegeServerInfo,
+        server: IPrivilegeServer,
+    ): PrivilegeServerInfo {
+        val binder = server.asBinder()
+        var previous: ServerConnection? = null
+        val connection = synchronized(serverLock) {
+            val current = currentServer
+            if (current != null && current.server.asBinder() === binder) {
+                if (binder.pingBinder()) {
+                    return@synchronized current
+                }
+                currentServer = null
+                throw PrivilegeServerDisconnectedException()
+            }
+
+            var next: ServerConnection? = null
+            val deathRecipient = IBinder.DeathRecipient {
+                next?.let(::markServerDisconnected)
+            }
+            try {
+                binder.linkToDeath(deathRecipient, 0)
+            } catch (e: RemoteException) {
+                throw PrivilegeServerDisconnectedException(
+                    "Privilege server Binder died while connecting",
+                    e,
+                )
+            }
+
+            val newConnection = ServerConnection(
+                serverInfo = serverInfo,
+                server = server,
+                deathRecipient = deathRecipient,
+            )
+            if (!binder.pingBinder()) {
+                newConnection.unlink()
+                throw PrivilegeServerDisconnectedException()
+            }
+            next = newConnection
+            previous = current
+            currentServer = newConnection
+            newConnection
+        }
+        previous?.unlink()
+        return connection.serverInfo
+    }
+
+    private fun requireServerConnection(): ServerConnection {
+        val connection = synchronized(serverLock) {
+            currentServer
+        } ?: throw PrivilegeServerDisconnectedException()
+
+        if (!connection.server.asBinder().pingBinder()) {
+            markServerDisconnected(connection)
+            throw PrivilegeServerDisconnectedException()
+        }
+        return connection
+    }
+
+    private fun requireServerInterface(): IPrivilegeServer =
+        requireServerConnection().server
+
+    internal fun requireServerBinder(): IBinder =
+        requireServerConnection().server.asBinder()
+
+    private fun markServerDisconnected(connection: ServerConnection) {
+        val notify = synchronized(serverLock) {
+            if (currentServer !== connection) {
+                false
+            } else {
+                currentServer = null
+                true
+            }
+        }
+        if (notify) {
+            connection.unlink()
+            notifyServerDisconnected()
+        }
+    }
+
+    private fun clearCurrentServer(notify: Boolean) {
+        val previous = synchronized(serverLock) {
+            currentServer.also {
+                currentServer = null
+            }
+        }
+        previous?.unlink()
+        if (notify && previous != null) {
+            notifyServerDisconnected()
+        }
+    }
+
+    private fun notifyServerDisconnected() {
+        disconnectedListeners.forEach { listener ->
+            runCatching {
+                listener()
+            }
+        }
+    }
+
+    private fun syncOwnerDeathConfig(config: PrivilegeOwnerDeathConfig) {
+        val server = try {
+            requireServerInterface()
+        } catch (_: PrivilegeServerDisconnectedException) {
+            return
+        }
+        try {
+            server.updateOwnerDeathConfig(
+                config.followDeathDelayMillis,
+                config.activeReconnectOnOwnerDeath,
+            )
+        } catch (_: RemoteException) {
+            markServerDisconnected(requireServerConnection())
         }
     }
 
@@ -223,7 +394,7 @@ class PrivilegeRuntime private constructor(
     ): PrivilegeManualShellCommand {
         val launchCommand = buildServerLaunchCommand(
             token = token,
-            mode = PrivilegeMode.SHELL,
+            launchMode = PrivilegeLaunchMode.SHELL,
             followDeathDelayMillis = followDeathDelayMillis,
             activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
         )
@@ -244,7 +415,7 @@ class PrivilegeRuntime private constructor(
     ): PrivilegeRootCommand {
         val launchCommand = buildServerLaunchCommand(
             token = token,
-            mode = PrivilegeMode.ROOT,
+            launchMode = PrivilegeLaunchMode.ROOT,
             followDeathDelayMillis = followDeathDelayMillis,
             activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
         )
@@ -264,7 +435,7 @@ class PrivilegeRuntime private constructor(
     ): PrivilegeAdbCommand {
         val launchCommand = buildServerLaunchCommand(
             token = token,
-            mode = PrivilegeMode.SHELL,
+            launchMode = PrivilegeLaunchMode.SHELL,
             followDeathDelayMillis = followDeathDelayMillis,
             activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
         )
@@ -311,8 +482,8 @@ class PrivilegeRuntime private constructor(
             append(PrivilegeServerLaunchCommandBuilder.shellArg(launchCommand.providerAuthority))
             append(" --package-name ")
             append(PrivilegeServerLaunchCommandBuilder.shellArg(launchCommand.packageName))
-            append(" --mode ")
-            append(launchCommand.mode.value)
+            append(" --launch-mode ")
+            append(launchCommand.launchMode.value)
             append(" --protocol-version ")
             append(launchCommand.protocolVersion)
             append(" --server-version ")
@@ -331,14 +502,14 @@ class PrivilegeRuntime private constructor(
         }
 
     private fun buildAdbStarterPath(): String =
-        context.applicationInfo.nativeLibraryDir.trimEnd('/') + "/" + STARTER_LIBRARY_NAME
+        PrivilegeRuntimeContext.require().applicationInfo.nativeLibraryDir.trimEnd('/') + "/" + STARTER_LIBRARY_NAME
 
     private fun buildAdbStarter(
         ownerToken: String,
         adbDeviceName: String?,
     ): PrivilegeAdbStarter =
         PrivilegeAdbStarter.forOwnerToken(
-            context = context,
+            context = PrivilegeRuntimeContext.require(),
             ownerToken = ownerToken,
             adbDeviceName = adbDeviceName,
         )
@@ -363,14 +534,14 @@ class PrivilegeRuntime private constructor(
 
     private fun buildServerLaunchCommand(
         token: String,
-        mode: PrivilegeMode,
+        launchMode: PrivilegeLaunchMode,
         followDeathDelayMillis: Long,
         activeReconnectOnOwnerDeath: Boolean,
     ): PrivilegeServerLaunchCommand =
         PrivilegeServerLaunchCommandBuilder.build(
-            context = context,
+            context = PrivilegeRuntimeContext.require(),
             token = token,
-            mode = mode,
+            launchMode = launchMode,
             followDeathDelayMillis = followDeathDelayMillis,
             activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
         )
@@ -392,8 +563,8 @@ class PrivilegeRuntime private constructor(
             followDeathDelayMillis = followDeathDelayMillis,
             activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
         )
-        ownerDeathConfigStore.write(config)
-        PrivilegeSession.syncOwnerDeathConfigToConnectedSessions(config)
+        ownerDeathConfigStore().write(config)
+        syncOwnerDeathConfig(config)
     }
 
     @Throws(PrivilegeStartupException::class)
@@ -402,7 +573,7 @@ class PrivilegeRuntime private constructor(
             return PrivilegeServerInfo(
                 uid = server.getUid(),
                 pid = server.getPid(),
-                mode = server.getMode(),
+                launchMode = server.getLaunchMode(),
                 protocolVersion = server.getProtocolVersion(),
                 serverVersion = server.getServerVersion(),
             )
@@ -411,15 +582,22 @@ class PrivilegeRuntime private constructor(
         }
     }
 
-    companion object {
-        private const val DEFAULT_START_TIMEOUT_MILLIS = 15_000L
-        const val DEFAULT_FOLLOW_DEATH_DELAY_MILLIS = PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS
-        const val DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH =
-            PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH
-        private const val STARTER_LIBRARY_NAME = "libprivkitstarter.so"
-        private const val TAG = "PrivKitRuntime"
+    private fun ownerTokenStore(): PrivilegeOwnerTokenStore =
+        PrivilegeOwnerTokenStore(PrivilegeRuntimeContext.require())
 
-        fun create(context: Context): PrivilegeRuntime =
-            PrivilegeRuntime(context.applicationContext)
+    private fun ownerDeathConfigStore(): PrivilegeOwnerDeathConfigStore =
+        PrivilegeOwnerDeathConfigStore(PrivilegeRuntimeContext.require())
+
+    private data class ServerConnection(
+        val serverInfo: PrivilegeServerInfo,
+        val server: IPrivilegeServer,
+        val deathRecipient: IBinder.DeathRecipient,
+    ) {
+        fun unlink() {
+            try {
+                server.asBinder().unlinkToDeath(deathRecipient, 0)
+            } catch (_: NoSuchElementException) {
+            }
+        }
     }
 }

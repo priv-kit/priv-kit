@@ -18,8 +18,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,15 +35,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.ui.NavDisplay
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.core.PrivilegeServerInfo
 
-internal enum class PrivilegeSamplePage(val title: String) {
-    ROOT("Root"),
-    MANUAL("Manual"),
-    ADB("Wireless ADB"),
-    TCP("TCP"),
-    SESSION("Session"),
+internal sealed interface PrivilegeSampleDestination {
+    val title: String
+
+    data object Connection : PrivilegeSampleDestination {
+        override val title: String = "Test Connection"
+    }
+
+    data object Binder : PrivilegeSampleDestination {
+        override val title: String = "Test Binder"
+    }
+
+    companion object {
+        val entries: List<PrivilegeSampleDestination> = listOf(Connection, Binder)
+    }
 }
 
 internal enum class PrivilegeSampleStatus {
@@ -59,7 +75,6 @@ internal enum class PrivilegeAdbPairingStatus(val label: String) {
 }
 
 internal data class PrivilegeSampleScreenState(
-    val page: PrivilegeSamplePage = PrivilegeSamplePage.ROOT,
     val busy: Boolean = false,
     val status: PrivilegeSampleStatus = PrivilegeSampleStatus.DISCONNECTED,
     val serverInfo: PrivilegeServerInfo? = null,
@@ -74,6 +89,11 @@ internal data class PrivilegeSampleScreenState(
     val pairingStatus: PrivilegeAdbPairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
     val pairingMessage: String = "Enter the Wireless debugging pairing code, or reply from the pairing notification.",
     val tcpPortText: String = PrivilegeAdbStartOptions.DEFAULT_TCP_PORT.toString(),
+    val binderRegistered: Boolean = false,
+    val binderEndpointAlive: Boolean? = null,
+    val userManagerCached: Boolean = false,
+    val binderMessage: String = "Connect to a Privileged Server, then register a local Binder endpoint.",
+    val binderLastException: String = "",
     val message: String = "Ready",
     val logText: String = "",
 )
@@ -81,7 +101,6 @@ internal data class PrivilegeSampleScreenState(
 internal fun PrivilegeSampleScreenState.wirelessDebugLogText(): String =
     buildString {
         appendLine("Priv Kit Wireless ADB diagnostics")
-        appendLine("page=$page")
         appendLine("busy=$busy")
         appendLine("runtimeStatus=$status")
         appendLine("message=$message")
@@ -94,6 +113,10 @@ internal fun PrivilegeSampleScreenState.wirelessDebugLogText(): String =
         appendLine("pairingPort=${pairingPortText.ifBlank { "auto" }}")
         appendLine("connectPort=${connectPortText.ifBlank { "auto" }}")
         appendLine("tcpPort=${tcpPortText.ifBlank { "blank" }}")
+        appendLine("binderRegistered=$binderRegistered")
+        appendLine("binderEndpointAlive=${binderEndpointAlive ?: "unknown"}")
+        appendLine("userManagerCached=$userManagerCached")
+        appendLine("binderMessage=$binderMessage")
         appendLine("serverInfo=${serverInfo ?: "none"}")
         appendLine()
         appendLine("Session log:")
@@ -103,7 +126,154 @@ internal fun PrivilegeSampleScreenState.wirelessDebugLogText(): String =
 @Composable
 internal fun PrivilegeSampleScreen(
     state: PrivilegeSampleScreenState,
-    onPageSelected: (PrivilegeSamplePage) -> Unit,
+    backStack: SnapshotStateList<PrivilegeSampleDestination>,
+    onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
+    onAdbDeviceNameChanged: (String) -> Unit,
+    onRefreshAdbFingerprint: () -> Unit,
+    onCheckAdbPairing: () -> Unit,
+    onPairingCodeChanged: (String) -> Unit,
+    onTcpPortChanged: (String) -> Unit,
+    onStartRootRuntime: () -> Unit,
+    onCopyManualCommand: () -> Unit,
+    onPairWirelessAdb: () -> Unit,
+    onStartNotificationPairing: () -> Unit,
+    onStartWirelessAdb: () -> Unit,
+    onSwitchToTcp: () -> Unit,
+    onRestartTcp: () -> Unit,
+    onStopTcp: () -> Unit,
+    onStopServer: () -> Unit,
+    onRegisterBinder: () -> Unit,
+    onGetBinder: () -> Unit,
+    onGetUsers: () -> Unit,
+    onRequireBinderAfterUnregister: () -> Unit,
+    onUnregisterBinder: () -> Unit,
+    onClearLog: () -> Unit,
+    onCopyLog: () -> Unit,
+) {
+    MaterialTheme {
+        NavDisplay(
+            backStack = backStack,
+            entryDecorators = listOf(
+                rememberSaveableStateHolderNavEntryDecorator(),
+                rememberViewModelStoreNavEntryDecorator(),
+            ),
+            entryProvider = entryProvider {
+                entry<PrivilegeSampleDestination.Connection> {
+                    ConnectionTestPage(
+                        state = state,
+                        selectedDestination = PrivilegeSampleDestination.Connection,
+                        onDestinationSelected = onDestinationSelected,
+                        onAdbDeviceNameChanged = onAdbDeviceNameChanged,
+                        onRefreshAdbFingerprint = onRefreshAdbFingerprint,
+                        onCheckAdbPairing = onCheckAdbPairing,
+                        onPairingCodeChanged = onPairingCodeChanged,
+                        onTcpPortChanged = onTcpPortChanged,
+                        onStartRootRuntime = onStartRootRuntime,
+                        onCopyManualCommand = onCopyManualCommand,
+                        onPairWirelessAdb = onPairWirelessAdb,
+                        onStartNotificationPairing = onStartNotificationPairing,
+                        onStartWirelessAdb = onStartWirelessAdb,
+                        onSwitchToTcp = onSwitchToTcp,
+                        onRestartTcp = onRestartTcp,
+                        onStopTcp = onStopTcp,
+                        onStopServer = onStopServer,
+                        onClearLog = onClearLog,
+                        onCopyLog = onCopyLog,
+                    )
+                }
+                entry<PrivilegeSampleDestination.Binder> {
+                    BinderTestPage(
+                        state = state,
+                        selectedDestination = PrivilegeSampleDestination.Binder,
+                        onDestinationSelected = onDestinationSelected,
+                        onRegisterBinder = onRegisterBinder,
+                        onGetBinder = onGetBinder,
+                        onGetUsers = onGetUsers,
+                        onRequireBinderAfterUnregister = onRequireBinderAfterUnregister,
+                        onUnregisterBinder = onUnregisterBinder,
+                        onStopServer = onStopServer,
+                    )
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun SamplePageScaffold(
+    title: String,
+    selectedDestination: PrivilegeSampleDestination,
+    busy: Boolean,
+    onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Scaffold(
+        containerColor = Color(0xFFF6F7F9),
+        topBar = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFF6F7F9))
+                    .padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                BasicText(
+                    text = title,
+                    style = TextStyle(
+                        color = Color(0xFF101418),
+                        fontFamily = FontFamily.SansSerif,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                )
+                DestinationTabs(
+                    selectedDestination = selectedDestination,
+                    busy = busy,
+                    onDestinationSelected = onDestinationSelected,
+                )
+            }
+        },
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun DestinationTabs(
+    selectedDestination: PrivilegeSampleDestination,
+    busy: Boolean,
+    onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        PrivilegeSampleDestination.entries.forEach { destination ->
+            val selected = destination == selectedDestination
+            SampleAction(
+                label = destination.title,
+                enabled = !busy || selected,
+                background = if (selected) Color(0xFF1769E0) else Color(0xFFE2E7EE),
+                foreground = if (selected) Color.White else Color(0xFF27313B),
+                modifier = Modifier.weight(1f),
+            ) {
+                onDestinationSelected(destination)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectionTestPage(
+    state: PrivilegeSampleScreenState,
+    selectedDestination: PrivilegeSampleDestination,
+    onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
     onAdbDeviceNameChanged: (String) -> Unit,
     onRefreshAdbFingerprint: () -> Unit,
     onCheckAdbPairing: () -> Unit,
@@ -121,84 +291,188 @@ internal fun PrivilegeSampleScreen(
     onClearLog: () -> Unit,
     onCopyLog: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFF6F7F9))
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    SamplePageScaffold(
+        title = "Test Connection",
+        selectedDestination = selectedDestination,
+        busy = state.busy,
+        onDestinationSelected = onDestinationSelected,
     ) {
-        BasicText(
-            text = "Priv Kit Sample",
-            style = TextStyle(
-                color = Color(0xFF101418),
-                fontFamily = FontFamily.SansSerif,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.SemiBold,
-            ),
-        )
-
-        PageTabs(
-            selectedPage = state.page,
-            busy = state.busy,
-            onPageSelected = onPageSelected,
-        )
-
         StatusPanel(state, onStopServer)
+        SectionTitle("Root")
+        RootPage(state, onStartRootRuntime)
+        SectionTitle("Manual")
+        ManualPage(state, onCopyManualCommand)
+        SectionTitle("Wireless ADB")
+        WirelessAdbPage(
+            state = state,
+            onAdbDeviceNameChanged = onAdbDeviceNameChanged,
+            onRefreshAdbFingerprint = onRefreshAdbFingerprint,
+            onCheckAdbPairing = onCheckAdbPairing,
+            onPairingCodeChanged = onPairingCodeChanged,
+            onCopyLog = onCopyLog,
+            onPairWirelessAdb = onPairWirelessAdb,
+            onStartNotificationPairing = onStartNotificationPairing,
+            onStartWirelessAdb = onStartWirelessAdb,
+        )
+        SectionTitle("TCP")
+        TcpPage(
+            state = state,
+            onTcpPortChanged = onTcpPortChanged,
+            onSwitchToTcp = onSwitchToTcp,
+            onRestartTcp = onRestartTcp,
+            onStopTcp = onStopTcp,
+        )
+        SectionTitle("Session Log")
+        SessionPage(state, onClearLog, onCopyLog)
+    }
+}
 
-        when (state.page) {
-            PrivilegeSamplePage.ROOT -> RootPage(state, onStartRootRuntime)
-            PrivilegeSamplePage.MANUAL -> ManualPage(
-                state = state,
-                onCopyManualCommand = onCopyManualCommand,
+@Composable
+private fun BinderTestPage(
+    state: PrivilegeSampleScreenState,
+    selectedDestination: PrivilegeSampleDestination,
+    onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
+    onRegisterBinder: () -> Unit,
+    onGetBinder: () -> Unit,
+    onGetUsers: () -> Unit,
+    onRequireBinderAfterUnregister: () -> Unit,
+    onUnregisterBinder: () -> Unit,
+    onStopServer: () -> Unit,
+) {
+    SamplePageScaffold(
+        title = "Test Binder",
+        selectedDestination = selectedDestination,
+        busy = state.busy,
+        onDestinationSelected = onDestinationSelected,
+    ) {
+        StatusPanel(state, onStopServer)
+        BinderPage(
+            state = state,
+            onRegisterBinder = onRegisterBinder,
+            onGetBinder = onGetBinder,
+            onGetUsers = onGetUsers,
+            onRequireBinderAfterUnregister = onRequireBinderAfterUnregister,
+            onUnregisterBinder = onUnregisterBinder,
+        )
+    }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    BasicText(
+        text = text,
+        style = TextStyle(
+            color = Color(0xFF27313B),
+            fontFamily = FontFamily.SansSerif,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+        ),
+    )
+}
+
+@Composable
+private fun BinderPage(
+    state: PrivilegeSampleScreenState,
+    onRegisterBinder: () -> Unit,
+    onGetBinder: () -> Unit,
+    onGetUsers: () -> Unit,
+    onRequireBinderAfterUnregister: () -> Unit,
+    onUnregisterBinder: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        BinderStatusPanel(state)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SampleAction(
+                label = "Register",
+                enabled = !state.busy && state.status == PrivilegeSampleStatus.CONNECTED,
+                background = Color(0xFF1769E0),
+                modifier = Modifier.weight(1f),
+                onClick = onRegisterBinder,
             )
-            PrivilegeSamplePage.ADB -> WirelessAdbPage(
-                state = state,
-                onAdbDeviceNameChanged = onAdbDeviceNameChanged,
-                onRefreshAdbFingerprint = onRefreshAdbFingerprint,
-                onCheckAdbPairing = onCheckAdbPairing,
-                onPairingCodeChanged = onPairingCodeChanged,
-                onCopyLog = onCopyLog,
-                onPairWirelessAdb = onPairWirelessAdb,
-                onStartNotificationPairing = onStartNotificationPairing,
-                onStartWirelessAdb = onStartWirelessAdb,
+            SampleAction(
+                label = "Get",
+                enabled = !state.busy && state.status == PrivilegeSampleStatus.CONNECTED,
+                background = Color(0xFF5E4FA2),
+                modifier = Modifier.weight(1f),
+                onClick = onGetBinder,
             )
-            PrivilegeSamplePage.TCP -> TcpPage(
-                state = state,
-                onTcpPortChanged = onTcpPortChanged,
-                onSwitchToTcp = onSwitchToTcp,
-                onRestartTcp = onRestartTcp,
-                onStopTcp = onStopTcp,
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SampleAction(
+                label = "Require After Unregister",
+                enabled = !state.busy && state.status == PrivilegeSampleStatus.CONNECTED,
+                background = Color(0xFF2A3541),
+                modifier = Modifier.weight(1f),
+                onClick = onRequireBinderAfterUnregister,
             )
-            PrivilegeSamplePage.SESSION -> SessionPage(state, onClearLog, onCopyLog)
+            SampleAction(
+                label = "Unregister",
+                enabled = !state.busy && state.status == PrivilegeSampleStatus.CONNECTED,
+                background = Color(0xFFB42318),
+                modifier = Modifier.weight(1f),
+                onClick = onUnregisterBinder,
+            )
+        }
+        SampleAction(
+            label = "Get Users",
+            enabled = !state.busy &&
+                (state.status == PrivilegeSampleStatus.CONNECTED || state.userManagerCached),
+            background = Color(0xFF087443),
+            onClick = onGetUsers,
+        )
+        if (state.binderLastException.isNotBlank()) {
+            DiagnosticBlock(state.binderLastException)
         }
     }
 }
 
 @Composable
-private fun PageTabs(
-    selectedPage: PrivilegeSamplePage,
-    busy: Boolean,
-    onPageSelected: (PrivilegeSamplePage) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        PrivilegeSamplePage.entries.chunked(2).forEach { rowPages ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                rowPages.forEach { page ->
-                    val selected = page == selectedPage
-                    SampleAction(
-                        label = page.title,
-                        enabled = !busy || selected,
-                        background = if (selected) Color(0xFF1769E0) else Color(0xFFE2E7EE),
-                        foreground = if (selected) Color.White else Color(0xFF27313B),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        onPageSelected(page)
-                    }
-                }
-                if (rowPages.size == 1) Spacer(modifier = Modifier.weight(1f))
-            }
+private fun BinderStatusPanel(state: PrivilegeSampleScreenState) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        RuntimeInfoRow(label = "registered", value = state.binderRegistered.toString())
+        RuntimeInfoRow(label = "alive", value = state.binderEndpointAlive?.toString() ?: "-")
+        RuntimeInfoRow(label = "IUserManager", value = if (state.userManagerCached) "cached" else "-")
+        SelectionContainer {
+            BasicText(
+                text = state.binderMessage,
+                style = TextStyle(
+                    color = Color(0xFF48525C),
+                    fontFamily = FontFamily.SansSerif,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticBlock(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 120.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF111820))
+            .padding(16.dp),
+    ) {
+        SelectionContainer {
+            BasicText(
+                text = text,
+                style = TextStyle(
+                    color = Color(0xFFF7FAFC),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                ),
+            )
         }
     }
 }
@@ -233,7 +507,7 @@ private fun StatusPanel(
         }
         RuntimeInfoRow(label = "uid", value = state.serverInfo?.uid?.toString() ?: "-")
         RuntimeInfoRow(label = "pid", value = state.serverInfo?.pid?.toString() ?: "-")
-        RuntimeInfoRow(label = "mode", value = state.serverInfo?.mode?.toString() ?: "-")
+        RuntimeInfoRow(label = "launchMode", value = state.serverInfo?.launchMode?.toString() ?: "-")
         RuntimeInfoRow(label = "protocol", value = state.serverInfo?.protocolVersion?.toString() ?: "-")
         RuntimeInfoRow(label = "server", value = state.serverInfo?.serverVersion ?: "-")
         SampleAction(
@@ -499,15 +773,17 @@ private fun SessionPage(
                 .background(Color(0xFF111820))
                 .padding(16.dp),
         ) {
-            BasicText(
-                text = state.logText.ifBlank { "-" },
-                style = TextStyle(
-                    color = Color(0xFFF7FAFC),
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp,
-                ),
-            )
+            SelectionContainer {
+                BasicText(
+                    text = state.logText.ifBlank { "-" },
+                    style = TextStyle(
+                        color = Color(0xFFF7FAFC),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                    ),
+                )
+            }
         }
     }
 }

@@ -84,8 +84,9 @@ internal class PrivilegeSampleAdbPairingService : Service() {
             message = "Searching for the Wireless debugging pairing service...",
         )
         activeTask = executor.submit {
-            val starter = PrivilegeRuntime.create(applicationContext)
-                .createAdbStarter(adbDeviceName = adbDeviceName)
+            val starter = PrivilegeRuntime.createAdbStarter(
+                adbDeviceName = adbDeviceName,
+            )
             var attempt = 1
             while (generation == searchGeneration.get()) {
                 try {
@@ -174,8 +175,9 @@ internal class PrivilegeSampleAdbPairingService : Service() {
         )
         activeTask = executor.submit {
             try {
-                val result = PrivilegeRuntime.create(applicationContext)
-                    .createAdbStarter(adbDeviceName = adbDeviceName)
+                val result = PrivilegeRuntime.createAdbStarter(
+                    adbDeviceName = adbDeviceName,
+                )
                     .pair(port = port, pairingCode = code)
                 val message = "Paired as ${result.identity.deviceName} on port ${result.port}."
                 sendPairingEvent(

@@ -25,4 +25,5 @@ dependencies {
     implementation(project(":priv-root"))
     implementation(project(":priv-delegate"))
     runtimeOnly(project(":priv-server"))
+    testImplementation(libs.junit)
 }

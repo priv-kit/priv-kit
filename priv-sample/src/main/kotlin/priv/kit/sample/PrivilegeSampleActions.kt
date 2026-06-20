@@ -7,10 +7,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import priv.kit.binder.PrivilegeBinderEndpointNotFoundException
+import priv.kit.binder.PrivilegeServerDisconnectedException
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStarter
+import priv.kit.core.PrivilegeServerInfo
 import priv.kit.runtime.PrivilegeRuntime
-import priv.kit.runtime.PrivilegeSession
 import java.io.File
 import java.nio.charset.StandardCharsets
 
@@ -29,12 +31,9 @@ internal fun MainActivity.initializePrivilegeSample() {
         appendLog(throwable.toDiagnosticString())
     }
     watchReadyServers()
+    watchServerDisconnected()
     refreshAdbFingerprint()
     checkWirelessAdbPairing(showBusy = false)
-}
-
-internal fun MainActivity.selectPage(page: PrivilegeSamplePage) {
-    screenState = screenState.copy(page = page)
 }
 
 internal fun MainActivity.updatePairingCode(value: String) {
@@ -63,22 +62,24 @@ internal fun MainActivity.clearLog() {
 }
 
 internal fun MainActivity.releasePrivilegeSample() {
+    clearSampleBinderHandles(closeRegistration = true)
+    sampleUserManager = null
     readyServerWatcher?.close()
     readyServerWatcher = null
+    serverDisconnectedWatcher?.close()
+    serverDisconnectedWatcher = null
     executor.shutdownNow()
-    session?.setOnDisconnectedListener(null)
-    session = null
 }
 
 internal fun MainActivity.watchReadyServers() {
     readyServerWatcher?.close()
-    readyServerWatcher = PrivilegeRuntime.create(applicationContext).watchReadyServers(
-        onReady = { newSession ->
+    readyServerWatcher = PrivilegeRuntime.watchReadyServers(
+        onReady = { serverInfo ->
             runOnUiThread {
-                connectSession(newSession, commandLine = null)
+                connectServer(serverInfo, commandLine = null)
                 appendLog(
-                    "Connected from server handshake: uid=${newSession.serverInfo.uid}, " +
-                        "pid=${newSession.serverInfo.pid}, mode=${newSession.serverInfo.mode}",
+                    "Connected from server handshake: uid=${serverInfo.uid}, " +
+                        "pid=${serverInfo.pid}, launchMode=${serverInfo.launchMode}",
                 )
             }
         },
@@ -89,6 +90,15 @@ internal fun MainActivity.watchReadyServers() {
             }
         },
     )
+}
+
+internal fun MainActivity.watchServerDisconnected() {
+    serverDisconnectedWatcher?.close()
+    serverDisconnectedWatcher = PrivilegeRuntime.addServerDisconnectedListener {
+        runOnUiThread {
+            handleServerDisconnected()
+        }
+    }
 }
 
 internal fun MainActivity.updateAdbDeviceName(value: String) {
@@ -205,7 +215,7 @@ private fun MainActivity.currentAdbDeviceNameOverride(): String? =
     screenState.adbDeviceNameText.trim().ifBlank { null }
 
 private fun MainActivity.createAdbStarter(adbDeviceName: String? = currentAdbDeviceNameOverride()): PrivilegeAdbStarter =
-    PrivilegeRuntime.create(applicationContext).createAdbStarter(adbDeviceName = adbDeviceName)
+    PrivilegeRuntime.createAdbStarter(adbDeviceName = adbDeviceName)
 
 private fun MainActivity.loadAdbDeviceNameOverride(): String =
     runCatching {
@@ -240,8 +250,8 @@ private fun MainActivity.defaultAdbDeviceName(): String =
         ?: DEFAULT_ADB_DEVICE_NAME
 
 internal fun MainActivity.startRootRuntime() {
-    runSessionStart("Starting Root Runtime...") {
-        PrivilegeRuntime.create(applicationContext).startRoot()
+    runServerStart("Starting Root Runtime...") {
+        PrivilegeRuntime.startRoot()
     }
 }
 
@@ -351,8 +361,8 @@ internal fun MainActivity.handleNotificationPairingEvent(intent: Intent) {
 
 internal fun MainActivity.startWirelessAdb() {
     val adbDeviceName = currentAdbDeviceNameOverride()
-    runSessionStart("Discovering ADB connect port and starting Wireless ADB...") {
-        PrivilegeRuntime.create(applicationContext).startAdb(
+    runServerStart("Discovering ADB connect port and starting Wireless ADB...") {
+        PrivilegeRuntime.startAdb(
             options = PrivilegeAdbStartOptions(),
             adbDeviceName = adbDeviceName,
         )
@@ -378,8 +388,8 @@ internal fun MainActivity.switchToTcp() {
 internal fun MainActivity.restartTcp() {
     val tcpPort = screenState.tcpPortText.toIntOrNull() ?: PrivilegeAdbStartOptions.DEFAULT_TCP_PORT
     val adbDeviceName = currentAdbDeviceNameOverride()
-    runSessionStart("Restarting through ADB TCP port $tcpPort...") {
-        PrivilegeRuntime.create(applicationContext).startAdb(
+    runServerStart("Restarting through ADB TCP port $tcpPort...") {
+        PrivilegeRuntime.startAdb(
             options = PrivilegeAdbStartOptions(
                 tcpMode = true,
                 tcpPort = tcpPort,
@@ -405,8 +415,7 @@ internal fun MainActivity.stopTcp() {
 
 internal fun MainActivity.stopServer() {
     if (screenState.busy) return
-    val activeSession = session
-    if (activeSession == null) {
+    if (!PrivilegeRuntime.pingServer()) {
         screenState = screenState.copy(message = "No server connected")
         appendLog("No server connected")
         return
@@ -420,33 +429,236 @@ internal fun MainActivity.stopServer() {
 
     executor.execute {
         try {
-            activeSession.setOnDisconnectedListener(null)
-            activeSession.shutdown()
+            PrivilegeRuntime.shutdownServer()
             runOnUiThread {
-                if (session === activeSession) {
-                    session = null
-                    screenState = screenState.copy(
-                        busy = false,
-                        status = PrivilegeSampleStatus.DISCONNECTED,
-                        serverInfo = null,
-                        message = "Server stopped",
-                    )
-                    appendLog("Server stopped")
-                }
+                clearSampleBinderHandles(closeRegistration = false)
+                screenState = screenState.copy(
+                    busy = false,
+                    status = PrivilegeSampleStatus.DISCONNECTED,
+                    serverInfo = null,
+                    binderRegistered = false,
+                    binderEndpointAlive = false,
+                    binderMessage = "Server stopped; Binder endpoint cleared",
+                    binderLastException = "",
+                    message = "Server stopped",
+                )
+                appendLog("Server stopped")
             }
         } catch (throwable: Throwable) {
             runOnUiThread {
-                if (session === activeSession) {
-                    setFailure(throwable)
-                }
+                setFailure(throwable)
             }
         }
     }
 }
 
-private fun MainActivity.runSessionStart(
+internal fun MainActivity.registerSampleBinderEndpoint() {
+    runBinderAction("Registering Binder endpoint...") {
+        clearSampleBinderHandles(closeRegistration = true)
+        val binder = android.os.Binder()
+        val registration = PrivilegeRuntime.registerBinderEndpoint(binder)
+        val endpoint = PrivilegeRuntime.requireBinderEndpoint()
+        val deathWatcher = endpoint.watchDeath {
+            runOnUiThread {
+                screenState = screenState.copy(
+                    binderRegistered = false,
+                    binderEndpointAlive = false,
+                    binderMessage = "Binder endpoint died",
+                )
+                appendLog("Binder endpoint died")
+            }
+        }
+        sampleBinder = binder
+        sampleBinderRegistration = registration
+        sampleBinderDeathWatcher = deathWatcher
+        BinderActionResult(
+            message = "Binder endpoint registered",
+            registered = true,
+            alive = endpoint.isAlive,
+        )
+    }
+}
+
+internal fun MainActivity.getSampleBinderEndpoint() {
+    runBinderAction("Getting Binder endpoint...") {
+        val endpoint = PrivilegeRuntime.getBinderEndpoint()
+        if (endpoint == null) {
+            BinderActionResult(
+                message = "Binder endpoint not found",
+                registered = sampleBinderRegistration != null,
+                alive = false,
+            )
+        } else {
+            BinderActionResult(
+                message = "Binder endpoint found",
+                registered = sampleBinderRegistration != null,
+                alive = endpoint.isAlive,
+            )
+        }
+    }
+}
+
+internal fun MainActivity.getUserManagerUsers() {
+    val hasCachedUserManager = sampleUserManager != null
+    runBinderAction(
+        message = "Calling IUserManager.getUsers...",
+        requireConnected = !hasCachedUserManager,
+    ) {
+        val userManager = sampleUserManager ?: PrivilegeSampleUserManager.create().also {
+            sampleUserManager = it
+        }
+        val users = userManager.getUsers()
+        BinderActionResult(
+            message = users.toBinderMessage(),
+            registered = null,
+            alive = PrivilegeRuntime.pingServer(),
+            userManagerCached = true,
+        )
+    }
+}
+
+internal fun MainActivity.requireSampleBinderAfterUnregister() {
+    runBinderAction("Requiring Binder endpoint after unregister...") {
+        PrivilegeRuntime.unregisterBinderEndpoint()
+        clearSampleBinderHandles(closeRegistration = false)
+        try {
+            PrivilegeRuntime.requireBinderEndpoint()
+            BinderActionResult(
+                message = "Unexpectedly found Binder endpoint",
+                registered = false,
+                alive = null,
+            )
+        } catch (exception: PrivilegeBinderEndpointNotFoundException) {
+            BinderActionResult(
+                message = "Typed exception captured: ${exception.javaClass.simpleName}",
+                registered = false,
+                alive = false,
+                exceptionText = exception.toDiagnosticString(),
+            )
+        }
+    }
+}
+
+internal fun MainActivity.unregisterSampleBinderEndpoint() {
+    runBinderAction("Unregistering Binder endpoint...") {
+        val removed = PrivilegeRuntime.unregisterBinderEndpoint()
+        clearSampleBinderHandles(closeRegistration = false)
+        BinderActionResult(
+            message = if (removed) {
+                "Binder endpoint unregistered"
+            } else {
+                "Binder endpoint was not registered"
+            },
+            registered = false,
+            alive = false,
+        )
+    }
+}
+
+private fun MainActivity.runBinderAction(
     message: String,
-    start: () -> PrivilegeSession,
+    requireConnected: Boolean = true,
+    action: () -> BinderActionResult,
+) {
+    if (screenState.busy) return
+    if (requireConnected && !PrivilegeRuntime.pingServer()) {
+        screenState = screenState.copy(
+            binderRegistered = false,
+            binderEndpointAlive = false,
+            binderMessage = "No server connected",
+            binderLastException = "",
+            message = "No server connected",
+        )
+        appendLog("No server connected")
+        return
+    }
+
+    screenState = screenState.copy(
+        busy = true,
+        binderMessage = message,
+        binderLastException = "",
+        message = message,
+    )
+    appendLog(message)
+
+    executor.execute {
+        try {
+            val result = action()
+            runOnUiThread {
+                screenState = screenState.copy(
+                    busy = false,
+                    binderRegistered = result.registered ?: screenState.binderRegistered,
+                    binderEndpointAlive = result.alive,
+                    userManagerCached = result.userManagerCached ?: screenState.userManagerCached,
+                    binderMessage = result.message,
+                    binderLastException = result.exceptionText,
+                    message = result.message,
+                )
+                appendLog(result.message)
+            }
+        } catch (throwable: Throwable) {
+            runOnUiThread {
+                setBinderFailure(throwable)
+            }
+        }
+    }
+}
+
+private fun MainActivity.setBinderFailure(throwable: Throwable) {
+    val message = throwable.message ?: throwable.javaClass.name
+    val disconnected = throwable is PrivilegeServerDisconnectedException
+    if (disconnected) {
+        clearSampleBinderHandles(closeRegistration = false)
+    }
+    screenState = screenState.copy(
+        busy = false,
+        status = if (disconnected) PrivilegeSampleStatus.DISCONNECTED else screenState.status,
+        serverInfo = if (disconnected) null else screenState.serverInfo,
+        binderRegistered = if (disconnected) false else screenState.binderRegistered,
+        binderEndpointAlive = if (disconnected) false else screenState.binderEndpointAlive,
+        userManagerCached = screenState.userManagerCached || sampleUserManager != null,
+        binderMessage = message,
+        binderLastException = throwable.toDiagnosticString(),
+        message = message,
+    )
+    appendLog("Binder error: $message")
+    appendLog(throwable.toDiagnosticString())
+}
+
+private fun MainActivity.clearSampleBinderHandles(closeRegistration: Boolean) {
+    runCatching {
+        sampleBinderDeathWatcher?.close()
+    }
+    sampleBinderDeathWatcher = null
+    if (closeRegistration) {
+        runCatching {
+            sampleBinderRegistration?.close()
+        }
+    }
+    sampleBinderRegistration = null
+    sampleBinder = null
+}
+
+private data class BinderActionResult(
+    val message: String,
+    val registered: Boolean?,
+    val alive: Boolean?,
+    val userManagerCached: Boolean? = null,
+    val exceptionText: String = "",
+)
+
+private fun List<PrivilegeSampleUserInfo>.toBinderMessage(): String =
+    buildString {
+        append("IUserManager.getUsers returned ${size} user(s)")
+        this@toBinderMessage.forEach { user ->
+            appendLine()
+            append("user id=${user.id}, name=${user.name.ifBlank { "<unnamed>" }}")
+        }
+    }
+
+private fun MainActivity.runServerStart(
+    message: String,
+    start: () -> PrivilegeServerInfo,
 ) {
     if (screenState.busy) return
     screenState = screenState.copy(
@@ -459,9 +671,9 @@ private fun MainActivity.runSessionStart(
 
     executor.execute {
         try {
-            val newSession = start()
+            val serverInfo = start()
             runOnUiThread {
-                connectSession(newSession, commandLine = null)
+                connectServer(serverInfo, commandLine = null)
             }
         } catch (throwable: Throwable) {
             runOnUiThread {
@@ -504,33 +716,44 @@ private fun <T> MainActivity.runBusy(
     }
 }
 
-private fun MainActivity.connectSession(
-    session: PrivilegeSession,
+private fun MainActivity.connectServer(
+    serverInfo: PrivilegeServerInfo,
     commandLine: String?,
 ) {
-    this.session?.setOnDisconnectedListener(null)
-    this.session = session
-    session.setOnDisconnectedListener {
-        runOnUiThread {
-            if (this.session === it) {
-                screenState = screenState.copy(
-                    busy = false,
-                    status = PrivilegeSampleStatus.DISCONNECTED,
-                    serverInfo = null,
-                    message = "Binder died",
-                )
-                appendLog("Binder died")
-            }
-        }
-    }
+    clearSampleBinderHandles(closeRegistration = true)
     screenState = screenState.copy(
         busy = false,
         status = PrivilegeSampleStatus.CONNECTED,
-        serverInfo = session.serverInfo,
+        serverInfo = serverInfo,
         manualShellCommandLine = commandLine ?: screenState.manualShellCommandLine,
+        binderRegistered = false,
+        binderEndpointAlive = null,
+        binderMessage = "Connected. Register a local Binder endpoint to test the binder module.",
+        binderLastException = "",
         message = "Connected",
     )
-    appendLog("Connected: uid=${session.serverInfo.uid}, pid=${session.serverInfo.pid}, mode=${session.serverInfo.mode}")
+    appendLog("Connected: uid=${serverInfo.uid}, pid=${serverInfo.pid}, launchMode=${serverInfo.launchMode}")
+}
+
+private fun MainActivity.handleServerDisconnected() {
+    clearSampleBinderHandles(closeRegistration = false)
+    val userManagerCached = screenState.userManagerCached || sampleUserManager != null
+    screenState = screenState.copy(
+        busy = false,
+        status = PrivilegeSampleStatus.DISCONNECTED,
+        serverInfo = null,
+        binderRegistered = false,
+        binderEndpointAlive = false,
+        userManagerCached = userManagerCached,
+        binderMessage = if (userManagerCached) {
+            "Server disconnected; cached IUserManager remains clickable for the expected error test"
+        } else {
+            "Server disconnected; Binder endpoint cleared"
+        },
+        binderLastException = "",
+        message = "Binder died",
+    )
+    appendLog("Binder died")
 }
 
 private fun MainActivity.setFailure(throwable: Throwable) {
@@ -539,6 +762,10 @@ private fun MainActivity.setFailure(throwable: Throwable) {
         busy = false,
         status = PrivilegeSampleStatus.DISCONNECTED,
         serverInfo = null,
+        binderRegistered = false,
+        binderEndpointAlive = false,
+        binderMessage = "Connection failed; no Binder endpoint is active",
+        binderLastException = throwable.toDiagnosticString(),
         message = message,
     )
     appendLog("Error: $message")

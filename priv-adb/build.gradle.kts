@@ -37,9 +37,9 @@ android {
 
 dependencies {
     api(project(":priv-core"))
+    compileOnly(project(":hidden-api"))
     implementation(libs.boringssl)
     implementation(libs.bouncycastle.bcpkix)
-    implementation(libs.hiddenapibypass)
     implementation(libs.libcxx)
     testImplementation(libs.junit)
 }

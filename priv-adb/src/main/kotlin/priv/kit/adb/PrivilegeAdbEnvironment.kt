@@ -1,5 +1,7 @@
 package priv.kit.adb
 
+import android.os.SystemProperties
+
 internal object PrivilegeAdbEnvironment {
     fun getAdbTcpPort(): Int {
         val servicePort = getSystemPropertyInt("service.adb.tcp.port", -1)
@@ -10,9 +12,5 @@ internal object PrivilegeAdbEnvironment {
     }
 
     private fun getSystemPropertyInt(name: String, defaultValue: Int): Int =
-        runCatching {
-            val clazz = Class.forName("android.os.SystemProperties")
-            val method = clazz.getMethod("getInt", String::class.java, Int::class.javaPrimitiveType)
-            method.invoke(null, name, defaultValue) as Int
-        }.getOrDefault(defaultValue)
+        SystemProperties.getInt(name, defaultValue)
 }

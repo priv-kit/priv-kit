@@ -2,7 +2,7 @@ package priv.kit.runtime
 
 import android.content.Context
 import priv.kit.core.PrivilegeHandshakeContract
-import priv.kit.core.PrivilegeMode
+import priv.kit.core.PrivilegeLaunchMode
 import priv.kit.core.PrivilegeProtocol
 import priv.kit.core.PrivilegeServerLaunchCommand
 
@@ -10,7 +10,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
     fun build(
         context: Context,
         token: String,
-        mode: PrivilegeMode,
+        launchMode: PrivilegeLaunchMode,
         followDeathDelayMillis: Long,
         activeReconnectOnOwnerDeath: Boolean,
     ): PrivilegeServerLaunchCommand {
@@ -32,8 +32,8 @@ internal object PrivilegeServerLaunchCommandBuilder {
             append(shellArg(providerAuthority))
             append(" --package-name ")
             append(shellArg(packageName))
-            append(" --mode ")
-            append(mode.value)
+            append(" --launch-mode ")
+            append(launchMode.value)
             append(" --protocol-version ")
             append(PrivilegeProtocol.VERSION)
             append(" --server-version ")
@@ -52,7 +52,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
             mainClass = SERVER_MAIN_CLASS,
             providerAuthority = providerAuthority,
             packageName = packageName,
-            mode = mode,
+            launchMode = launchMode,
             protocolVersion = PrivilegeProtocol.VERSION,
             serverVersion = PrivilegeProtocol.SERVER_VERSION,
             followDeathDelayMillis = followDeathDelayMillis,

@@ -7,7 +7,7 @@ object PrivilegeHandshakeContract {
     const val EXTRA_SERVER_BINDER = "privilege_server_binder"
     const val EXTRA_UID = "privilege_uid"
     const val EXTRA_PID = "privilege_pid"
-    const val EXTRA_MODE = "privilege_mode"
+    const val EXTRA_LAUNCH_MODE = "privilege_launch_mode"
     const val EXTRA_PROTOCOL_VERSION = "privilege_protocol_version"
     const val EXTRA_SERVER_VERSION = "privilege_server_version"
 

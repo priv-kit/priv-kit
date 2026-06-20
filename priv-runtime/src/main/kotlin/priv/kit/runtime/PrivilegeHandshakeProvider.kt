@@ -9,14 +9,17 @@ import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
 import priv.kit.core.PrivilegeHandshakeContract
-import priv.kit.core.PrivilegeMode
+import priv.kit.core.PrivilegeLaunchMode
 import priv.kit.core.PrivilegeProtocol
 import priv.kit.core.PrivilegeServerHandshakeRegistry
 import priv.kit.core.PrivilegeServerInfo
 import java.util.concurrent.ConcurrentHashMap
 
 class PrivilegeHandshakeProvider : ContentProvider() {
-    override fun onCreate(): Boolean = true
+    override fun onCreate(): Boolean {
+        context?.let(PrivilegeRuntimeContext::install)
+        return true
+    }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
         if (method != PrivilegeHandshakeContract.METHOD_SERVER_READY) {
@@ -145,24 +148,24 @@ class PrivilegeHandshakeProvider : ContentProvider() {
         return PrivilegeServerLaunchCommandBuilder.build(
             context = context,
             token = token,
-            mode = serverInfo.toPrivilegeMode(),
+            launchMode = serverInfo.toPrivilegeLaunchMode(),
             followDeathDelayMillis = ownerDeathConfig.followDeathDelayMillis,
             activeReconnectOnOwnerDeath = ownerDeathConfig.activeReconnectOnOwnerDeath,
         ).detachedCommandLine
     }
 
-    private fun PrivilegeServerInfo.toPrivilegeMode(): PrivilegeMode =
-        if (mode == PrivilegeMode.ROOT.value) {
-            PrivilegeMode.ROOT
+    private fun PrivilegeServerInfo.toPrivilegeLaunchMode(): PrivilegeLaunchMode =
+        if (launchMode == PrivilegeLaunchMode.ROOT.value) {
+            PrivilegeLaunchMode.ROOT
         } else {
-            PrivilegeMode.SHELL
+            PrivilegeLaunchMode.SHELL
         }
 
     private fun Bundle.toServerInfo(): PrivilegeServerInfo =
         PrivilegeServerInfo(
             uid = requireIntExtra(PrivilegeHandshakeContract.EXTRA_UID),
             pid = requireIntExtra(PrivilegeHandshakeContract.EXTRA_PID),
-            mode = requireIntExtra(PrivilegeHandshakeContract.EXTRA_MODE),
+            launchMode = requireIntExtra(PrivilegeHandshakeContract.EXTRA_LAUNCH_MODE),
             protocolVersion = requireIntExtra(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION),
             serverVersion = requireStringExtra(PrivilegeHandshakeContract.EXTRA_SERVER_VERSION),
         )

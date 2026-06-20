@@ -1,9 +1,14 @@
 package priv.kit.server
 
+import android.app.IActivityManager
+import android.content.AttributionSource
+import android.content.Context
 import android.os.Binder
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.os.Process
+import android.os.ServiceManager
 import android.util.Log
 import java.lang.reflect.InvocationTargetException
 
@@ -46,12 +51,11 @@ internal object PrivilegeServerProviderCall {
         }
     }
 
-    private fun activityManager(): Any {
-        val activityManagerClass = Class.forName("android.app.ActivityManager")
-        val getService = activityManagerClass.getDeclaredMethod("getService")
-        getService.isAccessible = true
-        return getService.invoke(null)
-            ?: throw IllegalStateException("ActivityManager.getService() returned null")
+    private fun activityManager(): IActivityManager {
+        val binder = ServiceManager.getService(Context.ACTIVITY_SERVICE)
+            ?: throw IllegalStateException("Activity service was not found")
+        return IActivityManager.Stub.asInterface(binder)
+            ?: throw IllegalStateException("Activity service returned an invalid Binder")
     }
 
     private fun getContentProviderExternal(
@@ -190,21 +194,15 @@ internal object PrivilegeServerProviderCall {
         return candidates
     }
 
-    private fun createAttributionSource(packageName: String?): Any? = runCatching {
-        val builderClass = Class.forName("android.content.AttributionSource\$Builder")
-        val builder = builderClass
-            .getConstructor(Integer.TYPE)
-            .newInstance(Process.myUid())
-        builderClass
-            .getMethod("setPackageName", String::class.java)
-            .invoke(builder, *arrayOf<Any?>(packageName))
-        builderClass
-            .getMethod("setAttributionTag", String::class.java)
-            .invoke(builder, *arrayOf<Any?>(null))
-        builderClass
-            .getMethod("build")
-            .invoke(builder)
-    }.getOrNull()
+    private fun createAttributionSource(packageName: String?): Any? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return null
+        }
+        return AttributionSource.Builder(Process.myUid())
+            .setPackageName(packageName)
+            .setAttributionTag(null)
+            .build()
+    }
 
     private fun removeContentProviderExternal(
         activityManager: Any,

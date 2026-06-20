@@ -17,7 +17,7 @@ internal object PrivilegeServerArguments {
             token = values.required("token"),
             providerAuthority = values.required("provider-authority"),
             packageName = values.required("package-name"),
-            mode = values.requiredInt("mode"),
+            launchMode = values.requiredInt("launch-mode"),
             protocolVersion = values.requiredInt("protocol-version"),
             serverVersion = values.required("server-version"),
             followDeathDelayMillis = values.requiredNonNegativeLong("follow-death-delay-millis"),

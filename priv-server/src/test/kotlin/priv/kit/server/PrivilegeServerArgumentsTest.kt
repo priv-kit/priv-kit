@@ -5,7 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import priv.kit.core.PrivilegeMode
+import priv.kit.core.PrivilegeLaunchMode
 import priv.kit.core.PrivilegeProtocol
 
 class PrivilegeServerArgumentsTest {
@@ -80,8 +80,8 @@ class PrivilegeServerArgumentsTest {
             "example.privilege.handshake",
             "--package-name",
             "example",
-            "--mode",
-            PrivilegeMode.SHELL.value.toString(),
+            "--launch-mode",
+            PrivilegeLaunchMode.SHELL.value.toString(),
             "--protocol-version",
             PrivilegeProtocol.VERSION.toString(),
             "--server-version",
@@ -101,8 +101,8 @@ class PrivilegeServerArgumentsTest {
             "example.privilege.handshake",
             "--package-name",
             "example",
-            "--mode",
-            PrivilegeMode.SHELL.value.toString(),
+            "--launch-mode",
+            PrivilegeLaunchMode.SHELL.value.toString(),
             "--protocol-version",
             PrivilegeProtocol.VERSION.toString(),
             "--server-version",

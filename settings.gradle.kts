@@ -27,4 +27,5 @@ include(
     ":priv-delegate",
     ":priv-ui",
     ":priv-sample",
+    ":hidden-api",
 )

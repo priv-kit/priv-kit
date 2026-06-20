@@ -4,4 +4,15 @@ Binder communication primitive module for Priv Kit.
 
 Namespace and package root: `priv.kit.binder`.
 
-This skeleton module declares the Binder boundary only. It does not implement Binder protocols, endpoints, registration, lookup, or death handling.
+Current contents:
+
+- `IPrivilegeServer`, the project-owned Binder protocol for the Privileged Server.
+- `PrivilegeBinderEndpoint`, a lightweight wrapper around the app-owned `IBinder` endpoint plus death observation.
+- `PrivilegeBinderClient`, the runtime-side helper for registering, looking up, requiring, and unregistering the single endpoint.
+- `PrivilegeBinderRegistry`, the server-side in-memory endpoint slot with Binder death cleanup.
+- `PrivilegeBinderRegistration`, a closeable registration handle.
+- `PrivilegeRemoteBinderWrapper`, a low-level wrapper that executes transactions for an explicit target `IBinder` through the connected Privileged Server. Prefer creating it through `PrivilegeRuntime.createRemoteBinderWrapper()` so every transaction resolves the current server Binder through the global getter.
+- `PrivilegeBinderException`, the sealed Binder primitive error base type.
+- `PrivilegeServerDisconnectedException`, `PrivilegeBinderEndpointDeadException`, `PrivilegeBinderEndpointNotFoundException`, and `PrivilegeBinderRemoteCallException`, typed failures for server death, dead endpoints, missing endpoints, and non-death remote call failures.
+
+This module does not provide Android system service wrappers, `ServiceManager` helpers, endpoint ids, endpoint enumeration, or package/input/settings/app-ops/activity APIs.

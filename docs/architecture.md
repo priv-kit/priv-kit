@@ -28,10 +28,10 @@
 - 项目对外名称固定为 `Priv Kit`。
 - Maven `groupId` 固定为 `io.github.priv-kit`。
 - 发布模块的 Maven `artifactId` 使用 `priv-*`：`priv-core`、`priv-runtime`、`priv-server`、`priv-binder`、`priv-user-service`、`priv-adb`、`priv-root`、`priv-delegate`、`priv-ui`。
-- Gradle 模块使用 `:priv-core`、`:priv-runtime`、`:priv-server`、`:priv-binder`、`:priv-user-service`、`:priv-adb`、`:priv-root`、`:priv-delegate`、`:priv-ui`、`:priv-sample`。
-- Kotlin package 统一使用 `priv.kit.*`，例如 `priv.kit.runtime`、`priv.kit.server`、`priv.kit.binder`、`priv.kit.userservice`。
+- Gradle 模块使用 `:priv-core`、`:priv-runtime`、`:priv-server`、`:priv-binder`、`:priv-user-service`、`:priv-adb`、`:priv-root`、`:priv-delegate`、`:priv-ui`、`:priv-sample`，以及内部编译期 stub 模块 `:hidden-api`。
+- 除 `:hidden-api` 中的 framework mirror/stub 外，Kotlin package 统一使用 `priv.kit.*`，例如 `priv.kit.runtime`、`priv.kit.server`、`priv.kit.binder`、`priv.kit.userservice`。
 - 禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*` 作为源码 package。
-- 公开 API 使用完整单词 `Privilege*`，例如 `PrivilegeKit`、`PrivilegeSession`、`PrivilegeRuntime`、`PrivilegeConnection`。
+- 公开 API 使用完整单词 `Privilege*`，例如 `PrivilegeKit`、`PrivilegeRuntime`、`PrivilegeConnection`。
 - 公开 API 禁止使用 `Priv*` 缩写，例如 `PrivKit`、`PrivSession`、`PrivRuntime`、`PrivConnection`。
 
 示例依赖坐标：
@@ -134,9 +134,9 @@ Privileged Server 是以特权运行的运行时端点。
 
 每种策略把应用配置转换成服务端启动或连接尝试。策略模块可以了解 shell 命令、启动参数、传输搭建和策略特有诊断。运行时通过共享契约消费它们的结果。
 
-共享的 `app_process` 服务端启动命令由运行时根据核心启动值模型构造。Root、ADB 和 Delegate 模块只负责各自的命令执行通道和失败诊断。运行时负责 token、pending handshake、Binder 校验、Session 创建和 death handling。
+共享的 `app_process` 服务端启动命令由运行时根据核心启动值模型构造。Root、ADB 和 Delegate 模块只负责各自的命令执行通道和失败诊断。运行时负责 token、pending handshake、全局 server-binder 安装和 death handling。
 
-启动策略和服务端实际权限模式是两个概念：Root、ADB 或 Delegate 描述命令如何被执行；Root 或 Shell mode 描述服务端最终运行身份。
+启动策略、启动来源和服务端实际运行身份是三个概念：Root、ADB 或 Delegate 描述命令由哪种策略执行；`PrivilegeLaunchMode` 只记录服务端命令按 root 入口还是 shell 入口启动；服务端最终运行身份以 `PrivilegeServerInfo.uid` 和 `pid` 为准。因此即使某些设备让服务端以 uid=1000 等系统身份运行，运行时也不会把它强行归类为 root 或 shell 权限等级。
 
 启动策略不得变成操作库。Root 模块可以通过 root 启动服务端，但不得提供用于包安装、输入事件、设置写入、app-ops 修改或其他系统操作的公开 root helper。
 
@@ -151,13 +151,24 @@ Binder 支持应覆盖：
 - Binder 端点查找；
 - Binder death recipient 处理；
 - transaction 失败传播；
+- 显式目标 Binder 的 remote transact 转发；
 - 项目自有契约的协议和版本检查。
+
+当前 Binder 原语由 `:priv-binder` 承载：
+
+- `IPrivilegeServer` 定义项目自有 Privileged Server Binder 协议；
+- `PrivilegeBinderClient` 作为 `PrivilegeRuntime` 内部 helper 支撑单 endpoint 访问入口；
+- `PrivilegeBinderRegistry` 作为服务端内存 endpoint slot，负责注册、查找、注销和 death 自动清理；
+- `PrivilegeBinderEndpoint` 和 `PrivilegeBinderRegistration` 提供应用侧 Binder 句柄和注册生命周期；
+- `PrivilegeRemoteBinderWrapper` 将显式目标 `IBinder` 的 `transact` 通过当前 Privileged Server 执行，并通过 `PrivilegeRuntime` 的全局 server-binder getter 在每次 transaction 前统一拦截 server 断连；
+- `PrivilegeBinderException` 是 Binder 原语异常密封基类，`PrivilegeServerDisconnectedException`、`PrivilegeBinderEndpointDeadException`、`PrivilegeBinderEndpointNotFoundException` 和 `PrivilegeBinderRemoteCallException` 提供可按类型捕获的失败语义。
 
 Binder 支持不应覆盖：
 
 - Android framework service 的类型化封装；
 - 高级特权操作 facade；
 - hidden framework API 的兼容层。
+- 系统服务发现、系统服务枚举或可复用的类型化系统 Binder facade。
 
 应用可以基于本项目的 Binder 管线定义自己的 Binder 契约。
 

@@ -16,6 +16,7 @@
 - `:priv-delegate`
 - `:priv-ui`
 - `:priv-sample`
+- `:hidden-api`
 
 ## Maven、Package 和 API 命名
 
@@ -41,10 +42,11 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 | `:priv-delegate` | `priv-delegate` | `priv.kit.delegate` |
 | `:priv-ui` | `priv-ui` | `priv.kit.ui` |
 | `:priv-sample` | 不作为发布 artifact | `priv.kit.sample` |
+| `:hidden-api` | 不作为发布 artifact | `priv.kit.hidden.api` |
 
-所有源码 package 必须位于 `priv.kit.*`。禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*`。
+除 `:hidden-api` 中的 framework mirror/stub 外，所有源码 package 必须位于 `priv.kit.*`。禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*`。
 
-所有公开 API 必须使用完整单词 `Privilege*` 命名，例如 `PrivilegeKit`、`PrivilegeSession`、`PrivilegeMode`、`PrivilegeServer`、`PrivilegeBinder`、`PrivilegeUserService`、`PrivilegeRuntime` 和 `PrivilegeConnection`。
+所有公开 API 必须使用完整单词 `Privilege*` 命名，例如 `PrivilegeKit`、`PrivilegeLaunchMode`、`PrivilegeServer`、`PrivilegeBinder`、`PrivilegeUserService`、`PrivilegeRuntime` 和 `PrivilegeConnection`。
 
 禁止公开 API 使用 `Priv*` 缩写，例如 `PrivKit`、`PrivSession`、`PrivMode`、`PrivServer`、`PrivBinder` 和 `PrivUserService`。
 
@@ -121,6 +123,8 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 禁止：
 
 - Android 系统服务封装；
+- 项目自有 Binder AIDL 协议；
+- Binder endpoint registry API；
 - 启动命令构造逻辑；
 - Root、ADB 或 Delegate transport 实现；
 - UI 依赖；
@@ -147,7 +151,8 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 启动策略组合；
 - 构造项目自有 Privileged Server 的 `app_process` 启动命令；
 - 以 runtime-only 依赖携带 `:priv-server`，让接入应用只需声明运行时模块；
-- token、pending handshake、Session 创建和 Binder death handling。
+- token、pending handshake、当前全局 server-binder 安装和 Binder death handling；
+- 参考 shizuku-api 维护进程内单个当前 server-binder，重复握手保持同一 Binder，替换 Binder 时安装新的全局状态。
 
 禁止：
 
@@ -186,12 +191,18 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 职责：
 
 - 运行时和服务端共享的 Binder 通信原语。
+- 项目自有 Privileged Server Binder 协议。
 
 允许：
 
+- `IPrivilegeServer` 等运行时所需的项目自有 AIDL 契约；
+- 单个 app-owned Binder endpoint 的句柄和注册生命周期；
+- 显式目标 Binder 的 remote transact wrapper；
 - Binder 端点注册和查找；
+- Binder 端点注销；
 - Binder 连接状态；
 - Binder death 处理；
+- server death、endpoint dead、endpoint not found 和远程调用失败的类型化异常；
 - Binder 协议检查；
 - 运行时操作所需的项目自有 Binder 契约。
 
@@ -199,7 +210,28 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 - Android 系统服务的类型化封装；
 - 与本运行时无关的通用 Binder 库；
+- 系统服务发现、系统服务枚举或可复用系统 Binder facade；
+- endpoint id、多 endpoint 注册、endpoint 枚举、全局服务发现或多租户服务注册中心；
 - package、input、settings、app-ops 或 activity API。
+
+## `:hidden-api`
+
+职责：
+
+- 编译期 hidden framework API mirror/stub。
+
+允许：
+
+- Java stub；
+- framework mirror class；
+- 示例或测试所需的 hidden API 类型声明。
+
+禁止：
+
+- 运行时代码；
+- 项目公开 API；
+- 发布 artifact；
+- 系统服务能力封装。
 
 ## `:priv-user-service`
 
@@ -235,7 +267,12 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 通过 ADB shell 执行共享服务端启动命令；
 - ADB 启动诊断；
 - ADB 特有启动失败建模；
+- 使用 hidden-api 编译期 stub 调用 ADB pairing 所需的 framework hidden API；
 - 转换为共享启动结果。
+
+调用方要求：
+
+- Android P+ 上接入应用必须在使用 `:priv-adb` 前配置 hidden API exemption，例如在 `Application.attachBaseContext` 中调用 `HiddenApiBypass.addHiddenApiExemptions("L")`。
 
 禁止：
 

@@ -75,7 +75,7 @@ class PrivilegeServerHandshakeRegistryTest {
         PrivilegeServerInfo(
             uid = 2000,
             pid = 1234,
-            mode = PrivilegeMode.SHELL.value,
+            launchMode = PrivilegeLaunchMode.SHELL.value,
             protocolVersion = PrivilegeProtocol.VERSION,
             serverVersion = PrivilegeProtocol.SERVER_VERSION,
         )

@@ -1,6 +1,6 @@
 package priv.kit.adb
 
-import android.os.Build
+import com.android.org.conscrypt.Conscrypt
 import java.io.Closeable
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -128,11 +128,11 @@ internal class PrivilegeAdbPairingClient(
         outputStream = DataOutputStream(sslSocket.outputStream)
 
         val pairCodeBytes = pairCode.toByteArray()
-        val keyMaterial = PrivilegeAdbHiddenApis.exportKeyingMaterial(
-            socket = sslSocket,
-            label = EXPORTED_KEY_LABEL,
-            context = null,
-            length = EXPORTED_KEY_SIZE,
+        val keyMaterial = Conscrypt.exportKeyingMaterial(
+            sslSocket,
+            EXPORTED_KEY_LABEL,
+            null,
+            EXPORTED_KEY_SIZE,
         )
         val passwordBytes = ByteArray(pairCodeBytes.size + keyMaterial.size)
         pairCodeBytes.copyInto(passwordBytes)

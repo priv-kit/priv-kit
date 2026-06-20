@@ -8,7 +8,7 @@ data class PrivilegeServerLaunchCommand(
     val mainClass: String,
     val providerAuthority: String,
     val packageName: String,
-    val mode: PrivilegeMode,
+    val launchMode: PrivilegeLaunchMode,
     val protocolVersion: Int,
     val serverVersion: String,
     val followDeathDelayMillis: Long = PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,

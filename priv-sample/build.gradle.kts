@@ -46,11 +46,19 @@ android {
 }
 
 dependencies {
+    compileOnly(project(":hidden-api"))
     implementation(project(":priv-adb"))
     implementation(project(":priv-runtime"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.foundation)
+    implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.runtime)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.navigation3.ui)
+    implementation(libs.hiddenapibypass)
 }

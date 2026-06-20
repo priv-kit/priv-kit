@@ -6,7 +6,9 @@
 
 ## 项目状态
 
-当前仓库处于设计阶段。在项目宪章、架构和模块边界被确认并保持一致之前，不应开始源码实现。
+当前仓库已进入源码实现阶段。Phase 1 已提供 Root、ADB 和 Manual Shell 的 Privileged Server 启动、token-gated Binder handoff、全局 server-binder 状态和 owner-death follow 闭环。
+
+当前 Binder 阶段提供底层 Binder endpoint 注册、查找、注销、death 观察、显式目标 Binder 的 remote transact 原语和类型化失败语义。server death、endpoint dead、endpoint not found 等错误可通过专门异常类型识别，不需要依赖异常 message。它不提供 Android 系统服务类型化代理，也不扩展成高级系统能力封装。
 
 项目边界以 [docs/project-constitution.md](docs/project-constitution.md) 为准。后续所有设计和实现都必须遵守该文档。
 
@@ -42,7 +44,9 @@ Gradle 模块必须使用 `priv-*` 命名：
 - `:priv-ui`
 - `:priv-sample`
 
-Kotlin package 必须统一使用 `priv.kit.*`：
+内部编译期 hidden framework stub 模块为 `:hidden-api`，不作为发布 artifact。
+
+除 `:hidden-api` 中的 framework mirror/stub 外，Kotlin package 必须统一使用 `priv.kit.*`：
 
 - `priv.kit.core`
 - `priv.kit.runtime`
@@ -56,7 +60,7 @@ Kotlin package 必须统一使用 `priv.kit.*`：
 
 禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*` 作为源码 package。
 
-公开 API 必须使用完整单词 `Privilege*` 命名，例如 `PrivilegeKit`、`PrivilegeSession`、`PrivilegeMode`、`PrivilegeServer`、`PrivilegeBinder`、`PrivilegeUserService`、`PrivilegeRuntime` 和 `PrivilegeConnection`。
+公开 API 必须使用完整单词 `Privilege*` 命名，例如 `PrivilegeKit`、`PrivilegeLaunchMode`、`PrivilegeServer`、`PrivilegeBinder`、`PrivilegeUserService`、`PrivilegeRuntime` 和 `PrivilegeConnection`。
 
 禁止公开 API 使用 `Priv*` 缩写，例如 `PrivKit`、`PrivSession`、`PrivMode`、`PrivServer`、`PrivBinder` 和 `PrivUserService`。
 
@@ -86,10 +90,10 @@ Kotlin package 必须统一使用 `priv.kit.*`：
 
 以下风格的 API 明确不属于本项目范围：
 
-- `session.input.tap(...)`
-- `session.package.install(...)`
-- `session.settings.put(...)`
-- `session.appops.setMode(...)`
+- `PrivilegeRuntime.input.tap(...)`
+- `PrivilegeRuntime.package.install(...)`
+- `PrivilegeRuntime.settings.put(...)`
+- `PrivilegeRuntime.appops.setMode(...)`
 
 需要这些能力的接入方，应基于本项目提供的 Binder 或 UserService 原语自行实现。
 

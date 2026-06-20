@@ -16,7 +16,7 @@ internal object PrivilegeServerHandshakeSender {
             putBinder(PrivilegeHandshakeContract.EXTRA_SERVER_BINDER, serverBinder.asBinder())
             putInt(PrivilegeHandshakeContract.EXTRA_UID, Process.myUid())
             putInt(PrivilegeHandshakeContract.EXTRA_PID, Process.myPid())
-            putInt(PrivilegeHandshakeContract.EXTRA_MODE, config.mode)
+            putInt(PrivilegeHandshakeContract.EXTRA_LAUNCH_MODE, config.launchMode)
             putInt(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION, config.protocolVersion)
             putString(PrivilegeHandshakeContract.EXTRA_SERVER_VERSION, config.serverVersion)
         }

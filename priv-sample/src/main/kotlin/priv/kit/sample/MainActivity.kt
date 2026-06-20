@@ -5,22 +5,26 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.Binder
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModelProvider
+import priv.kit.binder.PrivilegeBinderRegistration
 import priv.kit.runtime.PrivilegeRuntime
-import priv.kit.runtime.PrivilegeSession
 import java.io.Closeable
 import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
+    private lateinit var sampleViewModel: PrivilegeSampleViewModel
     internal val executor = Executors.newSingleThreadExecutor()
-    internal var session: PrivilegeSession? = null
     internal var readyServerWatcher: Closeable? = null
+    internal var serverDisconnectedWatcher: Closeable? = null
+    internal var sampleBinder: Binder? = null
+    internal var sampleBinderRegistration: PrivilegeBinderRegistration? = null
+    internal var sampleBinderDeathWatcher: Closeable? = null
+    internal var sampleUserManager: PrivilegeSampleUserManagerProxy? = null
     internal var startNotificationPairingAfterPermission = false
     private val pairingEventReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -28,17 +32,23 @@ class MainActivity : ComponentActivity() {
         }
     }
     internal val manualShellCommandLine: String by lazy(LazyThreadSafetyMode.NONE) {
-        PrivilegeRuntime.create(applicationContext).createManualShellCommand().commandLine
+        PrivilegeRuntime.createManualShellCommand().commandLine
     }
-    internal var screenState by mutableStateOf(PrivilegeSampleScreenState())
+    internal var screenState: PrivilegeSampleScreenState
+        get() = sampleViewModel.screenState
+        set(value) {
+            sampleViewModel.screenState = value
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        sampleViewModel = ViewModelProvider(this)[PrivilegeSampleViewModel::class.java]
         initializePrivilegeSample()
         setContent {
             PrivilegeSampleScreen(
                 state = screenState,
-                onPageSelected = { selectPage(it) },
+                backStack = sampleViewModel.backStack,
+                onDestinationSelected = { sampleViewModel.selectDestination(it) },
                 onAdbDeviceNameChanged = { updateAdbDeviceName(it) },
                 onRefreshAdbFingerprint = { refreshAdbFingerprint() },
                 onCheckAdbPairing = { checkWirelessAdbPairing(showBusy = true) },
@@ -53,6 +63,11 @@ class MainActivity : ComponentActivity() {
                 onRestartTcp = { restartTcp() },
                 onStopTcp = { stopTcp() },
                 onStopServer = { stopServer() },
+                onRegisterBinder = { registerSampleBinderEndpoint() },
+                onGetBinder = { getSampleBinderEndpoint() },
+                onGetUsers = { getUserManagerUsers() },
+                onRequireBinderAfterUnregister = { requireSampleBinderAfterUnregister() },
+                onUnregisterBinder = { unregisterSampleBinderEndpoint() },
                 onClearLog = { clearLog() },
                 onCopyLog = { copySessionLog() },
             )
