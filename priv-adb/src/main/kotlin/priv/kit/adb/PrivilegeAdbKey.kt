@@ -1,14 +1,15 @@
 package priv.kit.adb
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import org.bouncycastle.asn1.x500.X500Name
-import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
-import org.bouncycastle.cert.X509v3CertificateBuilder
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
+import priv.kit.bc.asn1.x500.X500Name
+import priv.kit.bc.asn1.x509.SubjectPublicKeyInfo
+import priv.kit.bc.cert.X509v3CertificateBuilder
+import priv.kit.bc.operator.jcajce.JcaContentSignerBuilder
 import java.io.ByteArrayInputStream
 import java.math.BigInteger
 import java.net.Socket
@@ -211,15 +212,7 @@ internal class PrivilegeAdbKey(
         }
 
     private val trustManager: X509ExtendedTrustManager
-        get() = object : X509ExtendedTrustManager() {
-            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?, socket: Socket?) = Unit
-            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?, engine: SSLEngine?) = Unit
-            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
-            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?, socket: Socket?) = Unit
-            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?, engine: SSLEngine?) = Unit
-            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
-            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-        }
+        get() = PrivilegeAdbTrustManager
 
     companion object {
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
@@ -239,6 +232,19 @@ internal class PrivilegeAdbKey(
 
         private const val SHA1_SIZE_BYTES = 20
     }
+}
+
+// Wireless ADB does not use the platform CA store for daemon trust. Pairing and ADB auth bind this client key
+// to the daemon, so this manager is scoped to PrivilegeAdbKey TLS sockets instead of general app networking.
+@SuppressLint("CustomX509TrustManager")
+private object PrivilegeAdbTrustManager : X509ExtendedTrustManager() {
+    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?, socket: Socket?) = Unit
+    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?, engine: SSLEngine?) = Unit
+    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?, socket: Socket?) = Unit
+    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?, engine: SSLEngine?) = Unit
+    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+    override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
 }
 
 internal const val ANDROID_PUBKEY_MODULUS_SIZE = 2048 / 8

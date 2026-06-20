@@ -38,8 +38,8 @@ android {
 dependencies {
     api(project(":priv-core"))
     compileOnly(project(":hidden-api"))
+    implementation(project(":priv-bc"))
     implementation(libs.boringssl)
-    implementation(libs.bouncycastle.bcpkix)
     implementation(libs.libcxx)
     testImplementation(libs.junit)
 }

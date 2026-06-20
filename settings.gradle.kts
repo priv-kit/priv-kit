@@ -22,6 +22,7 @@ include(
     ":priv-server",
     ":priv-binder",
     ":priv-user-service",
+    ":priv-bc",
     ":priv-adb",
     ":priv-root",
     ":priv-delegate",
