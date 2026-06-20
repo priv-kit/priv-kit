@@ -251,6 +251,10 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - `version` 变化触发同一实例替换，而不是创建并行实例；
 - 默认独立 `app_process` 子进程模式；
 - 显式 opt-in 的 server 进程嵌入模式；
+- 无参、`android.content.Context`，或两者同时声明的 UserService 构造器；
+- 可能被反射调用的 UserService 构造器需要由接入方用 `androidx.annotation.Keep` 显式保留；
+- 独立进程 `Context` 构造器的 `makeApplication` 优先和 package `Context` 兜底；
+- 嵌入式 `Context` 构造器的 package `Context` 初始化，不调用 `makeApplication`，且可在 package `Context` 创建失败时回退无参构造器；
 - owner app death 时的 UserService 销毁策略；
 - 独立 UserService destroy 后等待进程自行退出的可配置超时，并允许用负数关闭超时强杀兜底；
 - UserService 子进程 ready/claim handoff 协议。

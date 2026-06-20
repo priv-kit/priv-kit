@@ -17,6 +17,24 @@ Current contents:
 
 The module transports app-defined `IBinder` services. A UserService class must implement `IBinder` or `IInterface`; the usual shape is `class MyService : IMyService.Stub()`. The module does not understand or wrap the app's AIDL interfaces. Callers bind a service and then adapt the returned Binder through their own generated AIDL Stub.
 
+UserService construction supports a no-arg constructor, a single `android.content.Context` constructor, or both. If a `Context` constructor is present, Priv Kit prefers it. If no `Context` constructor is present, Priv Kit keeps the no-arg path and does not create a `Context`. In `DEDICATED_PROCESS`, a `Context` constructor receives an app `Application` when `LoadedApk.makeApplication(true, null)` succeeds, and falls back to package `Context` if that framework path fails. In `IN_SERVER_PROCESS`, a `Context` constructor receives only package `Context`; embedded services never call `makeApplication`. If package `Context` creation fails in embedded mode and the service also has a no-arg constructor, Priv Kit falls back to the no-arg constructor.
+
+Release builds should keep every UserService constructor that Priv Kit may call by reflection. In Kotlin, declare explicit secondary constructors and annotate each one with `androidx.annotation.Keep`:
+
+```kotlin
+class MyService private constructor(
+    private val context: Context?,
+) : IMyService.Stub() {
+    @Keep
+    constructor() : this(context = null)
+
+    @Keep
+    constructor(context: Context) : this(context = context)
+}
+```
+
+Build `PrivilegeUserServiceSpec.serviceClassName` from `MyService::class.java.name` instead of a hard-coded source name.
+
 If a UserService needs cleanup, define `void destroy() = 16777114;` in the app-owned AIDL. Once one AIDL method has an explicit id, all methods in that interface need explicit ids. Priv Kit will call the reserved destroy transaction when a UserService instance is removed.
 
 Destroy semantics depend on `processMode`:

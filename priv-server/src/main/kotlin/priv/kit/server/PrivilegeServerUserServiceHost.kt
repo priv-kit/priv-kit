@@ -20,6 +20,12 @@ internal class PrivilegeServerUserServiceHost(
     override val pid: Int
         get() = Process.myPid()
 
+    override val packageName: String
+        get() = config.packageName
+
+    override val userId: Int
+        get() = config.userId
+
     override fun startDedicatedProcess(
         spec: PrivilegeUserServiceSpec,
         token: String,
@@ -36,6 +42,10 @@ internal class PrivilegeServerUserServiceHost(
             token,
             "--provider-authority",
             config.providerAuthority,
+            "--package-name",
+            config.packageName,
+            "--user-id",
+            config.userId.toString(),
             "--service-class",
             spec.serviceClassName,
             "--server-pid",
@@ -62,6 +72,7 @@ internal class PrivilegeServerUserServiceHost(
                     extras = Bundle().apply {
                         putString(PrivilegeUserServiceContract.EXTRA_TOKEN, token)
                     },
+                    userId = config.userId,
                 )
             }.onFailure {
                 lastFailure = it

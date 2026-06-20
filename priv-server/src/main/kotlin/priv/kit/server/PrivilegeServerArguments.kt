@@ -17,6 +17,7 @@ internal object PrivilegeServerArguments {
             token = values.required("token"),
             providerAuthority = values.required("provider-authority"),
             packageName = values.required("package-name"),
+            userId = values.optionalNonNegativeInt("user-id", 0),
             classpath = values["classpath"] ?: System.getenv("CLASSPATH").orEmpty(),
             classpathIdentity = values.required("classpath-identity"),
             launchMode = values.requiredInt("launch-mode"),
@@ -40,6 +41,16 @@ internal object PrivilegeServerArguments {
         val rawValue = required(key)
         val value = rawValue.toLongOrNull()
         require(value != null && value >= 0L) { "--$key must be a non-negative millisecond value" }
+        return value
+    }
+
+    private fun Map<String, String>.optionalNonNegativeInt(
+        key: String,
+        defaultValue: Int,
+    ): Int {
+        val rawValue = this[key] ?: return defaultValue
+        val value = rawValue.toIntOrNull()
+        require(value != null && value >= 0) { "--$key must be a non-negative integer" }
         return value
     }
 

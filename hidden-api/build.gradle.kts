@@ -16,3 +16,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 }
+
+dependencies {
+    compileOnly(libs.remap.annotation)
+    annotationProcessor(libs.remap.processor)
+}

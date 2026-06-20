@@ -17,8 +17,9 @@ constexpr size_t MAX_CLASSPATH_LENGTH = 8192;
 constexpr size_t MAX_CLASSPATH_IDENTITY_LENGTH = 16384;
 constexpr const char* DEFAULT_MAIN_CLASS = "priv.kit.server.PrivilegeServerMain";
 constexpr const char* DEFAULT_MODE = "2";
-constexpr const char* DEFAULT_PROTOCOL_VERSION = "7";
+constexpr const char* DEFAULT_PROTOCOL_VERSION = "8";
 constexpr const char* DEFAULT_SERVER_VERSION = "0.1.0-SNAPSHOT";
+constexpr const char* DEFAULT_USER_ID = "0";
 constexpr const char* DEFAULT_FOLLOW_DEATH_DELAY_MILLIS = "600000";
 constexpr const char* DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH = "false";
 constexpr const char* DEFAULT_PROCESS_SUFFIX = ":priv-kit-server";
@@ -34,6 +35,7 @@ struct StarterConfig {
     const char* classpath_identity = nullptr;
     const char* package_name = nullptr;
     const char* provider_authority = nullptr;
+    const char* user_id = DEFAULT_USER_ID;
     const char* mode = DEFAULT_MODE;
     const char* protocol_version = DEFAULT_PROTOCOL_VERSION;
     const char* server_version = DEFAULT_SERVER_VERSION;
@@ -375,6 +377,8 @@ bool parse_args(int argc, char** argv, StarterConfig* config) {
             config->package_name = require_value(argc, argv, &i, arg);
         } else if (strcmp(arg, "--provider-authority") == 0) {
             config->provider_authority = require_value(argc, argv, &i, arg);
+        } else if (strcmp(arg, "--user-id") == 0) {
+            config->user_id = require_value(argc, argv, &i, arg);
         } else if (strcmp(arg, "--mode") == 0 || strcmp(arg, "--launch-mode") == 0) {
             config->mode = require_value(argc, argv, &i, arg);
         } else if (strcmp(arg, "--protocol-version") == 0) {
@@ -397,6 +401,7 @@ bool parse_args(int argc, char** argv, StarterConfig* config) {
             (strcmp(arg, "--classpath-identity") == 0 && config->classpath_identity == nullptr) ||
             (strcmp(arg, "--package-name") == 0 && config->package_name == nullptr) ||
             (strcmp(arg, "--provider-authority") == 0 && config->provider_authority == nullptr) ||
+            (strcmp(arg, "--user-id") == 0 && config->user_id == nullptr) ||
             ((strcmp(arg, "--mode") == 0 || strcmp(arg, "--launch-mode") == 0) && config->mode == nullptr) ||
             (strcmp(arg, "--protocol-version") == 0 && config->protocol_version == nullptr) ||
             (strcmp(arg, "--server-version") == 0 && config->server_version == nullptr) ||
@@ -456,7 +461,7 @@ void exec_app_process(const StarterConfig& config, int argc, char** argv) {
     }
 
     const bool use_argv_server_args = config.server_arg_start >= 0;
-    const int server_arg_count = use_argv_server_args ? argc - config.server_arg_start : 18;
+    const int server_arg_count = use_argv_server_args ? argc - config.server_arg_start : 20;
     const int app_arg_count = 5 + server_arg_count;
     char** app_argv = static_cast<char**>(calloc(app_arg_count + 1, sizeof(char*)));
     if (app_argv == nullptr) {
@@ -481,6 +486,8 @@ void exec_app_process(const StarterConfig& config, int argc, char** argv) {
         app_argv[index++] = const_cast<char*>(config.provider_authority);
         app_argv[index++] = const_cast<char*>("--package-name");
         app_argv[index++] = const_cast<char*>(config.package_name);
+        app_argv[index++] = const_cast<char*>("--user-id");
+        app_argv[index++] = const_cast<char*>(config.user_id);
         app_argv[index++] = const_cast<char*>("--launch-mode");
         app_argv[index++] = const_cast<char*>(config.mode);
         app_argv[index++] = const_cast<char*>("--protocol-version");

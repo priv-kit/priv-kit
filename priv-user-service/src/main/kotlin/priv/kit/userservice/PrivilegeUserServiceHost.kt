@@ -3,6 +3,8 @@ package priv.kit.userservice
 interface PrivilegeUserServiceHost {
     val uid: Int
     val pid: Int
+    val packageName: String
+    val userId: Int
 
     fun startDedicatedProcess(
         spec: PrivilegeUserServiceSpec,

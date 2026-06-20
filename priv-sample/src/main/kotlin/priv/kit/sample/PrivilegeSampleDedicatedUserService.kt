@@ -1,11 +1,21 @@
 package priv.kit.sample
 
+import android.content.Context
 import android.os.Process
+import androidx.annotation.Keep
 import kotlin.system.exitProcess
 
-internal class PrivilegeSampleDedicatedUserService : IPrivilegeSampleDedicatedUserService.Stub() {
+internal class PrivilegeSampleDedicatedUserService private constructor(
+    private val packageName: String,
+) : IPrivilegeSampleDedicatedUserService.Stub() {
     private var mode: String = "created"
     private var callCount: Int = 0
+
+    @Keep
+    constructor() : this(packageName = "no-context")
+
+    @Keep
+    constructor(context: Context) : this(packageName = context.packageName)
 
     override fun destroy() {
         mode = "destroyed"
@@ -22,6 +32,8 @@ internal class PrivilegeSampleDedicatedUserService : IPrivilegeSampleDedicatedUs
             append(Process.myUid())
             append(", pid=")
             append(Process.myPid())
+            append(", package=")
+            append(packageName)
             append(", calls=")
             append(callCount)
         }

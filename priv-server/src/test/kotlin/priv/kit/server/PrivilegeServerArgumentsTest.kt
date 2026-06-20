@@ -14,6 +14,7 @@ class PrivilegeServerArgumentsTest {
         val config = PrivilegeServerArguments.parse(requiredArgs())
 
         assertEquals("classpath@1@2", config.classpathIdentity)
+        assertEquals(10, config.userId)
         assertEquals(PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS, config.followDeathDelayMillis)
         assertFalse(config.activeReconnectOnOwnerDeath)
     }
@@ -40,6 +41,13 @@ class PrivilegeServerArgumentsTest {
         )
 
         assertTrue(config.activeReconnectOnOwnerDeath)
+    }
+
+    @Test
+    fun parseDefaultsMissingUserIdToSystemUser() {
+        val config = PrivilegeServerArguments.parse(requiredArgsWithoutUserId())
+
+        assertEquals(0, config.userId)
     }
 
     @Test
@@ -81,6 +89,8 @@ class PrivilegeServerArgumentsTest {
             "example.privilege.handshake",
             "--package-name",
             "example",
+            "--user-id",
+            "10",
             "--launch-mode",
             PrivilegeLaunchMode.SHELL.value.toString(),
             "--protocol-version",
@@ -104,6 +114,8 @@ class PrivilegeServerArgumentsTest {
             "example.privilege.handshake",
             "--package-name",
             "example",
+            "--user-id",
+            "10",
             "--launch-mode",
             PrivilegeLaunchMode.SHELL.value.toString(),
             "--protocol-version",
@@ -112,5 +124,27 @@ class PrivilegeServerArgumentsTest {
             PrivilegeProtocol.SERVER_VERSION,
             "--classpath-identity",
             "classpath@1@2",
+        )
+
+    private fun requiredArgsWithoutUserId(): Array<String> =
+        arrayOf(
+            "--token",
+            "token",
+            "--provider-authority",
+            "example.privilege.handshake",
+            "--package-name",
+            "example",
+            "--launch-mode",
+            PrivilegeLaunchMode.SHELL.value.toString(),
+            "--protocol-version",
+            PrivilegeProtocol.VERSION.toString(),
+            "--server-version",
+            PrivilegeProtocol.SERVER_VERSION,
+            "--classpath-identity",
+            "classpath@1@2",
+            "--follow-death-delay-millis",
+            PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS.toString(),
+            "--active-reconnect-on-owner-death",
+            PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH.toString(),
         )
 }

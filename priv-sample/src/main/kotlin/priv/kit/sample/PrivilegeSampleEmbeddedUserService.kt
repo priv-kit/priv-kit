@@ -1,9 +1,19 @@
 package priv.kit.sample
 
+import android.content.Context
 import android.os.Process
+import androidx.annotation.Keep
 
-internal class PrivilegeSampleEmbeddedUserService : IPrivilegeSampleEmbeddedUserService.Stub() {
+internal class PrivilegeSampleEmbeddedUserService private constructor(
+    private val packageName: String,
+) : IPrivilegeSampleEmbeddedUserService.Stub() {
     private var callCount: Int = 0
+
+    @Keep
+    constructor() : this(packageName = "no-context")
+
+    @Keep
+    constructor(context: Context) : this(packageName = context.packageName)
 
     override fun describe(label: String?): String {
         callCount += 1
@@ -14,6 +24,8 @@ internal class PrivilegeSampleEmbeddedUserService : IPrivilegeSampleEmbeddedUser
             append(Process.myUid())
             append(", pid=")
             append(Process.myPid())
+            append(", package=")
+            append(packageName)
             append(", calls=")
             append(callCount)
         }

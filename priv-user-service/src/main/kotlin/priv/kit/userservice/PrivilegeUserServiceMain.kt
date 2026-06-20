@@ -13,7 +13,14 @@ object PrivilegeUserServiceMain {
         try {
             prepareMainLooper()
             val config = Arguments.parse(args)
-            val instance = PrivilegeUserServiceLoader.instantiate(config.serviceClassName)
+            val instance = PrivilegeUserServiceLoader.instantiate(
+                serviceClassName = config.serviceClassName,
+                contextConfig = PrivilegeUserServiceLoader.ContextConfig(
+                    packageName = config.packageName,
+                    userId = config.userId,
+                    mode = PrivilegeUserServiceLoader.ContextMode.APPLICATION_WITH_PACKAGE_FALLBACK,
+                ),
+            )
             val processBinder = PrivilegeUserServiceProcessBinder(
                 serviceClassName = config.serviceClassName,
                 instance = instance,
@@ -45,6 +52,7 @@ object PrivilegeUserServiceMain {
                 putBinder(PrivilegeUserServiceContract.EXTRA_PROCESS_BINDER, processBinder.asBinder())
                 putInt(PrivilegeUserServiceContract.EXTRA_PID, Process.myPid())
             },
+            userId = config.userId,
         )
         return response?.getBoolean(PrivilegeUserServiceContract.KEY_SUCCESS, false) == true
     }
@@ -76,6 +84,8 @@ object PrivilegeUserServiceMain {
     private data class Arguments(
         val token: String,
         val providerAuthority: String,
+        val packageName: String,
+        val userId: Int,
         val serviceClassName: String,
         val serverPid: Int,
     ) {
@@ -94,6 +104,8 @@ object PrivilegeUserServiceMain {
                 return Arguments(
                     token = values.required("token"),
                     providerAuthority = values.required("provider-authority"),
+                    packageName = values.required("package-name"),
+                    userId = values.optionalInt("user-id", 0),
                     serviceClassName = values.required("service-class"),
                     serverPid = values.requiredInt("server-pid"),
                 )
@@ -104,6 +116,15 @@ object PrivilegeUserServiceMain {
 
             private fun Map<String, String>.requiredInt(key: String): Int {
                 val rawValue = required(key)
+                return rawValue.toIntOrNull()
+                    ?: throw IllegalArgumentException("--$key must be an integer")
+            }
+
+            private fun Map<String, String>.optionalInt(
+                key: String,
+                defaultValue: Int,
+            ): Int {
+                val rawValue = this[key] ?: return defaultValue
                 return rawValue.toIntOrNull()
                     ?: throw IllegalArgumentException("--$key must be an integer")
             }

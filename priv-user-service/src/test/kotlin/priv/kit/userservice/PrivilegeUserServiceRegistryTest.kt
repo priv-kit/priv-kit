@@ -1,5 +1,6 @@
 package priv.kit.userservice
 
+import android.content.Context
 import android.os.IBinder
 import android.os.IInterface
 import android.os.Parcel
@@ -16,6 +17,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import org.junit.Assert.assertNull
 
 class PrivilegeUserServiceRegistryTest {
     @Test
@@ -131,6 +133,66 @@ class PrivilegeUserServiceRegistryTest {
         }
     }
 
+    @Test
+    fun contextConstructorRequiresContextConfig() {
+        assertThrows(PrivilegeUserServiceDeclarationException::class.java) {
+            PrivilegeUserServiceLoader.instantiate(ContextOnlyService::class.java.name)
+        }
+    }
+
+    @Test
+    fun embeddedContextCreationFailureFallsBackToNoArgWhenAvailable() {
+        val instance = PrivilegeUserServiceLoader.instantiate(
+            serviceClassName = BothConstructorsService::class.java.name,
+            contextConfig = PrivilegeUserServiceLoader.ContextConfig(
+                packageName = "",
+                userId = 0,
+                mode = PrivilegeUserServiceLoader.ContextMode.PACKAGE_CONTEXT_ONLY,
+            ),
+        ) as BothConstructorsService
+
+        assertEquals("no-arg", instance.createdWith)
+    }
+
+    @Test
+    fun dedicatedContextCreationFailureDoesNotFallbackToNoArg() {
+        assertThrows(PrivilegeUserServiceDeclarationException::class.java) {
+            PrivilegeUserServiceLoader.instantiate(
+                serviceClassName = BothConstructorsService::class.java.name,
+                contextConfig = PrivilegeUserServiceLoader.ContextConfig(
+                    packageName = "",
+                    userId = 0,
+                    mode = PrivilegeUserServiceLoader.ContextMode.APPLICATION_WITH_PACKAGE_FALLBACK,
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun makeApplicationPreflightDetectsUnavailablePackageName() {
+        assertEquals(
+            "LoadedApk.mPackageName is unavailable",
+            PrivilegeUserServiceLoader.makeApplicationPreflightFailure(
+                FakeLoadedApk(
+                    mPackageName = null,
+                    mApplicationInfo = Any(),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun makeApplicationPreflightAllowsAvailableLoadedApkState() {
+        assertNull(
+            PrivilegeUserServiceLoader.makeApplicationPreflightFailure(
+                FakeLoadedApk(
+                    mPackageName = "priv.kit.sample.debug",
+                    mApplicationInfo = Any(),
+                ),
+            ),
+        )
+    }
+
     private fun embeddedSpec(
         tag: String = PrivilegeUserServiceSpec.DEFAULT_TAG,
         version: Int = 1,
@@ -157,9 +219,31 @@ class PrivilegeUserServiceRegistryTest {
         }
     }
 
+    class ContextOnlyService(
+        @Suppress("UNUSED_PARAMETER")
+        context: Context,
+    ) : FakeBinder()
+
+    class BothConstructorsService private constructor(
+        val createdWith: String,
+    ) : FakeBinder() {
+        constructor() : this("no-arg")
+
+        constructor(context: Context) : this(context.packageName)
+    }
+
+    private class FakeLoadedApk(
+        @Suppress("MemberVisibilityCanBePrivate")
+        val mPackageName: String?,
+        @Suppress("MemberVisibilityCanBePrivate")
+        val mApplicationInfo: Any?,
+    )
+
     private class FakeHost : PrivilegeUserServiceHost {
         override val uid: Int = 0
         override val pid: Int = 1234
+        override val packageName: String = "priv.kit.test"
+        override val userId: Int = 0
 
         override fun startDedicatedProcess(
             spec: PrivilegeUserServiceSpec,
@@ -191,6 +275,8 @@ class PrivilegeUserServiceRegistryTest {
 
         override val uid: Int = 0
         override val pid: Int = 1234
+        override val packageName: String = "priv.kit.test"
+        override val userId: Int = 0
 
         override fun startDedicatedProcess(
             spec: PrivilegeUserServiceSpec,

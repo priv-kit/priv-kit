@@ -18,13 +18,14 @@ internal object PrivilegeUserServiceProviderCall {
         method: String,
         arg: String?,
         extras: Bundle,
+        userId: Int = USER_SYSTEM,
     ): Bundle? {
         val activityManager = activityManager()
         val providerToken = Binder()
         val holder = getContentProviderExternal(
             activityManager = activityManager,
             authority = authority,
-            userId = USER_SYSTEM,
+            userId = userId,
             token = providerToken,
         ) ?: throw IllegalStateException("Content provider not found: $authority")
 
@@ -42,7 +43,7 @@ internal object PrivilegeUserServiceProviderCall {
             removeContentProviderExternal(
                 activityManager = activityManager,
                 authority = authority,
-                userId = USER_SYSTEM,
+                userId = userId,
                 token = providerToken,
             )
         }

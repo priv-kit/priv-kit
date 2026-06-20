@@ -7,6 +7,7 @@ internal data class PrivilegeServerConfig(
     val token: String,
     val providerAuthority: String,
     val packageName: String,
+    val userId: Int = 0,
     val classpath: String = System.getenv("CLASSPATH").orEmpty(),
     val classpathIdentity: String = "",
     val launchMode: Int = PrivilegeLaunchMode.ROOT.value,

@@ -15,6 +15,7 @@ bouncycastle = "1.84"
 hiddenApiBypass = "6.1"
 junit = "4.13.2"
 libcxx = "29.0.14206865"
+remap = "0.1.2"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
@@ -33,8 +34,11 @@ bouncycastle-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref 
 hiddenapibypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version.ref = "hiddenApiBypass" }
 junit = { module = "junit:junit", version.ref = "junit" }
 libcxx = { module = "org.lsposed.libcxx:libcxx", version.ref = "libcxx" }
+remap-annotation = { module = "li.songe.remap:remap-annotation", version.ref = "remap" }
+remap-processor = { module = "li.songe.remap:remap-processor", version.ref = "remap" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+remap = { id = "li.songe.remap", version.ref = "remap" }

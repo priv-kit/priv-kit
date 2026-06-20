@@ -1,5 +1,6 @@
 package priv.kit.runtime
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -32,5 +33,11 @@ class PrivilegeRuntimeTest {
 
         assertTrue(identity.contains(apk.path))
         assertTrue(identity.contains("@${apk.length()}@${apk.lastModified() / 1000L}"))
+    }
+
+    @Test
+    fun userIdIsDerivedFromAndroidUidRange() {
+        assertEquals(0, PrivilegeServerLaunchCommandBuilder.userIdFromUid(10_123))
+        assertEquals(10, PrivilegeServerLaunchCommandBuilder.userIdFromUid(1_012_345))
     }
 }

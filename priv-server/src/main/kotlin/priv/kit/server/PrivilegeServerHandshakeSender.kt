@@ -27,6 +27,7 @@ internal object PrivilegeServerHandshakeSender {
             method = PrivilegeHandshakeContract.METHOD_SERVER_READY,
             arg = config.token,
             extras = extras,
+            userId = config.userId,
         )
         val accepted = response?.getBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, false) == true
         val shouldShutdown = response?.getBoolean(

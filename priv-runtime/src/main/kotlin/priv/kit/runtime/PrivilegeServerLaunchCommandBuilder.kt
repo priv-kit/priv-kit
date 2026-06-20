@@ -16,6 +16,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
         activeReconnectOnOwnerDeath: Boolean,
     ): PrivilegeServerLaunchCommand {
         val packageName = context.packageName
+        val userId = userIdFromUid(context.applicationInfo.uid)
         val classpath = buildClasspath(context)
         val classpathIdentity = buildClasspathIdentity(classpath)
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(packageName)
@@ -34,6 +35,8 @@ internal object PrivilegeServerLaunchCommandBuilder {
             append(shellArg(providerAuthority))
             append(" --package-name ")
             append(shellArg(packageName))
+            append(" --user-id ")
+            append(userId)
             append(" --launch-mode ")
             append(launchMode.value)
             append(" --protocol-version ")
@@ -57,6 +60,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
             mainClass = SERVER_MAIN_CLASS,
             providerAuthority = providerAuthority,
             packageName = packageName,
+            userId = userId,
             launchMode = launchMode,
             protocolVersion = PrivilegeProtocol.VERSION,
             serverVersion = PrivilegeProtocol.SERVER_VERSION,
@@ -92,6 +96,9 @@ internal object PrivilegeServerLaunchCommandBuilder {
                 "$path@${file.length()}@${file.lastModified() / 1000L}"
             }
 
+    internal fun userIdFromUid(uid: Int): Int =
+        uid / PER_USER_RANGE
+
     private fun isShellBareChar(char: Char): Boolean =
         char in 'A'..'Z' ||
             char in 'a'..'z' ||
@@ -110,4 +117,5 @@ internal object PrivilegeServerLaunchCommandBuilder {
 
     private const val SERVER_PROCESS_SUFFIX = ":priv-kit-server"
     private const val SERVER_MAIN_CLASS = "priv.kit.server.PrivilegeServerMain"
+    private const val PER_USER_RANGE = 100_000
 }

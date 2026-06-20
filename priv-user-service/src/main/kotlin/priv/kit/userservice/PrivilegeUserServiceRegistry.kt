@@ -10,6 +10,10 @@ class PrivilegeUserServiceRegistry(
     private val host: PrivilegeUserServiceHost,
     private val dedicatedStartTimeoutMillis: Long = DEFAULT_DEDICATED_START_TIMEOUT_MILLIS,
 ) {
+    init {
+        PrivilegeUserServiceLoader.prepareContextRuntime()
+    }
+
     private val lock = Any()
     private val records = mutableMapOf<PrivilegeUserServiceId, Record>()
     private val connections = mutableMapOf<String, Connection>()
@@ -134,7 +138,14 @@ class PrivilegeUserServiceRegistry(
     }
 
     private fun createEmbeddedRecord(spec: PrivilegeUserServiceSpec): Record {
-        val instance = PrivilegeUserServiceLoader.instantiate(spec.serviceClassName)
+        val instance = PrivilegeUserServiceLoader.instantiate(
+            serviceClassName = spec.serviceClassName,
+            contextConfig = PrivilegeUserServiceLoader.ContextConfig(
+                packageName = host.packageName,
+                userId = host.userId,
+                mode = PrivilegeUserServiceLoader.ContextMode.PACKAGE_CONTEXT_ONLY,
+            ),
+        )
         val binder = binderFrom(instance, spec.serviceClassName)
         return EmbeddedRecord(
             spec = spec,

@@ -425,7 +425,7 @@ object PrivilegeRuntime {
         )
         return PrivilegeManualShellCommand(
             token = token,
-            commandLine = buildShortAdbStarterCommand(token),
+            commandLine = buildShortAdbStarterCommand(launchCommand),
             classpath = launchCommand.classpath,
             mainClass = launchCommand.mainClass,
             providerAuthority = launchCommand.providerAuthority,
@@ -507,6 +507,8 @@ object PrivilegeRuntime {
             append(PrivilegeServerLaunchCommandBuilder.shellArg(launchCommand.providerAuthority))
             append(" --package-name ")
             append(PrivilegeServerLaunchCommandBuilder.shellArg(launchCommand.packageName))
+            append(" --user-id ")
+            append(launchCommand.userId)
             append(" --launch-mode ")
             append(launchCommand.launchMode.value)
             append(" --protocol-version ")
@@ -521,11 +523,13 @@ object PrivilegeRuntime {
             append(launchCommand.activeReconnectOnOwnerDeath)
         }
 
-    private fun buildShortAdbStarterCommand(token: String): String =
+    private fun buildShortAdbStarterCommand(launchCommand: PrivilegeServerLaunchCommand): String =
         buildString {
             append(PrivilegeServerLaunchCommandBuilder.shellArg(buildAdbStarterPath()))
             append(" --token ")
-            append(PrivilegeServerLaunchCommandBuilder.shellArg(token))
+            append(PrivilegeServerLaunchCommandBuilder.shellArg(launchCommand.token))
+            append(" --user-id ")
+            append(launchCommand.userId)
         }
 
     private fun buildAdbStarterPath(): String =
