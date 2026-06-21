@@ -8,7 +8,7 @@ Phase 1 contents:
 
 - `PrivilegeServerMain`, the `app_process` entry point.
 - An `IPrivilegeServer` implementation exposing uid, pid, launch mode, protocol version, server version, owner-death configuration, shutdown, and Binder endpoint registration.
-- Token-checked Binder handoff back to the app-side runtime provider.
+- Token-checked Binder handoff back to the app-side runtime provider, including a token-hidden fallback for manual starter commands where the server first resolves its owner token from the provider.
 - A server-side single Binder endpoint slot that unregisters the endpoint when its Binder owner dies.
 - Remote transact execution for an explicit target Binder, used by low-level Binder wrapper tests.
 - A UserService manager that can start dedicated UserService child processes by default or embed explicitly opted-in services inside the server process.

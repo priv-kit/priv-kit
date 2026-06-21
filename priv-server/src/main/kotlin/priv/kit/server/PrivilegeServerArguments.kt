@@ -14,7 +14,7 @@ internal object PrivilegeServerArguments {
         }
 
         return PrivilegeServerConfig(
-            token = values.required("token"),
+            token = values["token"]?.trim().orEmpty(),
             providerAuthority = values.required("provider-authority"),
             packageName = values.required("package-name"),
             userId = values.optionalNonNegativeInt("user-id", 0),

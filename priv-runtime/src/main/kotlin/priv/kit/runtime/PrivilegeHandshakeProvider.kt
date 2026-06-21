@@ -24,6 +24,9 @@ class PrivilegeHandshakeProvider : ContentProvider() {
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
+        if (method == PrivilegeHandshakeContract.METHOD_SERVER_START_TOKEN) {
+            return handleServerStartToken(extras)
+        }
         if (method == PrivilegeUserServiceContract.METHOD_USER_SERVICE_READY) {
             return handleUserServiceReady(arg, extras)
         }
@@ -107,6 +110,29 @@ class PrivilegeHandshakeProvider : ContentProvider() {
         }
     }
 
+    private fun handleServerStartToken(extras: Bundle?): Bundle {
+        val callingUid = Binder.getCallingUid()
+        val accepted = isTrustedServerStarterCaller(callingUid) &&
+            extras != null &&
+            extras.startTokenRequestMatchesCurrentRuntime()
+        val token = if (accepted) {
+            ownerTokenOrCreate()
+        } else {
+            null
+        }
+        Log.i(
+            TAG,
+            "Server start token requested accepted=${token != null}, callingUid=$callingUid, " +
+                "hasExtras=${extras != null}",
+        )
+        return Bundle().apply {
+            putBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, token != null)
+            if (token != null) {
+                putString(PrivilegeHandshakeContract.RESULT_TOKEN, token)
+            }
+        }
+    }
+
     private fun handleUserServiceReady(
         arg: String?,
         extras: Bundle?,
@@ -175,6 +201,14 @@ class PrivilegeHandshakeProvider : ContentProvider() {
             null
         }
 
+    private fun ownerTokenOrCreate(): String? =
+        runCatching {
+            context?.let { PrivilegeOwnerTokenStore(it).readOrCreate() }
+        }.getOrElse { throwable ->
+            Log.e(TAG, "Failed to create owner token for start token request", throwable)
+            null
+        }
+
     private fun ownerDeathConfig(): PrivilegeOwnerDeathConfig =
         runCatching {
             context?.let { PrivilegeOwnerDeathConfigStore(it).read() }
@@ -194,6 +228,19 @@ class PrivilegeHandshakeProvider : ContentProvider() {
             PrivilegeServerLaunchCommandBuilder.buildClasspath(currentContext),
         )
         return getString(PrivilegeHandshakeContract.EXTRA_CLASSPATH_IDENTITY) == expected
+    }
+
+    private fun Bundle.startTokenRequestMatchesCurrentRuntime(): Boolean =
+        getInt(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION, -1) == PrivilegeProtocol.VERSION &&
+            getString(PrivilegeHandshakeContract.EXTRA_SERVER_VERSION) == PrivilegeProtocol.SERVER_VERSION &&
+            classpathIdentityMatches()
+
+    private fun isTrustedServerStarterCaller(callingUid: Int): Boolean {
+        val ownerUid = context?.applicationInfo?.uid
+        return callingUid == ROOT_UID ||
+            callingUid == SYSTEM_UID ||
+            callingUid == SHELL_UID ||
+            ownerUid == callingUid
     }
 
     private fun buildRestartCommandLine(
@@ -239,6 +286,9 @@ class PrivilegeHandshakeProvider : ContentProvider() {
 
     companion object {
         private const val TAG = "PrivKitRuntime"
+        private const val ROOT_UID = 0
+        private const val SYSTEM_UID = 1000
+        private const val SHELL_UID = 2000
         private val ownerBinders = ConcurrentHashMap<String, IBinder>()
     }
 }

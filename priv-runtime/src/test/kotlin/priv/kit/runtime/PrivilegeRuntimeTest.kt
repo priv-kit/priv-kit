@@ -46,7 +46,7 @@ class PrivilegeRuntimeTest {
     }
 
     @Test
-    fun shortAdbStarterCommandExposesOnlyToken() {
+    fun shortAdbStarterCommandUsesStarterPathOnly() {
         val launchCommand = PrivilegeServerLaunchCommand(
             token = "token-value",
             foregroundCommandLine = "foreground",
@@ -68,9 +68,10 @@ class PrivilegeRuntimeTest {
         )
 
         assertEquals(
-            "/data/app/example/lib/arm64/libprivkitstarter.so --token token-value",
+            "/data/app/example/lib/arm64/libprivkitstarter.so",
             commandLine,
         )
+        assertFalse(commandLine.contains("token-value"))
         assertFalse(commandLine.contains("--user-id"))
     }
 }

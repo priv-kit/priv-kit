@@ -55,7 +55,9 @@ object PrivilegeServerMain {
         try {
             Log.i(TAG, "Privileged Server main entered args=${args.toDiagnosticString()}")
             prepareMainLooper()
-            val config = PrivilegeServerArguments.parse(args)
+            val config = PrivilegeServerStartTokenResolver.resolve(
+                PrivilegeServerArguments.parse(args),
+            )
             Log.i(
                 TAG,
                 "Config parsed package=${config.packageName}, provider=${config.providerAuthority}, " +

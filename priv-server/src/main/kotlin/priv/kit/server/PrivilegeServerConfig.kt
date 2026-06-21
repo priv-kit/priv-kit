@@ -4,7 +4,7 @@ import priv.kit.core.PrivilegeLaunchMode
 import priv.kit.core.PrivilegeProtocol
 
 internal data class PrivilegeServerConfig(
-    val token: String,
+    val token: String = "",
     val providerAuthority: String,
     val packageName: String,
     val userId: Int = 0,

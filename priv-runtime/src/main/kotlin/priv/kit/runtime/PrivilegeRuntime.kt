@@ -634,11 +634,7 @@ object PrivilegeRuntime {
         launchCommand: PrivilegeServerLaunchCommand,
         starterPath: String = buildAdbStarterPath(),
     ): String =
-        buildString {
-            append(PrivilegeServerLaunchCommandBuilder.shellArg(starterPath))
-            append(" --token ")
-            append(PrivilegeServerLaunchCommandBuilder.shellArg(launchCommand.token))
-        }
+        PrivilegeServerLaunchCommandBuilder.shellArg(starterPath)
 
     private fun buildAdbStarterPath(): String =
         PrivilegeRuntimeContext.require().applicationInfo.nativeLibraryDir.trimEnd('/') + "/" + STARTER_LIBRARY_NAME

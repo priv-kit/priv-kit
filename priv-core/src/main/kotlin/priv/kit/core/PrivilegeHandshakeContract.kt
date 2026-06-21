@@ -1,6 +1,7 @@
 package priv.kit.core
 
 object PrivilegeHandshakeContract {
+    const val METHOD_SERVER_START_TOKEN = "privilege_server_start_token"
     const val METHOD_SERVER_READY = "privilege_server_ready"
 
     const val EXTRA_TOKEN = "privilege_token"
@@ -13,6 +14,7 @@ object PrivilegeHandshakeContract {
     const val EXTRA_CLASSPATH_IDENTITY = "privilege_classpath_identity"
 
     const val RESULT_ACCEPTED = "privilege_accepted"
+    const val RESULT_TOKEN = "privilege_token"
     const val RESULT_SHOULD_SHUTDOWN = "privilege_should_shutdown"
     const val RESULT_RESTART_COMMAND_LINE = "privilege_restart_command_line"
     const val RESULT_OWNER_BINDER = "privilege_owner_binder"

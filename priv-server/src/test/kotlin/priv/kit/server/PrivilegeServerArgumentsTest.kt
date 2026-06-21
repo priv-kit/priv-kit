@@ -13,10 +13,23 @@ class PrivilegeServerArgumentsTest {
     fun parseAcceptsRequiredOwnerDeathConfig() {
         val config = PrivilegeServerArguments.parse(requiredArgs())
 
+        assertEquals("", config.token)
         assertEquals("classpath@1@2", config.classpathIdentity)
         assertEquals(10, config.userId)
         assertEquals(PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS, config.followDeathDelayMillis)
         assertFalse(config.activeReconnectOnOwnerDeath)
+    }
+
+    @Test
+    fun parseAcceptsLegacyToken() {
+        val config = PrivilegeServerArguments.parse(
+            requiredArgs(
+                "--token",
+                "token",
+            ),
+        )
+
+        assertEquals("token", config.token)
     }
 
     @Test
@@ -83,8 +96,6 @@ class PrivilegeServerArgumentsTest {
 
     private fun requiredArgs(vararg extraArgs: String): Array<String> =
         arrayOf(
-            "--token",
-            "token",
             "--provider-authority",
             "example.privilege.handshake",
             "--package-name",
@@ -108,8 +119,6 @@ class PrivilegeServerArgumentsTest {
 
     private fun requiredArgsWithoutOwnerDeathConfig(): Array<String> =
         arrayOf(
-            "--token",
-            "token",
             "--provider-authority",
             "example.privilege.handshake",
             "--package-name",
@@ -128,8 +137,6 @@ class PrivilegeServerArgumentsTest {
 
     private fun requiredArgsWithoutUserId(): Array<String> =
         arrayOf(
-            "--token",
-            "token",
             "--provider-authority",
             "example.privilege.handshake",
             "--package-name",

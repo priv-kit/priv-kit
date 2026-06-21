@@ -417,16 +417,6 @@ bool parse_args(int argc, char** argv, StarterConfig* config) {
         return false;
     }
 
-    if (config->server_arg_start < 0 && config->token == nullptr) {
-        fprintf(
-            stderr,
-            "fatal: usage: %s --token <token> [starter options]\n"
-            "       or: %s --classpath <path> --main-class <class> "
-            "--process-name <name> --log-path <path> -- <server args>\n",
-            argv[0],
-            argv[0]);
-        return false;
-    }
     return true;
 }
 
@@ -461,7 +451,9 @@ void exec_app_process(const StarterConfig& config, int argc, char** argv) {
     }
 
     const bool use_argv_server_args = config.server_arg_start >= 0;
-    const int server_arg_count = use_argv_server_args ? argc - config.server_arg_start : 20;
+    const int server_arg_count = use_argv_server_args
+        ? argc - config.server_arg_start
+        : (config.token == nullptr ? 18 : 20);
     const int app_arg_count = 5 + server_arg_count;
     char** app_argv = static_cast<char**>(calloc(app_arg_count + 1, sizeof(char*)));
     if (app_argv == nullptr) {
@@ -480,8 +472,10 @@ void exec_app_process(const StarterConfig& config, int argc, char** argv) {
             app_argv[index++] = argv[i];
         }
     } else {
-        app_argv[index++] = const_cast<char*>("--token");
-        app_argv[index++] = const_cast<char*>(config.token);
+        if (config.token != nullptr) {
+            app_argv[index++] = const_cast<char*>("--token");
+            app_argv[index++] = const_cast<char*>(config.token);
+        }
         app_argv[index++] = const_cast<char*>("--provider-authority");
         app_argv[index++] = const_cast<char*>(config.provider_authority);
         app_argv[index++] = const_cast<char*>("--package-name");
