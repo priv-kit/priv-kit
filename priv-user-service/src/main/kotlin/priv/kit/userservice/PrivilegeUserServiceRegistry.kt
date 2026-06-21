@@ -99,7 +99,7 @@ class PrivilegeUserServiceRegistry(
             current.spec.version == spec.version &&
             current.spec.processMode == spec.processMode &&
             current.spec.ownerDeathPolicy == spec.ownerDeathPolicy &&
-            current.state != PrivilegeUserServiceState.DESTROYED
+            current.state == PrivilegeUserServiceState.RUNNING
         ) {
             current.spec = spec
             return current
@@ -114,6 +114,13 @@ class PrivilegeUserServiceRegistry(
             PrivilegeUserServiceProcessMode.IN_SERVER_PROCESS -> createEmbeddedRecord(spec)
         }
         records[id] = record
+        try {
+            record.onRegisteredLocked()
+        } catch (throwable: Throwable) {
+            records.remove(id, record)
+            record.destroy()
+            throw throwable
+        }
         return record
     }
 
@@ -216,6 +223,23 @@ class PrivilegeUserServiceRegistry(
         record: Record,
     ) {
         records.remove(id, record)
+        unlinkConnectionsLocked(record)
+        unlinkOwnerLocked(record)
+        record.destroy()
+    }
+
+    private fun failRecordLocked(
+        record: Record,
+        message: String,
+    ) {
+        val id = record.spec.id()
+        if (records[id] !== record || record.state == PrivilegeUserServiceState.DESTROYED) return
+        unlinkConnectionsLocked(record)
+        unlinkOwnerLocked(record)
+        record.fail(message)
+    }
+
+    private fun unlinkConnectionsLocked(record: Record) {
         connections.values
             .filter { it.record === record }
             .forEach { connection ->
@@ -224,12 +248,16 @@ class PrivilegeUserServiceRegistry(
                 }
                 connections.remove(connection.id)
             }
+    }
+
+    private fun unlinkOwnerLocked(record: Record) {
         record.ownerBinder?.let { owner ->
             runCatching {
                 owner.unlinkToDeath(record.ownerDeathRecipient, 0)
             }
         }
-        record.destroy()
+        record.ownerBinder = null
+        record.ownerLinked = false
     }
 
     private fun stoppedStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
@@ -278,6 +306,24 @@ class PrivilegeUserServiceRegistry(
         abstract fun unbind(connectionId: String)
 
         abstract fun destroy()
+
+        open fun onRegisteredLocked() = Unit
+
+        open fun fail(message: String) {
+            if (state == PrivilegeUserServiceState.DESTROYED) return
+            state = PrivilegeUserServiceState.FAILED
+            started = false
+            boundCount = 0
+            lastError = message
+        }
+
+        fun requireRunning(operation: String) {
+            if (state != PrivilegeUserServiceState.RUNNING) {
+                throw PrivilegeUserServiceNotRunningException(
+                    "$operation failed because UserService is $state: ${spec.serviceClassName}",
+                )
+            }
+        }
 
         fun status(): PrivilegeUserServiceStatus =
             PrivilegeUserServiceStatus(
@@ -328,12 +374,46 @@ class PrivilegeUserServiceRegistry(
         private val handle: PrivilegeUserServiceProcessHandle,
         private val process: IPrivilegeUserServiceProcess,
     ) : Record(spec) {
+        private val processBinder = process.asBinder()
+        private var processLinked = false
         private var gate: PrivilegeUserServiceGateBinder? = null
+        private val processDeathRecipient = IBinder.DeathRecipient {
+            synchronized(lock) {
+                failRecordLocked(
+                    record = this@DedicatedRecord,
+                    message = "Dedicated UserService process died: ${spec.serviceClassName}",
+                )
+            }
+        }
 
         override val pid: Int
-            get() = runCatching { process.pid }.getOrDefault(0)
+            get() =
+                if (state == PrivilegeUserServiceState.RUNNING) {
+                    runCatching { process.pid }.getOrDefault(0)
+                } else {
+                    0
+                }
+
+        override fun onRegisteredLocked() {
+            try {
+                processBinder.linkToDeath(processDeathRecipient, 0)
+                processLinked = true
+            } catch (exception: RemoteException) {
+                throw PrivilegeUserServiceStartException(
+                    "Dedicated UserService process died while connecting: ${spec.serviceClassName}",
+                    exception,
+                )
+            }
+            if (!processBinder.pingBinder()) {
+                unlinkProcessDeath()
+                throw PrivilegeUserServiceStartException(
+                    "Dedicated UserService process died while connecting: ${spec.serviceClassName}",
+                )
+            }
+        }
 
         override fun start() {
+            requireRunning("Start dedicated UserService")
             try {
                 process.start()
                 started = true
@@ -347,6 +427,7 @@ class PrivilegeUserServiceRegistry(
         }
 
         override fun bind(connectionId: String): IBinder {
+            requireRunning("Bind dedicated UserService")
             val binder = try {
                 process.bind()
             } catch (throwable: Throwable) {
@@ -371,9 +452,21 @@ class PrivilegeUserServiceRegistry(
 
         override fun destroy() {
             if (state == PrivilegeUserServiceState.DESTROYED) return
+            val shouldDestroyProcess = state != PrivilegeUserServiceState.FAILED
             state = PrivilegeUserServiceState.DESTROYED
+            started = false
+            boundCount = 0
             gate?.close()
-            superviseDedicatedDestroy()
+            unlinkProcessDeath()
+            if (shouldDestroyProcess) {
+                superviseDedicatedDestroy()
+            }
+        }
+
+        override fun fail(message: String) {
+            super.fail(message)
+            gate?.close()
+            unlinkProcessDeath()
         }
 
         private fun superviseDedicatedDestroy() {
@@ -408,6 +501,14 @@ class PrivilegeUserServiceRegistry(
                 name = "priv-kit-user-service-destroy-watch"
                 isDaemon = true
                 start()
+            }
+        }
+
+        private fun unlinkProcessDeath() {
+            if (!processLinked) return
+            processLinked = false
+            runCatching {
+                processBinder.unlinkToDeath(processDeathRecipient, 0)
             }
         }
     }

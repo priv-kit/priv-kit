@@ -117,18 +117,21 @@ internal class PrivilegeServerUserServiceHost(
     }
 
     private fun buildProcessName(spec: PrivilegeUserServiceSpec): String {
-        val suffix = (spec.serviceClassName.substringAfterLast('.') + "-" + spec.tag)
+        val tagSuffix = spec.tag.takeUnless { it == DEDICATED_PROCESS_TAG }
+        val suffix = listOfNotNull(spec.serviceClassName.substringAfterLast('.'), tagSuffix)
+            .joinToString("-")
             .map { char ->
                 if (char.isLetterOrDigit() || char == '_' || char == '-') char else '-'
             }
             .joinToString("")
             .take(48)
             .ifBlank { "user-service" }
-        return "${config.packageName}:priv-kit-us:$suffix"
+        return "${config.packageName}:$suffix"
     }
 
     private companion object {
         const val USER_SERVICE_MAIN_CLASS = "priv.kit.userservice.PrivilegeUserServiceMain"
         const val CLAIM_RETRY_DELAY_MILLIS = 50L
+        const val DEDICATED_PROCESS_TAG = "dedicated"
     }
 }

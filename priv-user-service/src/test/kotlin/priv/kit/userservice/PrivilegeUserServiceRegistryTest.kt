@@ -8,6 +8,7 @@ import android.os.RemoteException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.FileDescriptor
@@ -58,6 +59,46 @@ class PrivilegeUserServiceRegistryTest {
         assertEquals(1, process.destroyCalls.get())
         assertEquals(0, host.awaitExitCalls.get())
         assertEquals(0, host.killCalls.get())
+    }
+
+    @Test
+    fun dedicatedProcessDeathMarksStatusFailedAndClearsConnection() {
+        val process = FakeDedicatedProcess()
+        val registry = PrivilegeUserServiceRegistry(DedicatedFakeHost(process))
+        val spec = dedicatedSpec()
+
+        val result = registry.bind(spec, FakeBinder())
+        process.kill()
+        val status = registry.getStatus(spec)
+
+        assertEquals(PrivilegeUserServiceState.FAILED, status.state)
+        assertEquals(false, status.started)
+        assertEquals(0, status.boundCount)
+        assertEquals(0, status.pid)
+        assertEquals(
+            "Dedicated UserService process died: ${EmbeddedService::class.java.name}",
+            status.lastError,
+        )
+        assertThrows(PrivilegeUserServiceNotRunningException::class.java) {
+            registry.unbind(result.connectionId)
+        }
+    }
+
+    @Test
+    fun dedicatedProcessDeathAllowsNextBindToCreateReplacement() {
+        val firstProcess = FakeDedicatedProcess()
+        val host = DedicatedFakeHost(firstProcess)
+        val registry = PrivilegeUserServiceRegistry(host)
+        val spec = dedicatedSpec()
+
+        registry.bind(spec, FakeBinder())
+        firstProcess.kill()
+        host.process = FakeDedicatedProcess()
+        val result = registry.bind(spec, FakeBinder())
+
+        assertEquals(PrivilegeUserServiceState.RUNNING, result.status.state)
+        assertEquals(1, result.status.boundCount)
+        assertTrue(result.status.pid > 0)
     }
 
     @Test
@@ -204,6 +245,12 @@ class PrivilegeUserServiceRegistryTest {
             processMode = PrivilegeUserServiceProcessMode.IN_SERVER_PROCESS,
         )
 
+    private fun dedicatedSpec(): PrivilegeUserServiceSpec =
+        PrivilegeUserServiceSpec(
+            serviceClassName = EmbeddedService::class.java.name,
+            processMode = PrivilegeUserServiceProcessMode.DEDICATED_PROCESS,
+        )
+
     class EmbeddedService :
         FakeBinder() {
         init {
@@ -268,7 +315,7 @@ class PrivilegeUserServiceRegistryTest {
     }
 
     private class DedicatedFakeHost(
-        private val process: FakeDedicatedProcess,
+        var process: FakeDedicatedProcess,
     ) : PrivilegeUserServiceHost {
         val awaitExitCalls = AtomicInteger(0)
         val killCalls = AtomicInteger(0)
@@ -320,6 +367,10 @@ class PrivilegeUserServiceRegistryTest {
         override fun destroy() {
             destroyCalls.incrementAndGet()
             destroyed.countDown()
+        }
+
+        fun kill() {
+            binder.killBinder()
         }
     }
 
@@ -383,5 +434,12 @@ class PrivilegeUserServiceRegistryTest {
             flags: Int,
         ): Boolean =
             deathRecipients.remove(recipient)
+
+        fun killBinder() {
+            if (!alive) return
+            alive = false
+            deathRecipients.forEach { it.binderDied() }
+            deathRecipients.clear()
+        }
     }
 }

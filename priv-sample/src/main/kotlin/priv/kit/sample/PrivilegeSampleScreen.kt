@@ -98,6 +98,8 @@ internal data class PrivilegeSampleScreenState(
     val binderLastException: String = "",
     val dedicatedUserServiceBound: Boolean = false,
     val embeddedUserServiceBound: Boolean = false,
+    val dedicatedUserServiceCached: Boolean = false,
+    val embeddedUserServiceCached: Boolean = false,
     val dedicatedUserServiceMessage: String = "-",
     val embeddedUserServiceMessage: String = "-",
     val userServiceMessage: String = "Connect to a Privileged Server, then bind a UserService.",
@@ -125,6 +127,8 @@ internal fun PrivilegeSampleScreenState.wirelessDebugLogText(): String =
         appendLine("binderMessage=$binderMessage")
         appendLine("dedicatedUserServiceBound=$dedicatedUserServiceBound")
         appendLine("embeddedUserServiceBound=$embeddedUserServiceBound")
+        appendLine("dedicatedUserServiceCached=$dedicatedUserServiceCached")
+        appendLine("embeddedUserServiceCached=$embeddedUserServiceCached")
         appendLine("userServiceMessage=$userServiceMessage")
         appendLine("serverInfo=${serverInfo ?: "none"}")
         appendLine()
@@ -502,16 +506,14 @@ private fun UserServicePage(
             )
             SampleAction(
                 label = "Call",
-                enabled = !state.busy && state.dedicatedUserServiceBound,
+                enabled = !state.busy && state.dedicatedUserServiceCached,
                 background = Color(0xFF087443),
                 modifier = Modifier.weight(1f),
                 onClick = onCallDedicatedUserService,
             )
             SampleAction(
                 label = "Stop",
-                enabled = !state.busy &&
-                    state.status == PrivilegeSampleStatus.CONNECTED &&
-                    state.dedicatedUserServiceBound,
+                enabled = !state.busy && state.dedicatedUserServiceCached,
                 background = Color(0xFFB42318),
                 modifier = Modifier.weight(1f),
                 onClick = onStopDedicatedUserService,
@@ -530,16 +532,14 @@ private fun UserServicePage(
             )
             SampleAction(
                 label = "Call",
-                enabled = !state.busy && state.embeddedUserServiceBound,
+                enabled = !state.busy && state.embeddedUserServiceCached,
                 background = Color(0xFF087443),
                 modifier = Modifier.weight(1f),
                 onClick = onCallEmbeddedUserService,
             )
             SampleAction(
                 label = "Stop",
-                enabled = !state.busy &&
-                    state.status == PrivilegeSampleStatus.CONNECTED &&
-                    state.embeddedUserServiceBound,
+                enabled = !state.busy && state.embeddedUserServiceCached,
                 background = Color(0xFFB42318),
                 modifier = Modifier.weight(1f),
                 onClick = onStopEmbeddedUserService,
@@ -561,8 +561,20 @@ private fun UserServiceStatusPanel(state: PrivilegeSampleScreenState) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        RuntimeInfoRow(label = "dedicated", value = if (state.dedicatedUserServiceBound) "bound" else "-")
-        RuntimeInfoRow(label = "embedded", value = if (state.embeddedUserServiceBound) "bound" else "-")
+        RuntimeInfoRow(
+            label = "dedicated",
+            value = state.userServiceReferenceText(
+                bound = state.dedicatedUserServiceBound,
+                cached = state.dedicatedUserServiceCached,
+            ),
+        )
+        RuntimeInfoRow(
+            label = "embedded",
+            value = state.userServiceReferenceText(
+                bound = state.embeddedUserServiceBound,
+                cached = state.embeddedUserServiceCached,
+            ),
+        )
         SelectionContainer {
             BasicText(
                 text = buildString {
@@ -580,6 +592,16 @@ private fun UserServiceStatusPanel(state: PrivilegeSampleScreenState) {
         }
     }
 }
+
+private fun PrivilegeSampleScreenState.userServiceReferenceText(
+    bound: Boolean,
+    cached: Boolean,
+): String =
+    when {
+        bound -> "bound"
+        cached -> "cached"
+        else -> "-"
+    }
 
 @Composable
 private fun DiagnosticBlock(text: String) {

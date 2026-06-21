@@ -20,6 +20,8 @@ class MainActivity : ComponentActivity() {
     internal val executor = Executors.newSingleThreadExecutor()
     internal var readyServerWatcher: Closeable? = null
     internal var serverDisconnectedWatcher: Closeable? = null
+    internal var dedicatedUserServiceStatusWatcher: Closeable? = null
+    internal var embeddedUserServiceStatusWatcher: Closeable? = null
     internal var sampleUserManager: PrivilegeSampleUserManagerProxy? = null
     internal var dedicatedUserServiceConnection: PrivilegeUserServiceConnection? = null
     internal var embeddedUserServiceConnection: PrivilegeUserServiceConnection? = null

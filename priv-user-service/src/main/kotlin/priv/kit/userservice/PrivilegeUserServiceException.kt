@@ -26,9 +26,14 @@ class PrivilegeUserServiceBindException(
     cause: Throwable? = null,
 ) : PrivilegeUserServiceException(message, cause)
 
-class PrivilegeUserServiceNotRunningException(
-    message: String,
-) : PrivilegeUserServiceException(message)
+class PrivilegeUserServiceNotRunningException : PrivilegeUserServiceException {
+    constructor(message: String) : super(message)
+
+    constructor(
+        message: String,
+        cause: Throwable?,
+    ) : super(message, cause)
+}
 
 class PrivilegeUserServiceRemoteCallException(
     message: String,
