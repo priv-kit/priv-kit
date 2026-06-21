@@ -7,9 +7,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import priv.kit.binder.PrivilegeServerDisconnectedException
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStarter
+import priv.kit.binder.PrivilegeServerDisconnectedException
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.runtime.PrivilegeRuntime
 import priv.kit.userservice.PrivilegeUserServiceConnection
@@ -18,6 +18,7 @@ import priv.kit.userservice.PrivilegeUserServiceProcessMode
 import priv.kit.userservice.PrivilegeUserServiceSpec
 import priv.kit.userservice.PrivilegeUserServiceState
 import priv.kit.userservice.PrivilegeUserServiceStatus
+import rikka.shizuku.Shizuku
 import java.io.File
 import java.nio.charset.StandardCharsets
 
@@ -37,6 +38,7 @@ internal fun MainActivity.initializePrivilegeSample() {
     }
     watchReadyServers()
     watchServerDisconnected()
+    refreshShizukuStatus(append = false)
     refreshAdbFingerprint()
     checkWirelessAdbPairing(showBusy = false)
 }
@@ -69,6 +71,7 @@ internal fun MainActivity.clearLog() {
 internal fun MainActivity.releasePrivilegeSample() {
     sampleUserManager = null
     closeSampleUserServices()
+    releaseShizukuDelegate()
     readyServerWatcher?.close()
     readyServerWatcher = null
     serverDisconnectedWatcher?.close()
@@ -258,6 +261,158 @@ internal fun MainActivity.startRootRuntime() {
     runServerStart("Starting Root Runtime...") {
         PrivilegeRuntime.startRoot()
     }
+}
+
+internal fun MainActivity.refreshShizukuStatus(append: Boolean = true) {
+    val readiness = checkShizukuReadiness(requestPermission = false)
+    applyShizukuReadiness(readiness)
+    if (append) {
+        appendLog(readiness.message)
+    }
+}
+
+internal fun MainActivity.handleShizukuBinderDead() {
+    startShizukuDelegateAfterPermission = false
+    shizukuDelegateExecutor?.close()
+    shizukuDelegateExecutor = null
+    val message = "Shizuku binder died"
+    screenState = screenState.copy(
+        shizukuReady = false,
+        shizukuPermissionGranted = false,
+        shizukuUid = null,
+        shizukuVersion = null,
+        shizukuMessage = message,
+        message = message,
+    )
+    appendLog(message)
+}
+
+internal fun MainActivity.handleShizukuPermissionResult(
+    requestCode: Int,
+    grantResult: Int,
+) {
+    if (requestCode != SHIZUKU_PERMISSION_REQUEST_CODE) return
+    val granted = grantResult == PackageManager.PERMISSION_GRANTED
+    if (!granted) {
+        startShizukuDelegateAfterPermission = false
+        val message = "Shizuku permission denied"
+        screenState = screenState.copy(
+            shizukuReady = false,
+            shizukuPermissionGranted = false,
+            shizukuMessage = message,
+            message = message,
+        )
+        appendLog(message)
+        return
+    }
+
+    val shouldStart = startShizukuDelegateAfterPermission
+    startShizukuDelegateAfterPermission = false
+    refreshShizukuStatus()
+    if (shouldStart) {
+        startShizukuDelegate()
+    }
+}
+
+internal fun MainActivity.startShizukuDelegate() {
+    if (screenState.busy) return
+    val readiness = checkShizukuReadiness(requestPermission = true)
+    applyShizukuReadiness(readiness)
+    appendLog(readiness.message)
+    if (!readiness.ready) return
+
+    val delegateExecutor = PrivilegeSampleShizukuDelegateExecutor(this)
+    shizukuDelegateExecutor = delegateExecutor
+    runServerStart("Starting through Shizuku Delegate...") {
+        try {
+            PrivilegeRuntime.startDelegate(delegateExecutor)
+        } finally {
+            delegateExecutor.close()
+            if (shizukuDelegateExecutor === delegateExecutor) {
+                shizukuDelegateExecutor = null
+            }
+        }
+    }
+}
+
+private fun MainActivity.checkShizukuReadiness(requestPermission: Boolean): ShizukuReadiness =
+    try {
+        if (!Shizuku.pingBinder()) {
+            return ShizukuReadiness(message = "Shizuku is not running")
+        }
+        if (Shizuku.isPreV11()) {
+            return ShizukuReadiness(message = "Shizuku pre-v11 is not supported")
+        }
+
+        val version = Shizuku.getVersion()
+        val uid = Shizuku.getUid().takeIf { it >= 0 }
+        if (version < SHIZUKU_USER_SERVICE_MIN_VERSION) {
+            return ShizukuReadiness(
+                message = "Shizuku UserService requires API $SHIZUKU_USER_SERVICE_MIN_VERSION, current=$version",
+                uid = uid,
+                version = version,
+            )
+        }
+
+        if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+            return ShizukuReadiness(
+                ready = true,
+                permissionGranted = true,
+                uid = uid,
+                version = version,
+                message = "Shizuku ready: uid=${uid ?: "-"}, version=$version",
+            )
+        }
+
+        if (Shizuku.shouldShowRequestPermissionRationale()) {
+            return ShizukuReadiness(
+                uid = uid,
+                version = version,
+                message = "Shizuku permission denied permanently",
+            )
+        }
+
+        if (requestPermission) {
+            startShizukuDelegateAfterPermission = true
+            Shizuku.requestPermission(SHIZUKU_PERMISSION_REQUEST_CODE)
+            return ShizukuReadiness(
+                uid = uid,
+                version = version,
+                message = "Shizuku permission requested",
+            )
+        }
+
+        ShizukuReadiness(
+            uid = uid,
+            version = version,
+            message = "Shizuku permission required",
+        )
+    } catch (throwable: Throwable) {
+        ShizukuReadiness(
+            message = "Shizuku error: ${throwable.message ?: throwable.javaClass.name}",
+            exceptionText = throwable.toDiagnosticString(),
+        )
+    }
+
+private fun MainActivity.applyShizukuReadiness(readiness: ShizukuReadiness) {
+    screenState = screenState.copy(
+        shizukuReady = readiness.ready,
+        shizukuPermissionGranted = readiness.permissionGranted,
+        shizukuUid = readiness.uid,
+        shizukuVersion = readiness.version,
+        shizukuMessage = readiness.message,
+        shizukuLastException = readiness.exceptionText,
+        message = readiness.message,
+    )
+    if (readiness.exceptionText.isNotBlank()) {
+        appendLog(readiness.exceptionText)
+    }
+}
+
+private fun MainActivity.releaseShizukuDelegate() {
+    shizukuDelegateExecutor?.close()
+    shizukuDelegateExecutor = null
+    startShizukuDelegateAfterPermission = false
 }
 
 internal fun MainActivity.pairWirelessAdb() {
@@ -731,6 +886,15 @@ private data class BinderActionResult(
     val exceptionText: String = "",
 )
 
+private data class ShizukuReadiness(
+    val ready: Boolean = false,
+    val permissionGranted: Boolean = false,
+    val uid: Int? = null,
+    val version: Int? = null,
+    val message: String,
+    val exceptionText: String = "",
+)
+
 private fun List<PrivilegeSampleUserInfo>.toBinderMessage(): String =
     buildString {
         append("IUserManager.getUsers returned ${size} user(s)")
@@ -1081,6 +1245,8 @@ internal fun MainActivity.copySessionLog() {
 
 private const val MAX_LOG_CHARS = 32_000
 internal const val NOTIFICATION_PERMISSION_REQUEST_CODE = 41
+private const val SHIZUKU_PERMISSION_REQUEST_CODE = 42
+private const val SHIZUKU_USER_SERVICE_MIN_VERSION = 10
 private const val SAMPLE_CONFIG_DIRECTORY = ".priv-kit"
 private const val ADB_DEVICE_NAME_FILE = "adb-device-name.txt"
 private const val DEFAULT_ADB_DEVICE_NAME = "priv-kit"

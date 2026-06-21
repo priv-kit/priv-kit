@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 
 internal class PrivilegeSampleViewModel : ViewModel() {
     var screenState by mutableStateOf(PrivilegeSampleScreenState())
+    var selectedStartupTab by mutableStateOf<PrivilegeStartupTab>(PrivilegeStartupTab.Root)
 
     val backStack = mutableStateListOf<PrivilegeSampleDestination>(
         PrivilegeSampleDestination.Connection,
@@ -17,5 +18,9 @@ internal class PrivilegeSampleViewModel : ViewModel() {
         if (backStack.lastOrNull() == destination) return
         backStack.clear()
         backStack += destination
+    }
+
+    fun selectStartupTab(tab: PrivilegeStartupTab) {
+        selectedStartupTab = tab
     }
 }

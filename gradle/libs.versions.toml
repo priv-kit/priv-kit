@@ -11,6 +11,7 @@ bouncycastle = "1.84"
 hiddenApiBypass = "6.1"
 junit = "4.13.2"
 remap = "0.1.2"
+shizuku = "13.1.5"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
@@ -30,6 +31,8 @@ hiddenapibypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", vers
 junit = { module = "junit:junit", version.ref = "junit" }
 remap-annotation = { module = "li.songe.remap:remap-annotation", version.ref = "remap" }
 remap-processor = { module = "li.songe.remap:remap-processor", version.ref = "remap" }
+shizuku-api = { module = "dev.rikka.shizuku:api", version.ref = "shizuku" }
+shizuku-provider = { module = "dev.rikka.shizuku:provider", version.ref = "shizuku" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

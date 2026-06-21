@@ -12,6 +12,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import priv.kit.runtime.PrivilegeRuntime
 import priv.kit.userservice.PrivilegeUserServiceConnection
+import rikka.shizuku.Shizuku
 import java.io.Closeable
 import java.util.concurrent.Executors
 
@@ -27,11 +28,23 @@ class MainActivity : ComponentActivity() {
     internal var embeddedUserServiceConnection: PrivilegeUserServiceConnection? = null
     internal var dedicatedUserService: IPrivilegeSampleDedicatedUserService? = null
     internal var embeddedUserService: IPrivilegeSampleEmbeddedUserService? = null
+    @Volatile
+    internal var shizukuDelegateExecutor: PrivilegeSampleShizukuDelegateExecutor? = null
     internal var startNotificationPairingAfterPermission = false
+    internal var startShizukuDelegateAfterPermission = false
     private val pairingEventReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             handleNotificationPairingEvent(intent)
         }
+    }
+    private val shizukuBinderReceivedListener = Shizuku.OnBinderReceivedListener {
+        refreshShizukuStatus(append = false)
+    }
+    private val shizukuBinderDeadListener = Shizuku.OnBinderDeadListener {
+        handleShizukuBinderDead()
+    }
+    private val shizukuPermissionResultListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+        handleShizukuPermissionResult(requestCode, grantResult)
     }
     internal val manualShellCommandLine: String by lazy(LazyThreadSafetyMode.NONE) {
         PrivilegeRuntime.createManualShellCommand().commandLine
@@ -45,12 +58,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         sampleViewModel = ViewModelProvider(this)[PrivilegeSampleViewModel::class.java]
+        Shizuku.addBinderReceivedListenerSticky(shizukuBinderReceivedListener)
+        Shizuku.addBinderDeadListener(shizukuBinderDeadListener)
+        Shizuku.addRequestPermissionResultListener(shizukuPermissionResultListener)
         initializePrivilegeSample()
         setContent {
             PrivilegeSampleScreen(
                 state = screenState,
                 backStack = sampleViewModel.backStack,
+                selectedStartupTab = sampleViewModel.selectedStartupTab,
                 onDestinationSelected = { sampleViewModel.selectDestination(it) },
+                onStartupTabSelected = { sampleViewModel.selectStartupTab(it) },
                 onAdbDeviceNameChanged = { updateAdbDeviceName(it) },
                 onRefreshAdbFingerprint = { refreshAdbFingerprint() },
                 onCheckAdbPairing = { checkWirelessAdbPairing(showBusy = true) },
@@ -58,6 +76,8 @@ class MainActivity : ComponentActivity() {
                 onTcpPortChanged = { updateTcpPort(it) },
                 onStartRootRuntime = { startRootRuntime() },
                 onCopyManualCommand = { copyManualShellCommand() },
+                onRefreshShizukuStatus = { refreshShizukuStatus() },
+                onStartShizukuDelegate = { startShizukuDelegate() },
                 onPairWirelessAdb = { pairWirelessAdb() },
                 onStartNotificationPairing = { startNotificationPairing() },
                 onStartWirelessAdb = { startWirelessAdb() },
@@ -120,6 +140,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         releasePrivilegeSample()
+        Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
+        Shizuku.removeBinderDeadListener(shizukuBinderDeadListener)
+        Shizuku.removeRequestPermissionResultListener(shizukuPermissionResultListener)
         super.onDestroy()
     }
 }

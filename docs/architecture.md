@@ -138,6 +138,8 @@ Privileged Server 是以特权运行的运行时端点。
 
 启动策略、启动来源和服务端实际运行身份是三个概念：Root、ADB 或 Delegate 描述命令由哪种策略执行；`PrivilegeLaunchMode` 只记录服务端命令按 root 入口还是 shell 入口启动；服务端最终运行身份以 `PrivilegeServerInfo.uid` 和 `pid` 为准。因此即使某些设备让服务端以 uid=1000 等系统身份运行，运行时也不会把它强行归类为 root 或 shell 权限等级。
 
+Delegate 启动由应用提供 `PrivilegeDelegateExecutor`。`priv-kit` 只把 runtime 构造好的共享启动命令交给 executor 并等待同一条 Binder handoff；Shizuku 等第三方能力可以作为应用侧 executor，但不进入 `:priv-delegate` 的模块实现。
+
 启动策略不得变成操作库。Root 模块可以通过 root 启动服务端，但不得提供用于包安装、输入事件、设置写入、app-ops 修改或其他系统操作的公开 root helper。
 
 ## Binder 架构

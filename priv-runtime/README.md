@@ -8,6 +8,7 @@ Phase 1 contents:
 
 - `PrivilegeRuntime.startRoot()` for the minimal Root runtime loop.
 - `PrivilegeRuntime.startAdb()` for Wireless Debugging / TCP ADB startup, including custom `PrivilegeAdbIdentity`.
+- `PrivilegeRuntime.startDelegate()` for app-provided Delegate executor startup.
 - `PrivilegeRuntime.createManualShellCommand()` for generating a token-scoped command that a developer can paste into `adb shell`.
 - `PrivilegeRuntime.prepareManualShell()` for callers that still want a command plus a blocking pending-handshake wait.
 - Process-wide current Privileged Server Binder state, exposed through `PrivilegeRuntime` global methods.
@@ -20,7 +21,7 @@ Runtime owns token generation, shared server launch command construction, pendin
 
 The runtime module carries `priv-server` as a runtime-only dependency so apps do not need to declare the server module separately. The server module contributes the R8 consumer rule that keeps its `app_process` entry point.
 
-`startRoot()`, `startAdb()`, `createManualShellCommand()`, and `prepareManualShell()` accept `followDeathDelayMillis`. When the app-side owner process dies, the Privileged Server waits for that grace period before exiting. The default is `PrivilegeRuntime.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS` (10 minutes). Use `0` to exit immediately.
+`startRoot()`, `startAdb()`, `startDelegate()`, `createManualShellCommand()`, and `prepareManualShell()` accept `followDeathDelayMillis`. When the app-side owner process dies, the Privileged Server waits for that grace period before exiting. The default is `PrivilegeRuntime.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS` (10 minutes). Use `0` to exit immediately.
 
 By default, owner-death reconnect is passive: the server waits until the app main process is already running again, then sends the Binder handoff. Set `activeReconnectOnOwnerDeath = true` only if the server should actively call the app handshake provider while the app process is dead, which may start the app process.
 
@@ -33,5 +34,7 @@ Like shizuku-api, the runtime treats the Privileged Server Binder as a single pr
 If a reconnected server reports a different protocol, server version, or APK classpath identity than the current app runtime, the runtime rejects it and returns a replacement `app_process` command built from the current APK. The server executes that command in-place before exiting, so client and server code come from the same install without repeating the original privilege authorization flow.
 
 Manual Shell only creates a command for the same Binder handoff path. It does not execute `adb`, implement Wireless Debugging, or add an ADB startup strategy.
+
+Delegate startup uses the same Binder handoff path. `priv-runtime` builds the shared `app_process` launch command and waits for the handshake; the app-provided `PrivilegeDelegateExecutor` only transports and executes that command.
 
 This module does not expose Android system service wrappers, UI, Compose, package/input/settings/app-ops/activity APIs, or app-defined UserService business methods. UserService bind returns a raw Binder for the app's own AIDL Stub.

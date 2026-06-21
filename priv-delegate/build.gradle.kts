@@ -8,4 +8,5 @@ android {
 
 dependencies {
     api(project(":priv-core"))
+    testImplementation(libs.junit)
 }

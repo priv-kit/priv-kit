@@ -21,6 +21,11 @@ import priv.kit.core.PrivilegeServerHandshakeResult
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeServerLaunchCommand
 import priv.kit.core.PrivilegeStartupException
+import priv.kit.delegate.PrivilegeDelegateCommand
+import priv.kit.delegate.PrivilegeDelegateExecutor
+import priv.kit.delegate.PrivilegeDelegateProcess
+import priv.kit.delegate.PrivilegeDelegateStartResult
+import priv.kit.delegate.PrivilegeDelegateStarter
 import priv.kit.root.PrivilegeRootCommand
 import priv.kit.root.PrivilegeRootStartResult
 import priv.kit.root.PrivilegeRootStarter
@@ -211,6 +216,47 @@ object PrivilegeRuntime {
                     e,
                 )
             }
+            throw e
+        } finally {
+            PrivilegeServerHandshakeRegistry.cancel(token)
+        }
+    }
+
+    @Throws(PrivilegeStartupException::class)
+    fun startDelegate(
+        executor: PrivilegeDelegateExecutor,
+        launchMode: PrivilegeLaunchMode = PrivilegeLaunchMode.SHELL,
+        timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
+        followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
+        activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
+    ): PrivilegeServerInfo {
+        recordOwnerDeathConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
+        val token = ownerTokenStore().readOrCreate()
+        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
+        var startResult: PrivilegeDelegateStartResult? = null
+
+        try {
+            startResult = PrivilegeDelegateStarter(executor).start(
+                buildDelegateCommand(
+                    token = token,
+                    launchMode = launchMode,
+                    followDeathDelayMillis = followDeathDelayMillis,
+                    activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
+                ),
+            )
+            val handshakeResult = pendingHandshake.await(timeoutMillis)
+            return connectHandshake(handshakeResult)
+        } catch (e: PrivilegeStartupException) {
+            val delegateResult = startResult
+            val delegateProcess = delegateResult?.process
+            if (delegateProcess != null && !delegateProcess.isAlive) {
+                throw PrivilegeStartupException(
+                    "Delegate executor ${delegateResult.executorName} command exited before handshake: " +
+                        delegateProcess.safeOutputText(),
+                    e,
+                )
+            }
+            delegateProcess?.destroy()
             throw e
         } finally {
             PrivilegeServerHandshakeRegistry.cancel(token)
@@ -520,6 +566,28 @@ object PrivilegeRuntime {
         )
     }
 
+    internal fun buildDelegateCommand(
+        token: String,
+        launchMode: PrivilegeLaunchMode,
+        followDeathDelayMillis: Long,
+        activeReconnectOnOwnerDeath: Boolean,
+    ): PrivilegeDelegateCommand {
+        val launchCommand = buildServerLaunchCommand(
+            token = token,
+            launchMode = launchMode,
+            followDeathDelayMillis = followDeathDelayMillis,
+            activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
+        )
+        return PrivilegeDelegateCommand(
+            foregroundCommandLine = launchCommand.foregroundCommandLine,
+            detachedCommandLine = launchCommand.detachedCommandLine,
+            classpath = launchCommand.classpath,
+            mainClass = launchCommand.mainClass,
+            providerAuthority = launchCommand.providerAuthority,
+            launchCommand = launchCommand,
+        )
+    }
+
     private fun buildAdbStarterCommand(
         launchCommand: PrivilegeServerLaunchCommand,
         starterPath: String,
@@ -620,6 +688,12 @@ object PrivilegeRuntime {
     private fun validateFollowDeathDelayMillis(value: Long) {
         require(value >= 0L) { "followDeathDelayMillis must not be negative" }
     }
+
+    private fun PrivilegeDelegateProcess.safeOutputText(): String =
+        runCatching { outputText() }
+            .getOrElse { throwable ->
+                "<failed to read delegate output: ${throwable.javaClass.simpleName}: ${throwable.message}>"
+            }
 
     private fun PrivilegeServerInfo.matchesCurrentRuntime(): Boolean =
         protocolVersion == PrivilegeProtocol.VERSION &&

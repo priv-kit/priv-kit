@@ -377,6 +377,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - delegate 启动诊断；
 - delegate 特有失败建模；
 - 转换为共享启动结果。
+- `PrivilegeDelegateExecutor`、`PrivilegeDelegateStarter`、`PrivilegeDelegateCommand`、`PrivilegeDelegateProcess` 和 `PrivilegeDelegateStartResult` 这类启动原语。
 
 禁止：
 

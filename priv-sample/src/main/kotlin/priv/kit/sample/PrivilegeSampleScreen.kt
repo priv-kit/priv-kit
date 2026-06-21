@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -46,7 +47,7 @@ internal sealed interface PrivilegeSampleDestination {
     val title: String
 
     data object Connection : PrivilegeSampleDestination {
-        override val title: String = "Test Connection"
+        override val title: String = "Test Authorization"
     }
 
     data object Binder : PrivilegeSampleDestination {
@@ -59,6 +60,45 @@ internal sealed interface PrivilegeSampleDestination {
 
     companion object {
         val entries: List<PrivilegeSampleDestination> = listOf(Connection, Binder, UserService)
+    }
+}
+
+internal sealed interface PrivilegeStartupTab {
+    val title: String
+
+    data object Root : PrivilegeStartupTab {
+        override val title: String = "Root"
+    }
+
+    data object Manual : PrivilegeStartupTab {
+        override val title: String = "Manual"
+    }
+
+    data object Shizuku : PrivilegeStartupTab {
+        override val title: String = "Shizuku"
+    }
+
+    data object WirelessAdb : PrivilegeStartupTab {
+        override val title: String = "Wireless"
+    }
+
+    data object Tcp : PrivilegeStartupTab {
+        override val title: String = "TCP"
+    }
+
+    data object Log : PrivilegeStartupTab {
+        override val title: String = "Log"
+    }
+
+    companion object {
+        val entries: List<PrivilegeStartupTab> = listOf(
+            Root,
+            Manual,
+            Shizuku,
+            WirelessAdb,
+            Tcp,
+            Log,
+        )
     }
 }
 
@@ -104,6 +144,12 @@ internal data class PrivilegeSampleScreenState(
     val embeddedUserServiceMessage: String = "-",
     val userServiceMessage: String = "Connect to a Privileged Server, then bind a UserService.",
     val userServiceLastException: String = "",
+    val shizukuReady: Boolean = false,
+    val shizukuPermissionGranted: Boolean = false,
+    val shizukuUid: Int? = null,
+    val shizukuVersion: Int? = null,
+    val shizukuMessage: String = "Shizuku status not checked",
+    val shizukuLastException: String = "",
     val message: String = "Ready",
     val logText: String = "",
 )
@@ -130,6 +176,11 @@ internal fun PrivilegeSampleScreenState.wirelessDebugLogText(): String =
         appendLine("dedicatedUserServiceCached=$dedicatedUserServiceCached")
         appendLine("embeddedUserServiceCached=$embeddedUserServiceCached")
         appendLine("userServiceMessage=$userServiceMessage")
+        appendLine("shizukuReady=$shizukuReady")
+        appendLine("shizukuPermissionGranted=$shizukuPermissionGranted")
+        appendLine("shizukuUid=${shizukuUid ?: "none"}")
+        appendLine("shizukuVersion=${shizukuVersion ?: "none"}")
+        appendLine("shizukuMessage=$shizukuMessage")
         appendLine("serverInfo=${serverInfo ?: "none"}")
         appendLine()
         appendLine("Session log:")
@@ -140,7 +191,9 @@ internal fun PrivilegeSampleScreenState.wirelessDebugLogText(): String =
 internal fun PrivilegeSampleScreen(
     state: PrivilegeSampleScreenState,
     backStack: SnapshotStateList<PrivilegeSampleDestination>,
+    selectedStartupTab: PrivilegeStartupTab,
     onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
+    onStartupTabSelected: (PrivilegeStartupTab) -> Unit,
     onAdbDeviceNameChanged: (String) -> Unit,
     onRefreshAdbFingerprint: () -> Unit,
     onCheckAdbPairing: () -> Unit,
@@ -148,6 +201,8 @@ internal fun PrivilegeSampleScreen(
     onTcpPortChanged: (String) -> Unit,
     onStartRootRuntime: () -> Unit,
     onCopyManualCommand: () -> Unit,
+    onRefreshShizukuStatus: () -> Unit,
+    onStartShizukuDelegate: () -> Unit,
     onPairWirelessAdb: () -> Unit,
     onStartNotificationPairing: () -> Unit,
     onStartWirelessAdb: () -> Unit,
@@ -178,7 +233,9 @@ internal fun PrivilegeSampleScreen(
                     ConnectionTestPage(
                         state = state,
                         selectedDestination = PrivilegeSampleDestination.Connection,
+                        selectedStartupTab = selectedStartupTab,
                         onDestinationSelected = onDestinationSelected,
+                        onStartupTabSelected = onStartupTabSelected,
                         onAdbDeviceNameChanged = onAdbDeviceNameChanged,
                         onRefreshAdbFingerprint = onRefreshAdbFingerprint,
                         onCheckAdbPairing = onCheckAdbPairing,
@@ -186,6 +243,8 @@ internal fun PrivilegeSampleScreen(
                         onTcpPortChanged = onTcpPortChanged,
                         onStartRootRuntime = onStartRootRuntime,
                         onCopyManualCommand = onCopyManualCommand,
+                        onRefreshShizukuStatus = onRefreshShizukuStatus,
+                        onStartShizukuDelegate = onStartShizukuDelegate,
                         onPairWirelessAdb = onPairWirelessAdb,
                         onStartNotificationPairing = onStartNotificationPairing,
                         onStartWirelessAdb = onStartWirelessAdb,
@@ -300,7 +359,9 @@ private fun DestinationTabs(
 private fun ConnectionTestPage(
     state: PrivilegeSampleScreenState,
     selectedDestination: PrivilegeSampleDestination,
+    selectedStartupTab: PrivilegeStartupTab,
     onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
+    onStartupTabSelected: (PrivilegeStartupTab) -> Unit,
     onAdbDeviceNameChanged: (String) -> Unit,
     onRefreshAdbFingerprint: () -> Unit,
     onCheckAdbPairing: () -> Unit,
@@ -308,6 +369,8 @@ private fun ConnectionTestPage(
     onTcpPortChanged: (String) -> Unit,
     onStartRootRuntime: () -> Unit,
     onCopyManualCommand: () -> Unit,
+    onRefreshShizukuStatus: () -> Unit,
+    onStartShizukuDelegate: () -> Unit,
     onPairWirelessAdb: () -> Unit,
     onStartNotificationPairing: () -> Unit,
     onStartWirelessAdb: () -> Unit,
@@ -319,38 +382,110 @@ private fun ConnectionTestPage(
     onCopyLog: () -> Unit,
 ) {
     SamplePageScaffold(
-        title = "Test Connection",
+        title = "Test Authorization",
         selectedDestination = selectedDestination,
         busy = state.busy,
         onDestinationSelected = onDestinationSelected,
     ) {
         StatusPanel(state, onStopServer)
-        SectionTitle("Root")
-        RootPage(state, onStartRootRuntime)
-        SectionTitle("Manual")
-        ManualPage(state, onCopyManualCommand)
-        SectionTitle("Wireless ADB")
-        WirelessAdbPage(
-            state = state,
-            onAdbDeviceNameChanged = onAdbDeviceNameChanged,
-            onRefreshAdbFingerprint = onRefreshAdbFingerprint,
-            onCheckAdbPairing = onCheckAdbPairing,
-            onPairingCodeChanged = onPairingCodeChanged,
-            onCopyLog = onCopyLog,
-            onPairWirelessAdb = onPairWirelessAdb,
-            onStartNotificationPairing = onStartNotificationPairing,
-            onStartWirelessAdb = onStartWirelessAdb,
+        StartupTabs(
+            selectedStartupTab = selectedStartupTab,
+            busy = state.busy,
+            onStartupTabSelected = onStartupTabSelected,
         )
-        SectionTitle("TCP")
-        TcpPage(
-            state = state,
-            onTcpPortChanged = onTcpPortChanged,
-            onSwitchToTcp = onSwitchToTcp,
-            onRestartTcp = onRestartTcp,
-            onStopTcp = onStopTcp,
+        when (selectedStartupTab) {
+            PrivilegeStartupTab.Root -> RootPage(state, onStartRootRuntime)
+            PrivilegeStartupTab.Manual -> ManualPage(state, onCopyManualCommand)
+            PrivilegeStartupTab.Shizuku -> ShizukuDelegatePage(
+                state = state,
+                onRefreshShizukuStatus = onRefreshShizukuStatus,
+                onStartShizukuDelegate = onStartShizukuDelegate,
+            )
+            PrivilegeStartupTab.WirelessAdb -> WirelessAdbPage(
+                state = state,
+                onAdbDeviceNameChanged = onAdbDeviceNameChanged,
+                onRefreshAdbFingerprint = onRefreshAdbFingerprint,
+                onCheckAdbPairing = onCheckAdbPairing,
+                onPairingCodeChanged = onPairingCodeChanged,
+                onCopyLog = onCopyLog,
+                onPairWirelessAdb = onPairWirelessAdb,
+                onStartNotificationPairing = onStartNotificationPairing,
+                onStartWirelessAdb = onStartWirelessAdb,
+            )
+            PrivilegeStartupTab.Tcp -> TcpPage(
+                state = state,
+                onTcpPortChanged = onTcpPortChanged,
+                onSwitchToTcp = onSwitchToTcp,
+                onRestartTcp = onRestartTcp,
+                onStopTcp = onStopTcp,
+            )
+            PrivilegeStartupTab.Log -> SessionPage(state, onClearLog, onCopyLog)
+        }
+    }
+}
+
+@Composable
+private fun StartupTabs(
+    selectedStartupTab: PrivilegeStartupTab,
+    busy: Boolean,
+    onStartupTabSelected: (PrivilegeStartupTab) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        PrivilegeStartupTab.entries.chunked(3).forEach { rowTabs ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowTabs.forEach { tab ->
+                    val selected = selectedStartupTab == tab
+                    StartupTabButton(
+                        label = tab.title,
+                        selected = selected,
+                        enabled = !busy || selected,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        onStartupTabSelected(tab)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StartupTabButton(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val background = when {
+        selected -> Color(0xFF1769E0)
+        enabled -> Color(0xFFE2E7EE)
+        else -> Color(0xFFCAD3DD)
+    }
+    val foreground = if (selected) Color.White else Color(0xFF27313B)
+    Box(
+        modifier = modifier
+            .height(42.dp)
+            .widthIn(min = 88.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(background)
+            .clickable(
+                enabled = enabled,
+                role = Role.Tab,
+                onClick = onClick,
+            )
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        BasicText(
+            text = label,
+            style = TextStyle(
+                color = foreground,
+                fontFamily = FontFamily.SansSerif,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
         )
-        SectionTitle("Session Log")
-        SessionPage(state, onClearLog, onCopyLog)
     }
 }
 
@@ -704,6 +839,59 @@ private fun ManualPage(
                 background = Color(0xFF5E6873),
                 onClick = {},
             )
+        }
+    }
+}
+
+@Composable
+private fun ShizukuDelegatePage(
+    state: PrivilegeSampleScreenState,
+    onRefreshShizukuStatus: () -> Unit,
+    onStartShizukuDelegate: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.White)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            RuntimeInfoRow(label = "ready", value = if (state.shizukuReady) "yes" else "no")
+            RuntimeInfoRow(label = "permission", value = if (state.shizukuPermissionGranted) "granted" else "-")
+            RuntimeInfoRow(label = "uid", value = state.shizukuUid?.toString() ?: "-")
+            RuntimeInfoRow(label = "version", value = state.shizukuVersion?.toString() ?: "-")
+            SelectionContainer {
+                BasicText(
+                    text = state.shizukuMessage,
+                    style = TextStyle(
+                        color = Color(0xFF48525C),
+                        fontFamily = FontFamily.SansSerif,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                    ),
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SampleAction(
+                label = "Refresh Shizuku",
+                enabled = !state.busy,
+                background = Color(0xFF5E6873),
+                modifier = Modifier.weight(1f),
+                onClick = onRefreshShizukuStatus,
+            )
+            SampleAction(
+                label = "Start Delegate",
+                enabled = !state.busy,
+                background = Color(0xFF1769E0),
+                modifier = Modifier.weight(1f),
+                onClick = onStartShizukuDelegate,
+            )
+        }
+        if (state.shizukuLastException.isNotBlank()) {
+            DiagnosticBlock(state.shizukuLastException)
         }
     }
 }
