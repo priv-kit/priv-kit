@@ -34,6 +34,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -201,7 +202,6 @@ internal fun PrivilegeSampleScreen(
     onTcpPortChanged: (String) -> Unit,
     onStartRootRuntime: () -> Unit,
     onCopyManualCommand: () -> Unit,
-    onRefreshShizukuStatus: () -> Unit,
     onStartShizukuDelegate: () -> Unit,
     onPairWirelessAdb: () -> Unit,
     onStartNotificationPairing: () -> Unit,
@@ -243,7 +243,6 @@ internal fun PrivilegeSampleScreen(
                         onTcpPortChanged = onTcpPortChanged,
                         onStartRootRuntime = onStartRootRuntime,
                         onCopyManualCommand = onCopyManualCommand,
-                        onRefreshShizukuStatus = onRefreshShizukuStatus,
                         onStartShizukuDelegate = onStartShizukuDelegate,
                         onPairWirelessAdb = onPairWirelessAdb,
                         onStartNotificationPairing = onStartNotificationPairing,
@@ -369,7 +368,6 @@ private fun ConnectionTestPage(
     onTcpPortChanged: (String) -> Unit,
     onStartRootRuntime: () -> Unit,
     onCopyManualCommand: () -> Unit,
-    onRefreshShizukuStatus: () -> Unit,
     onStartShizukuDelegate: () -> Unit,
     onPairWirelessAdb: () -> Unit,
     onStartNotificationPairing: () -> Unit,
@@ -398,7 +396,6 @@ private fun ConnectionTestPage(
             PrivilegeStartupTab.Manual -> ManualPage(state, onCopyManualCommand)
             PrivilegeStartupTab.Shizuku -> ShizukuDelegatePage(
                 state = state,
-                onRefreshShizukuStatus = onRefreshShizukuStatus,
                 onStartShizukuDelegate = onStartShizukuDelegate,
             )
             PrivilegeStartupTab.WirelessAdb -> WirelessAdbPage(
@@ -781,12 +778,15 @@ private fun StatusPanel(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             StatusPill(state.status, state.busy)
+            Spacer(Modifier.width(12.dp))
             BasicText(
+                modifier = Modifier.weight(1f),
                 text = state.message,
                 style = TextStyle(
                     color = Color(0xFF48525C),
                     fontFamily = FontFamily.SansSerif,
                     fontSize = 13.sp,
+                    textAlign = TextAlign.End,
                 ),
             )
         }
@@ -794,7 +794,7 @@ private fun StatusPanel(
         RuntimeInfoRow(label = "pid", value = state.serverInfo?.pid?.toString() ?: "-")
         RuntimeInfoRow(label = "launchMode", value = state.serverInfo?.launchMode?.toString() ?: "-")
         RuntimeInfoRow(label = "protocol", value = state.serverInfo?.protocolVersion?.toString() ?: "-")
-        RuntimeInfoRow(label = "server", value = state.serverInfo?.serverVersion ?: "-")
+        RuntimeInfoRow(label = "serverVersion", value = state.serverInfo?.serverVersion ?: "-")
         SampleAction(
             label = "Stop Server",
             enabled = !state.busy && state.status == PrivilegeSampleStatus.CONNECTED,
@@ -846,7 +846,6 @@ private fun ManualPage(
 @Composable
 private fun ShizukuDelegatePage(
     state: PrivilegeSampleScreenState,
-    onRefreshShizukuStatus: () -> Unit,
     onStartShizukuDelegate: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -874,27 +873,24 @@ private fun ShizukuDelegatePage(
                 )
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SampleAction(
-                label = "Refresh Shizuku",
-                enabled = !state.busy,
-                background = Color(0xFF5E6873),
-                modifier = Modifier.weight(1f),
-                onClick = onRefreshShizukuStatus,
-            )
-            SampleAction(
-                label = "Start Delegate",
-                enabled = !state.busy,
-                background = Color(0xFF1769E0),
-                modifier = Modifier.weight(1f),
-                onClick = onStartShizukuDelegate,
-            )
-        }
+        SampleAction(
+            label = state.shizukuDelegateActionLabel(),
+            enabled = !state.busy,
+            background = Color(0xFF1769E0),
+            onClick = onStartShizukuDelegate,
+        )
         if (state.shizukuLastException.isNotBlank()) {
             DiagnosticBlock(state.shizukuLastException)
         }
     }
 }
+
+private fun PrivilegeSampleScreenState.shizukuDelegateActionLabel(): String =
+    if (shizukuReady && shizukuPermissionGranted) {
+        "Start Delegate"
+    } else {
+        "Authorize and Start Delegate"
+    }
 
 @Composable
 private fun PairingStatusPanel(

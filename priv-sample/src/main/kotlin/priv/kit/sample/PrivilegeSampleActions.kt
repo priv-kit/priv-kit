@@ -198,7 +198,7 @@ internal fun MainActivity.checkWirelessAdbPairing(showBusy: Boolean) {
                     adbDeviceName = result.identity.deviceName,
                     adbKeyFingerprint = result.publicKeyFingerprint,
                     adbKeyFingerprintLoading = false,
-                    message = if (showBusy) resultMessage else screenState.message,
+                    message = if (showBusy) screenState.idleServiceMessage() else screenState.message,
                 )
                 appendLog(resultMessage)
                 appendLog(result.output.text())
@@ -210,7 +210,7 @@ internal fun MainActivity.checkWirelessAdbPairing(showBusy: Boolean) {
                     busy = if (showBusy) false else screenState.busy,
                     pairingStatus = PrivilegeAdbPairingStatus.FAILED,
                     pairingMessage = failureMessage,
-                    message = if (showBusy) failureMessage else screenState.message,
+                    message = if (showBusy) screenState.idleServiceMessage() else screenState.message,
                 )
                 appendLog("Pairing check error: $failureMessage")
                 appendLog(throwable.toDiagnosticString())
@@ -402,7 +402,7 @@ private fun MainActivity.applyShizukuReadiness(readiness: ShizukuReadiness) {
         shizukuVersion = readiness.version,
         shizukuMessage = readiness.message,
         shizukuLastException = readiness.exceptionText,
-        message = readiness.message,
+        message = readiness.toGlobalMessage(),
     )
     if (readiness.exceptionText.isNotBlank()) {
         appendLog(readiness.exceptionText)
@@ -507,6 +507,15 @@ internal fun MainActivity.handleNotificationPairingEvent(intent: Intent) {
         else -> screenState.pairingStatus
     }
 
+    val globalMessage = if (
+        event == PrivilegeSampleAdbPairingService.EVENT_SEARCHING ||
+        event == PrivilegeSampleAdbPairingService.EVENT_FOUND ||
+        event == PrivilegeSampleAdbPairingService.EVENT_PAIRING
+    ) {
+        eventMessage
+    } else {
+        screenState.idleServiceMessage()
+    }
     screenState = screenState.copy(
         pairingStatus = pairingStatus,
         pairingMessage = eventMessage,
@@ -514,7 +523,7 @@ internal fun MainActivity.handleNotificationPairingEvent(intent: Intent) {
         adbDeviceName = adbDeviceName ?: screenState.adbDeviceName,
         adbKeyFingerprint = fingerprint ?: screenState.adbKeyFingerprint,
         adbKeyFingerprintLoading = false,
-        message = eventMessage,
+        message = globalMessage,
     )
     appendLog("Notification pairing: $eventMessage")
 }
@@ -603,7 +612,7 @@ internal fun MainActivity.stopServer() {
                         "Server stopped"
                     },
                     binderLastException = "",
-                    message = "Server stopped",
+                    message = "Ready",
                 )
                 appendLog("Server stopped")
             }
@@ -772,7 +781,7 @@ private fun MainActivity.runUserServiceAction(
                     embeddedUserServiceMessage = result.embeddedMessage ?: screenState.embeddedUserServiceMessage,
                     userServiceMessage = result.message,
                     userServiceLastException = result.exceptionText,
-                    message = result.message,
+                    message = screenState.idleServiceMessage(),
                 )
                 appendLog(result.message)
                 result.dedicatedMessage?.let { appendLog(it) }
@@ -852,7 +861,7 @@ private fun MainActivity.runBinderAction(
                     userManagerCached = result.userManagerCached ?: screenState.userManagerCached,
                     binderMessage = result.message,
                     binderLastException = result.exceptionText,
-                    message = result.message,
+                    message = screenState.idleServiceMessage(),
                 )
                 appendLog(result.message)
             }
@@ -894,6 +903,9 @@ private data class ShizukuReadiness(
     val message: String,
     val exceptionText: String = "",
 )
+
+private fun ShizukuReadiness.toGlobalMessage(): String =
+    if (ready) "Shizuku ready" else message
 
 private fun List<PrivilegeSampleUserInfo>.toBinderMessage(): String =
     buildString {
@@ -951,7 +963,7 @@ private fun <T> MainActivity.runBusy(
                 val resultMessage = onSuccess(result)
                 screenState = screenState.copy(
                     busy = false,
-                    message = resultMessage,
+                    message = screenState.idleServiceMessage(),
                 )
                 appendLog(resultMessage)
             }
@@ -1040,6 +1052,13 @@ private fun MainActivity.appendLog(line: String) {
     screenState = screenState.copy(logText = nextLog.takeLast(MAX_LOG_CHARS))
 }
 
+private fun PrivilegeSampleScreenState.idleServiceMessage(): String =
+    when (status) {
+        PrivilegeSampleStatus.CONNECTED -> "Connected"
+        PrivilegeSampleStatus.DISCONNECTED -> "Ready"
+        PrivilegeSampleStatus.STARTING -> message
+    }
+
 private fun MainActivity.sampleUserServiceSpec(
     label: String,
     processMode: PrivilegeUserServiceProcessMode,
@@ -1109,7 +1128,7 @@ private fun MainActivity.applySampleUserServiceStatus(
             embeddedUserServiceCached = screenState.embeddedUserServiceCached || embeddedUserServiceConnection != null,
             embeddedUserServiceMessage = statusMessage,
             userServiceMessage = if (bound) screenState.userServiceMessage else "$label UserService $statusMessage",
-            message = if (bound) screenState.message else "$label UserService $statusMessage",
+            message = if (bound) screenState.message else screenState.idleServiceMessage(),
         )
     } else {
         screenState.copy(
@@ -1117,7 +1136,7 @@ private fun MainActivity.applySampleUserServiceStatus(
             dedicatedUserServiceCached = screenState.dedicatedUserServiceCached || dedicatedUserServiceConnection != null,
             dedicatedUserServiceMessage = statusMessage,
             userServiceMessage = if (bound) screenState.userServiceMessage else "$label UserService $statusMessage",
-            message = if (bound) screenState.message else "$label UserService $statusMessage",
+            message = if (bound) screenState.message else screenState.idleServiceMessage(),
         )
     }
 }

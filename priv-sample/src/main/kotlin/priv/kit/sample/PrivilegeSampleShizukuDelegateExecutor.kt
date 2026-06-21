@@ -51,9 +51,7 @@ internal class PrivilegeSampleShizukuDelegateExecutor(
         val connection = serviceConnection ?: return
         serviceConnection = null
         service = null
-        runCatching {
-            Shizuku.unbindUserService(userServiceArgs(), connection, true)
-        }
+        removeUserService(connection)
     }
 
     private fun bindOrGetService(): IPrivilegeSampleShizukuDelegateService {
@@ -96,17 +94,13 @@ internal class PrivilegeSampleShizukuDelegateExecutor(
         }
 
         if (!latch.await(SHIZUKU_BIND_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
-            runCatching {
-                Shizuku.unbindUserService(userServiceArgs(), connection, true)
-            }
+            removeUserService(connection)
             serviceConnection = null
             throw PrivilegeStartupException("Timed out binding Shizuku delegate UserService")
         }
 
         failureRef.get()?.let { throwable ->
-            runCatching {
-                Shizuku.unbindUserService(userServiceArgs(), connection, true)
-            }
+            removeUserService(connection)
             serviceConnection = null
             if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to bind Shizuku delegate UserService", throwable)
@@ -130,6 +124,17 @@ internal class PrivilegeSampleShizukuDelegateExecutor(
             .processNameSuffix(SHIZUKU_DELEGATE_PROCESS_SUFFIX)
             .debuggable(applicationContext.isDebuggable())
             .version(SHIZUKU_DELEGATE_SERVICE_VERSION)
+
+    private fun removeUserService(connection: ServiceConnection) {
+        val args = userServiceArgs()
+        // remove=false clears Shizuku's client-side connection cache; remove=true destroys the remote record.
+        runCatching {
+            Shizuku.unbindUserService(args, connection, false)
+        }
+        runCatching {
+            Shizuku.unbindUserService(args, connection, true)
+        }
+    }
 
     private fun Context.isDebuggable(): Boolean =
         applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0

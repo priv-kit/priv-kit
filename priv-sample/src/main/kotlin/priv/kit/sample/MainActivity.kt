@@ -76,7 +76,6 @@ class MainActivity : ComponentActivity() {
                 onTcpPortChanged = { updateTcpPort(it) },
                 onStartRootRuntime = { startRootRuntime() },
                 onCopyManualCommand = { copyManualShellCommand() },
-                onRefreshShizukuStatus = { refreshShizukuStatus() },
                 onStartShizukuDelegate = { startShizukuDelegate() },
                 onPairWirelessAdb = { pairWirelessAdb() },
                 onStartNotificationPairing = { startNotificationPairing() },
