@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.collectAsState
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import priv.kit.runtime.PrivilegeRuntime
@@ -63,10 +64,13 @@ class MainActivity : ComponentActivity() {
         Shizuku.addRequestPermissionResultListener(shizukuPermissionResultListener)
         initializePrivilegeSample()
         setContent {
+            val notificationPairingRunning =
+                PrivilegeSampleAdbPairingService.running.collectAsState().value
             PrivilegeSampleScreen(
                 state = screenState,
                 backStack = sampleViewModel.backStack,
                 selectedStartupTab = sampleViewModel.selectedStartupTab,
+                notificationPairingRunning = notificationPairingRunning,
                 onDestinationSelected = { sampleViewModel.selectDestination(it) },
                 onStartupTabSelected = { sampleViewModel.selectStartupTab(it) },
                 onAdbDeviceNameChanged = { updateAdbDeviceName(it) },
@@ -79,6 +83,7 @@ class MainActivity : ComponentActivity() {
                 onStartShizukuDelegate = { startShizukuDelegate() },
                 onPairWirelessAdb = { pairWirelessAdb() },
                 onStartNotificationPairing = { startNotificationPairing() },
+                onStopNotificationPairing = { stopNotificationPairing() },
                 onStartWirelessAdb = { startWirelessAdb() },
                 onSwitchToTcp = { switchToTcp() },
                 onRestartTcp = { restartTcp() },

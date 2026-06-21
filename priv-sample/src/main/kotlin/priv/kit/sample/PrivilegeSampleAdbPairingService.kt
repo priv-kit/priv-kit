@@ -12,6 +12,9 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import priv.kit.runtime.PrivilegeRuntime
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -26,6 +29,7 @@ internal class PrivilegeSampleAdbPairingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        runningState.value = true
         notificationManager.createNotificationChannel(
             NotificationChannel(
                 NOTIFICATION_CHANNEL_ID,
@@ -71,6 +75,7 @@ internal class PrivilegeSampleAdbPairingService : Service() {
         searchGeneration.incrementAndGet()
         activeTask?.cancel(true)
         executor.shutdownNow()
+        runningState.value = false
         super.onDestroy()
     }
 
@@ -146,6 +151,7 @@ internal class PrivilegeSampleAdbPairingService : Service() {
         if (port !in 1..65535) {
             val message = "Pairing port is not available. Start notification pairing again."
             sendPairingEvent(event = EVENT_FAILED, message = message)
+            runningState.value = false
             stopSelf()
             return resultNotification(
                 title = "Wireless ADB pairing failed",
@@ -157,6 +163,7 @@ internal class PrivilegeSampleAdbPairingService : Service() {
         if (code.isBlank()) {
             val message = "Pairing code is required."
             sendPairingEvent(event = EVENT_FAILED, message = message, port = port)
+            runningState.value = false
             stopSelf()
             return resultNotification(
                 title = "Wireless ADB pairing failed",
@@ -214,12 +221,14 @@ internal class PrivilegeSampleAdbPairingService : Service() {
     private fun stopPairing(message: String) {
         searchGeneration.incrementAndGet()
         activeTask?.cancel(true)
+        runningState.value = false
         sendPairingEvent(event = EVENT_STOPPED, message = message)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     private fun finishWithNotification(notification: Notification) {
+        runningState.value = false
         stopForeground(STOP_FOREGROUND_DETACH)
         notificationManager.notify(NOTIFICATION_ID, notification)
         stopSelf()
@@ -441,6 +450,9 @@ internal class PrivilegeSampleAdbPairingService : Service() {
         private const val PAIRING_DISCOVERY_ATTEMPT_TIMEOUT_MILLIS = 6_000L
         private const val PAIRING_DISCOVERY_RETRY_DELAY_MILLIS = 500L
 
+        private val runningState = MutableStateFlow(false)
+        val running: StateFlow<Boolean> = runningState.asStateFlow()
+
         fun start(context: Context, adbDeviceName: String?) {
             val intent = Intent(context, PrivilegeSampleAdbPairingService::class.java)
                 .setAction(ACTION_START)
@@ -449,11 +461,14 @@ internal class PrivilegeSampleAdbPairingService : Service() {
                         putExtra(EXTRA_REQUESTED_ADB_DEVICE_NAME, adbDeviceName)
                     }
                 }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            context.startForegroundService(intent)
+        }
+
+        fun stop(context: Context) {
+            context.startService(
+                Intent(context, PrivilegeSampleAdbPairingService::class.java)
+                    .setAction(ACTION_STOP),
+            )
         }
 
         private fun mutablePendingIntentFlags(): Int =

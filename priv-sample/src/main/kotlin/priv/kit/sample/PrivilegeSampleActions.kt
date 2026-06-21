@@ -487,6 +487,17 @@ internal fun MainActivity.startNotificationPairing() {
     )
 }
 
+internal fun MainActivity.stopNotificationPairing() {
+    val message = "Stopping notification pairing..."
+    screenState = screenState.copy(
+        pairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
+        pairingMessage = message,
+        message = message,
+    )
+    appendLog(message)
+    PrivilegeSampleAdbPairingService.stop(this)
+}
+
 internal fun MainActivity.handleNotificationPairingEvent(intent: Intent) {
     if (intent.action != PrivilegeSampleAdbPairingService.ACTION_PAIRING_EVENT) return
 

@@ -193,6 +193,7 @@ internal fun PrivilegeSampleScreen(
     state: PrivilegeSampleScreenState,
     backStack: SnapshotStateList<PrivilegeSampleDestination>,
     selectedStartupTab: PrivilegeStartupTab,
+    notificationPairingRunning: Boolean,
     onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
     onStartupTabSelected: (PrivilegeStartupTab) -> Unit,
     onAdbDeviceNameChanged: (String) -> Unit,
@@ -205,6 +206,7 @@ internal fun PrivilegeSampleScreen(
     onStartShizukuDelegate: () -> Unit,
     onPairWirelessAdb: () -> Unit,
     onStartNotificationPairing: () -> Unit,
+    onStopNotificationPairing: () -> Unit,
     onStartWirelessAdb: () -> Unit,
     onSwitchToTcp: () -> Unit,
     onRestartTcp: () -> Unit,
@@ -234,6 +236,7 @@ internal fun PrivilegeSampleScreen(
                         state = state,
                         selectedDestination = PrivilegeSampleDestination.Connection,
                         selectedStartupTab = selectedStartupTab,
+                        notificationPairingRunning = notificationPairingRunning,
                         onDestinationSelected = onDestinationSelected,
                         onStartupTabSelected = onStartupTabSelected,
                         onAdbDeviceNameChanged = onAdbDeviceNameChanged,
@@ -246,6 +249,7 @@ internal fun PrivilegeSampleScreen(
                         onStartShizukuDelegate = onStartShizukuDelegate,
                         onPairWirelessAdb = onPairWirelessAdb,
                         onStartNotificationPairing = onStartNotificationPairing,
+                        onStopNotificationPairing = onStopNotificationPairing,
                         onStartWirelessAdb = onStartWirelessAdb,
                         onSwitchToTcp = onSwitchToTcp,
                         onRestartTcp = onRestartTcp,
@@ -359,6 +363,7 @@ private fun ConnectionTestPage(
     state: PrivilegeSampleScreenState,
     selectedDestination: PrivilegeSampleDestination,
     selectedStartupTab: PrivilegeStartupTab,
+    notificationPairingRunning: Boolean,
     onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
     onStartupTabSelected: (PrivilegeStartupTab) -> Unit,
     onAdbDeviceNameChanged: (String) -> Unit,
@@ -371,6 +376,7 @@ private fun ConnectionTestPage(
     onStartShizukuDelegate: () -> Unit,
     onPairWirelessAdb: () -> Unit,
     onStartNotificationPairing: () -> Unit,
+    onStopNotificationPairing: () -> Unit,
     onStartWirelessAdb: () -> Unit,
     onSwitchToTcp: () -> Unit,
     onRestartTcp: () -> Unit,
@@ -400,6 +406,7 @@ private fun ConnectionTestPage(
             )
             PrivilegeStartupTab.WirelessAdb -> WirelessAdbPage(
                 state = state,
+                notificationPairingRunning = notificationPairingRunning,
                 onAdbDeviceNameChanged = onAdbDeviceNameChanged,
                 onRefreshAdbFingerprint = onRefreshAdbFingerprint,
                 onCheckAdbPairing = onCheckAdbPairing,
@@ -407,6 +414,7 @@ private fun ConnectionTestPage(
                 onCopyLog = onCopyLog,
                 onPairWirelessAdb = onPairWirelessAdb,
                 onStartNotificationPairing = onStartNotificationPairing,
+                onStopNotificationPairing = onStopNotificationPairing,
                 onStartWirelessAdb = onStartWirelessAdb,
             )
             PrivilegeStartupTab.Tcp -> TcpPage(
@@ -975,6 +983,7 @@ private fun PairingStatusPanel(
 @Composable
 private fun WirelessAdbPage(
     state: PrivilegeSampleScreenState,
+    notificationPairingRunning: Boolean,
     onAdbDeviceNameChanged: (String) -> Unit,
     onRefreshAdbFingerprint: () -> Unit,
     onCheckAdbPairing: () -> Unit,
@@ -982,6 +991,7 @@ private fun WirelessAdbPage(
     onCopyLog: () -> Unit,
     onPairWirelessAdb: () -> Unit,
     onStartNotificationPairing: () -> Unit,
+    onStopNotificationPairing: () -> Unit,
     onStartWirelessAdb: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1030,10 +1040,14 @@ private fun WirelessAdbPage(
             onClick = onPairWirelessAdb,
         )
         SampleAction(
-            label = "Pair via Notification",
-            enabled = !state.busy,
-            background = Color(0xFF1769E0),
-            onClick = onStartNotificationPairing,
+            label = if (notificationPairingRunning) {
+                "Stop Notification Pairing"
+            } else {
+                "Pair via Notification"
+            },
+            enabled = !state.busy || notificationPairingRunning,
+            background = if (notificationPairingRunning) Color(0xFFB42318) else Color(0xFF1769E0),
+            onClick = if (notificationPairingRunning) onStopNotificationPairing else onStartNotificationPairing,
         )
         SampleAction(
             label = "Start Wireless ADB",
