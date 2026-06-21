@@ -8,6 +8,7 @@ import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import javax.net.ssl.SSLSocket
+import priv.kit.ssl.adb.PrivilegeSslAdbPairingContext
 
 private const val CURRENT_KEY_HEADER_VERSION = 1.toByte()
 private const val MIN_SUPPORTED_KEY_HEADER_VERSION = 1.toByte()
@@ -72,32 +73,21 @@ private class PairingPacketHeader(
     }
 }
 
-internal class PrivilegeAdbPairingContext private constructor(private val nativePtr: Long) {
-    val msg: ByteArray = nativeMsg(nativePtr)
+internal class PrivilegeAdbPairingContext private constructor(
+    private val context: PrivilegeSslAdbPairingContext,
+) {
+    val msg: ByteArray = context.msg
 
-    fun initCipher(theirMsg: ByteArray): Boolean = nativeInitCipher(nativePtr, theirMsg)
-    fun encrypt(input: ByteArray): ByteArray? = nativeEncrypt(nativePtr, input)
-    fun decrypt(input: ByteArray): ByteArray? = nativeDecrypt(nativePtr, input)
-    fun destroy() = nativeDestroy(nativePtr)
-
-    private external fun nativeMsg(nativePtr: Long): ByteArray
-    private external fun nativeInitCipher(nativePtr: Long, theirMsg: ByteArray): Boolean
-    private external fun nativeEncrypt(nativePtr: Long, inbuf: ByteArray): ByteArray?
-    private external fun nativeDecrypt(nativePtr: Long, inbuf: ByteArray): ByteArray?
-    private external fun nativeDestroy(nativePtr: Long)
+    fun initCipher(theirMsg: ByteArray): Boolean = context.initCipher(theirMsg)
+    fun encrypt(input: ByteArray): ByteArray? = context.encrypt(input)
+    fun decrypt(input: ByteArray): ByteArray? = context.decrypt(input)
+    fun destroy() = context.destroy()
 
     companion object {
-        init {
-            System.loadLibrary("privkitadb")
-        }
-
         fun create(password: ByteArray): PrivilegeAdbPairingContext? {
-            val nativePtr = nativeConstructor(true, password)
-            return if (nativePtr != 0L) PrivilegeAdbPairingContext(nativePtr) else null
+            val context = PrivilegeSslAdbPairingContext.createClient(password)
+            return context?.let(::PrivilegeAdbPairingContext)
         }
-
-        @JvmStatic
-        private external fun nativeConstructor(isClient: Boolean, password: ByteArray): Long
     }
 }
 

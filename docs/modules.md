@@ -11,6 +11,8 @@
 - `:priv-server`
 - `:priv-binder`
 - `:priv-user-service`
+- `:priv-bc`
+- `:priv-ssl`
 - `:priv-adb`
 - `:priv-root`
 - `:priv-delegate`
@@ -37,6 +39,8 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 | `:priv-server` | `priv-server` | `priv.kit.server` |
 | `:priv-binder` | `priv-binder` | `priv.kit.binder` |
 | `:priv-user-service` | `priv-user-service` | `priv.kit.userservice` |
+| `:priv-bc` | `priv-bc` | `priv.kit.bc` |
+| `:priv-ssl` | `priv-ssl` | `priv.kit.ssl` |
 | `:priv-adb` | `priv-adb` | `priv.kit.adb` |
 | `:priv-root` | `priv-root` | `priv.kit.root` |
 | `:priv-delegate` | `priv-delegate` | `priv.kit.delegate` |
@@ -75,8 +79,14 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
     -> :priv-core
     -> :priv-binder
 
+:priv-bc
+
+:priv-ssl
+
 :priv-adb
     -> :priv-core
+    -> :priv-bc
+    -> :priv-ssl
 
 :priv-root
     -> :priv-core
@@ -293,6 +303,45 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 公开 ADB 命令库；
 - shell 便利 API；
 - 面向无关系统操作的 ADB helper。
+
+## `:priv-bc`
+
+职责：
+
+- 项目内部 ADB 启动客户端证书所需的最小 BC 兼容 ASN.1 / X.509 证书生成能力。
+
+允许：
+
+- ADB 客户端证书生成所需的 DER/ASN.1 编码；
+- ADB 客户端证书生成所需的 X.509 builder；
+- 与 Bouncy Castle 行为对齐的字节级兼容测试。
+
+禁止：
+
+- 通用证书管理；
+- 通用 PKI API；
+- Android API 依赖；
+- 非 ADB 启动所需的加密能力。
+
+## `:priv-ssl`
+
+职责：
+
+- 项目内部 ADB Wireless Debugging pairing 所需的最小 BoringSSL 兼容能力。
+
+允许：
+
+- SPAKE2 pairing 消息生成和处理；
+- ADB pairing 所需的 HKDF-SHA256；
+- ADB pairing 所需的 AES-128-GCM 加解密；
+- 与 BoringSSL/AOSP pairing 行为对齐的字节级兼容测试。
+
+禁止：
+
+- 通用 SSL/TLS 协议栈；
+- 通用密码学工具箱；
+- 证书、ASN.1 或 PKI 能力；
+- ADB socket、mDNS 或启动命令执行逻辑。
 
 ## `:priv-root`
 

@@ -13,10 +13,6 @@ android {
         }
     }
 
-    buildFeatures {
-        prefab = true
-    }
-
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
@@ -29,7 +25,6 @@ dependencies {
     api(project(":priv-core"))
     compileOnly(project(":hidden-api"))
     implementation(project(":priv-bc"))
-    implementation(libs.boringssl)
-    implementation(libs.libcxx)
+    implementation(project(":priv-ssl"))
     testImplementation(libs.junit)
 }

@@ -25,7 +25,7 @@
 Maven 坐标：
 
 - `groupId`：`io.github.priv-kit`
-- `artifactId`：`priv-core`、`priv-runtime`、`priv-server`、`priv-binder`、`priv-user-service`、`priv-adb`、`priv-root`、`priv-delegate`、`priv-ui`
+- `artifactId`：`priv-core`、`priv-runtime`、`priv-server`、`priv-binder`、`priv-user-service`、`priv-bc`、`priv-ssl`、`priv-adb`、`priv-root`、`priv-delegate`、`priv-ui`
 
 示例：
 
@@ -40,6 +40,8 @@ Gradle 模块必须使用 `priv-*` 命名：
 - `:priv-server`
 - `:priv-binder`
 - `:priv-user-service`
+- `:priv-bc`
+- `:priv-ssl`
 - `:priv-adb`
 - `:priv-root`
 - `:priv-delegate`
@@ -55,6 +57,8 @@ Gradle 模块必须使用 `priv-*` 命名：
 - `priv.kit.server`
 - `priv.kit.binder`
 - `priv.kit.userservice`
+- `priv.kit.bc`
+- `priv.kit.ssl`
 - `priv.kit.adb`
 - `priv.kit.root`
 - `priv.kit.delegate`
@@ -108,6 +112,8 @@ Gradle 模块必须使用 `priv-*` 命名：
 - `:priv-server`
 - `:priv-binder`
 - `:priv-user-service`
+- `:priv-bc`
+- `:priv-ssl`
 - `:priv-adb`
 - `:priv-root`
 - `:priv-delegate`

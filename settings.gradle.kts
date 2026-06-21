@@ -23,6 +23,7 @@ include(
     ":priv-binder",
     ":priv-user-service",
     ":priv-bc",
+    ":priv-ssl",
     ":priv-adb",
     ":priv-root",
     ":priv-delegate",
