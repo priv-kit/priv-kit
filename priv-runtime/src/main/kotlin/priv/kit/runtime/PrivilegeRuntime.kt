@@ -523,13 +523,14 @@ object PrivilegeRuntime {
             append(launchCommand.activeReconnectOnOwnerDeath)
         }
 
-    private fun buildShortAdbStarterCommand(launchCommand: PrivilegeServerLaunchCommand): String =
+    internal fun buildShortAdbStarterCommand(
+        launchCommand: PrivilegeServerLaunchCommand,
+        starterPath: String = buildAdbStarterPath(),
+    ): String =
         buildString {
-            append(PrivilegeServerLaunchCommandBuilder.shellArg(buildAdbStarterPath()))
+            append(PrivilegeServerLaunchCommandBuilder.shellArg(starterPath))
             append(" --token ")
             append(PrivilegeServerLaunchCommandBuilder.shellArg(launchCommand.token))
-            append(" --user-id ")
-            append(launchCommand.userId)
         }
 
     private fun buildAdbStarterPath(): String =

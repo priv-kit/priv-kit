@@ -1,10 +1,14 @@
 package priv.kit.runtime
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import priv.kit.binder.PrivilegeServerDisconnectedException
+import priv.kit.core.PrivilegeLaunchMode
+import priv.kit.core.PrivilegeProtocol
+import priv.kit.core.PrivilegeServerLaunchCommand
 import java.io.File
 
 class PrivilegeRuntimeTest {
@@ -39,5 +43,34 @@ class PrivilegeRuntimeTest {
     fun userIdIsDerivedFromAndroidUidRange() {
         assertEquals(0, PrivilegeServerLaunchCommandBuilder.userIdFromUid(10_123))
         assertEquals(10, PrivilegeServerLaunchCommandBuilder.userIdFromUid(1_012_345))
+    }
+
+    @Test
+    fun shortAdbStarterCommandExposesOnlyToken() {
+        val launchCommand = PrivilegeServerLaunchCommand(
+            token = "token-value",
+            foregroundCommandLine = "foreground",
+            detachedCommandLine = "detached",
+            classpath = "/data/app/example/base.apk",
+            classpathIdentity = "/data/app/example/base.apk@1@2",
+            mainClass = "priv.kit.server.PrivilegeServerMain",
+            providerAuthority = "example.privilege.handshake",
+            packageName = "example",
+            launchMode = PrivilegeLaunchMode.SHELL,
+            protocolVersion = PrivilegeProtocol.VERSION,
+            serverVersion = PrivilegeProtocol.SERVER_VERSION,
+            userId = 10,
+        )
+
+        val commandLine = PrivilegeRuntime.buildShortAdbStarterCommand(
+            launchCommand = launchCommand,
+            starterPath = "/data/app/example/lib/arm64/libprivkitstarter.so",
+        )
+
+        assertEquals(
+            "/data/app/example/lib/arm64/libprivkitstarter.so --token token-value",
+            commandLine,
+        )
+        assertFalse(commandLine.contains("--user-id"))
     }
 }
