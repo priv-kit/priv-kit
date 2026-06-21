@@ -18,8 +18,9 @@ private object Cfg {
     const val compileSdk = 37
     const val buildToolsVersion = "37.0.0"
     const val ndkVersion = "30.0.14904198"
+    const val cmakeVersion = "4.1.2"
     const val minSdk = 26
-    val javaTargetVersion = JavaVersion.VERSION_17
+    val javaTargetVersion = JavaVersion.VERSION_11
     val kotlinJvmTarget = JvmTarget.fromTarget(javaTargetVersion.majorVersion)
 }
 
@@ -57,6 +58,12 @@ subprojects {
                 sourceCompatibility = Cfg.javaTargetVersion
                 targetCompatibility = Cfg.javaTargetVersion
             }
+
+            externalNativeBuild {
+                cmake {
+                    version = Cfg.cmakeVersion
+                }
+            }
         }
     }
 
@@ -73,6 +80,12 @@ subprojects {
             compileOptions {
                 sourceCompatibility = Cfg.javaTargetVersion
                 targetCompatibility = Cfg.javaTargetVersion
+            }
+
+            externalNativeBuild {
+                cmake {
+                    version = Cfg.cmakeVersion
+                }
             }
         }
     }
