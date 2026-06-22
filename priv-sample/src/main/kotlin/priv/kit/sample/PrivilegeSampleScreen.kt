@@ -144,8 +144,13 @@ internal data class PrivilegeSampleScreenState(
     val pairingStatus: PrivilegeAdbPairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
     val pairingMessage: String = "Enter the Wireless debugging pairing code, or reply from the pairing notification.",
     val tcpPortText: String = PrivilegeAdbStartOptions.DEFAULT_TCP_PORT.toString(),
+    val systemServiceBinderCached: Boolean = false,
     val userManagerCached: Boolean = false,
-    val binderMessage: String = "Connect to a Privileged Server, then get IUserManager.",
+    val mqsNativeLocalDescriptor: String? = null,
+    val mqsNativeLocalError: String? = null,
+    val mqsNativeRemoteDescriptor: String? = null,
+    val mqsNativeRemoteError: String? = null,
+    val binderMessage: String = "Connect to a Privileged Server, then get IUserManager or probe IMQSNative.",
     val binderLastException: String = "",
     val dedicatedUserServiceBound: Boolean = false,
     val embeddedUserServiceBound: Boolean = false,
@@ -180,7 +185,10 @@ internal fun PrivilegeSampleScreenState.wirelessDebugLogText(): String =
         appendLine("pairingPort=${pairingPortText.ifBlank { "auto" }}")
         appendLine("connectPort=${connectPortText.ifBlank { "auto" }}")
         appendLine("tcpPort=${tcpPortText.ifBlank { "blank" }}")
+        appendLine("systemServiceBinderCached=$systemServiceBinderCached")
         appendLine("userManagerCached=$userManagerCached")
+        appendLine("mqsNativeLocal=${mqsNativeLocalDescriptor ?: mqsNativeLocalError ?: "none"}")
+        appendLine("mqsNativeRemote=${mqsNativeRemoteDescriptor ?: mqsNativeRemoteError ?: "none"}")
         appendLine("binderMessage=$binderMessage")
         appendLine("dedicatedUserServiceBound=$dedicatedUserServiceBound")
         appendLine("embeddedUserServiceBound=$embeddedUserServiceBound")
@@ -231,6 +239,7 @@ internal fun PrivilegeSampleScreen(
     onStopServer: () -> Unit,
     onGetUserManager: () -> Unit,
     onGetUsers: () -> Unit,
+    onRunImqsNative: () -> Unit,
     onBindDedicatedUserService: () -> Unit,
     onCallDedicatedUserService: () -> Unit,
     onStopDedicatedUserService: () -> Unit,
@@ -284,6 +293,7 @@ internal fun PrivilegeSampleScreen(
                         onDestinationSelected = onDestinationSelected,
                         onGetUserManager = onGetUserManager,
                         onGetUsers = onGetUsers,
+                        onRunImqsNative = onRunImqsNative,
                         onStopServer = onStopServer,
                     )
                 }
@@ -584,6 +594,7 @@ private fun BinderTestPage(
     onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
     onGetUserManager: () -> Unit,
     onGetUsers: () -> Unit,
+    onRunImqsNative: () -> Unit,
     onStopServer: () -> Unit,
 ) {
     SamplePageScaffold(
@@ -597,6 +608,7 @@ private fun BinderTestPage(
             state = state,
             onGetUserManager = onGetUserManager,
             onGetUsers = onGetUsers,
+            onRunImqsNative = onRunImqsNative,
         )
     }
 }
@@ -651,6 +663,7 @@ private fun BinderPage(
     state: PrivilegeSampleScreenState,
     onGetUserManager: () -> Unit,
     onGetUsers: () -> Unit,
+    onRunImqsNative: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         BinderStatusPanel(state)
@@ -660,7 +673,7 @@ private fun BinderPage(
                 enabled = !state.busy &&
                     state.status == PrivilegeSampleStatus.CONNECTED &&
                     !state.userManagerCached,
-                background = Color(0xFF5E4FA2),
+                background = Color(0xFF7A4E1D),
                 modifier = Modifier.weight(1f),
                 onClick = onGetUserManager,
             )
@@ -673,6 +686,14 @@ private fun BinderPage(
                 onClick = onGetUsers,
             )
         }
+        SampleAction(
+            label = "Probe IMQSNative",
+            enabled = !state.busy &&
+                (state.status == PrivilegeSampleStatus.CONNECTED || state.systemServiceBinderCached),
+            background = Color(0xFF5E4FA2),
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onRunImqsNative,
+        )
         if (state.binderLastException.isNotBlank()) {
             DiagnosticBlock(state.binderLastException)
         }
@@ -689,6 +710,15 @@ private fun BinderStatusPanel(state: PrivilegeSampleScreenState) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        RuntimeInfoRow(label = "IMQSNative", value = if (state.systemServiceBinderCached) "cached" else "-")
+        RuntimeInfoRow(
+            label = "IMQS Local",
+            value = state.mqsNativeLocalDescriptor ?: state.mqsNativeLocalError ?: "-",
+        )
+        RuntimeInfoRow(
+            label = "IMQS Remote",
+            value = state.mqsNativeRemoteDescriptor ?: state.mqsNativeRemoteError ?: "-",
+        )
         RuntimeInfoRow(label = "IUserManager", value = if (state.userManagerCached) "cached" else "-")
         SelectionContainer {
             BasicText(

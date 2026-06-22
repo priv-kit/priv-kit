@@ -6,7 +6,7 @@ import priv.kit.core.PrivilegeProtocol
 
 class PrivilegeBinderProtocolTest {
     @Test
-    fun userServiceContextProtocolRequiresVersion8() {
-        assertEquals(8, PrivilegeProtocol.VERSION)
+    fun remoteSystemServiceBinderProtocolRequiresVersion9() {
+        assertEquals(9, PrivilegeProtocol.VERSION)
     }
 }

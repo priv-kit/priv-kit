@@ -154,6 +154,7 @@ Binder 支持应覆盖：
 - Binder death recipient 处理；
 - transaction 失败传播；
 - 显式目标 Binder 的 remote transact 转发；
+- 显式系统服务名的 raw remote transact 转发；
 - 项目自有契约的协议和版本检查。
 
 当前 Binder 原语由 `:priv-binder` 承载：
@@ -163,6 +164,7 @@ Binder 支持应覆盖：
 - `PrivilegeBinderRegistry` 作为服务端内存 endpoint slot，负责注册、查找、注销和 death 自动清理；
 - `PrivilegeBinderEndpoint` 和 `PrivilegeBinderRegistration` 提供应用侧 Binder 句柄和注册生命周期；
 - `PrivilegeRemoteBinderWrapper` 将显式目标 `IBinder` 的 `transact` 通过当前 Privileged Server 执行，并通过 `PrivilegeRuntime` 的全局 server-binder getter 在每次 transaction 前统一拦截 server 断连；
+- `PrivilegeRemoteSystemServiceBinder` 将显式系统服务名的 `transact` 通过当前 Privileged Server 执行，由服务端在自己的 SELinux 域内解析该服务名；
 - `PrivilegeBinderException` 是 Binder 原语异常密封基类，`PrivilegeServerDisconnectedException`、`PrivilegeBinderEndpointDeadException`、`PrivilegeBinderEndpointNotFoundException` 和 `PrivilegeBinderRemoteCallException` 提供可按类型捕获的失败语义。
 
 Binder 支持不应覆盖：
@@ -170,7 +172,7 @@ Binder 支持不应覆盖：
 - Android framework service 的类型化封装；
 - 高级特权操作 facade；
 - hidden framework API 的兼容层。
-- 系统服务发现、系统服务枚举或可复用的类型化系统 Binder facade。
+- 系统服务枚举、系统服务领域发现 API 或可复用的类型化系统 Binder facade。
 
 应用可以基于本项目的 Binder 管线定义自己的 Binder 契约。
 

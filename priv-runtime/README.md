@@ -29,7 +29,7 @@ The latest owner-death configuration is persisted by the runtime and synced to t
 
 Like shizuku-api, the runtime treats the Privileged Server Binder as a single process-wide handle. A repeated handshake for the same Binder keeps the current global server state; a handshake for a replacement Binder installs the new server state.
 
-`PrivilegeRuntime.getServerInfo()`, `PrivilegeRuntime.requireBinderEndpoint()`, and `PrivilegeRuntime.createRemoteBinderWrapper()` all resolve the server Binder through the same global getter. If the server was killed after a caller cached a framework service proxy backed by `PrivilegeRemoteBinderWrapper`, the next transaction is normalized to `PrivilegeServerDisconnectedException` instead of leaking raw Binder state.
+`PrivilegeRuntime.getServerInfo()`, `PrivilegeRuntime.requireBinderEndpoint()`, `PrivilegeRuntime.createRemoteBinderWrapper()`, and `PrivilegeRuntime.createRemoteSystemServiceBinder()` all resolve the server Binder through the same global getter. If the server was killed after a caller cached a framework service proxy backed by `PrivilegeRemoteBinderWrapper` or the raw system-service Binder bridge, the next transaction is normalized to `PrivilegeServerDisconnectedException` instead of leaking raw Binder state.
 
 If a reconnected server reports a different protocol, server version, or APK classpath identity than the current app runtime, the runtime rejects it and returns a replacement `app_process` command built from the current APK. The server executes that command in-place before exiting, so client and server code come from the same install without repeating the original privilege authorization flow.
 
@@ -37,4 +37,4 @@ Manual Shell only creates a command for the same Binder handoff path. It does no
 
 Delegate startup uses the same Binder handoff path. `priv-runtime` builds the shared `app_process` launch command and waits for the handshake; the app-provided `PrivilegeDelegateExecutor` only transports and executes that command.
 
-This module does not expose Android system service wrappers, UI, Compose, package/input/settings/app-ops/activity APIs, or app-defined UserService business methods. UserService bind returns a raw Binder for the app's own AIDL Stub.
+This module does not expose typed Android system service wrappers, UI, Compose, package/input/settings/app-ops/activity APIs, or app-defined UserService business methods. UserService bind returns a raw Binder for the app's own AIDL Stub, and system-service access is limited to an explicit-name raw Binder transaction bridge.

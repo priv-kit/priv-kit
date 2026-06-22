@@ -157,6 +157,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 运行时配置；
 - start、stop、connect、reconnect 生命周期；
 - 作为原语暴露 Binder 和 UserService 入口；
+- 创建显式系统服务名的 raw Binder transaction 桥；
 - 状态观察；
 - 启动策略组合；
 - 构造项目自有 Privileged Server 的 `app_process` 启动命令；
@@ -168,6 +169,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 - 直接实现 Root、ADB 或 Delegate 机制；
 - 高级 Android 操作 API；
+- 类型化 Android 系统服务 API；
 - UI toolkit 依赖；
 - 只属于服务端的行为。
 
@@ -187,6 +189,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 发布项目 Binder 端点；
 - 在可行时检查客户端身份；
 - 服务端侧 UserService 生命周期管线；
+- 为 raw 系统服务 Binder 桥执行显式服务名解析和 transaction 转发；
 - 特权运行时诊断。
 
 禁止：
@@ -208,6 +211,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - `IPrivilegeServer` 等运行时所需的项目自有 AIDL 契约；
 - 单个 app-owned Binder endpoint 的句柄和注册生命周期；
 - 显式目标 Binder 的 remote transact wrapper；
+- 显式系统服务名的 raw remote transact wrapper；
 - Binder 端点注册和查找；
 - Binder 端点注销；
 - Binder 连接状态；
@@ -220,7 +224,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 - Android 系统服务的类型化封装；
 - 与本运行时无关的通用 Binder 库；
-- 系统服务发现、系统服务枚举或可复用系统 Binder facade；
+- 系统服务枚举、系统服务领域发现 API 或可复用类型化系统 Binder facade；
 - endpoint id、多 endpoint 注册、endpoint 枚举、全局服务发现或多租户服务注册中心；
 - package、input、settings、app-ops 或 activity API。
 
@@ -461,7 +465,7 @@ Java 例外仅限于：
 - 该 API 属于运行时、Binder、UserService 或启动；
 - 该 API 使用 `Privilege*` 完整单词命名，不使用 `Priv*` 缩写；
 - 该 API 所在源码 package 位于 `priv.kit.*`；
-- 该 API 没有命名某个高级 Android 系统服务领域；
+- 该 API 没有命名某个高级 Android 系统服务领域，除非它只接受显式服务名并返回 raw Binder transaction 桥；
 - 该 API 没有把 Android framework manager 复制成项目 facade；
 - 该 API 可被单应用用于管理自己的服务端；
 - 该 API 没有暗示本项目拥有下游特权操作。

@@ -13,6 +13,7 @@ import priv.kit.binder.PrivilegeBinderEndpoint
 import priv.kit.binder.PrivilegeBinderRegistration
 import priv.kit.binder.PrivilegeBinderRuntime
 import priv.kit.binder.PrivilegeRemoteBinderWrapper
+import priv.kit.binder.PrivilegeRemoteSystemServiceBinder
 import priv.kit.binder.PrivilegeServerDisconnectedException
 import priv.kit.core.PrivilegeLaunchMode
 import priv.kit.core.PrivilegeProtocol
@@ -302,6 +303,15 @@ object PrivilegeRuntime {
 
     fun createRemoteBinderWrapper(targetBinder: IBinder): PrivilegeRemoteBinderWrapper =
         PrivilegeRemoteBinderWrapper(targetBinder)
+
+    /**
+     * Creates a raw Binder bridge for an explicitly named Android system service.
+     *
+     * This does not expose a typed Android system-service facade. The returned [IBinder] only
+     * forwards Binder transactions through the currently connected Privileged Server.
+     */
+    fun createRemoteSystemServiceBinder(serviceName: String): PrivilegeRemoteSystemServiceBinder =
+        PrivilegeRemoteSystemServiceBinder(serviceName)
 
     fun startUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
         userServiceClient.start(spec)

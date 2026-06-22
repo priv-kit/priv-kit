@@ -4,10 +4,12 @@ import android.os.Binder
 import android.os.IBinder
 import android.os.Parcel
 import android.os.Process
+import android.os.ServiceManager
 import android.util.Log
 import priv.kit.binder.IPrivilegeServer
 import priv.kit.binder.PrivilegeBinderRegistry
 import priv.kit.binder.PrivilegeRemoteBinderWrapper
+import priv.kit.binder.PrivilegeRemoteSystemServiceBinder
 import priv.kit.userservice.PrivilegeUserServiceManagerBinder
 import priv.kit.userservice.PrivilegeUserServiceRegistry
 import kotlin.system.exitProcess
@@ -66,6 +68,11 @@ internal class PrivilegeServerBinder(
             transactRemote(data, reply)
             return true
         }
+        if (code == PrivilegeRemoteSystemServiceBinder.TRANSACTION_TRANSACT_SYSTEM_SERVICE) {
+            data.enforceInterface(PrivilegeRemoteSystemServiceBinder.DESCRIPTOR)
+            transactSystemService(data, reply)
+            return true
+        }
         return super.onTransact(code, data, reply, flags)
     }
 
@@ -101,6 +108,67 @@ internal class PrivilegeServerBinder(
             }
         } finally {
             targetData.recycle()
+        }
+    }
+
+    private fun transactSystemService(
+        data: Parcel,
+        reply: Parcel?,
+    ) {
+        val serviceName = data.readString()
+        if (serviceName.isNullOrBlank()) {
+            writeSystemServiceException(
+                reply = reply,
+                exception = IllegalArgumentException("System service name must not be blank"),
+            )
+            return
+        }
+
+        val targetCode = data.readInt()
+        val targetFlags = data.readInt()
+        val targetBinder = try {
+            ServiceManager.getService(serviceName)
+        } catch (throwable: Throwable) {
+            writeSystemServiceException(
+                reply = reply,
+                exception = IllegalStateException(
+                    "Failed to get system service: $serviceName",
+                    throwable,
+                ),
+            )
+            return
+        }
+
+        if (targetBinder == null) {
+            writeSystemServiceException(
+                reply = reply,
+                exception = IllegalStateException("System service not found: $serviceName"),
+            )
+            return
+        }
+
+        val targetData = Parcel.obtain()
+        try {
+            targetData.appendFrom(data, data.dataPosition(), data.dataAvail())
+            val identity = Binder.clearCallingIdentity()
+            try {
+                targetBinder.transact(targetCode, targetData, reply, targetFlags)
+            } finally {
+                Binder.restoreCallingIdentity(identity)
+            }
+        } finally {
+            targetData.recycle()
+        }
+    }
+
+    private fun writeSystemServiceException(
+        reply: Parcel?,
+        exception: RuntimeException,
+    ) {
+        if (reply != null) {
+            reply.writeException(exception)
+        } else {
+            throw exception
         }
     }
 

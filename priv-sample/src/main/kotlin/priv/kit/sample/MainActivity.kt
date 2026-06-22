@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.IBinder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.collectAsState
@@ -30,6 +31,7 @@ class MainActivity : ComponentActivity() {
     internal var serverDisconnectedWatcher: Closeable? = null
     internal var dedicatedUserServiceStatusWatcher: Closeable? = null
     internal var embeddedUserServiceStatusWatcher: Closeable? = null
+    internal var sampleMqsNativeBinder: IBinder? = null
     internal var sampleUserManager: PrivilegeSampleUserManagerProxy? = null
     internal var dedicatedUserServiceConnection: PrivilegeUserServiceConnection? = null
     internal var embeddedUserServiceConnection: PrivilegeUserServiceConnection? = null
@@ -110,6 +112,7 @@ class MainActivity : ComponentActivity() {
                 onStopServer = { stopServer() },
                 onGetUserManager = { getUserManagerBinder() },
                 onGetUsers = { getUserManagerUsers() },
+                onRunImqsNative = { runImqsNative() },
                 onBindDedicatedUserService = { bindDedicatedUserService() },
                 onCallDedicatedUserService = { callDedicatedUserService() },
                 onStopDedicatedUserService = { stopDedicatedUserService() },

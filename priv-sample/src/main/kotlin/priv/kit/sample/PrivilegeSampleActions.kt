@@ -69,6 +69,7 @@ internal fun MainActivity.clearLog() {
 }
 
 internal fun MainActivity.releasePrivilegeSample() {
+    sampleMqsNativeBinder = null
     sampleUserManager = null
     closeSampleUserServices()
     releaseShizukuDelegate()
@@ -611,17 +612,15 @@ internal fun MainActivity.stopServer() {
         try {
             PrivilegeRuntime.shutdownServer()
             runOnUiThread {
+                val serviceBinderCached = screenState.systemServiceBinderCached || sampleMqsNativeBinder != null
                 val userManagerCached = screenState.userManagerCached || sampleUserManager != null
                 screenState = screenState.copy(
                     busy = false,
                     status = PrivilegeSampleStatus.DISCONNECTED,
                     serverInfo = null,
+                    systemServiceBinderCached = serviceBinderCached,
                     userManagerCached = userManagerCached,
-                    binderMessage = if (userManagerCached) {
-                        "Server stopped; cached IUserManager remains"
-                    } else {
-                        "Server stopped"
-                    },
+                    binderMessage = stoppedBinderMessage(serviceBinderCached, userManagerCached),
                     binderLastException = "",
                     message = "Ready",
                 )
@@ -637,11 +636,9 @@ internal fun MainActivity.stopServer() {
 
 internal fun MainActivity.getUserManagerBinder() {
     runBinderAction("Getting IUserManager...") {
-        if (sampleUserManager == null) {
-            sampleUserManager = PrivilegeSampleUserManager.create()
-        }
+        sampleUserManager = PrivilegeSampleUserManager.createFromCurrentProcess()
         BinderActionResult(
-            message = "IUserManager cached",
+            message = "IUserManager cached through current-process Binder + createRemoteBinderWrapper",
             userManagerCached = true,
         )
     }
@@ -653,13 +650,41 @@ internal fun MainActivity.getUserManagerUsers() {
         message = "Calling IUserManager.getUsers...",
         requireConnected = !hasCachedUserManager,
     ) {
-        val userManager = sampleUserManager ?: PrivilegeSampleUserManager.create().also {
+        val userManager = sampleUserManager ?: PrivilegeSampleUserManager.createFromCurrentProcess().also {
             sampleUserManager = it
         }
         val users = userManager.getUsers()
         BinderActionResult(
             message = users.toBinderMessage(),
             userManagerCached = true,
+        )
+    }
+}
+
+internal fun MainActivity.runImqsNative() {
+    val hasCachedRemoteBinder = sampleMqsNativeBinder != null
+    runBinderAction(
+        message = "Probing IMQSNative descriptors...",
+        requireConnected = !hasCachedRemoteBinder,
+    ) {
+        val remoteBinder = sampleMqsNativeBinder ?: PrivilegeSampleMqsNative.createRemoteBinder().also {
+            sampleMqsNativeBinder = it
+        }
+        val result = PrivilegeSampleMqsNative.probeDescriptor(remoteBinder)
+        BinderActionResult(
+            message = buildString {
+                append("IMQSNative descriptor probe")
+                appendLine()
+                append("local=${result.localDescriptor ?: result.localError ?: "<unknown>"}")
+                appendLine()
+                append("remote=${result.remoteDescriptor ?: result.remoteError ?: "<unknown>"}")
+            },
+            systemServiceBinderCached = true,
+            mqsNativeProbeUpdated = true,
+            mqsNativeLocalDescriptor = result.localDescriptor,
+            mqsNativeLocalError = result.localError,
+            mqsNativeRemoteDescriptor = result.remoteDescriptor,
+            mqsNativeRemoteError = result.remoteError,
         )
     }
 }
@@ -869,7 +894,29 @@ private fun MainActivity.runBinderAction(
             runOnUiThread {
                 screenState = screenState.copy(
                     busy = false,
+                    systemServiceBinderCached = result.systemServiceBinderCached
+                        ?: screenState.systemServiceBinderCached,
                     userManagerCached = result.userManagerCached ?: screenState.userManagerCached,
+                    mqsNativeLocalDescriptor = if (result.mqsNativeProbeUpdated) {
+                        result.mqsNativeLocalDescriptor
+                    } else {
+                        screenState.mqsNativeLocalDescriptor
+                    },
+                    mqsNativeLocalError = if (result.mqsNativeProbeUpdated) {
+                        result.mqsNativeLocalError
+                    } else {
+                        screenState.mqsNativeLocalError
+                    },
+                    mqsNativeRemoteDescriptor = if (result.mqsNativeProbeUpdated) {
+                        result.mqsNativeRemoteDescriptor
+                    } else {
+                        screenState.mqsNativeRemoteDescriptor
+                    },
+                    mqsNativeRemoteError = if (result.mqsNativeProbeUpdated) {
+                        result.mqsNativeRemoteError
+                    } else {
+                        screenState.mqsNativeRemoteError
+                    },
                     binderMessage = result.message,
                     binderLastException = result.exceptionText,
                     message = screenState.idleServiceMessage(),
@@ -891,6 +938,7 @@ private fun MainActivity.setBinderFailure(throwable: Throwable) {
         busy = false,
         status = if (disconnected) PrivilegeSampleStatus.DISCONNECTED else screenState.status,
         serverInfo = if (disconnected) null else screenState.serverInfo,
+        systemServiceBinderCached = screenState.systemServiceBinderCached || sampleMqsNativeBinder != null,
         userManagerCached = screenState.userManagerCached || sampleUserManager != null,
         binderMessage = message,
         binderLastException = throwable.toDiagnosticString(),
@@ -902,7 +950,13 @@ private fun MainActivity.setBinderFailure(throwable: Throwable) {
 
 private data class BinderActionResult(
     val message: String,
+    val systemServiceBinderCached: Boolean? = null,
     val userManagerCached: Boolean? = null,
+    val mqsNativeProbeUpdated: Boolean = false,
+    val mqsNativeLocalDescriptor: String? = null,
+    val mqsNativeLocalError: String? = null,
+    val mqsNativeRemoteDescriptor: String? = null,
+    val mqsNativeRemoteError: String? = null,
     val exceptionText: String = "",
 )
 
@@ -991,18 +1045,16 @@ private fun MainActivity.connectServer(
     serverInfo: PrivilegeServerInfo,
     commandLine: String?,
 ) {
+    val serviceBinderCached = screenState.systemServiceBinderCached || sampleMqsNativeBinder != null
     val userManagerCached = screenState.userManagerCached || sampleUserManager != null
     screenState = screenState.copy(
         busy = false,
         status = PrivilegeSampleStatus.CONNECTED,
         serverInfo = serverInfo,
         manualShellCommandLine = commandLine ?: screenState.manualShellCommandLine,
+        systemServiceBinderCached = serviceBinderCached,
         userManagerCached = userManagerCached,
-        binderMessage = if (userManagerCached) {
-            "Connected. Cached IUserManager is ready."
-        } else {
-            "Connected. Get IUserManager to test Binder remote transact."
-        },
+        binderMessage = connectedBinderMessage(serviceBinderCached, userManagerCached),
         binderLastException = "",
         message = "Connected",
     )
@@ -1010,6 +1062,7 @@ private fun MainActivity.connectServer(
 }
 
 private fun MainActivity.handleServerDisconnected() {
+    val serviceBinderCached = screenState.systemServiceBinderCached || sampleMqsNativeBinder != null
     val userManagerCached = screenState.userManagerCached || sampleUserManager != null
     closeSampleUserServiceStatusWatchers()
     val dedicatedCached = screenState.dedicatedUserServiceCached || dedicatedUserServiceConnection != null
@@ -1018,16 +1071,13 @@ private fun MainActivity.handleServerDisconnected() {
         busy = false,
         status = PrivilegeSampleStatus.DISCONNECTED,
         serverInfo = null,
+        systemServiceBinderCached = serviceBinderCached,
         userManagerCached = userManagerCached,
         dedicatedUserServiceBound = false,
         embeddedUserServiceBound = false,
         dedicatedUserServiceCached = dedicatedCached,
         embeddedUserServiceCached = embeddedCached,
-        binderMessage = if (userManagerCached) {
-            "Server disconnected; cached IUserManager remains clickable for the expected error test"
-        } else {
-            "Server disconnected"
-        },
+        binderMessage = disconnectedBinderMessage(serviceBinderCached, userManagerCached),
         userServiceMessage = if (dedicatedCached || embeddedCached) {
             "Server disconnected; cached UserService references remain clickable for the expected error test"
         } else {
@@ -1045,6 +1095,7 @@ private fun MainActivity.setFailure(throwable: Throwable) {
         busy = false,
         status = PrivilegeSampleStatus.DISCONNECTED,
         serverInfo = null,
+        systemServiceBinderCached = screenState.systemServiceBinderCached || sampleMqsNativeBinder != null,
         userManagerCached = screenState.userManagerCached || sampleUserManager != null,
         binderMessage = "Connection failed",
         binderLastException = throwable.toDiagnosticString(),
@@ -1053,6 +1104,36 @@ private fun MainActivity.setFailure(throwable: Throwable) {
     appendLog("Error: $message")
     appendLog(throwable.toDiagnosticString())
 }
+
+private fun connectedBinderMessage(
+    serviceBinderCached: Boolean,
+    userManagerCached: Boolean,
+): String =
+    when {
+        userManagerCached -> "Connected. Cached IUserManager is ready."
+        serviceBinderCached -> "Connected. Cached IMQSNative remote Binder is ready."
+        else -> "Connected. Get IUserManager or run IMQSNative to test Binder transact."
+    }
+
+private fun stoppedBinderMessage(
+    serviceBinderCached: Boolean,
+    userManagerCached: Boolean,
+): String =
+    when {
+        userManagerCached -> "Server stopped; cached IUserManager remains"
+        serviceBinderCached -> "Server stopped; cached IMQSNative remote Binder remains"
+        else -> "Server stopped"
+    }
+
+private fun disconnectedBinderMessage(
+    serviceBinderCached: Boolean,
+    userManagerCached: Boolean,
+): String =
+    when {
+        userManagerCached -> "Server disconnected; cached IUserManager remains clickable for the expected error test"
+        serviceBinderCached -> "Server disconnected; cached IMQSNative Binder remains clickable for the expected error test"
+        else -> "Server disconnected"
+    }
 
 private fun MainActivity.appendLog(line: String) {
     val nextLog = if (screenState.logText.isBlank()) {
