@@ -52,6 +52,7 @@ class PrivilegeAdbStarter private constructor(
                 explicitPort = options.port,
                 activeTcpPort = activeTcpPort,
                 tcpMode = options.tcpMode,
+                targetTcpPort = options.tcpPort,
                 discoveredPort = if (shouldDiscoverPort) {
                     discoverConnectPort(options.portDiscoveryTimeoutMillis)
                 } else {

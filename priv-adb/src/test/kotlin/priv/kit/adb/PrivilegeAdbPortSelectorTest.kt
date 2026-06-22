@@ -10,6 +10,7 @@ class PrivilegeAdbPortSelectorTest {
             explicitPort = 37099,
             activeTcpPort = 5555,
             tcpMode = true,
+            targetTcpPort = 5555,
             discoveredPort = 37100,
         )
 
@@ -22,6 +23,7 @@ class PrivilegeAdbPortSelectorTest {
             explicitPort = null,
             activeTcpPort = 5555,
             tcpMode = true,
+            targetTcpPort = 5555,
             discoveredPort = 37100,
         )
 
@@ -34,18 +36,33 @@ class PrivilegeAdbPortSelectorTest {
             explicitPort = null,
             activeTcpPort = 5555,
             tcpMode = false,
+            targetTcpPort = 5555,
             discoveredPort = 37100,
         )
 
         assertEquals(37100, port)
     }
 
-    @Test(expected = PrivilegeAdbException::class)
-    fun missingPortFails() {
-        PrivilegeAdbPortSelector.chooseStartPort(
+    @Test
+    fun targetTcpPortIsUsedWhenTcpModeHasNoActiveOrDiscoveredPort() {
+        val port = PrivilegeAdbPortSelector.chooseStartPort(
             explicitPort = null,
             activeTcpPort = -1,
             tcpMode = true,
+            targetTcpPort = 5555,
+            discoveredPort = null,
+        )
+
+        assertEquals(5555, port)
+    }
+
+    @Test(expected = PrivilegeAdbException::class)
+    fun missingPortFailsWithoutTcpMode() {
+        PrivilegeAdbPortSelector.chooseStartPort(
+            explicitPort = null,
+            activeTcpPort = -1,
+            tcpMode = false,
+            targetTcpPort = 5555,
             discoveredPort = null,
         )
     }

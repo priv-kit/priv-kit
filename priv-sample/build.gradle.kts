@@ -41,6 +41,7 @@ dependencies {
     compileOnly(project(":hidden-api"))
     implementation(project(":priv-adb"))
     implementation(project(":priv-runtime"))
+    implementation(project(":priv-ui"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material3)

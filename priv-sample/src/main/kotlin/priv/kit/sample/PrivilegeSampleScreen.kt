@@ -23,6 +23,9 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
@@ -30,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +47,8 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.core.PrivilegeServerInfo
+import priv.kit.ui.PrivilegeUiConfig
+import priv.kit.ui.PrivilegeUiViewModel
 
 internal sealed interface PrivilegeSampleDestination {
     val title: String
@@ -57,6 +63,10 @@ internal sealed interface PrivilegeSampleDestination {
 
     data object UserService : PrivilegeSampleDestination {
         override val title: String = "Test UserService"
+    }
+
+    data object PrivilegeUi : PrivilegeSampleDestination {
+        override val title: String = "Authorization UI"
     }
 
     companion object {
@@ -193,9 +203,16 @@ internal fun PrivilegeSampleScreen(
     state: PrivilegeSampleScreenState,
     backStack: SnapshotStateList<PrivilegeSampleDestination>,
     selectedStartupTab: PrivilegeStartupTab,
+    privilegeUiConfig: PrivilegeUiConfig,
+    privilegeUiViewModel: PrivilegeUiViewModel,
     notificationPairingRunning: Boolean,
     onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
     onStartupTabSelected: (PrivilegeStartupTab) -> Unit,
+    onOpenPrivilegeUi: () -> Unit,
+    onPrivilegeUiBack: () -> Unit,
+    onPrivilegeUiHelp: () -> Unit,
+    onPrivilegeUiConnected: (PrivilegeServerInfo) -> Unit,
+    onPrivilegeUiNotificationPermissionRequired: () -> Unit,
     onAdbDeviceNameChanged: (String) -> Unit,
     onRefreshAdbFingerprint: () -> Unit,
     onCheckAdbPairing: () -> Unit,
@@ -239,6 +256,7 @@ internal fun PrivilegeSampleScreen(
                         notificationPairingRunning = notificationPairingRunning,
                         onDestinationSelected = onDestinationSelected,
                         onStartupTabSelected = onStartupTabSelected,
+                        onOpenPrivilegeUi = onOpenPrivilegeUi,
                         onAdbDeviceNameChanged = onAdbDeviceNameChanged,
                         onRefreshAdbFingerprint = onRefreshAdbFingerprint,
                         onCheckAdbPairing = onCheckAdbPairing,
@@ -283,17 +301,29 @@ internal fun PrivilegeSampleScreen(
                         onStopServer = onStopServer,
                     )
                 }
+                entry<PrivilegeSampleDestination.PrivilegeUi> {
+                    PrivilegeUiAuthorizationPage(
+                        config = privilegeUiConfig,
+                        viewModel = privilegeUiViewModel,
+                        onBackClick = onPrivilegeUiBack,
+                        onHelpClick = onPrivilegeUiHelp,
+                        onConnected = onPrivilegeUiConnected,
+                        onNotificationPermissionRequired = onPrivilegeUiNotificationPermissionRequired,
+                    )
+                }
             },
         )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SamplePageScaffold(
     title: String,
     selectedDestination: PrivilegeSampleDestination,
     busy: Boolean,
     onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
+    actions: @Composable () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     Scaffold(
@@ -302,24 +332,36 @@ private fun SamplePageScaffold(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFFF6F7F9))
-                    .padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                    .background(Color(0xFFF6F7F9)),
             ) {
-                BasicText(
-                    text = title,
-                    style = TextStyle(
-                        color = Color(0xFF101418),
-                        fontFamily = FontFamily.SansSerif,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.SemiBold,
+                TopAppBar(
+                    title = {
+                        BasicText(
+                            text = title,
+                            style = TextStyle(
+                                color = Color(0xFF101418),
+                                fontFamily = FontFamily.SansSerif,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                        )
+                    },
+                    actions = {
+                        actions()
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color(0xFFF6F7F9),
                     ),
                 )
-                DestinationTabs(
-                    selectedDestination = selectedDestination,
-                    busy = busy,
-                    onDestinationSelected = onDestinationSelected,
-                )
+                Column(
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+                ) {
+                    DestinationTabs(
+                        selectedDestination = selectedDestination,
+                        busy = busy,
+                        onDestinationSelected = onDestinationSelected,
+                    )
+                }
             }
         },
     ) { innerPadding ->
@@ -337,7 +379,7 @@ private fun SamplePageScaffold(
 }
 
 @Composable
-private fun DestinationTabs(
+internal fun DestinationTabs(
     selectedDestination: PrivilegeSampleDestination,
     busy: Boolean,
     onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
@@ -359,6 +401,39 @@ private fun DestinationTabs(
 }
 
 @Composable
+internal fun SampleTopBarAction(
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val background = if (enabled) Color(0xFF1769E0) else Color(0xFF9DA8B5)
+    Box(
+        modifier = Modifier
+            .height(40.dp)
+            .widthIn(min = 104.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(background)
+            .clickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        BasicText(
+            text = label,
+            style = TextStyle(
+                color = Color.White,
+                fontFamily = FontFamily.SansSerif,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
+        )
+    }
+}
+
+@Composable
 private fun ConnectionTestPage(
     state: PrivilegeSampleScreenState,
     selectedDestination: PrivilegeSampleDestination,
@@ -366,6 +441,7 @@ private fun ConnectionTestPage(
     notificationPairingRunning: Boolean,
     onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
     onStartupTabSelected: (PrivilegeStartupTab) -> Unit,
+    onOpenPrivilegeUi: () -> Unit,
     onAdbDeviceNameChanged: (String) -> Unit,
     onRefreshAdbFingerprint: () -> Unit,
     onCheckAdbPairing: () -> Unit,
@@ -390,6 +466,13 @@ private fun ConnectionTestPage(
         selectedDestination = selectedDestination,
         busy = state.busy,
         onDestinationSelected = onDestinationSelected,
+        actions = {
+            SampleTopBarAction(
+                label = stringResource(R.string.sample_open_privilege_ui),
+                enabled = !state.busy,
+                onClick = onOpenPrivilegeUi,
+            )
+        },
     ) {
         StatusPanel(state, onStopServer)
         StartupTabs(

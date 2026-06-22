@@ -1,3 +1,12 @@
 <resources>
     <string name="app_name">Priv Kit Sample</string>
+    <string name="sample_open_privilege_ui">Open UI</string>
+    <string name="sample_privilege_ui_shizuku_label">Shizuku</string>
+    <string name="sample_privilege_ui_shizuku_not_running">Shizuku is not running</string>
+    <string name="sample_privilege_ui_shizuku_pre_v11">Shizuku pre-v11 is not supported</string>
+    <string name="sample_privilege_ui_shizuku_version_unsupported">Shizuku needs to be updated</string>
+    <string name="sample_privilege_ui_shizuku_ready">Shizuku is authorized</string>
+    <string name="sample_privilege_ui_shizuku_permission_denied">Shizuku permission denied permanently</string>
+    <string name="sample_privilege_ui_shizuku_permission_required">Shizuku permission required</string>
+    <string name="sample_privilege_ui_shizuku_permission_requested">Shizuku permission requested</string>
 </resources>

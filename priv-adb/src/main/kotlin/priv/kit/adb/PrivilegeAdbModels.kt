@@ -132,10 +132,13 @@ internal object PrivilegeAdbPortSelector {
         explicitPort: Int?,
         activeTcpPort: Int,
         tcpMode: Boolean,
+        targetTcpPort: Int,
         discoveredPort: Int?,
     ): Int {
         explicitPort?.let { return it }
         if (tcpMode && activeTcpPort > 0) return activeTcpPort
-        return discoveredPort ?: throw PrivilegeAdbException("ADB port is not available")
+        discoveredPort?.let { return it }
+        if (tcpMode) return targetTcpPort
+        throw PrivilegeAdbException("ADB port is not available")
     }
 }
