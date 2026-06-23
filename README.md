@@ -14,6 +14,30 @@
 
 项目边界以 [docs/project-constitution.md](docs/project-constitution.md) 为准。后续所有设计和实现都必须遵守该文档。
 
+## 推荐接入路径
+
+普通接入方优先只理解四件事：
+
+1. 启动或连接自己的 Privileged Server。
+2. 观察当前运行时状态。
+3. 通过 Binder 或 UserService 暴露应用自定义能力。
+4. 在不需要时停止或断开运行时。
+
+推荐入口集中在 `PrivilegeRuntime`：
+
+```kotlin
+PrivilegeRuntime.startAdb()
+PrivilegeRuntime.startRoot()
+PrivilegeRuntime.startDelegate(executor)
+
+val connection = PrivilegeRuntime.bindUserService(spec)
+val registration = PrivilegeRuntime.registerBinderEndpoint(binder)
+
+PrivilegeRuntime.shutdownServer()
+```
+
+`Manual Shell`、ADB pairing/TCP 细节、raw Binder transact、owner-death reconnect 和 handshake/launch command 协议都属于高级或内部路径。接入应用不应该在第一步就依赖这些对象，除非正在实现自定义授权、诊断或底层 Binder 验证。
+
 ## 命名规范
 
 项目身份：

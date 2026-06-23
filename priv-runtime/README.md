@@ -4,16 +4,20 @@ Client-side runtime orchestration module for Priv Kit.
 
 Namespace and package root: `priv.kit.runtime`.
 
-Phase 1 contents:
+Common entry points:
 
 - `PrivilegeRuntime.startRoot()` for the minimal Root runtime loop.
 - `PrivilegeRuntime.startAdb()` for Wireless Debugging / TCP ADB startup, including custom `PrivilegeAdbIdentity`.
 - `PrivilegeRuntime.startDelegate()` for app-provided Delegate executor startup.
+- Process-wide current Privileged Server Binder state, exposed through `PrivilegeRuntime` global methods.
+- UserService entry points for app-defined Binder services: start, bind, stop, and status.
+
+Advanced entry points:
+
 - `PrivilegeRuntime.createManualShellCommand()` for generating a token-hidden starter command that a developer can paste into `adb shell`.
 - `PrivilegeRuntime.prepareManualShell()` for callers that still want a command plus a blocking pending-handshake wait.
-- Process-wide current Privileged Server Binder state, exposed through `PrivilegeRuntime` global methods.
 - `PrivilegeHandshakeProvider`, the app-side Binder handoff endpoint protected by the persisted owner token. Manual token-hidden starter commands can resolve that token through the provider before the final Binder handoff.
-- UserService entry points for app-defined Binder services: start, bind, stop, and status.
+- Ready-server connection helpers, owner-death reconnect configuration, and raw Binder bridge types for custom diagnostics or low-level Binder validation.
 
 Runtime owns token generation, shared server launch command construction, pending handshakes, protocol validation, current server Binder installation, and Binder death handling. Startup strategy modules only execute or transport the launch command.
 
