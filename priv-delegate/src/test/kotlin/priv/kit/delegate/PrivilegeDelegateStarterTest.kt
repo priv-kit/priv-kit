@@ -107,7 +107,6 @@ class PrivilegeDelegateStarterTest {
             classpath = launchCommand.classpath,
             mainClass = launchCommand.mainClass,
             providerAuthority = launchCommand.providerAuthority,
-            launchCommand = launchCommand,
         )
     }
 }

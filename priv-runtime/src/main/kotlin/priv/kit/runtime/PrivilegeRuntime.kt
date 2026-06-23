@@ -510,7 +510,6 @@ public object PrivilegeRuntime {
             classpath = launchCommand.classpath,
             mainClass = launchCommand.mainClass,
             providerAuthority = launchCommand.providerAuthority,
-            launchCommand = launchCommand,
         )
     }
 
@@ -530,7 +529,6 @@ public object PrivilegeRuntime {
             classpath = launchCommand.classpath,
             mainClass = launchCommand.mainClass,
             providerAuthority = launchCommand.providerAuthority,
-            launchCommand = launchCommand,
         )
     }
 
@@ -557,7 +555,6 @@ public object PrivilegeRuntime {
             classpath = launchCommand.classpath,
             mainClass = launchCommand.mainClass,
             providerAuthority = launchCommand.providerAuthority,
-            launchCommand = launchCommand,
             diagnosticLogPath = diagnosticLogPath,
         )
     }
@@ -580,7 +577,6 @@ public object PrivilegeRuntime {
             classpath = launchCommand.classpath,
             mainClass = launchCommand.mainClass,
             providerAuthority = launchCommand.providerAuthority,
-            launchCommand = launchCommand,
         )
     }
 
