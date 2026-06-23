@@ -42,3 +42,4 @@ android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 remap = { id = "li.songe.remap", version.ref = "remap" }
+maven-publish = "com.vanniktech.maven.publish:0.36.0"
