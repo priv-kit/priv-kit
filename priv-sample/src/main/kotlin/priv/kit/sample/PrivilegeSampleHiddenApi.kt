@@ -6,7 +6,8 @@ import android.os.Build
 import android.os.IBinder
 import android.os.IUserManager
 import android.os.ServiceManager
-import priv.kit.runtime.PrivilegeRuntime
+import priv.kit.binder.PrivilegeRemoteBinderWrapper
+import priv.kit.binder.PrivilegeRemoteSystemServiceBinder
 
 internal data class PrivilegeSampleUserInfo(
     val id: Int,
@@ -17,7 +18,7 @@ internal object PrivilegeSampleUserManager {
     fun createFromCurrentProcess(): PrivilegeSampleUserManagerProxy {
         val serviceBinder = createCurrentProcessBinder()
         return create(
-            remoteBinder = PrivilegeRuntime.createRemoteBinderWrapper(serviceBinder),
+            remoteBinder = PrivilegeRemoteBinderWrapper(serviceBinder),
         )
     }
 
@@ -40,7 +41,7 @@ internal object PrivilegeSampleMqsNative {
     private const val SERVICE_NAME = "miui.mqsas.IMQSNative"
 
     fun createRemoteBinder(): IBinder =
-        PrivilegeRuntime.createRemoteSystemServiceBinder(SERVICE_NAME)
+        PrivilegeRemoteSystemServiceBinder(SERVICE_NAME)
 
     fun probeDescriptor(
         remoteBinder: IBinder = createRemoteBinder(),

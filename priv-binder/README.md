@@ -11,8 +11,8 @@ Current contents:
 - `PrivilegeBinderClient`, the runtime-side helper for registering, looking up, requiring, and unregistering the single endpoint.
 - `PrivilegeBinderRegistry`, the server-side in-memory endpoint slot with Binder death cleanup.
 - `PrivilegeBinderRegistration`, a closeable registration handle.
-- `PrivilegeRemoteBinderWrapper`, a low-level wrapper that executes transactions for an explicit target `IBinder` through the connected Privileged Server. Prefer creating it through `PrivilegeRuntime.createRemoteBinderWrapper()` so every transaction resolves the current server Binder through the global getter.
-- `PrivilegeRemoteSystemServiceBinder`, a low-level wrapper that resolves an explicit system service name in the connected Privileged Server and forwards only raw Binder transactions. Prefer creating it through `PrivilegeRuntime.createRemoteSystemServiceBinder()`.
+- `PrivilegeRemoteBinderWrapper`, a low-level wrapper that executes transactions for an explicit target `IBinder` through the connected Privileged Server.
+- `PrivilegeRemoteSystemServiceBinder`, a low-level wrapper that resolves an explicit system service name in the connected Privileged Server and forwards only raw Binder transactions.
 - `PrivilegeBinderException`, the sealed Binder primitive error base type.
 - `PrivilegeServerDisconnectedException`, `PrivilegeBinderEndpointDeadException`, `PrivilegeBinderEndpointNotFoundException`, and `PrivilegeBinderRemoteCallException`, typed failures for server death, dead endpoints, missing endpoints, and non-death remote call failures.
 
