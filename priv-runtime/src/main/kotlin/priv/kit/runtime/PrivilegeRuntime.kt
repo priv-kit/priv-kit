@@ -138,7 +138,7 @@ public object PrivilegeRuntime {
     public fun configureOwnerDeathBehavior(
         followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
         activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-    ): Unit {
+    ) {
         recordOwnerDeathConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
     }
 
@@ -278,7 +278,7 @@ public object PrivilegeRuntime {
     }
 
     @Throws(RemoteException::class)
-    public fun shutdownServer(): Unit {
+    public fun shutdownServer() {
         try {
             requireServerInterface().shutdown()
         } finally {
@@ -520,7 +520,7 @@ public object PrivilegeRuntime {
         )
         return PrivilegeManualShellCommand(
             token = token,
-            commandLine = buildShortAdbStarterCommand(launchCommand),
+            commandLine = buildShortAdbStarterCommand(),
             classpath = launchCommand.classpath,
             mainClass = launchCommand.mainClass,
             providerAuthority = launchCommand.providerAuthority,
@@ -641,7 +641,6 @@ public object PrivilegeRuntime {
         }
 
     internal fun buildShortAdbStarterCommand(
-        launchCommand: PrivilegeServerLaunchCommand,
         starterPath: String = buildAdbStarterPath(),
     ): String =
         PrivilegeServerLaunchCommandBuilder.shellArg(starterPath)

@@ -9,7 +9,7 @@ import kotlin.system.exitProcess
 
 public object PrivilegeUserServiceMain {
     @JvmStatic
-    public fun main(args: Array<String>): Unit {
+    public fun main(args: Array<String>) {
         try {
             prepareMainLooper()
             val config = Arguments.parse(args)

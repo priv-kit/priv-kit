@@ -2,7 +2,7 @@ package priv.kit.binder
 
 import android.os.RemoteException
 
-public sealed class PrivilegeBinderException protected constructor(
+public sealed class PrivilegeBinderException(
     message: String,
     cause: Throwable? = null,
 ) : RuntimeException(message, cause)

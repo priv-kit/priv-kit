@@ -2,7 +2,6 @@ package priv.kit.userservice
 
 import android.os.IBinder
 import android.os.IInterface
-import android.os.Process
 import android.os.RemoteException
 import java.util.UUID
 
@@ -70,7 +69,7 @@ public class PrivilegeUserServiceRegistry public constructor(
             records[spec.id()]?.status() ?: stoppedStatus(spec)
         }
 
-    public fun destroyOnOwnerDeath(): Unit {
+    public fun destroyOnOwnerDeath() {
         synchronized(lock) {
             records.entries
                 .filter { it.value.spec.ownerDeathPolicy == PrivilegeUserServiceOwnerDeathPolicy.DESTROY_ON_OWNER_DEATH }
@@ -81,7 +80,7 @@ public class PrivilegeUserServiceRegistry public constructor(
         }
     }
 
-    public fun destroyAll(): Unit {
+    public fun destroyAll() {
         synchronized(lock) {
             records.entries
                 .map { it.key to it.value }
@@ -534,7 +533,5 @@ public class PrivilegeUserServiceRegistry public constructor(
                     "UserService must implement IBinder or IInterface: $serviceClassName",
                 )
             }
-
-        internal fun currentPid(): Int = Process.myPid()
     }
 }

@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 internal class PrivilegeUserServiceProcessBinder(
     private val serviceClassName: String,
-    private val instance: Any,
+    instance: Any,
 ) : IPrivilegeUserServiceProcess.Stub() {
     private val binder = PrivilegeUserServiceRegistry.binderFrom(instance, serviceClassName)
     private val destroyed = AtomicBoolean(false)

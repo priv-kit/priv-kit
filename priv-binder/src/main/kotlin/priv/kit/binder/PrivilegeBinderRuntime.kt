@@ -7,14 +7,14 @@ public object PrivilegeBinderRuntime {
     private var serverProvider: (() -> IPrivilegeServer)? = null
 
     @JvmSynthetic
-    public fun installServerProvider(provider: () -> IPrivilegeServer): Unit {
+    public fun installServerProvider(provider: () -> IPrivilegeServer) {
         synchronized(lock) {
             serverProvider = provider
         }
     }
 
     @JvmSynthetic
-    public fun clearServerProvider(): Unit {
+    public fun clearServerProvider() {
         synchronized(lock) {
             serverProvider = null
         }

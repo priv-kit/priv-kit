@@ -27,7 +27,7 @@ public open class PrivilegeUiViewModel public constructor() : ViewModel() {
     public open fun attach(
         context: Context,
         config: PrivilegeUiConfig = PrivilegeUiConfig(),
-    ): Unit {
+    ) {
         val appContext = context.applicationContext
         if (store.attached && store.applicationContext === appContext && store.config == config) return
         store.attached = true
@@ -46,37 +46,56 @@ public open class PrivilegeUiViewModel public constructor() : ViewModel() {
         refreshTcpModeEnabledIfSelected()
     }
 
-    public open fun updatePairingCode(value: String): Unit = adbActions.updatePairingCode(value)
+    public open fun updatePairingCode(value: String) {
+        adbActions.updatePairingCode(value)
+    }
 
-    public open fun selectStartupMode(mode: PrivilegeUiStartupMode): Unit {
+    public open fun selectStartupMode(mode: PrivilegeUiStartupMode) {
         if (mode !in store.state.value.startupModes) return
         store.updateState { it.copy(selectedStartupMode = mode) }
         syncWirelessAdbStatusPolling()
         refreshTcpModeEnabledIfSelected()
     }
 
-    public open fun startRoot(): Unit = runtimeActions.startRoot()
+    public open fun startRoot() {
+        runtimeActions.startRoot()
+    }
 
-    public open fun copyManualCommand(context: Context): Unit = manualShellActions.copyCommand(context)
+    public open fun copyManualCommand(context: Context) {
+        manualShellActions.copyCommand(context)
+    }
 
-    public open fun pairWirelessAdb(): Unit = adbActions.pairWirelessAdb()
+    public open fun pairWirelessAdb() {
+        adbActions.pairWirelessAdb()
+    }
 
     public open fun startNotificationPairing(
         onNotificationPermissionRequired: () -> Unit = {},
-    ): Unit = adbActions.startNotificationPairing(onNotificationPermissionRequired)
+    ) {
+        adbActions.startNotificationPairing(onNotificationPermissionRequired)
+    }
 
-    public open fun handleNotificationPermissionResult(granted: Boolean): Unit =
+    public open fun handleNotificationPermissionResult(granted: Boolean) {
         adbActions.handleNotificationPermissionResult(granted)
+    }
 
-    public open fun startWirelessAdb(): Unit = adbActions.startWirelessAdb()
+    public open fun startWirelessAdb() {
+        adbActions.startWirelessAdb()
+    }
 
-    public open fun startAdb(): Unit = adbActions.startAdb()
+    public open fun startAdb() {
+        adbActions.startAdb()
+    }
 
-    public open fun startWirelessAdbStatusPolling(): Unit = adbActions.startWirelessAdbStatusPolling()
+    public open fun startWirelessAdbStatusPolling() {
+        adbActions.startWirelessAdbStatusPolling()
+    }
 
-    public open fun refreshWirelessAdbStatus(): Unit = adbActions.refreshWirelessAdbStatus()
+    public open fun refreshWirelessAdbStatus() {
+        adbActions.refreshWirelessAdbStatus()
+    }
 
-    public open fun onHostResume(): Unit {
+    public open fun onHostResume() {
         syncWirelessAdbStatusPolling()
         if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB) {
             refreshWirelessAdbStatus()
@@ -84,19 +103,29 @@ public open class PrivilegeUiViewModel public constructor() : ViewModel() {
         refreshTcpModeEnabledIfSelected()
     }
 
-    public open fun stopWirelessAdbStatusPolling(): Unit = adbActions.stopWirelessAdbStatusPolling()
+    public open fun stopWirelessAdbStatusPolling() {
+        adbActions.stopWirelessAdbStatusPolling()
+    }
 
-    public open fun enableTcpMode(): Unit = adbActions.enableTcpMode()
+    public open fun enableTcpMode() {
+        adbActions.enableTcpMode()
+    }
 
-    public open fun refreshTcpModeEnabled(): Unit = adbActions.refreshTcpModeEnabled()
+    public open fun refreshTcpModeEnabled() {
+        adbActions.refreshTcpModeEnabled()
+    }
 
-    public open fun startTcpAdb(): Unit = adbActions.startTcpAdb()
+    public open fun startTcpAdb() {
+        adbActions.startTcpAdb()
+    }
 
-    public open fun refreshDelegateStatus(providerId: String? = null): Unit =
+    public open fun refreshDelegateStatus(providerId: String? = null) {
         delegateActions.refreshDelegateStatus(providerId)
+    }
 
-    public open fun authorizeOrStartDelegate(providerId: String): Unit =
+    public open fun authorizeOrStartDelegate(providerId: String) {
         delegateActions.authorizeOrStartDelegate(providerId)
+    }
 
     private fun syncWirelessAdbStatusPolling() {
         if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB) {

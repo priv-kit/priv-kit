@@ -9,7 +9,7 @@ public class PrivilegeRootProcess internal constructor(
     public val isAlive: Boolean
         get() = process.isAlive
 
-    public fun destroy(): Unit {
+    public fun destroy() {
         process.destroy()
     }
 

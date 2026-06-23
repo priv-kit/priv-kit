@@ -55,11 +55,11 @@ public class PrivilegeUserServiceManagerBinder public constructor(
             )
         }
 
-    public fun destroyOnOwnerDeath(): Unit {
+    public fun destroyOnOwnerDeath() {
         registry.destroyOnOwnerDeath()
     }
 
-    public fun destroyAll(): Unit {
+    public fun destroyAll() {
         registry.destroyAll()
     }
 

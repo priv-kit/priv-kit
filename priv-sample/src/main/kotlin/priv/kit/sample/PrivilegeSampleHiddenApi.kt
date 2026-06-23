@@ -69,7 +69,7 @@ internal class PrivilegeSampleUserManagerProxy(
     private val userManager: IUserManager,
 ) {
     fun getUsers(): List<PrivilegeSampleUserInfo> =
-        userManager.getUsersCompat().map { user ->
+        userManager.getUsersForCurrentPlatform().map { user ->
             PrivilegeSampleUserInfo(
                 id = user.id,
                 name = user.name?.trim().orEmpty(),
@@ -77,7 +77,7 @@ internal class PrivilegeSampleUserManagerProxy(
         }
 }
 
-private fun IUserManager.getUsersCompat(): List<UserInfo> =
+private fun IUserManager.getUsersForCurrentPlatform(): List<UserInfo> =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
         getUsers(true, true, true)
     } else {

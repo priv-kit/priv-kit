@@ -1,16 +1,20 @@
 package priv.kit.adb
 
+import android.annotation.TargetApi
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import java.io.Closeable
 import java.io.IOException
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -20,6 +24,8 @@ internal class PrivilegeAdbMdns(
 ) : Closeable {
     private val nsdManager = context.applicationContext.getSystemService(NsdManager::class.java)
     private val handler = Handler(Looper.getMainLooper())
+    private val callbackExecutor = Executor { command -> handler.post(command) }
+    private val serviceInfoCallbacks = mutableSetOf<NsdManager.ServiceInfoCallback>()
     private var registered = false
     private val port = AtomicInteger(-1)
     private var latch: CountDownLatch? = null
@@ -42,6 +48,12 @@ internal class PrivilegeAdbMdns(
 
     override fun close() {
         handler.post {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                serviceInfoCallbacks.toList().forEach { callback ->
+                    runCatching { nsdManager.unregisterServiceInfoCallback(callback) }
+                }
+                serviceInfoCallbacks.clear()
+            }
             if (registered) {
                 runCatching { nsdManager.stopServiceDiscovery(listener) }
             }
@@ -57,12 +69,28 @@ internal class PrivilegeAdbMdns(
     }
 
     private fun isLocalService(info: NsdServiceInfo): Boolean {
-        val hostAddress = info.host?.hostAddress ?: return false
+        val hostAddresses = info.hostAddressesForCurrentApi()
+        if (hostAddresses.isEmpty()) {
+            return false
+        }
         return NetworkInterface.getNetworkInterfaces()
             .asSequence()
             .flatMap { it.inetAddresses.asSequence() }
-            .any { it.hostAddress == hostAddress }
+            .any { localAddress ->
+                hostAddresses.any { it.hostAddress == localAddress.hostAddress }
+            }
     }
+
+    private fun NsdServiceInfo.hostAddressesForCurrentApi(): List<InetAddress> =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            hostAddresses
+        } else {
+            preApi34HostAddresses()
+        }
+
+    @Suppress("DEPRECATION")
+    private fun NsdServiceInfo.preApi34HostAddresses(): List<InetAddress> =
+        listOfNotNull(host)
 
     private fun isPortListeningOnLocalhost(port: Int): Boolean =
         try {
@@ -92,10 +120,44 @@ internal class PrivilegeAdbMdns(
         }
 
         override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-            nsdManager.resolveService(serviceInfo, ResolveListener())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                registerServiceInfoCallback(serviceInfo)
+            } else {
+                resolveServicePreApi34(serviceInfo)
+            }
         }
 
         override fun onServiceLost(serviceInfo: NsdServiceInfo) = Unit
+    }
+
+    @TargetApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    private fun registerServiceInfoCallback(serviceInfo: NsdServiceInfo) {
+        val callback = object : NsdManager.ServiceInfoCallback {
+            override fun onServiceInfoCallbackRegistrationFailed(errorCode: Int) {
+                serviceInfoCallbacks.remove(this)
+            }
+
+            override fun onServiceUpdated(serviceInfo: NsdServiceInfo) {
+                this@PrivilegeAdbMdns.onServiceResolved(serviceInfo)
+            }
+
+            override fun onServiceLost() = Unit
+
+            override fun onServiceInfoCallbackUnregistered() {
+                serviceInfoCallbacks.remove(this)
+            }
+        }
+        serviceInfoCallbacks.add(callback)
+        runCatching {
+            nsdManager.registerServiceInfoCallback(serviceInfo, callbackExecutor, callback)
+        }.onFailure {
+            serviceInfoCallbacks.remove(callback)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun resolveServicePreApi34(serviceInfo: NsdServiceInfo) {
+        nsdManager.resolveService(serviceInfo, ResolveListener())
     }
 
     private inner class ResolveListener : NsdManager.ResolveListener {

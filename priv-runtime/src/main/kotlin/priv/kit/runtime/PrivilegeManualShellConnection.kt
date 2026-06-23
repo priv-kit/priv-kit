@@ -17,7 +17,7 @@ public class PrivilegeManualShellConnection internal constructor(
         return onHandshake(handshakeResult)
     }
 
-    public fun cancel(): Unit {
+    public fun cancel() {
         PrivilegeServerHandshakeRegistry.cancel(command.token)
     }
 

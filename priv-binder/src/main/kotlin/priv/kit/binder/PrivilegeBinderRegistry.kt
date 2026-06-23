@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicReference
 public class PrivilegeBinderRegistry public constructor() {
     private val endpoint = AtomicReference<Entry?>()
 
-    public fun register(binder: IBinder): Unit {
+    public fun register(binder: IBinder) {
         if (!binder.pingBinder()) {
             throw PrivilegeBinderEndpointDeadException()
         }
@@ -42,7 +42,7 @@ public class PrivilegeBinderRegistry public constructor() {
         return true
     }
 
-    public fun clear(): Unit {
+    public fun clear() {
         endpoint.getAndSet(null)?.unlink()
     }
 

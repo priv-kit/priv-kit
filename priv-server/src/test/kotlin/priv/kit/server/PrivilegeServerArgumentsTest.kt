@@ -21,7 +21,7 @@ class PrivilegeServerArgumentsTest {
     }
 
     @Test
-    fun parseAcceptsLegacyToken() {
+    fun parseAcceptsExplicitToken() {
         val config = PrivilegeServerArguments.parse(
             requiredArgs(
                 "--token",

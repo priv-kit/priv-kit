@@ -40,7 +40,7 @@ internal object PrivilegeServerHandshakeSender {
             requireNotNull(ownerBinder) {
                 "Accepted handshake response is missing ${PrivilegeHandshakeContract.RESULT_OWNER_BINDER}"
             }
-            requireNotNull(response).toOwnerConfig(config)
+            response.toOwnerConfig(config)
         } else {
             config
         }

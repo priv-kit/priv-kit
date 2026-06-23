@@ -468,10 +468,7 @@ internal fun MainActivity.startNotificationPairing() {
             pairingMessage = "Allow notifications, then use the pairing notification to enter the code without leaving Settings.",
             message = "Notification permission required",
         )
-        requestPermissions(
-            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-            NOTIFICATION_PERMISSION_REQUEST_CODE,
-        )
+        requestNotificationPermission()
         return
     }
 
@@ -1355,7 +1352,6 @@ internal fun MainActivity.copySessionLog() {
 }
 
 private const val MAX_LOG_CHARS = 32_000
-internal const val NOTIFICATION_PERMISSION_REQUEST_CODE = 41
 internal const val SHIZUKU_PERMISSION_REQUEST_CODE = 42
 internal const val SHIZUKU_USER_SERVICE_MIN_VERSION = 10
 private const val SAMPLE_CONFIG_DIRECTORY = ".priv-kit"

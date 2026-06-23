@@ -255,7 +255,7 @@ internal object PrivilegeServerProviderCall {
     private fun callingPackageName(): String? =
         if (Process.myUid() == SHELL_UID) SHELL_PACKAGE_NAME else null
 
-    private data class ReflectCall(
+    private class ReflectCall(
         val methodName: String,
         val parameterTypes: Array<Class<*>>,
         val arguments: Array<Any?>,

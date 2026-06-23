@@ -5,12 +5,12 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
@@ -58,6 +58,10 @@ class MainActivity : ComponentActivity() {
             if (requestCode == SHIZUKU_PERMISSION_REQUEST_CODE) {
                 privilegeUiViewModel.refreshDelegateStatus(SAMPLE_SHIZUKU_DELEGATE_ID)
             }
+        }
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            handleNotificationPermissionResult(granted)
         }
     internal val manualShellCommandLine: String by lazy(LazyThreadSafetyMode.NONE) {
         PrivilegeRuntime.createManualShellCommand().commandLine.toSampleHostAdbShellCommand()
@@ -141,16 +145,7 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
-    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray,
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode != NOTIFICATION_PERMISSION_REQUEST_CODE) return
-
-        val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+    private fun handleNotificationPermissionResult(granted: Boolean) {
         val shouldStartSamplePairing = startNotificationPairingAfterPermission
         startNotificationPairingAfterPermission = false
         privilegeUiViewModel.handleNotificationPermissionResult(granted)
@@ -165,6 +160,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    internal fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            handleNotificationPermissionResult(granted = true)
+        }
+    }
+
     override fun onDestroy() {
         releasePrivilegeSample()
         Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
@@ -174,14 +177,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestPrivilegeUiNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requestPermissions(
-                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                NOTIFICATION_PERMISSION_REQUEST_CODE,
-            )
-        } else {
-            privilegeUiViewModel.handleNotificationPermissionResult(granted = true)
-        }
+        requestNotificationPermission()
     }
 }
 

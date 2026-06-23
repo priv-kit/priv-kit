@@ -18,10 +18,6 @@ public enum class PrivilegeUiStartupMode {
     ROOT,
     MANUAL_SHELL,
     ADB,
-    @Deprecated("Use ADB. Wireless ADB is now part of the combined ADB authorization mode.")
-    WIRELESS_ADB,
-    @Deprecated("Use ADB. TCP is now part of the combined ADB authorization mode.")
-    TCP,
     DELEGATE,
 }
 

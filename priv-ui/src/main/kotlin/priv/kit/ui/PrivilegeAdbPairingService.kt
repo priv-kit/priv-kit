@@ -90,7 +90,6 @@ public class PrivilegeAdbPairingService public constructor() : Service() {
         )
         activeTask = executor.submit {
             val starter = PrivilegeRuntime.createAdbStarter(adbDeviceName = adbDeviceName)
-            var attempt = 1
             while (generation == searchGeneration.get()) {
                 try {
                     val port = starter.discoverPairingPort(PAIRING_DISCOVERY_ATTEMPT_TIMEOUT_MILLIS)
@@ -111,7 +110,7 @@ public class PrivilegeAdbPairingService public constructor() : Service() {
                         ),
                     )
                     return@submit
-                } catch (throwable: Throwable) {
+                } catch (_: Throwable) {
                     if (generation != searchGeneration.get()) return@submit
 
                     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
@@ -131,7 +130,6 @@ public class PrivilegeAdbPairingService public constructor() : Service() {
                     val message = getString(R.string.priv_ui_pairing_search_attempt)
                     sendPairingEvent(event = EVENT_SEARCHING, message = message)
                     updateForegroundNotification(searchingNotification(text = message))
-                    attempt += 1
                     runCatching { Thread.sleep(PAIRING_DISCOVERY_RETRY_DELAY_MILLIS) }
                         .onFailure { return@submit }
                 }
@@ -211,7 +209,7 @@ public class PrivilegeAdbPairingService public constructor() : Service() {
                 )
             }
         }
-        return workingNotification(port)
+        return workingNotification()
     }
 
     private fun stopPairing(message: String) {
@@ -254,7 +252,7 @@ public class PrivilegeAdbPairingService public constructor() : Service() {
             .addAction(replyAction(port, adbDeviceName))
             .buildPersistent()
 
-    private fun workingNotification(port: Int): Notification =
+    private fun workingNotification(): Notification =
         baseNotification(
             title = getString(R.string.priv_ui_pairing_working_title),
             text = getString(R.string.priv_ui_pairing_working_text),
@@ -457,7 +455,7 @@ public class PrivilegeAdbPairingService public constructor() : Service() {
         public fun actionPairingEvent(context: Context): String =
             context.packageName + ".priv.kit.ui.action.ADB_PAIRING_EVENT"
 
-        public fun start(context: Context, adbDeviceName: String?): Unit {
+        public fun start(context: Context, adbDeviceName: String?) {
             val intent = Intent(context, PrivilegeAdbPairingService::class.java)
                 .setAction(ACTION_START)
                 .apply {
@@ -468,7 +466,7 @@ public class PrivilegeAdbPairingService public constructor() : Service() {
             context.startForegroundService(intent)
         }
 
-        public fun stop(context: Context): Unit {
+        public fun stop(context: Context) {
             context.startService(
                 Intent(context, PrivilegeAdbPairingService::class.java)
                     .setAction(ACTION_STOP),
@@ -483,11 +481,7 @@ public class PrivilegeAdbPairingService public constructor() : Service() {
             }
 
         private fun immutablePendingIntentFlags(): Int =
-            PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                PendingIntent.FLAG_IMMUTABLE
-            } else {
-                0
-            }
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     }
 }
 

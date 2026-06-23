@@ -97,21 +97,11 @@ internal class PrivilegeUiViewModelStore : AutoCloseable {
 
     private fun PrivilegeUiConfig.effectiveStartupModes(): List<PrivilegeUiStartupMode> {
         val modes = startupModes
-            .map { it.toUserVisibleMode() }
             .filterTo(mutableSetOf()) { it in USER_VISIBLE_AUTHORIZATION_MODES }
         if (delegateProviders.isNotEmpty()) modes += PrivilegeUiStartupMode.DELEGATE
         if (modes.isEmpty()) modes += PrivilegeUiStartupMode.ROOT
         return USER_VISIBLE_AUTHORIZATION_MODE_ORDER.filter { it in modes }
     }
-
-    @Suppress("DEPRECATION")
-    private fun PrivilegeUiStartupMode.toUserVisibleMode(): PrivilegeUiStartupMode =
-        when (this) {
-            PrivilegeUiStartupMode.WIRELESS_ADB,
-            PrivilegeUiStartupMode.TCP,
-            -> PrivilegeUiStartupMode.ADB
-            else -> this
-        }
 
     private companion object {
         val USER_VISIBLE_AUTHORIZATION_MODES = setOf(

@@ -379,7 +379,7 @@ bool parse_args(int argc, char** argv, StarterConfig* config) {
             config->provider_authority = require_value(argc, argv, &i, arg);
         } else if (strcmp(arg, "--user-id") == 0) {
             config->user_id = require_value(argc, argv, &i, arg);
-        } else if (strcmp(arg, "--mode") == 0 || strcmp(arg, "--launch-mode") == 0) {
+        } else if (strcmp(arg, "--launch-mode") == 0) {
             config->mode = require_value(argc, argv, &i, arg);
         } else if (strcmp(arg, "--protocol-version") == 0) {
             config->protocol_version = require_value(argc, argv, &i, arg);
@@ -402,7 +402,7 @@ bool parse_args(int argc, char** argv, StarterConfig* config) {
             (strcmp(arg, "--package-name") == 0 && config->package_name == nullptr) ||
             (strcmp(arg, "--provider-authority") == 0 && config->provider_authority == nullptr) ||
             (strcmp(arg, "--user-id") == 0 && config->user_id == nullptr) ||
-            ((strcmp(arg, "--mode") == 0 || strcmp(arg, "--launch-mode") == 0) && config->mode == nullptr) ||
+            (strcmp(arg, "--launch-mode") == 0 && config->mode == nullptr) ||
             (strcmp(arg, "--protocol-version") == 0 && config->protocol_version == nullptr) ||
             (strcmp(arg, "--server-version") == 0 && config->server_version == nullptr) ||
             (strcmp(arg, "--follow-death-delay-millis") == 0 &&

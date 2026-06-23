@@ -3,7 +3,7 @@ package priv.kit.delegate
 public interface PrivilegeDelegateProcess {
     public val isAlive: Boolean
 
-    public fun destroy(): Unit
+    public fun destroy()
 
     public fun outputText(): String
 

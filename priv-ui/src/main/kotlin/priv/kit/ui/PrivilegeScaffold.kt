@@ -33,7 +33,7 @@ public fun PrivilegeScaffold(
     onHelpClick: () -> Unit = {},
     onConnected: (PrivilegeServerInfo) -> Unit = {},
     onNotificationPermissionRequired: () -> Unit = {},
-): Unit {
+) {
     val context = LocalContext.current
     LaunchedEffect(viewModel, config, context) {
         viewModel.attach(context.applicationContext, config)
@@ -113,7 +113,6 @@ private tailrec fun Context.findLifecycleOwner(): LifecycleOwner? =
     }
 
 @Composable
-@Suppress("DEPRECATION")
 private fun AuthorizationModePanel(
     mode: PrivilegeUiStartupMode,
     state: PrivilegeUiState,
@@ -131,10 +130,7 @@ private fun AuthorizationModePanel(
             state = state,
             onCopyCommand = onCopyManualCommand,
         )
-        PrivilegeUiStartupMode.ADB,
-        PrivilegeUiStartupMode.WIRELESS_ADB,
-        PrivilegeUiStartupMode.TCP,
-        -> AdbPanel(
+        PrivilegeUiStartupMode.ADB -> AdbPanel(
             state = state,
             tcpModeEnabled = tcpModeEnabled,
             tcpPolicy = viewModel.adbTcpPolicy,

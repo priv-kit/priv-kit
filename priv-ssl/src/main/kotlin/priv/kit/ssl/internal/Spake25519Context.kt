@@ -64,7 +64,7 @@ internal class Spake25519Context private constructor(
             theirName: ByteArray,
             password: ByteArray,
             random: SecureRandom,
-        ): Spake25519Context? {
+        ): Spake25519Context {
             val privateKey = privateScalar(random)
             val p = Ed25519.scalarMultiply(Ed25519.BASE_POINT, privateKey)
             val passwordHash = MessageDigest.getInstance("SHA-512").digest(password)

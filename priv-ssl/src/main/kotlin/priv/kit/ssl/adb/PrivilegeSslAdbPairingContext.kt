@@ -23,7 +23,7 @@ public class PrivilegeSslAdbPairingContext private constructor(
 
     public fun decrypt(input: ByteArray): ByteArray? = cipher?.decrypt(input)
 
-    public fun destroy(): Unit {
+    public fun destroy() {
         spake2 = null
         cipher = null
     }
@@ -58,7 +58,7 @@ public class PrivilegeSslAdbPairingContext private constructor(
             random: SecureRandom,
         ): PrivilegeSslAdbPairingContext? {
             val context = Spake25519Context.create(role, myName, theirName, password, random)
-            return context?.let(::PrivilegeSslAdbPairingContext)
+            return PrivilegeSslAdbPairingContext(context)
         }
     }
 }

@@ -2,7 +2,7 @@ package priv.kit.userservice
 
 import android.os.RemoteException
 
-public sealed class PrivilegeUserServiceException protected constructor(
+public sealed class PrivilegeUserServiceException(
     message: String,
     cause: Throwable? = null,
 ) : RuntimeException(message, cause)

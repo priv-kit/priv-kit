@@ -51,7 +51,7 @@ public object PrivilegeServerMain {
     }
 
     @JvmStatic
-    public fun main(args: Array<String>): Unit {
+    public fun main(args: Array<String>) {
         try {
             Log.i(TAG, "Privileged Server main entered args=${args.toDiagnosticString()}")
             prepareMainLooper()
@@ -112,7 +112,7 @@ public object PrivilegeServerMain {
             }
             binder.linkToDeath(ownerDeathRecipient, 0)
             Log.i(TAG, "Linked Privileged Server lifetime to owner process")
-        } catch (e: RemoteException) {
+        } catch (_: RemoteException) {
             synchronized(lock) {
                 if (ownerBinder === binder) {
                     ownerBinder = null
@@ -389,10 +389,7 @@ public object PrivilegeServerMain {
             }
         }.joinToString(prefix = "[", postfix = "]") { arg ->
             if (arg.length > 16 && arg.any { it.isLetterOrDigit() }) {
-                when {
-                    arg == "--token" -> arg
-                    else -> arg.take(16) + "..."
-                }
+                arg.take(16) + "..."
             } else {
                 arg
             }

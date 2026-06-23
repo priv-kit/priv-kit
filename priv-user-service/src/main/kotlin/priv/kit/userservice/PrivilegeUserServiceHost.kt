@@ -21,7 +21,7 @@ public interface PrivilegeUserServiceHost {
         timeoutMillis: Long,
     ): Boolean
 
-    public fun killDedicatedProcess(handle: PrivilegeUserServiceProcessHandle): Unit
+    public fun killDedicatedProcess(handle: PrivilegeUserServiceProcessHandle)
 }
 
 public class PrivilegeUserServiceProcessHandle public constructor(
