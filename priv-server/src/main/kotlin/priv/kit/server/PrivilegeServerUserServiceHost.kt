@@ -1,8 +1,8 @@
 package priv.kit.server
 
 import android.os.Bundle
-import android.os.Process
 import android.os.SystemClock
+import android.os.Process as AndroidProcess
 import priv.kit.userservice.IPrivilegeUserServiceProcess
 import priv.kit.userservice.PrivilegeUserServiceContract
 import priv.kit.userservice.PrivilegeUserServiceHost
@@ -13,12 +13,16 @@ import java.util.concurrent.TimeUnit
 
 internal class PrivilegeServerUserServiceHost(
     private val config: PrivilegeServerConfig,
+    private val processClaimer: PrivilegeServerUserServiceProcessClaimer =
+        PrivilegeServerUserServiceProcessClaimer(),
+    private val processStarter: (PrivilegeServerUserServiceProcessStartCommand) -> java.lang.Process =
+        PrivilegeServerUserServiceHost::startProcess,
 ) : PrivilegeUserServiceHost {
     override val uid: Int
-        get() = Process.myUid()
+        get() = AndroidProcess.myUid()
 
     override val pid: Int
-        get() = Process.myPid()
+        get() = AndroidProcess.myPid()
 
     override val packageName: String
         get() = config.packageName
@@ -30,77 +34,28 @@ internal class PrivilegeServerUserServiceHost(
         spec: PrivilegeUserServiceSpec,
         token: String,
     ): PrivilegeUserServiceProcessHandle {
-        val classpath = config.classpath.ifBlank {
-            throw PrivilegeUserServiceStartException("Server classpath is unavailable")
-        }
-        val process = ProcessBuilder(
-            "/system/bin/app_process",
-            "/system/bin",
-            "--nice-name=${buildProcessName(spec)}",
-            USER_SERVICE_MAIN_CLASS,
-            "--token",
-            token,
-            "--provider-authority",
-            config.providerAuthority,
-            "--package-name",
-            config.packageName,
-            "--user-id",
-            config.userId.toString(),
-            "--service-class",
-            spec.serviceClassName,
-            "--server-pid",
-            Process.myPid().toString(),
-        ).apply {
-            environment()["CLASSPATH"] = classpath
-            redirectErrorStream(true)
-        }.start()
+        val command = PrivilegeServerUserServiceProcessCommand.build(
+            config = config,
+            spec = spec,
+            token = token,
+            serverPid = AndroidProcess.myPid(),
+        )
+        val process = processStarter(command)
         return PrivilegeUserServiceProcessHandle(process)
     }
 
     override fun awaitDedicatedProcess(
         token: String,
         timeoutMillis: Long,
-    ): IPrivilegeUserServiceProcess {
-        val deadline = SystemClock.elapsedRealtime() + timeoutMillis
-        var lastFailure: Throwable? = null
-        while (SystemClock.elapsedRealtime() < deadline) {
-            val response = runCatching {
-                PrivilegeServerProviderCall.call(
-                    authority = config.providerAuthority,
-                    method = PrivilegeUserServiceContract.METHOD_USER_SERVICE_CLAIM,
-                    arg = token,
-                    extras = Bundle().apply {
-                        putString(PrivilegeUserServiceContract.EXTRA_TOKEN, token)
-                    },
-                    userId = config.userId,
-                )
-            }.onFailure {
-                lastFailure = it
-            }.getOrNull()
-
-            val processBinder = response
-                ?.takeIf { it.getBoolean(PrivilegeUserServiceContract.KEY_SUCCESS, false) }
-                ?.getBinder(PrivilegeUserServiceContract.EXTRA_PROCESS_BINDER)
-            if (processBinder != null) {
-                return IPrivilegeUserServiceProcess.Stub.asInterface(processBinder)
-                    ?: throw PrivilegeUserServiceStartException("UserService process returned an invalid Binder")
-            }
-            Thread.sleep(CLAIM_RETRY_DELAY_MILLIS)
-        }
-        throw PrivilegeUserServiceStartException(
-            "Timed out waiting for dedicated UserService process",
-            lastFailure,
+    ): IPrivilegeUserServiceProcess =
+        processClaimer.await(
+            config = config,
+            token = token,
+            timeoutMillis = timeoutMillis,
         )
-    }
 
     override fun killDedicatedProcess(handle: PrivilegeUserServiceProcessHandle) {
-        runCatching {
-            handle.process.destroyForcibly()
-        }.onFailure {
-            runCatching {
-                handle.process.destroy()
-            }
-        }
+        PrivilegeServerUserServiceProcessKiller.kill(handle.process)
     }
 
     override fun awaitDedicatedProcessExit(
@@ -116,7 +71,60 @@ internal class PrivilegeServerUserServiceHost(
         }
     }
 
-    private fun buildProcessName(spec: PrivilegeUserServiceSpec): String {
+    private companion object {
+        fun startProcess(command: PrivilegeServerUserServiceProcessStartCommand): java.lang.Process =
+            ProcessBuilder(command.arguments).apply {
+                environment().putAll(command.environment)
+                redirectErrorStream(true)
+            }.start()
+    }
+}
+
+internal data class PrivilegeServerUserServiceProcessStartCommand(
+    val arguments: List<String>,
+    val environment: Map<String, String>,
+    val processName: String,
+)
+
+internal object PrivilegeServerUserServiceProcessCommand {
+    fun build(
+        config: PrivilegeServerConfig,
+        spec: PrivilegeUserServiceSpec,
+        token: String,
+        serverPid: Int,
+    ): PrivilegeServerUserServiceProcessStartCommand {
+        val classpath = config.classpath.ifBlank {
+            throw PrivilegeUserServiceStartException("Server classpath is unavailable")
+        }
+        val processName = buildProcessName(config.packageName, spec)
+        return PrivilegeServerUserServiceProcessStartCommand(
+            arguments = listOf(
+                "/system/bin/app_process",
+                "/system/bin",
+                "--nice-name=$processName",
+                USER_SERVICE_MAIN_CLASS,
+                "--token",
+                token,
+                "--provider-authority",
+                config.providerAuthority,
+                "--package-name",
+                config.packageName,
+                "--user-id",
+                config.userId.toString(),
+                "--service-class",
+                spec.serviceClassName,
+                "--server-pid",
+                serverPid.toString(),
+            ),
+            environment = mapOf("CLASSPATH" to classpath),
+            processName = processName,
+        )
+    }
+
+    private fun buildProcessName(
+        packageName: String,
+        spec: PrivilegeUserServiceSpec,
+    ): String {
         val tagSuffix = spec.tag.takeUnless { it == DEDICATED_PROCESS_TAG }
         val suffix = listOfNotNull(spec.serviceClassName.substringAfterLast('.'), tagSuffix)
             .joinToString("-")
@@ -126,12 +134,75 @@ internal class PrivilegeServerUserServiceHost(
             .joinToString("")
             .take(48)
             .ifBlank { "user-service" }
-        return "${config.packageName}:$suffix"
+        return "$packageName:$suffix"
+    }
+
+    private const val USER_SERVICE_MAIN_CLASS = "priv.kit.userservice.PrivilegeUserServiceMain"
+    private const val DEDICATED_PROCESS_TAG = "dedicated"
+}
+
+internal class PrivilegeServerUserServiceProcessClaimer(
+    private val elapsedRealtime: () -> Long = SystemClock::elapsedRealtime,
+    private val sleep: (Long) -> Unit = { Thread.sleep(it) },
+    private val providerCall: (PrivilegeServerConfig, String) -> Bundle? =
+        PrivilegeServerUserServiceProcessClaimer::claimProcess,
+) {
+    fun await(
+        config: PrivilegeServerConfig,
+        token: String,
+        timeoutMillis: Long,
+    ): IPrivilegeUserServiceProcess {
+        val deadline = elapsedRealtime() + timeoutMillis
+        var lastFailure: Throwable? = null
+        while (elapsedRealtime() < deadline) {
+            val response = runCatching {
+                providerCall(config, token)
+            }.onFailure {
+                lastFailure = it
+            }.getOrNull()
+
+            val processBinder = response
+                ?.takeIf { it.getBoolean(PrivilegeUserServiceContract.KEY_SUCCESS, false) }
+                ?.getBinder(PrivilegeUserServiceContract.EXTRA_PROCESS_BINDER)
+            if (processBinder != null) {
+                return IPrivilegeUserServiceProcess.Stub.asInterface(processBinder)
+                    ?: throw PrivilegeUserServiceStartException("UserService process returned an invalid Binder")
+            }
+            sleep(CLAIM_RETRY_DELAY_MILLIS)
+        }
+        throw PrivilegeUserServiceStartException(
+            "Timed out waiting for dedicated UserService process",
+            lastFailure,
+        )
     }
 
     private companion object {
-        const val USER_SERVICE_MAIN_CLASS = "priv.kit.userservice.PrivilegeUserServiceMain"
         const val CLAIM_RETRY_DELAY_MILLIS = 50L
-        const val DEDICATED_PROCESS_TAG = "dedicated"
+
+        fun claimProcess(
+            config: PrivilegeServerConfig,
+            token: String,
+        ): Bundle? =
+            PrivilegeServerProviderCall.call(
+                authority = config.providerAuthority,
+                method = PrivilegeUserServiceContract.METHOD_USER_SERVICE_CLAIM,
+                arg = token,
+                extras = Bundle().apply {
+                    putString(PrivilegeUserServiceContract.EXTRA_TOKEN, token)
+                },
+                userId = config.userId,
+            )
+    }
+}
+
+internal object PrivilegeServerUserServiceProcessKiller {
+    fun kill(process: java.lang.Process) {
+        runCatching {
+            process.destroyForcibly()
+        }.onFailure {
+            runCatching {
+                process.destroy()
+            }
+        }
     }
 }

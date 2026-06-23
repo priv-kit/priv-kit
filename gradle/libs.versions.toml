@@ -11,6 +11,7 @@ bouncycastle = "1.84"
 hiddenApiBypass = "6.1"
 junit = "4.13.2"
 remap = "0.1.2"
+robolectric = "4.16.1"
 shizuku = "13.1.5"
 
 [libraries]
@@ -31,6 +32,7 @@ hiddenapibypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", vers
 junit = { module = "junit:junit", version.ref = "junit" }
 remap-annotation = { module = "li.songe.remap:remap-annotation", version.ref = "remap" }
 remap-processor = { module = "li.songe.remap:remap-processor", version.ref = "remap" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 shizuku-api = { module = "dev.rikka.shizuku:api", version.ref = "shizuku" }
 shizuku-provider = { module = "dev.rikka.shizuku:provider", version.ref = "shizuku" }
 

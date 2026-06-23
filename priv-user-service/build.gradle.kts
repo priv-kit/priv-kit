@@ -20,4 +20,5 @@ dependencies {
     api(project(":priv-binder"))
     compileOnly(project(":hidden-api"))
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
 }

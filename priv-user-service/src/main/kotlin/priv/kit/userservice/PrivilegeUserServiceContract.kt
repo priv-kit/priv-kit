@@ -44,24 +44,31 @@ object PrivilegeUserServiceContract {
         }
 
     fun specFrom(bundle: Bundle): PrivilegeUserServiceSpec =
-        PrivilegeUserServiceSpec(
-            serviceClassName = requireString(bundle, KEY_SERVICE_CLASS_NAME),
-            tag = requireString(bundle, KEY_TAG),
-            version = bundle.getInt(KEY_VERSION, 1),
-            processMode = PrivilegeUserServiceProcessMode.fromWireValue(
-                bundle.getInt(KEY_PROCESS_MODE, PrivilegeUserServiceProcessMode.DEDICATED_PROCESS.wireValue),
-            ),
-            ownerDeathPolicy = PrivilegeUserServiceOwnerDeathPolicy.fromWireValue(
-                bundle.getInt(
-                    KEY_OWNER_DEATH_POLICY,
-                    PrivilegeUserServiceOwnerDeathPolicy.DESTROY_ON_OWNER_DEATH.wireValue,
+        try {
+            PrivilegeUserServiceSpec(
+                serviceClassName = requireString(bundle, KEY_SERVICE_CLASS_NAME),
+                tag = requireString(bundle, KEY_TAG),
+                version = bundle.getInt(KEY_VERSION, 1),
+                processMode = PrivilegeUserServiceProcessMode.fromWireValue(
+                    bundle.getInt(KEY_PROCESS_MODE, PrivilegeUserServiceProcessMode.DEDICATED_PROCESS.wireValue),
                 ),
-            ),
-            destroyTimeoutMillis = bundle.getLong(
-                KEY_DESTROY_TIMEOUT_MILLIS,
-                PrivilegeUserServiceSpec.DEFAULT_DESTROY_TIMEOUT_MILLIS,
-            ),
-        )
+                ownerDeathPolicy = PrivilegeUserServiceOwnerDeathPolicy.fromWireValue(
+                    bundle.getInt(
+                        KEY_OWNER_DEATH_POLICY,
+                        PrivilegeUserServiceOwnerDeathPolicy.DESTROY_ON_OWNER_DEATH.wireValue,
+                    ),
+                ),
+                destroyTimeoutMillis = bundle.getLong(
+                    KEY_DESTROY_TIMEOUT_MILLIS,
+                    PrivilegeUserServiceSpec.DEFAULT_DESTROY_TIMEOUT_MILLIS,
+                ),
+            )
+        } catch (exception: IllegalArgumentException) {
+            throw PrivilegeUserServiceDeclarationException(
+                exception.message ?: "Invalid UserService request",
+                exception,
+            )
+        }
 
     fun successBundle(status: PrivilegeUserServiceStatus): Bundle =
         statusBundle(status).apply {
@@ -124,7 +131,6 @@ object PrivilegeUserServiceContract {
         bundle: Bundle,
         key: String,
     ): String =
-        requireNotNull(bundle.getString(key)?.takeIf { it.isNotBlank() }) {
-            "UserService request is missing $key"
-        }
+        bundle.getString(key)?.takeIf { it.isNotBlank() }
+            ?: throw PrivilegeUserServiceDeclarationException("UserService request is missing $key")
 }

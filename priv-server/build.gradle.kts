@@ -16,4 +16,5 @@ dependencies {
     api(project(":priv-user-service"))
     compileOnly(project(":hidden-api"))
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
 }

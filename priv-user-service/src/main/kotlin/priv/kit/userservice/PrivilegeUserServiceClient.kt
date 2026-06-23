@@ -24,12 +24,10 @@ class PrivilegeUserServiceClient(
             it.bindUserService(PrivilegeUserServiceContract.requestBundle(spec), ownerBinder)
         }
         ensureSuccess(response)
-        val connectionId = requireNotNull(response.getString(PrivilegeUserServiceContract.KEY_CONNECTION_ID)) {
-            "UserService bind response is missing a connection id"
-        }
-        val binder = requireNotNull(response.getBinder(PrivilegeUserServiceContract.KEY_SERVICE_BINDER)) {
-            "UserService bind response is missing a service Binder"
-        }
+        val connectionId = response.getString(PrivilegeUserServiceContract.KEY_CONNECTION_ID)
+            ?: throw PrivilegeUserServiceBindException("UserService bind response is missing a connection id")
+        val binder = response.getBinder(PrivilegeUserServiceContract.KEY_SERVICE_BINDER)
+            ?: throw PrivilegeUserServiceBindException("UserService bind response is missing a service Binder")
         return PrivilegeUserServiceConnection(
             id = connectionId,
             spec = spec,
