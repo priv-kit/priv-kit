@@ -1,8 +1,12 @@
-package priv.kit.userservice
+package priv.kit.runtime
 
 import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.RemoteException
+import priv.kit.userservice.PrivilegeUserServiceNotRunningException
+import priv.kit.userservice.PrivilegeUserServiceRemoteCallException
+import priv.kit.userservice.PrivilegeUserServiceSpec
+import priv.kit.userservice.PrivilegeUserServiceStatus
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
 

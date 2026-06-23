@@ -9,7 +9,6 @@ Current contents:
 - `PrivilegeUserServiceSpec`, the app-owned service declaration keyed by `serviceClassName + tag`, with `version` controlling reuse or replacement and `destroyTimeoutMillis` controlling dedicated-process teardown fallback.
 - `PrivilegeUserServiceProcessMode`, defaulting to `DEDICATED_PROCESS` with explicit `IN_SERVER_PROCESS` opt-in.
 - `PrivilegeUserServiceOwnerDeathPolicy`, defaulting to destroying services when the owner app process dies.
-- `PrivilegeUserServiceConnection`, returned by `PrivilegeRuntime.bindUserService(...)` with the app-defined service Binder.
 - `IPrivilegeUserServiceManager`, the server-side lifecycle manager protocol.
 - `IPrivilegeUserServiceProcess` and `PrivilegeUserServiceMain`, the dedicated `app_process` UserService child-process protocol and entry point.
 - Server-facing registry and manager implementations that wire the runtime/server protocol. These are implementation plumbing, not the recommended app entry point.

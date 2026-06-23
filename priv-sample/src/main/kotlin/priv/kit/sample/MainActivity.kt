@@ -17,7 +17,7 @@ import androidx.lifecycle.ViewModelProvider
 import priv.kit.runtime.PrivilegeRuntime
 import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiViewModel
-import priv.kit.userservice.PrivilegeUserServiceConnection
+import priv.kit.runtime.PrivilegeUserServiceConnection
 import rikka.shizuku.Shizuku
 import java.io.Closeable
 import java.util.concurrent.Executors

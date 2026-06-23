@@ -1,17 +1,27 @@
-package priv.kit.userservice
+package priv.kit.runtime
 
 import android.os.Binder
 import android.os.Bundle
 import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.RemoteException
+import priv.kit.userservice.IPrivilegeUserServiceManager
+import priv.kit.userservice.PrivilegeUserServiceBindException
+import priv.kit.userservice.PrivilegeUserServiceContract
+import priv.kit.userservice.PrivilegeUserServiceDeclarationException
+import priv.kit.userservice.PrivilegeUserServiceManagerUnavailableException
+import priv.kit.userservice.PrivilegeUserServiceNotRunningException
+import priv.kit.userservice.PrivilegeUserServiceRemoteCallException
+import priv.kit.userservice.PrivilegeUserServiceSpec
+import priv.kit.userservice.PrivilegeUserServiceStartException
+import priv.kit.userservice.PrivilegeUserServiceStatus
 
-public class PrivilegeUserServiceClient public constructor(
+internal class PrivilegeRuntimeUserServiceClient(
     private val managerProvider: () -> IBinder?,
 ) {
     private val ownerBinder = Binder()
 
-    public fun start(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus {
+    fun start(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus {
         val response = callManager("start UserService") {
             it.startUserService(PrivilegeUserServiceContract.requestBundle(spec), ownerBinder)
         }
@@ -19,7 +29,7 @@ public class PrivilegeUserServiceClient public constructor(
         return PrivilegeUserServiceContract.statusFrom(response)
     }
 
-    public fun bind(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceConnection {
+    fun bind(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceConnection {
         val response = callManager("bind UserService") {
             it.bindUserService(PrivilegeUserServiceContract.requestBundle(spec), ownerBinder)
         }
@@ -37,7 +47,7 @@ public class PrivilegeUserServiceClient public constructor(
         )
     }
 
-    public fun stop(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus {
+    fun stop(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus {
         val response = callManager("stop UserService") {
             it.stopUserService(PrivilegeUserServiceContract.requestBundle(spec))
         }
@@ -45,7 +55,7 @@ public class PrivilegeUserServiceClient public constructor(
         return PrivilegeUserServiceContract.statusFrom(response)
     }
 
-    public fun getStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus {
+    fun getStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus {
         val response = callManager("get UserService status") {
             it.getUserServiceStatus(PrivilegeUserServiceContract.requestBundle(spec))
         }

@@ -28,8 +28,6 @@ import priv.kit.delegate.PrivilegeDelegateStarter
 import priv.kit.root.PrivilegeRootCommand
 import priv.kit.root.PrivilegeRootStartResult
 import priv.kit.root.PrivilegeRootStarter
-import priv.kit.userservice.PrivilegeUserServiceClient
-import priv.kit.userservice.PrivilegeUserServiceConnection
 import priv.kit.userservice.PrivilegeUserServiceManagerUnavailableException
 import priv.kit.userservice.PrivilegeUserServiceSpec
 import priv.kit.userservice.PrivilegeUserServiceStatus
@@ -50,7 +48,7 @@ public object PrivilegeRuntime {
     private var currentServer: ServerConnection? = null
     private val disconnectedListeners = CopyOnWriteArraySet<() -> Unit>()
     private val binderClient = PrivilegeBinderClient()
-    private val userServiceClient = PrivilegeUserServiceClient(::getUserServiceManagerBinder)
+    private val userServiceClient = PrivilegeRuntimeUserServiceClient(::getUserServiceManagerBinder)
 
     init {
         PrivilegeBinderRuntime.installServerProvider(::requireServerInterface)

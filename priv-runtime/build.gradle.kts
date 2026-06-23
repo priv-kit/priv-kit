@@ -15,4 +15,5 @@ dependencies {
     implementation(project(":priv-root"))
     runtimeOnly(project(":priv-server"))
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
 }
