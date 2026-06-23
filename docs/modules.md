@@ -1,16 +1,20 @@
 # 模块说明
 
-本文档定义 `Priv Kit`（仓库名 `priv-kit`）的计划模块边界。
+本文档定义 `Priv Kit`（仓库名 `priv-kit`）的当前模块边界。所有模块都必须遵守 [project-constitution.md](project-constitution.md)。
 
-模块图的存在是为了保护项目范围。所有模块都必须遵守 [project-constitution.md](project-constitution.md)。
+当前源码按三类职责组织：
 
-## 计划模块列表
+- 共享端：`:priv-core`
+- 客户端：`:priv-runtime`
+- 服务端：`:priv-server`
+
+Binder 和 UserService 仍保留 `priv.kit.binder.*` / `priv.kit.userservice.*` package 分区，但不再对应独立 Gradle 模块。
+
+## 模块列表
 
 - `:priv-core`
 - `:priv-runtime`
 - `:priv-server`
-- `:priv-binder`
-- `:priv-user-service`
 - `:priv-bc`
 - `:priv-ssl`
 - `:priv-adb`
@@ -32,13 +36,11 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 模块命名、Maven `artifactId` 和 Kotlin package 根必须按下表保持一致：
 
-| Gradle 模块 | Maven artifactId | Kotlin package 根 |
+| Gradle 模块 | Maven artifactId | Kotlin package 分区 |
 | --- | --- | --- |
-| `:priv-core` | `priv-core` | `priv.kit.core` |
+| `:priv-core` | `priv-core` | `priv.kit.core`, `priv.kit.binder`, `priv.kit.userservice` |
 | `:priv-runtime` | `priv-runtime` | `priv.kit.runtime` |
-| `:priv-server` | `priv-server` | `priv.kit.server` |
-| `:priv-binder` | `priv-binder` | `priv.kit.binder` |
-| `:priv-user-service` | `priv-user-service` | `priv.kit.userservice` |
+| `:priv-server` | `priv-server` | `priv.kit.server`, 服务端侧 `priv.kit.userservice` 实现 |
 | `:priv-bc` | `priv-bc` | `priv.kit.bc` |
 | `:priv-ssl` | `priv-ssl` | `priv.kit.ssl` |
 | `:priv-adb` | `priv-adb` | `priv.kit.adb` |
@@ -46,13 +48,11 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 | `:priv-delegate` | `priv-delegate` | `priv.kit.delegate` |
 | `:priv-ui` | `priv-ui` | `priv.kit.ui` |
 | `:priv-sample` | 不作为发布 artifact | `priv.kit.sample` |
-| `:hidden-api` | 不作为发布 artifact | `priv.kit.hidden.api` |
+| `:hidden-api` | 不作为发布 artifact | framework mirror/stub package |
 
 除 `:hidden-api` 中的 framework mirror/stub 外，所有源码 package 必须位于 `priv.kit.*`。禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*`。
 
-所有公开 API 必须使用完整单词 `Privilege*` 命名，例如 `PrivilegeKit`、`PrivilegeLaunchMode`、`PrivilegeServer`、`PrivilegeBinder`、`PrivilegeUserService`、`PrivilegeRuntime` 和 `PrivilegeConnection`。
-
-禁止公开 API 使用 `Priv*` 缩写，例如 `PrivKit`、`PrivSession`、`PrivMode`、`PrivServer`、`PrivBinder` 和 `PrivUserService`。
+所有公开 API 必须使用完整单词 `Privilege*` 命名，例如 `PrivilegeLaunchMode`、`PrivilegeBinderEndpoint`、`PrivilegeUserServiceSpec`、`PrivilegeRuntime` 和 `PrivilegeUserServiceConnection`。禁止公开 API 使用 `Priv*` 缩写。
 
 ## 依赖方向
 
@@ -61,32 +61,20 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 ```text
 :priv-runtime
     -> :priv-core
-    -> :priv-binder
-    -> :priv-user-service
     -> :priv-adb
     -> :priv-root
     -> :priv-delegate
+    -> runtimeOnly(:priv-server)
 
 :priv-server
     -> :priv-core
-    -> :priv-binder
-    -> :priv-user-service
-
-:priv-binder
-    -> :priv-core
-
-:priv-user-service
-    -> :priv-core
-    -> :priv-binder
-
-:priv-bc
-
-:priv-ssl
+    -> compileOnly(:hidden-api)
 
 :priv-adb
     -> :priv-core
     -> :priv-bc
     -> :priv-ssl
+    -> compileOnly(:hidden-api)
 
 :priv-root
     -> :priv-core
@@ -98,14 +86,16 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
     -> :priv-runtime
 
 :priv-sample
-    -> 公开运行时、启动、Binder、UserService 和可选 UI 模块
+    -> :priv-runtime
+    -> :priv-ui
+    -> 启动或演示所需模块
 ```
 
-实际 Gradle 依赖图可以在实现阶段细化，但所有权方向必须稳定：
+所有权方向必须稳定：
 
-- 共享契约来自 `:priv-core`；
-- 编排属于 `:priv-runtime`；
-- 特权进程行为属于 `:priv-server`；
+- 共享协议、AIDL、模型和原语来自 `:priv-core`；
+- 客户端生命周期编排属于 `:priv-runtime`；
+- 特权进程行为和服务端侧 UserService 实现属于 `:priv-server`；
 - 启动实现留在各自模块；
 - UI 依赖运行时，运行时不反向依赖 UI；
 - 示例依赖公开模块，不应变成内部测试工具。
@@ -114,29 +104,26 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 职责：
 
-- 共享契约；
-- 共享值类型；
-- 运行时状态模型；
-- 启动结果模型；
-- 服务端启动命令模型；
-- 连接结果模型；
-- 项目自有错误分类；
-- 协议身份和版本契约。
+- 共享协议和值类型；
+- `priv.kit.core.*` 运行时模型、启动模型、协议版本和 handshake registry；
+- `priv.kit.binder.*` AIDL、Binder endpoint 原语、共享异常、runtime/server 共享 registry、raw Binder wrapper；
+- `priv.kit.userservice.*` AIDL、UserService spec/status/state/id、共享异常、wire contract、handshake registry；
+- 运行时、服务端、示例和启动模块都需要理解的底层契约。
 
 允许：
 
-- 原语化运行时和连接模型；
-- 用于解耦模块的接口；
+- 原语化运行时、Binder 和 UserService 模型；
+- 项目自有 AIDL 协议；
+- 显式目标 Binder 或显式系统服务名的 raw Binder transaction 桥；
 - 错误和诊断值类型；
-- 标识项目协议的常量。
+- 用于解耦模块的共享接口或常量。
 
 禁止：
 
-- Android 系统服务封装；
-- 项目自有 Binder AIDL 协议；
-- Binder endpoint registry API；
+- Android 系统服务类型化封装；
 - 启动命令构造逻辑；
 - Root、ADB 或 Delegate transport 实现；
+- UserService registry、manager、loader、process 或 destroy 实现；
 - UI 依赖；
 - 只服务于示例的 helper；
 - 面向输入、包、设置、app-ops 或 activity 管理的领域 API。
@@ -145,33 +132,28 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 职责：
 
-- 客户端侧编排；
-- 运行时状态机；
-- 启动策略选择；
-- 服务端连接生命周期；
-- 重连行为；
-- 面向应用的公开入口。
+- 客户端 app 进程侧编排；
+- `PrivilegeRuntime` 公开入口；
+- 运行时状态、启动策略选择、服务端连接和重连；
+- `PrivilegeRuntimeUserServiceClient`、`PrivilegeUserServiceConnection`；
+- Manual Shell、owner token/config store、handshake provider；
+- 通过 `runtimeOnly(:priv-server)` 携带服务端入口，让接入应用优先只依赖 `:priv-runtime`。
 
 允许：
 
-- 运行时配置；
 - start、stop、connect、reconnect 生命周期；
 - 作为原语暴露 Binder 和 UserService 入口；
 - 创建显式系统服务名的 raw Binder transaction 桥；
-- 状态观察；
-- 启动策略组合；
 - 构造项目自有 Privileged Server 的 `app_process` 启动命令；
-- 以 runtime-only 依赖携带 `:priv-server`，让接入应用只需声明运行时模块；
-- token、pending handshake、当前全局 server-binder 安装和 Binder death handling；
-- 参考 shizuku-api 维护进程内单个当前 server-binder，重复握手保持同一 Binder，替换 Binder 时安装新的全局状态。
+- token、pending handshake、当前全局 server-binder 安装和 Binder death handling。
 
 禁止：
 
 - 直接实现 Root、ADB 或 Delegate 机制；
+- 服务端侧 UserService registry/loader/manager 实现；
 - 高级 Android 操作 API；
 - 类型化 Android 系统服务 API；
-- UI toolkit 依赖；
-- 只属于服务端的行为。
+- UI toolkit 依赖。
 
 ## `:priv-server`
 
@@ -180,17 +162,31 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - Privileged Server 进程入口；
 - 特权侧 Binder 端点；
 - 服务端生命周期；
-- UserService 托管或协调；
-- 项目协议执行。
+- raw Binder transaction 的服务端转发；
+- 服务端侧 UserService 生命周期管线。
+
+`priv.kit.userservice` 中以下服务端实现归属于本模块：
+
+- `PrivilegeUserServiceRegistry`
+- `PrivilegeUserServiceManagerBinder`
+- `PrivilegeUserServiceHost`
+- `PrivilegeUserServiceProcessHandle`
+- `PrivilegeUserServiceLoader`
+- `PrivilegeUserServiceDestroyer`
+- `PrivilegeUserServiceGateBinder`
+- `PrivilegeUserServiceProcessBinder`
+- `PrivilegeUserServiceMain`
+- `PrivilegeUserServiceProviderCall`
 
 允许：
 
 - 服务端 bootstrap；
 - 发布项目 Binder 端点；
 - 在可行时检查客户端身份；
-- 服务端侧 UserService 生命周期管线；
-- 为 raw 系统服务 Binder 桥执行显式服务名解析和 transaction 转发；
-- 特权运行时诊断。
+- 管理 Binder endpoint slot；
+- 启动、claim、绑定、销毁 UserService 子进程；
+- 嵌入式 UserService 实例生命周期；
+- 为 raw 系统服务 Binder 桥执行显式服务名解析和 transaction 转发。
 
 禁止：
 
@@ -198,35 +194,6 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - framework service facade API；
 - 应用定义的业务逻辑；
 - UI 代码。
-
-## `:priv-binder`
-
-职责：
-
-- 运行时和服务端共享的 Binder 通信原语。
-- 项目自有 Privileged Server Binder 协议。
-
-允许：
-
-- `IPrivilegeServer` 等运行时所需的项目自有 AIDL 契约；
-- 单个 app-owned Binder endpoint 的句柄和注册生命周期；
-- 显式目标 Binder 的 remote transact wrapper；
-- 显式系统服务名的 raw remote transact wrapper；
-- Binder 端点注册和查找；
-- Binder 端点注销；
-- Binder 连接状态；
-- Binder death 处理；
-- server death、endpoint dead、endpoint not found 和远程调用失败的类型化异常；
-- Binder 协议检查；
-- 运行时操作所需的项目自有 Binder 契约。
-
-禁止：
-
-- Android 系统服务的类型化封装；
-- 与本运行时无关的通用 Binder 库；
-- 系统服务枚举、系统服务领域发现 API 或可复用类型化系统 Binder facade；
-- endpoint id、多 endpoint 注册、endpoint 枚举、全局服务发现或多租户服务注册中心；
-- package、input、settings、app-ops 或 activity API。
 
 ## `:hidden-api`
 
@@ -246,41 +213,6 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 项目公开 API；
 - 发布 artifact；
 - 系统服务能力封装。
-
-## `:priv-user-service`
-
-职责：
-
-- 面向应用自定义特权服务的 UserService Binder 管线。
-
-允许：
-
-- UserService 身份模型；
-- start、bind、unbind 和 stop 契约；
-- service Binder handoff；
-- service 生命周期状态；
-- service 失败报告。
-- 可选的 reserved destroy transaction；
-- 多个 `serviceClassName + tag` UserService 实例；
-- `version` 变化触发同一实例替换，而不是创建并行实例；
-- 默认独立 `app_process` 子进程模式；
-- 显式 opt-in 的 server 进程嵌入模式；
-- 无参、`android.content.Context`，或两者同时声明的 UserService 构造器；
-- 可能被反射调用的 UserService 构造器需要由接入方用 `androidx.annotation.Keep` 显式保留；
-- 独立进程 `Context` 构造器的 `makeApplication` 优先和 package `Context` 兜底；
-- 嵌入式 `Context` 构造器的 package `Context` 初始化，不调用 `makeApplication`，且可在 package `Context` 创建失败时回退无参构造器；
-- owner app death 时的 UserService 销毁策略；
-- 独立 UserService destroy 后等待进程自行退出的可配置超时，并允许用负数关闭超时强杀兜底；
-- UserService 子进程 ready/claim handoff 协议。
-
-禁止：
-
-- 应用业务逻辑；
-- 内置特权操作服务；
-- 高级系统操作模板；
-- 执行 package、input、settings、app-ops 或 activity 管理的可复用 service 实现。
-- 解析、生成或封装应用自定义 AIDL 业务接口；
-- 把 UserService 扩展成跨应用服务发现、全局服务枚举或多租户服务注册中心。
 
 ## `:priv-adb`
 
@@ -314,18 +246,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 - 项目内部 ADB 启动客户端证书所需的最小 BC 兼容 ASN.1 / X.509 证书生成能力。
 
-允许：
-
-- ADB 客户端证书生成所需的 DER/ASN.1 编码；
-- ADB 客户端证书生成所需的 X.509 builder；
-- 与 Bouncy Castle 行为对齐的字节级兼容测试。
-
-禁止：
-
-- 通用证书管理；
-- 通用 PKI API；
-- Android API 依赖；
-- 非 ADB 启动所需的加密能力。
+禁止通用证书管理、通用 PKI API、Android API 依赖，以及非 ADB 启动所需的加密能力。
 
 ## `:priv-ssl`
 
@@ -333,19 +254,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 - 项目内部 ADB Wireless Debugging pairing 所需的最小 BoringSSL 兼容能力。
 
-允许：
-
-- SPAKE2 pairing 消息生成和处理；
-- ADB pairing 所需的 HKDF-SHA256；
-- ADB pairing 所需的 AES-128-GCM 加解密；
-- 与 BoringSSL/AOSP pairing 行为对齐的字节级兼容测试。
-
-禁止：
-
-- 通用 SSL/TLS 协议栈；
-- 通用密码学工具箱；
-- 证书、ASN.1 或 PKI 能力；
-- ADB socket、mDNS 或启动命令执行逻辑。
+禁止通用 SSL/TLS 协议栈、通用密码学工具箱、证书/ASN.1/PKI 能力，以及 ADB socket、mDNS 或启动命令执行逻辑。
 
 ## `:priv-root`
 
@@ -361,11 +270,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - root 特有启动失败建模；
 - 转换为共享启动结果。
 
-禁止：
-
-- 公开 root 命令库；
-- 特权操作 helper；
-- package、input、settings、app-ops 或 activity API。
+禁止公开 root 命令库、特权操作 helper、package/input/settings/app-ops/activity API。
 
 ## `:priv-delegate`
 
@@ -381,42 +286,24 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - delegate 启动诊断；
 - delegate 特有失败建模；
 - 转换为共享启动结果。
-- `PrivilegeDelegateExecutor`、`PrivilegeDelegateStarter`、`PrivilegeDelegateCommand`、`PrivilegeDelegateProcess` 和 `PrivilegeDelegateStartResult` 这类启动原语。
 
-禁止：
-
-- 全局 delegate 市场；
-- 多应用特权代理能力；
-- 第三方特权操作路由；
-- 系统能力抽象。
+禁止全局 delegate 市场、多应用特权代理能力、第三方特权操作路由和系统能力抽象。
 
 ## `:priv-ui`
 
 职责：
 
-- 可选的 Jetpack Compose UI 帮助能力，用于运行时生命周期。
+- 可选 Jetpack Compose UI 帮助能力，用于运行时生命周期。
 
-允许：
+允许 Compose 状态展示、运行时生命周期控件，以及围绕 `:priv-runtime` 状态模型的 UI 包装。
 
-- Compose 状态展示；
-- Compose 运行时生命周期控件；
-- 在有价值时，围绕 `:priv-runtime` 状态模型提供 Compose 包装。
-
-禁止：
-
-- 传统 Android View UI 逻辑；
-- 手写 `android.view.*` / `android.widget.*` 视图树；
-- 通过 `Activity#setContentView(...)` 装配界面；
-- 新增用于界面结构的 XML layout 文件；
-- 特权操作控制台；
-- 高级系统操作 composable；
-- 核心运行时模块反向依赖 Compose。
+禁止传统 Android View UI 逻辑、特权操作控制台、高级系统操作 composable，以及核心运行时模块反向依赖 Compose。
 
 ## `:priv-sample`
 
 职责：
 
-- 演示项目支持的范围。
+- 演示项目支持的范围；
 - 使用 Jetpack Compose 实现示例界面。
 
 允许演示：
@@ -432,9 +319,6 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 禁止演示：
 
 - 传统 Android View UI 逻辑；
-- 手写 `android.view.*` / `android.widget.*` 视图树；
-- 调用 `Activity#setContentView(...)` 装配示例界面；
-- 新增用于示例界面结构的 XML layout 文件；
 - 包安装；
 - 输入注入；
 - 设置修改；
@@ -450,13 +334,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - Gradle 构建脚本使用 Kotlin DSL；
 - 普通业务模块不得包含 Java 源码。
 
-Java 例外仅限于：
-
-- hidden-api stub；
-- framework mirror class；
-- AIDL 兼容桥接。
-
-任何 Java 文件都必须明确对应上述三类例外之一。
+Java 例外仅限于 hidden-api stub、framework mirror class、AIDL 兼容桥接。
 
 ## 公开 API 评审清单
 

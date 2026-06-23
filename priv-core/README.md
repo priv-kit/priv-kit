@@ -1,15 +1,30 @@
 # priv-core
 
-Shared contracts and value types for Priv Kit.
+Shared contracts, protocol models, and primitive Binder/UserService surfaces for Priv Kit.
 
-Namespace and package root: `priv.kit.core`.
+Primary package partitions:
 
-Phase 1 contents:
+- `priv.kit.core`
+- `priv.kit.binder`
+- `priv.kit.userservice`
+
+Current contents:
 
 - `PrivilegeServerInfo`, protocol constants, Root/Shell launch mode constants, startup errors, and random token generation.
 - `PrivilegeServerLaunchCommand`, the shared `app_process` launch command value model used by startup transports.
-- The in-process handshake registry used by the app-side runtime to accept only token-matched Binder handoff calls.
+- `PrivilegeServerHandshakeRegistry`, the in-process registry used by the app-side runtime to accept token-matched Privileged Server Binder handoff calls.
+- `IPrivilegeServer`, the project-owned Binder protocol for the Privileged Server.
+- `PrivilegeBinderEndpoint`, `PrivilegeBinderClient`, `PrivilegeBinderRegistry`, `PrivilegeBinderRegistration`, and typed Binder primitive exceptions.
+- `PrivilegeRemoteBinderWrapper`, a low-level wrapper that executes transactions for an explicit target `IBinder` through the connected Privileged Server.
+- `PrivilegeRemoteSystemServiceBinder`, a low-level wrapper that resolves an explicit system service name in the connected Privileged Server and forwards only raw Binder transactions.
+- `IPrivilegeUserServiceManager` and `IPrivilegeUserServiceProcess`, the shared UserService lifecycle and dedicated-process protocols.
+- `PrivilegeUserServiceSpec`, id/status/state/process-mode/owner-death models, UserService wire contract, handshake registry, transaction constants, and typed UserService exceptions.
 
-The Privileged Server Binder protocol now belongs to `:priv-binder`.
+App code should normally enter Binder and UserService through `PrivilegeRuntime`:
 
-This module does not build or execute startup commands, implement startup transports, UserService behavior, Binder endpoint registry APIs, project Binder AIDL protocols, or Android system service wrappers.
+```kotlin
+val registration = PrivilegeRuntime.registerBinderEndpoint(binder)
+val connection = PrivilegeRuntime.bindUserService(spec)
+```
+
+This module does not build or execute startup commands, implement startup transports, host UserService instances, load app classes, run server process behavior, expose UI, or provide typed Android system service facades. Server-side UserService registry, manager, loader, process binder, destroyer, and child-process entry point live in `:priv-server`.

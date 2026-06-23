@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.remap)
 }
 
 android {
@@ -12,8 +13,6 @@ android {
 
 dependencies {
     api(project(":priv-core"))
-    api(project(":priv-binder"))
-    api(project(":priv-user-service"))
     compileOnly(project(":hidden-api"))
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

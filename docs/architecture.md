@@ -27,8 +27,8 @@
 - GitHub Organization 和 Repository 都固定为 `priv-kit`。
 - 项目对外名称固定为 `Priv Kit`。
 - Maven `groupId` 固定为 `io.github.priv-kit`。
-- 发布模块的 Maven `artifactId` 使用 `priv-*`：`priv-core`、`priv-runtime`、`priv-server`、`priv-binder`、`priv-user-service`、`priv-bc`、`priv-ssl`、`priv-adb`、`priv-root`、`priv-delegate`、`priv-ui`。
-- Gradle 模块使用 `:priv-core`、`:priv-runtime`、`:priv-server`、`:priv-binder`、`:priv-user-service`、`:priv-bc`、`:priv-ssl`、`:priv-adb`、`:priv-root`、`:priv-delegate`、`:priv-ui`、`:priv-sample`，以及内部编译期 stub 模块 `:hidden-api`。
+- 发布模块的 Maven `artifactId` 使用 `priv-*`：`priv-core`、`priv-runtime`、`priv-server`、`priv-bc`、`priv-ssl`、`priv-adb`、`priv-root`、`priv-delegate`、`priv-ui`。
+- Gradle 模块使用 `:priv-core`、`:priv-runtime`、`:priv-server`、`:priv-bc`、`:priv-ssl`、`:priv-adb`、`:priv-root`、`:priv-delegate`、`:priv-ui`、`:priv-sample`，以及内部编译期 stub 模块 `:hidden-api`。
 - 除 `:hidden-api` 中的 framework mirror/stub 外，Kotlin package 统一使用 `priv.kit.*`，例如 `priv.kit.runtime`、`priv.kit.server`、`priv.kit.binder`、`priv.kit.userservice`。
 - 禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*` 作为源码 package。
 - 公开 API 使用完整单词 `Privilege*`，例如 `PrivilegeKit`、`PrivilegeRuntime`、`PrivilegeConnection`。
@@ -70,18 +70,10 @@ Application
                         v
                   :priv-server
                         |
-              +---------+----------+
-              |                    |
-              v                    v
-          :priv-binder       :priv-user-service
-              |                    |
-              +---------+----------+
-                        |
-                        v
                    :priv-core
 ```
 
-`:priv-core` 是共享契约基础。其他模块通过它共享值类型、状态模型和错误分类。
+`:priv-core` 是共享契约基础。其他模块通过它共享运行时值类型、Binder/UserService AIDL、状态模型、wire contract、raw Binder primitive 和错误分类。
 
 ## 运行时生命周期
 
@@ -157,11 +149,11 @@ Binder 支持应覆盖：
 - 显式系统服务名的 raw remote transact 转发；
 - 项目自有契约的协议和版本检查。
 
-当前 Binder 原语由 `:priv-binder` 承载：
+当前 Binder 原语由 `:priv-core` 的 `priv.kit.binder` package 分区承载，服务端侧 transaction 执行归属于 `:priv-server`：
 
 - `IPrivilegeServer` 定义项目自有 Privileged Server Binder 协议；
 - `PrivilegeBinderClient` 作为 `PrivilegeRuntime` 内部 helper 支撑单 endpoint 访问入口；
-- `PrivilegeBinderRegistry` 作为服务端内存 endpoint slot，负责注册、查找、注销和 death 自动清理；
+- `PrivilegeBinderRegistry` 作为共享 endpoint slot 原语，由服务端用于注册、查找、注销和 death 自动清理；
 - `PrivilegeBinderEndpoint` 和 `PrivilegeBinderRegistration` 提供应用侧 Binder 句柄和注册生命周期；
 - `PrivilegeRemoteBinderWrapper` 将显式目标 `IBinder` 的 `transact` 通过当前 Privileged Server 执行，并通过 `PrivilegeRuntime` 的全局 server-binder getter 在每次 transaction 前统一拦截 server 断连；
 - `PrivilegeRemoteSystemServiceBinder` 将显式系统服务名的 `transact` 通过当前 Privileged Server 执行，由服务端在自己的 SELinux 域内解析该服务名；
@@ -189,7 +181,7 @@ UserService 是应用自定义特权逻辑的扩展机制。
 - unbind 或 stop；
 - 暴露生命周期错误。
 
-当前实现由 `:priv-user-service` 承载：
+当前 UserService 共享协议由 `:priv-core` 的 `priv.kit.userservice` package 分区承载，服务端实现由 `:priv-server` 承载：
 
 - `PrivilegeUserServiceSpec` 使用 `serviceClassName + tag` 标识一个应用自定义 UserService 实例；
 - `version` 不是实例身份的一部分，只控制同一 `serviceClassName + tag` 是否复用现有实例；

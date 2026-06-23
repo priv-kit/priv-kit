@@ -20,8 +20,6 @@ include(
     ":priv-core",
     ":priv-runtime",
     ":priv-server",
-    ":priv-binder",
-    ":priv-user-service",
     ":priv-bc",
     ":priv-ssl",
     ":priv-adb",
