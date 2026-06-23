@@ -9,11 +9,23 @@ Current contents:
 - `PrivilegeUserServiceSpec`, the app-owned service declaration keyed by `serviceClassName + tag`, with `version` controlling reuse or replacement and `destroyTimeoutMillis` controlling dedicated-process teardown fallback.
 - `PrivilegeUserServiceProcessMode`, defaulting to `DEDICATED_PROCESS` with explicit `IN_SERVER_PROCESS` opt-in.
 - `PrivilegeUserServiceOwnerDeathPolicy`, defaulting to destroying services when the owner app process dies.
-- `PrivilegeUserServiceClient` and `PrivilegeUserServiceConnection`, used by `PrivilegeRuntime` to start, bind, unbind, stop, and observe services.
-- `PrivilegeUserServiceTransactions`, the reserved Binder transaction constants for optional app-defined cleanup.
+- `PrivilegeUserServiceConnection`, returned by `PrivilegeRuntime.bindUserService(...)` with the app-defined service Binder.
 - `IPrivilegeUserServiceManager`, the server-side lifecycle manager protocol.
 - `IPrivilegeUserServiceProcess` and `PrivilegeUserServiceMain`, the dedicated `app_process` UserService child-process protocol and entry point.
-- `PrivilegeUserServiceRegistry`, which manages multiple UserService instances and supports both dedicated-process and embedded-in-server modes.
+- Server-facing registry and manager implementations that wire the runtime/server protocol. These are implementation plumbing, not the recommended app entry point.
+
+App code should enter UserService through `PrivilegeRuntime`:
+
+```kotlin
+val spec = PrivilegeUserServiceSpec(
+    serviceClassName = MyService::class.java.name,
+)
+
+val connection = PrivilegeRuntime.bindUserService(spec)
+val service = IMyService.Stub.asInterface(connection.binder)
+```
+
+Use `PrivilegeRuntime.startUserService(...)`, `bindUserService(...)`, `stopUserService(...)`, `getUserServiceStatus(...)`, and `watchUserServiceStatus(...)` instead of constructing client, registry, manager, or protocol objects directly.
 
 The module transports app-defined `IBinder` services. A UserService class must implement `IBinder` or `IInterface`; the usual shape is `class MyService : IMyService.Stub()`. The module does not understand or wrap the app's AIDL interfaces. Callers bind a service and then adapt the returned Binder through their own generated AIDL Stub.
 

@@ -17,7 +17,7 @@ public class PrivilegeUserServiceRegistry public constructor(
     private val records = mutableMapOf<PrivilegeUserServiceId, Record>()
     private val connections = mutableMapOf<String, Connection>()
 
-    public fun start(
+    internal fun start(
         spec: PrivilegeUserServiceSpec,
         client: IBinder,
     ): PrivilegeUserServiceStatus =
@@ -28,7 +28,7 @@ public class PrivilegeUserServiceRegistry public constructor(
             record.status()
         }
 
-    public fun bind(
+    internal fun bind(
         spec: PrivilegeUserServiceSpec,
         client: IBinder,
     ): BindResult =
@@ -44,14 +44,14 @@ public class PrivilegeUserServiceRegistry public constructor(
             )
         }
 
-    public fun unbind(connectionId: String): PrivilegeUserServiceStatus =
+    internal fun unbind(connectionId: String): PrivilegeUserServiceStatus =
         synchronized(lock) {
             unbindLocked(connectionId) ?: throw PrivilegeUserServiceNotRunningException(
                 "UserService connection was not found: $connectionId",
             )
         }
 
-    public fun stop(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
+    internal fun stop(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
         synchronized(lock) {
             val id = spec.id()
             val record = records[id] ?: return@synchronized stoppedStatus(spec)
@@ -64,12 +64,12 @@ public class PrivilegeUserServiceRegistry public constructor(
             }
         }
 
-    public fun getStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
+    internal fun getStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
         synchronized(lock) {
             records[spec.id()]?.status() ?: stoppedStatus(spec)
         }
 
-    public fun destroyOnOwnerDeath() {
+    internal fun destroyOnOwnerDeath() {
         synchronized(lock) {
             records.entries
                 .filter { it.value.spec.ownerDeathPolicy == PrivilegeUserServiceOwnerDeathPolicy.DESTROY_ON_OWNER_DEATH }
@@ -80,7 +80,7 @@ public class PrivilegeUserServiceRegistry public constructor(
         }
     }
 
-    public fun destroyAll() {
+    internal fun destroyAll() {
         synchronized(lock) {
             records.entries
                 .map { it.key to it.value }
@@ -271,10 +271,10 @@ public class PrivilegeUserServiceRegistry public constructor(
             pid = 0,
         )
 
-    public data class BindResult public constructor(
-        public val connectionId: String,
-        public val binder: IBinder,
-        public val status: PrivilegeUserServiceStatus,
+    internal class BindResult(
+        val connectionId: String,
+        val binder: IBinder,
+        val status: PrivilegeUserServiceStatus,
     )
 
     private abstract inner class Record(
