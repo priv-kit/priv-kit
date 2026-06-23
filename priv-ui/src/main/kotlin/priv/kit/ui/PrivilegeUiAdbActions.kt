@@ -402,7 +402,7 @@ internal class PrivilegeUiAdbActions(
                     portDiscoveryTimeoutMillis = timeoutMillis,
                 ).paired
             }.getOrDefault(false)
-        } ?: false
+        }
         if (stop.get()) return
 
         store.updateState {
@@ -417,11 +417,7 @@ internal class PrivilegeUiAdbActions(
                 } else {
                     PrivilegeUiWirelessAdbStatus.OFF
                 },
-                wirelessPairingCheckStatus = if (paired) {
-                    PrivilegeUiWirelessAdbStatus.ON
-                } else {
-                    PrivilegeUiWirelessAdbStatus.OFF
-                },
+                wirelessPairingCheckStatus = privilegeUiWirelessPairingCheckStatus(paired),
                 notificationPairingRunning = PrivilegeAdbPairingService.running.value,
             )
         }
@@ -485,3 +481,10 @@ internal class PrivilegeUiAdbActions(
         }
     }
 }
+
+internal fun privilegeUiWirelessPairingCheckStatus(paired: Boolean?): PrivilegeUiWirelessAdbStatus =
+    when (paired) {
+        true -> PrivilegeUiWirelessAdbStatus.ON
+        false -> PrivilegeUiWirelessAdbStatus.OFF
+        null -> PrivilegeUiWirelessAdbStatus.UNKNOWN
+    }

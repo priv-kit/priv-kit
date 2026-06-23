@@ -20,4 +20,5 @@ dependencies {
     api(libs.androidx.compose.ui)
     api(libs.androidx.lifecycle.viewmodel)
     api(libs.androidx.lifecycle.viewmodel.compose)
+    testImplementation(libs.junit)
 }
