@@ -1,29 +1,29 @@
 package priv.kit.userservice
 
-interface PrivilegeUserServiceHost {
-    val uid: Int
-    val pid: Int
-    val packageName: String
-    val userId: Int
+public interface PrivilegeUserServiceHost {
+    public val uid: Int
+    public val pid: Int
+    public val packageName: String
+    public val userId: Int
 
-    fun startDedicatedProcess(
+    public fun startDedicatedProcess(
         spec: PrivilegeUserServiceSpec,
         token: String,
     ): PrivilegeUserServiceProcessHandle
 
-    fun awaitDedicatedProcess(
+    public fun awaitDedicatedProcess(
         token: String,
         timeoutMillis: Long,
     ): IPrivilegeUserServiceProcess
 
-    fun awaitDedicatedProcessExit(
+    public fun awaitDedicatedProcessExit(
         handle: PrivilegeUserServiceProcessHandle,
         timeoutMillis: Long,
     ): Boolean
 
-    fun killDedicatedProcess(handle: PrivilegeUserServiceProcessHandle)
+    public fun killDedicatedProcess(handle: PrivilegeUserServiceProcessHandle): Unit
 }
 
-class PrivilegeUserServiceProcessHandle(
-    val process: Process,
+public class PrivilegeUserServiceProcessHandle public constructor(
+    public val process: Process,
 )

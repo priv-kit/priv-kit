@@ -5,13 +5,13 @@ import priv.kit.ssl.internal.Spake25519Context
 import priv.kit.ssl.internal.Spake25519Role
 import java.security.SecureRandom
 
-class PrivilegeSslAdbPairingContext private constructor(
+public class PrivilegeSslAdbPairingContext private constructor(
     private var spake2: Spake25519Context?,
 ) {
-    val msg: ByteArray = checkNotNull(spake2).msg.copyOf()
+    public val msg: ByteArray = checkNotNull(spake2).msg.copyOf()
     private var cipher: Aes128Gcm? = null
 
-    fun initCipher(theirMsg: ByteArray): Boolean {
+    public fun initCipher(theirMsg: ByteArray): Boolean {
         val context = spake2 ?: return false
         val keyMaterial = context.processMsg(theirMsg) ?: return false
         cipher = Aes128Gcm(keyMaterial)
@@ -19,23 +19,23 @@ class PrivilegeSslAdbPairingContext private constructor(
         return true
     }
 
-    fun encrypt(input: ByteArray): ByteArray? = cipher?.encrypt(input)
+    public fun encrypt(input: ByteArray): ByteArray? = cipher?.encrypt(input)
 
-    fun decrypt(input: ByteArray): ByteArray? = cipher?.decrypt(input)
+    public fun decrypt(input: ByteArray): ByteArray? = cipher?.decrypt(input)
 
-    fun destroy() {
+    public fun destroy(): Unit {
         spake2 = null
         cipher = null
     }
 
-    companion object {
+    public companion object {
         private val CLIENT_NAME = "adb pair client\u0000".toByteArray(Charsets.US_ASCII)
         private val SERVER_NAME = "adb pair server\u0000".toByteArray(Charsets.US_ASCII)
 
-        fun createClient(password: ByteArray): PrivilegeSslAdbPairingContext? =
+        public fun createClient(password: ByteArray): PrivilegeSslAdbPairingContext? =
             create(Spake25519Role.ALICE, CLIENT_NAME, SERVER_NAME, password, SecureRandom())
 
-        fun createServer(password: ByteArray): PrivilegeSslAdbPairingContext? =
+        public fun createServer(password: ByteArray): PrivilegeSslAdbPairingContext? =
             create(Spake25519Role.BOB, SERVER_NAME, CLIENT_NAME, password, SecureRandom())
 
         internal fun createClient(

@@ -7,7 +7,7 @@ import java.io.EOFException
 import java.net.SocketException
 import java.net.SocketTimeoutException
 
-class PrivilegeAdbStarter private constructor(
+public class PrivilegeAdbStarter private constructor(
     private val context: Context,
     private val identity: PrivilegeAdbIdentity,
 ) {
@@ -16,7 +16,7 @@ class PrivilegeAdbStarter private constructor(
         signature = identity.storageSignature,
     )
 
-    constructor(
+    public constructor(
         context: Context,
         adbDeviceName: String? = null,
     ) : this(
@@ -25,7 +25,7 @@ class PrivilegeAdbStarter private constructor(
     )
 
     @Throws(PrivilegeStartupException::class)
-    fun start(
+    public fun start(
         command: PrivilegeAdbCommand,
         options: PrivilegeAdbStartOptions = PrivilegeAdbStartOptions(),
     ): PrivilegeAdbStartResult {
@@ -94,7 +94,7 @@ class PrivilegeAdbStarter private constructor(
         }
     }
 
-    fun getIdentityInfo(): PrivilegeAdbIdentityInfo {
+    public fun getIdentityInfo(): PrivilegeAdbIdentityInfo {
         val key = createKey()
         return PrivilegeAdbIdentityInfo(
             identity = identity,
@@ -103,7 +103,7 @@ class PrivilegeAdbStarter private constructor(
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun checkPairing(
+    public fun checkPairing(
         port: Int? = null,
         host: String = PrivilegeAdbStartOptions.DEFAULT_HOST,
         discoverPort: Boolean = true,
@@ -182,7 +182,7 @@ class PrivilegeAdbStarter private constructor(
         }
     }
 
-    fun readDiagnosticLog(
+    public fun readDiagnosticLog(
         host: String,
         port: Int,
         path: String,
@@ -224,7 +224,7 @@ class PrivilegeAdbStarter private constructor(
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun pair(
+    public fun pair(
         port: Int,
         pairingCode: String,
         host: String = PrivilegeAdbStartOptions.DEFAULT_HOST,
@@ -236,7 +236,7 @@ class PrivilegeAdbStarter private constructor(
     )
 
     @Throws(PrivilegeStartupException::class)
-    fun pair(
+    public fun pair(
         pairingCode: String,
         port: Int? = null,
         host: String = PrivilegeAdbStartOptions.DEFAULT_HOST,
@@ -277,7 +277,7 @@ class PrivilegeAdbStarter private constructor(
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun discoverPairingPort(timeoutMillis: Long = PrivilegeAdbStartOptions.DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS): Int {
+    public fun discoverPairingPort(timeoutMillis: Long = PrivilegeAdbStartOptions.DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS): Int {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             throw PrivilegeStartupException("Wireless ADB pairing requires Android 11 or above")
         }
@@ -290,7 +290,7 @@ class PrivilegeAdbStarter private constructor(
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun discoverConnectPort(timeoutMillis: Long = PrivilegeAdbStartOptions.DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS): Int {
+    public fun discoverConnectPort(timeoutMillis: Long = PrivilegeAdbStartOptions.DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS): Int {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             throw PrivilegeStartupException("Wireless ADB requires Android 11 or above")
         }
@@ -303,7 +303,7 @@ class PrivilegeAdbStarter private constructor(
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun switchToTcp(
+    public fun switchToTcp(
         currentPort: Int,
         tcpPort: Int = PrivilegeAdbStartOptions.DEFAULT_TCP_PORT,
         host: String = PrivilegeAdbStartOptions.DEFAULT_HOST,
@@ -339,7 +339,7 @@ class PrivilegeAdbStarter private constructor(
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun stopTcp(
+    public fun stopTcp(
         tcpPort: Int = PrivilegeAdbStartOptions.DEFAULT_TCP_PORT,
         host: String = PrivilegeAdbStartOptions.DEFAULT_HOST,
     ): PrivilegeAdbTcpResult {
@@ -418,10 +418,10 @@ class PrivilegeAdbStarter private constructor(
         }
     }
 
-    companion object {
-        const val DIAGNOSTIC_LOG_PREFIX = "/data/local/tmp/priv-kit-server-"
+    public companion object {
+        public const val DIAGNOSTIC_LOG_PREFIX: String = "/data/local/tmp/priv-kit-server-"
 
-        fun forOwnerToken(
+        public fun forOwnerToken(
             context: Context,
             ownerToken: String,
             adbDeviceName: String? = null,

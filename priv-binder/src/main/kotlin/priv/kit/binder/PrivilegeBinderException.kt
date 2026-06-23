@@ -2,23 +2,24 @@ package priv.kit.binder
 
 import android.os.RemoteException
 
-sealed class PrivilegeBinderException(
+public sealed class PrivilegeBinderException protected constructor(
     message: String,
     cause: Throwable? = null,
 ) : RuntimeException(message, cause)
 
-class PrivilegeServerDisconnectedException(
+public class PrivilegeServerDisconnectedException public constructor(
     message: String = "Privilege server Binder is disconnected",
     cause: Throwable? = null,
 ) : PrivilegeBinderException(message, cause)
 
-class PrivilegeBinderRemoteCallException(
+public class PrivilegeBinderRemoteCallException public constructor(
     message: String,
     cause: RemoteException,
 ) : PrivilegeBinderException(message, cause)
 
-class PrivilegeBinderEndpointDeadException(
+public class PrivilegeBinderEndpointDeadException public constructor(
     cause: Throwable? = null,
 ) : PrivilegeBinderException("Binder endpoint is dead", cause)
 
-class PrivilegeBinderEndpointNotFoundException : PrivilegeBinderException("Binder endpoint was not found")
+public class PrivilegeBinderEndpointNotFoundException public constructor() :
+    PrivilegeBinderException("Binder endpoint was not found")

@@ -2,17 +2,17 @@ package priv.kit.adb
 
 import priv.kit.core.PrivilegeServerLaunchCommand
 
-data class PrivilegeAdbCommand(
-    val commandLine: String,
-    val classpath: String,
-    val mainClass: String,
-    val providerAuthority: String,
-    val launchCommand: PrivilegeServerLaunchCommand,
-    val diagnosticLogPath: String? = null,
+public data class PrivilegeAdbCommand public constructor(
+    public val commandLine: String,
+    public val classpath: String,
+    public val mainClass: String,
+    public val providerAuthority: String,
+    public val launchCommand: PrivilegeServerLaunchCommand,
+    public val diagnosticLogPath: String? = null,
 )
 
-class PrivilegeAdbIdentity private constructor(
-    val deviceName: String,
+public class PrivilegeAdbIdentity private constructor(
+    public val deviceName: String,
     internal val storageSignature: String,
 ) {
     init {
@@ -37,9 +37,9 @@ class PrivilegeAdbIdentity private constructor(
     internal val adbDeviceName: String
         get() = deviceName.filterNot { it.isWhitespace() }
 
-    companion object {
-        const val DEFAULT_DEVICE_NAME = "priv-kit"
-        const val MAX_DEVICE_NAME_LENGTH = 128
+    public companion object {
+        public const val DEFAULT_DEVICE_NAME: String = "priv-kit"
+        public const val MAX_DEVICE_NAME_LENGTH: Int = 128
         internal const val DEFAULT_STORAGE_SIGNATURE = "default"
         private const val MAX_STORAGE_SIGNATURE_LENGTH = 128
 
@@ -60,20 +60,20 @@ class PrivilegeAdbIdentity private constructor(
     }
 }
 
-data class PrivilegeAdbIdentityInfo(
-    val identity: PrivilegeAdbIdentity,
-    val publicKeyFingerprint: String,
+public data class PrivilegeAdbIdentityInfo public constructor(
+    public val identity: PrivilegeAdbIdentity,
+    public val publicKeyFingerprint: String,
 )
 
-data class PrivilegeAdbStartOptions(
-    val host: String = DEFAULT_HOST,
-    val port: Int? = null,
-    val discoverPort: Boolean = true,
-    val tcpMode: Boolean = false,
-    val tcpPort: Int = DEFAULT_TCP_PORT,
-    val portDiscoveryTimeoutMillis: Long = DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
-    val connectRetryCount: Int = DEFAULT_CONNECT_RETRY_COUNT,
-    val connectRetryDelayMillis: Long = DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
+public data class PrivilegeAdbStartOptions public constructor(
+    public val host: String = DEFAULT_HOST,
+    public val port: Int? = null,
+    public val discoverPort: Boolean = true,
+    public val tcpMode: Boolean = false,
+    public val tcpPort: Int = DEFAULT_TCP_PORT,
+    public val portDiscoveryTimeoutMillis: Long = DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
+    public val connectRetryCount: Int = DEFAULT_CONNECT_RETRY_COUNT,
+    public val connectRetryDelayMillis: Long = DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
 ) {
     init {
         require(host.isNotBlank()) { "host must not be blank" }
@@ -84,47 +84,47 @@ data class PrivilegeAdbStartOptions(
         require(connectRetryDelayMillis >= 0L) { "connectRetryDelayMillis must not be negative" }
     }
 
-    companion object {
-        const val DEFAULT_HOST = "127.0.0.1"
-        const val DEFAULT_TCP_PORT = 5555
-        const val DEFAULT_CONNECT_RETRY_COUNT = 5
-        const val DEFAULT_CONNECT_RETRY_DELAY_MILLIS = 1_000L
-        const val DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS = 15_000L
+    public companion object {
+        public const val DEFAULT_HOST: String = "127.0.0.1"
+        public const val DEFAULT_TCP_PORT: Int = 5555
+        public const val DEFAULT_CONNECT_RETRY_COUNT: Int = 5
+        public const val DEFAULT_CONNECT_RETRY_DELAY_MILLIS: Long = 1_000L
+        public const val DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS: Long = 15_000L
     }
 }
 
-data class PrivilegeAdbStartResult(
-    val command: PrivilegeAdbCommand,
-    val host: String,
-    val port: Int,
-    val output: PrivilegeAdbOutput,
-    val identity: PrivilegeAdbIdentity,
-    val publicKeyFingerprint: String = "",
+public data class PrivilegeAdbStartResult public constructor(
+    public val command: PrivilegeAdbCommand,
+    public val host: String,
+    public val port: Int,
+    public val output: PrivilegeAdbOutput,
+    public val identity: PrivilegeAdbIdentity,
+    public val publicKeyFingerprint: String = "",
 )
 
-data class PrivilegeAdbPairingResult(
-    val host: String,
-    val port: Int,
-    val identity: PrivilegeAdbIdentity,
-    val publicKeyFingerprint: String = "",
+public data class PrivilegeAdbPairingResult public constructor(
+    public val host: String,
+    public val port: Int,
+    public val identity: PrivilegeAdbIdentity,
+    public val publicKeyFingerprint: String = "",
 )
 
-data class PrivilegeAdbPairingCheckResult(
-    val host: String,
-    val port: Int?,
-    val paired: Boolean,
-    val output: PrivilegeAdbOutput,
-    val identity: PrivilegeAdbIdentity,
-    val publicKeyFingerprint: String = "",
-    val failureMessage: String? = null,
+public data class PrivilegeAdbPairingCheckResult public constructor(
+    public val host: String,
+    public val port: Int?,
+    public val paired: Boolean,
+    public val output: PrivilegeAdbOutput,
+    public val identity: PrivilegeAdbIdentity,
+    public val publicKeyFingerprint: String = "",
+    public val failureMessage: String? = null,
 )
 
-data class PrivilegeAdbTcpResult(
-    val host: String,
-    val port: Int,
-    val output: PrivilegeAdbOutput,
-    val identity: PrivilegeAdbIdentity,
-    val publicKeyFingerprint: String = "",
+public data class PrivilegeAdbTcpResult public constructor(
+    public val host: String,
+    public val port: Int,
+    public val output: PrivilegeAdbOutput,
+    public val identity: PrivilegeAdbIdentity,
+    public val publicKeyFingerprint: String = "",
 )
 
 internal object PrivilegeAdbPortSelector {

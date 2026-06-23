@@ -3,37 +3,37 @@ package priv.kit.userservice
 import android.os.Bundle
 import android.os.IBinder
 
-object PrivilegeUserServiceContract {
-    const val METHOD_USER_SERVICE_READY = "privilege_user_service_ready"
-    const val METHOD_USER_SERVICE_CLAIM = "privilege_user_service_claim"
+public object PrivilegeUserServiceContract {
+    public const val METHOD_USER_SERVICE_READY: String = "privilege_user_service_ready"
+    public const val METHOD_USER_SERVICE_CLAIM: String = "privilege_user_service_claim"
 
-    const val EXTRA_TOKEN = "privilege_user_service_token"
-    const val EXTRA_PROCESS_BINDER = "privilege_user_service_process_binder"
-    const val EXTRA_PID = "privilege_user_service_pid"
+    public const val EXTRA_TOKEN: String = "privilege_user_service_token"
+    public const val EXTRA_PROCESS_BINDER: String = "privilege_user_service_process_binder"
+    public const val EXTRA_PID: String = "privilege_user_service_pid"
 
-    const val KEY_SERVICE_CLASS_NAME = "privilege_user_service_class_name"
-    const val KEY_TAG = "privilege_user_service_tag"
-    const val KEY_VERSION = "privilege_user_service_version"
-    const val KEY_PROCESS_MODE = "privilege_user_service_process_mode"
-    const val KEY_OWNER_DEATH_POLICY = "privilege_user_service_owner_death_policy"
-    const val KEY_DESTROY_TIMEOUT_MILLIS = "privilege_user_service_destroy_timeout_millis"
-    const val KEY_SUCCESS = "privilege_user_service_success"
-    const val KEY_ERROR_TYPE = "privilege_user_service_error_type"
-    const val KEY_ERROR_MESSAGE = "privilege_user_service_error_message"
-    const val KEY_CONNECTION_ID = "privilege_user_service_connection_id"
-    const val KEY_SERVICE_BINDER = "privilege_user_service_binder"
-    const val KEY_STATE = "privilege_user_service_state"
-    const val KEY_STARTED = "privilege_user_service_started"
-    const val KEY_BOUND_COUNT = "privilege_user_service_bound_count"
-    const val KEY_LAST_ERROR = "privilege_user_service_last_error"
+    public const val KEY_SERVICE_CLASS_NAME: String = "privilege_user_service_class_name"
+    public const val KEY_TAG: String = "privilege_user_service_tag"
+    public const val KEY_VERSION: String = "privilege_user_service_version"
+    public const val KEY_PROCESS_MODE: String = "privilege_user_service_process_mode"
+    public const val KEY_OWNER_DEATH_POLICY: String = "privilege_user_service_owner_death_policy"
+    public const val KEY_DESTROY_TIMEOUT_MILLIS: String = "privilege_user_service_destroy_timeout_millis"
+    public const val KEY_SUCCESS: String = "privilege_user_service_success"
+    public const val KEY_ERROR_TYPE: String = "privilege_user_service_error_type"
+    public const val KEY_ERROR_MESSAGE: String = "privilege_user_service_error_message"
+    public const val KEY_CONNECTION_ID: String = "privilege_user_service_connection_id"
+    public const val KEY_SERVICE_BINDER: String = "privilege_user_service_binder"
+    public const val KEY_STATE: String = "privilege_user_service_state"
+    public const val KEY_STARTED: String = "privilege_user_service_started"
+    public const val KEY_BOUND_COUNT: String = "privilege_user_service_bound_count"
+    public const val KEY_LAST_ERROR: String = "privilege_user_service_last_error"
 
-    const val ERROR_DECLARATION = "declaration"
-    const val ERROR_START = "start"
-    const val ERROR_BIND = "bind"
-    const val ERROR_NOT_RUNNING = "not_running"
-    const val ERROR_UNAVAILABLE = "unavailable"
+    public const val ERROR_DECLARATION: String = "declaration"
+    public const val ERROR_START: String = "start"
+    public const val ERROR_BIND: String = "bind"
+    public const val ERROR_NOT_RUNNING: String = "not_running"
+    public const val ERROR_UNAVAILABLE: String = "unavailable"
 
-    fun requestBundle(spec: PrivilegeUserServiceSpec): Bundle =
+    public fun requestBundle(spec: PrivilegeUserServiceSpec): Bundle =
         Bundle().apply {
             putString(KEY_SERVICE_CLASS_NAME, spec.serviceClassName)
             putString(KEY_TAG, spec.tag)
@@ -43,7 +43,7 @@ object PrivilegeUserServiceContract {
             putLong(KEY_DESTROY_TIMEOUT_MILLIS, spec.destroyTimeoutMillis)
         }
 
-    fun specFrom(bundle: Bundle): PrivilegeUserServiceSpec =
+    public fun specFrom(bundle: Bundle): PrivilegeUserServiceSpec =
         try {
             PrivilegeUserServiceSpec(
                 serviceClassName = requireString(bundle, KEY_SERVICE_CLASS_NAME),
@@ -70,12 +70,12 @@ object PrivilegeUserServiceContract {
             )
         }
 
-    fun successBundle(status: PrivilegeUserServiceStatus): Bundle =
+    public fun successBundle(status: PrivilegeUserServiceStatus): Bundle =
         statusBundle(status).apply {
             putBoolean(KEY_SUCCESS, true)
         }
 
-    fun bindSuccessBundle(
+    public fun bindSuccessBundle(
         connectionId: String,
         binder: IBinder,
         status: PrivilegeUserServiceStatus,
@@ -85,7 +85,7 @@ object PrivilegeUserServiceContract {
             putBinder(KEY_SERVICE_BINDER, binder)
         }
 
-    fun errorBundle(
+    public fun errorBundle(
         type: String,
         message: String,
     ): Bundle =
@@ -95,7 +95,7 @@ object PrivilegeUserServiceContract {
             putString(KEY_ERROR_MESSAGE, message)
         }
 
-    fun statusFrom(bundle: Bundle): PrivilegeUserServiceStatus =
+    public fun statusFrom(bundle: Bundle): PrivilegeUserServiceStatus =
         PrivilegeUserServiceStatus(
             id = PrivilegeUserServiceId(
                 serviceClassName = requireString(bundle, KEY_SERVICE_CLASS_NAME),

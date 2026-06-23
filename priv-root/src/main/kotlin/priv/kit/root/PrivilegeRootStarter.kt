@@ -5,8 +5,8 @@ import java.io.InputStream
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
-class PrivilegeRootStarter {
-    fun isRootAvailable(): Boolean {
+public class PrivilegeRootStarter public constructor() {
+    public fun isRootAvailable(): Boolean {
         val process = try {
             ProcessBuilder("su", "-c", "id")
                 .redirectErrorStream(true)
@@ -26,7 +26,7 @@ class PrivilegeRootStarter {
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun start(command: PrivilegeRootCommand): PrivilegeRootStartResult {
+    public fun start(command: PrivilegeRootCommand): PrivilegeRootStartResult {
         if (!isRootAvailable()) {
             throw PrivilegeStartupException("Root is not available")
         }

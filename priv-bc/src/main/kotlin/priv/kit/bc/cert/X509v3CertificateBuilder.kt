@@ -11,7 +11,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.SimpleTimeZone
 
-class X509v3CertificateBuilder(
+public class X509v3CertificateBuilder public constructor(
     private val issuer: X500Name,
     private val serial: BigInteger,
     private val notBefore: Date,
@@ -20,7 +20,7 @@ class X509v3CertificateBuilder(
     private val subject: X500Name,
     private val publicKeyInfo: SubjectPublicKeyInfo,
 ) {
-    constructor(
+    public constructor(
         issuer: X500Name,
         serial: BigInteger,
         notBefore: Date,
@@ -29,7 +29,7 @@ class X509v3CertificateBuilder(
         publicKeyInfo: SubjectPublicKeyInfo,
     ) : this(issuer, serial, notBefore, notAfter, Locale.ROOT, subject, publicKeyInfo)
 
-    fun build(signer: ContentSigner): X509CertificateHolder {
+    public fun build(signer: ContentSigner): X509CertificateHolder {
         val signatureAlgorithm = signer.getAlgorithmIdentifier()
         val tbsCertificate = buildTbsCertificate(signatureAlgorithm)
         signer.getOutputStream().use { stream ->

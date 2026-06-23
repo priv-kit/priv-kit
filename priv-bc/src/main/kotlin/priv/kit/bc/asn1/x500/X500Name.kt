@@ -2,7 +2,7 @@ package priv.kit.bc.asn1.x500
 
 import priv.kit.bc.internal.DerEncoding
 
-class X500Name(dirName: String) {
+public class X500Name public constructor(dirName: String) {
     internal val encoded: ByteArray = encode(dirName)
 
     private companion object {

@@ -7,7 +7,7 @@ import android.os.Parcel
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
 
-class PrivilegeUserServiceGateBinder(
+internal class PrivilegeUserServiceGateBinder(
     private val target: IBinder,
 ) : Binder(),
     Closeable {

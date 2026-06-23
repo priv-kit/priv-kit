@@ -1,8 +1,8 @@
 package priv.kit.bc.cert
 
-class X509CertificateHolder internal constructor(encoded: ByteArray) {
+public class X509CertificateHolder internal constructor(encoded: ByteArray) {
     private val derEncoded: ByteArray = encoded.copyOf()
 
-    val encoded: ByteArray
+    public val encoded: ByteArray
         get() = derEncoded.copyOf()
 }

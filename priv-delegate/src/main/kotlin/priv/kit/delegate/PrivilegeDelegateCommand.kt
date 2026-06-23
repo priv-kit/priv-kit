@@ -2,11 +2,11 @@ package priv.kit.delegate
 
 import priv.kit.core.PrivilegeServerLaunchCommand
 
-data class PrivilegeDelegateCommand(
-    val foregroundCommandLine: String,
-    val detachedCommandLine: String,
-    val classpath: String,
-    val mainClass: String,
-    val providerAuthority: String,
-    val launchCommand: PrivilegeServerLaunchCommand,
+public data class PrivilegeDelegateCommand public constructor(
+    public val foregroundCommandLine: String,
+    public val detachedCommandLine: String,
+    public val classpath: String,
+    public val mainClass: String,
+    public val providerAuthority: String,
+    public val launchCommand: PrivilegeServerLaunchCommand,
 )

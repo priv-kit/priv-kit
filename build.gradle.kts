@@ -3,6 +3,7 @@ import com.android.build.api.dsl.LibraryExtension
 import com.android.build.gradle.AppPlugin
 import com.android.build.gradle.LibraryPlugin
 import org.gradle.api.plugins.JavaPluginExtension
+import org.jetbrains.kotlin.gradle.dsl.KotlinBaseExtension
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
@@ -30,6 +31,15 @@ allprojects {
 }
 
 subprojects {
+    fun configureExplicitApi() {
+        if (name.endsWith("-sample")) {
+            return
+        }
+        extensions.configure(KotlinBaseExtension::class.java) {
+            explicitApi()
+        }
+    }
+
     tasks.withType<KotlinJvmCompile>().configureEach {
         compilerOptions {
             jvmTarget.set(Cfg.kotlinJvmTarget)
@@ -37,6 +47,8 @@ subprojects {
     }
 
     plugins.withId("org.jetbrains.kotlin.jvm") {
+        configureExplicitApi()
+
         extensions.getByType(JavaPluginExtension::class.java).apply {
             sourceCompatibility = Cfg.javaTargetVersion
             targetCompatibility = Cfg.javaTargetVersion
@@ -44,6 +56,8 @@ subprojects {
     }
 
     plugins.withType<AppPlugin> {
+        configureExplicitApi()
+
         extensions.getByType(ApplicationExtension::class.java).apply {
             compileSdk = Cfg.compileSdk
             buildToolsVersion = Cfg.buildToolsVersion
@@ -68,6 +82,8 @@ subprojects {
     }
 
     plugins.withType<LibraryPlugin> {
+        configureExplicitApi()
+
         extensions.getByType(LibraryExtension::class.java).apply {
             compileSdk = Cfg.compileSdk
             buildToolsVersion = Cfg.buildToolsVersion

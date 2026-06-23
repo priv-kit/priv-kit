@@ -1,6 +1,6 @@
 package priv.kit.core
 
-enum class PrivilegeLaunchMode(val value: Int) {
+public enum class PrivilegeLaunchMode(public val value: Int) {
     ROOT(1),
     SHELL(2),
 }

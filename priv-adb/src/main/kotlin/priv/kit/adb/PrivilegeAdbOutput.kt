@@ -2,7 +2,7 @@ package priv.kit.adb
 
 import java.util.Collections
 
-class PrivilegeAdbOutput internal constructor() {
+public class PrivilegeAdbOutput internal constructor() {
     private val lines = Collections.synchronizedList(mutableListOf<String>())
 
     internal fun append(source: String, text: String) {
@@ -11,9 +11,9 @@ class PrivilegeAdbOutput internal constructor() {
         }
     }
 
-    fun text(): String = lines.joinToString("\n").ifBlank { "<no output>" }
+    public fun text(): String = lines.joinToString("\n").ifBlank { "<no output>" }
 
-    companion object {
+    private companion object {
         private const val MAX_CAPTURED_LINES = 200
     }
 }

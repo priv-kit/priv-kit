@@ -4,8 +4,8 @@ import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.RemoteException
 
-class PrivilegeBinderClient {
-    fun register(binder: IBinder): PrivilegeBinderRegistration {
+public class PrivilegeBinderClient public constructor() {
+    public fun register(binder: IBinder): PrivilegeBinderRegistration {
         if (!binder.pingBinder()) {
             throw PrivilegeBinderEndpointDeadException()
         }
@@ -18,20 +18,20 @@ class PrivilegeBinderClient {
         }
     }
 
-    fun register(endpoint: PrivilegeBinderEndpoint): PrivilegeBinderRegistration =
+    public fun register(endpoint: PrivilegeBinderEndpoint): PrivilegeBinderRegistration =
         register(endpoint.asBinder())
 
-    fun get(): PrivilegeBinderEndpoint? {
+    public fun get(): PrivilegeBinderEndpoint? {
         val binder = callServer("get Binder endpoint") {
             it.getBinderEndpoint()
         } ?: return null
         return PrivilegeBinderEndpoint(binder)
     }
 
-    fun require(): PrivilegeBinderEndpoint =
+    public fun require(): PrivilegeBinderEndpoint =
         get() ?: throw PrivilegeBinderEndpointNotFoundException()
 
-    fun unregister(): Boolean =
+    public fun unregister(): Boolean =
         callServer("unregister Binder endpoint") {
             it.unregisterBinderEndpoint()
         }

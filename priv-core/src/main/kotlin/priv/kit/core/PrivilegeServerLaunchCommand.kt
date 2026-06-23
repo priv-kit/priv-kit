@@ -1,18 +1,18 @@
 package priv.kit.core
 
-data class PrivilegeServerLaunchCommand(
-    val token: String,
-    val foregroundCommandLine: String,
-    val detachedCommandLine: String,
-    val classpath: String,
-    val classpathIdentity: String,
-    val mainClass: String,
-    val providerAuthority: String,
-    val packageName: String,
-    val launchMode: PrivilegeLaunchMode,
-    val protocolVersion: Int,
-    val serverVersion: String,
-    val followDeathDelayMillis: Long = PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
-    val activeReconnectOnOwnerDeath: Boolean = PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-    val userId: Int = 0,
+public data class PrivilegeServerLaunchCommand public constructor(
+    public val token: String,
+    public val foregroundCommandLine: String,
+    public val detachedCommandLine: String,
+    public val classpath: String,
+    public val classpathIdentity: String,
+    public val mainClass: String,
+    public val providerAuthority: String,
+    public val packageName: String,
+    public val launchMode: PrivilegeLaunchMode,
+    public val protocolVersion: Int,
+    public val serverVersion: String,
+    public val followDeathDelayMillis: Long = PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
+    public val activeReconnectOnOwnerDeath: Boolean = PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
+    public val userId: Int = 0,
 )

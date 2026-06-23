@@ -1,7 +1,7 @@
 package priv.kit.delegate
 
-data class PrivilegeDelegateStartResult(
-    val command: PrivilegeDelegateCommand,
-    val executorName: String,
-    val process: PrivilegeDelegateProcess,
+public data class PrivilegeDelegateStartResult public constructor(
+    public val command: PrivilegeDelegateCommand,
+    public val executorName: String,
+    public val process: PrivilegeDelegateProcess,
 )

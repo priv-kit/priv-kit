@@ -2,11 +2,11 @@ package priv.kit.delegate
 
 import priv.kit.core.PrivilegeStartupException
 
-class PrivilegeDelegateStarter(
+public class PrivilegeDelegateStarter public constructor(
     private val executor: PrivilegeDelegateExecutor,
 ) {
     @Throws(PrivilegeStartupException::class)
-    fun isAvailable(): Boolean =
+    public fun isAvailable(): Boolean =
         try {
             executor.isAvailable()
         } catch (throwable: Throwable) {
@@ -18,7 +18,7 @@ class PrivilegeDelegateStarter(
         }
 
     @Throws(PrivilegeStartupException::class)
-    fun start(command: PrivilegeDelegateCommand): PrivilegeDelegateStartResult {
+    public fun start(command: PrivilegeDelegateCommand): PrivilegeDelegateStartResult {
         val executorName = executor.safeName()
         if (!isAvailable()) {
             throw PrivilegeStartupException("Delegate executor is not available: $executorName")

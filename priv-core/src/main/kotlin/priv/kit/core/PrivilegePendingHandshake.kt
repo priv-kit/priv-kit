@@ -3,8 +3,8 @@ package priv.kit.core
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-class PrivilegePendingHandshake internal constructor(
-    val token: String,
+public class PrivilegePendingHandshake internal constructor(
+    public val token: String,
 ) {
     private val latch = CountDownLatch(1)
 
@@ -17,7 +17,7 @@ class PrivilegePendingHandshake internal constructor(
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun await(timeoutMillis: Long): PrivilegeServerHandshakeResult {
+    public fun await(timeoutMillis: Long): PrivilegeServerHandshakeResult {
         val completed = latch.await(timeoutMillis, TimeUnit.MILLISECONDS)
         if (!completed) {
             throw PrivilegeStartupException("Timed out waiting for Privileged Server Binder")

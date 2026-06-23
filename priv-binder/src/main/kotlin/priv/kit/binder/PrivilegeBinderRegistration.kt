@@ -3,7 +3,7 @@ package priv.kit.binder
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
 
-class PrivilegeBinderRegistration internal constructor(
+public class PrivilegeBinderRegistration internal constructor(
     private val unregister: () -> Unit,
 ) : Closeable {
     private val closed = AtomicBoolean(false)

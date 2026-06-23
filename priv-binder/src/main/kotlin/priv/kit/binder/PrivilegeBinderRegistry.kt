@@ -4,10 +4,10 @@ import android.os.IBinder
 import android.os.RemoteException
 import java.util.concurrent.atomic.AtomicReference
 
-class PrivilegeBinderRegistry {
+public class PrivilegeBinderRegistry public constructor() {
     private val endpoint = AtomicReference<Entry?>()
 
-    fun register(binder: IBinder) {
+    public fun register(binder: IBinder): Unit {
         if (!binder.pingBinder()) {
             throw PrivilegeBinderEndpointDeadException()
         }
@@ -22,7 +22,7 @@ class PrivilegeBinderRegistry {
         endpoint.getAndSet(entry)?.unlink()
     }
 
-    fun get(): PrivilegeBinderEndpoint? {
+    public fun get(): PrivilegeBinderEndpoint? {
         val entry = endpoint.get() ?: return null
         if (!entry.binder.pingBinder()) {
             if (endpoint.compareAndSet(entry, null)) {
@@ -33,16 +33,16 @@ class PrivilegeBinderRegistry {
         return PrivilegeBinderEndpoint(entry.binder)
     }
 
-    fun getBinder(): IBinder? =
+    public fun getBinder(): IBinder? =
         get()?.asBinder()
 
-    fun unregister(): Boolean {
+    public fun unregister(): Boolean {
         val entry = endpoint.getAndSet(null) ?: return false
         entry.unlink()
         return true
     }
 
-    fun clear() {
+    public fun clear(): Unit {
         endpoint.getAndSet(null)?.unlink()
     }
 

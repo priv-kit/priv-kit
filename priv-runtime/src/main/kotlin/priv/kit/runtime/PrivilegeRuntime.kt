@@ -39,10 +39,10 @@ import java.io.Closeable
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.atomic.AtomicBoolean
 
-object PrivilegeRuntime {
+public object PrivilegeRuntime {
     private const val DEFAULT_START_TIMEOUT_MILLIS = 15_000L
-    const val DEFAULT_FOLLOW_DEATH_DELAY_MILLIS = PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS
-    const val DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH =
+    public const val DEFAULT_FOLLOW_DEATH_DELAY_MILLIS: Long = PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS
+    public const val DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH: Boolean =
         PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH
     private const val STARTER_LIBRARY_NAME = "libprivkitstarter.so"
     private const val TAG = "PrivKitRuntime"
@@ -59,7 +59,7 @@ object PrivilegeRuntime {
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun startRoot(
+    public fun startRoot(
         timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
         followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
         activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
@@ -95,7 +95,7 @@ object PrivilegeRuntime {
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun createManualShellCommand(
+    public fun createManualShellCommand(
         followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
         activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
     ): PrivilegeManualShellCommand {
@@ -109,7 +109,7 @@ object PrivilegeRuntime {
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun prepareManualShell(
+    public fun prepareManualShell(
         followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
         activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
     ): PrivilegeManualShellConnection {
@@ -126,7 +126,7 @@ object PrivilegeRuntime {
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun createAdbStarter(
+    public fun createAdbStarter(
         adbDeviceName: String? = null,
     ): PrivilegeAdbStarter =
         buildAdbStarter(
@@ -135,15 +135,15 @@ object PrivilegeRuntime {
         )
 
     @Throws(PrivilegeStartupException::class)
-    fun configureOwnerDeathBehavior(
+    public fun configureOwnerDeathBehavior(
         followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
         activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-    ) {
+    ): Unit {
         recordOwnerDeathConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun connectReadyServer(
+    public fun connectReadyServer(
         followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
         activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
     ): PrivilegeServerInfo? {
@@ -154,7 +154,7 @@ object PrivilegeRuntime {
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun watchReadyServers(
+    public fun watchReadyServers(
         onReady: (PrivilegeServerInfo) -> Unit,
         onFailure: (Throwable) -> Unit = {},
         followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
@@ -172,7 +172,7 @@ object PrivilegeRuntime {
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun startAdb(
+    public fun startAdb(
         options: PrivilegeAdbStartOptions = PrivilegeAdbStartOptions(),
         timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
         adbDeviceName: String? = null,
@@ -224,7 +224,7 @@ object PrivilegeRuntime {
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun startDelegate(
+    public fun startDelegate(
         executor: PrivilegeDelegateExecutor,
         launchMode: PrivilegeLaunchMode = PrivilegeLaunchMode.SHELL,
         timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
@@ -264,13 +264,13 @@ object PrivilegeRuntime {
         }
     }
 
-    fun getServerInfo(): PrivilegeServerInfo =
+    public fun getServerInfo(): PrivilegeServerInfo =
         requireServerConnection().serverInfo
 
-    fun pingServer(): Boolean =
+    public fun pingServer(): Boolean =
         runCatching { requireServerBinder().pingBinder() }.getOrDefault(false)
 
-    fun addServerDisconnectedListener(listener: () -> Unit): Closeable {
+    public fun addServerDisconnectedListener(listener: () -> Unit): Closeable {
         disconnectedListeners += listener
         return Closeable {
             disconnectedListeners -= listener
@@ -278,7 +278,7 @@ object PrivilegeRuntime {
     }
 
     @Throws(RemoteException::class)
-    fun shutdownServer() {
+    public fun shutdownServer(): Unit {
         try {
             requireServerInterface().shutdown()
         } finally {
@@ -286,22 +286,22 @@ object PrivilegeRuntime {
         }
     }
 
-    fun registerBinderEndpoint(binder: IBinder): PrivilegeBinderRegistration =
+    public fun registerBinderEndpoint(binder: IBinder): PrivilegeBinderRegistration =
         binderClient.register(binder)
 
-    fun registerBinderEndpoint(endpoint: PrivilegeBinderEndpoint): PrivilegeBinderRegistration =
+    public fun registerBinderEndpoint(endpoint: PrivilegeBinderEndpoint): PrivilegeBinderRegistration =
         binderClient.register(endpoint)
 
-    fun getBinderEndpoint(): PrivilegeBinderEndpoint? =
+    public fun getBinderEndpoint(): PrivilegeBinderEndpoint? =
         binderClient.get()
 
-    fun requireBinderEndpoint(): PrivilegeBinderEndpoint =
+    public fun requireBinderEndpoint(): PrivilegeBinderEndpoint =
         binderClient.require()
 
-    fun unregisterBinderEndpoint(): Boolean =
+    public fun unregisterBinderEndpoint(): Boolean =
         binderClient.unregister()
 
-    fun createRemoteBinderWrapper(targetBinder: IBinder): PrivilegeRemoteBinderWrapper =
+    public fun createRemoteBinderWrapper(targetBinder: IBinder): PrivilegeRemoteBinderWrapper =
         PrivilegeRemoteBinderWrapper(targetBinder)
 
     /**
@@ -310,22 +310,22 @@ object PrivilegeRuntime {
      * This does not expose a typed Android system-service facade. The returned [IBinder] only
      * forwards Binder transactions through the currently connected Privileged Server.
      */
-    fun createRemoteSystemServiceBinder(serviceName: String): PrivilegeRemoteSystemServiceBinder =
+    public fun createRemoteSystemServiceBinder(serviceName: String): PrivilegeRemoteSystemServiceBinder =
         PrivilegeRemoteSystemServiceBinder(serviceName)
 
-    fun startUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
+    public fun startUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
         userServiceClient.start(spec)
 
-    fun bindUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceConnection =
+    public fun bindUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceConnection =
         userServiceClient.bind(spec)
 
-    fun stopUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
+    public fun stopUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
         userServiceClient.stop(spec)
 
-    fun getUserServiceStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
+    public fun getUserServiceStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
         userServiceClient.getStatus(spec)
 
-    fun watchUserServiceStatus(
+    public fun watchUserServiceStatus(
         spec: PrivilegeUserServiceSpec,
         intervalMillis: Long = DEFAULT_USER_SERVICE_STATUS_WATCH_INTERVAL_MILLIS,
         onStatus: (PrivilegeUserServiceStatus) -> Unit,

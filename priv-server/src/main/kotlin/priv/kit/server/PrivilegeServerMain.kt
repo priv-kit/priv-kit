@@ -9,7 +9,7 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
 
-object PrivilegeServerMain {
+public object PrivilegeServerMain {
     private val lock = Any()
     private var ownerBinder: IBinder? = null
     private var activeConfig: PrivilegeServerConfig? = null
@@ -51,7 +51,7 @@ object PrivilegeServerMain {
     }
 
     @JvmStatic
-    fun main(args: Array<String>) {
+    public fun main(args: Array<String>): Unit {
         try {
             Log.i(TAG, "Privileged Server main entered args=${args.toDiagnosticString()}")
             prepareMainLooper()

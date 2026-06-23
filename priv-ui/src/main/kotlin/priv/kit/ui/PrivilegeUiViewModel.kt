@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-open class PrivilegeUiViewModel : ViewModel() {
+public open class PrivilegeUiViewModel public constructor() : ViewModel() {
     private val store = PrivilegeUiViewModelStore().also { store ->
         addCloseable { store.close() }
     }
@@ -19,15 +19,15 @@ open class PrivilegeUiViewModel : ViewModel() {
     }
     private val delegateActions = PrivilegeUiDelegateActions(store, runtimeActions)
 
-    val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
-    open val tcpModeEnabled: MutableStateFlow<Boolean> = store.tcpModeEnabled
-    open val adbTcpPolicy: PrivilegeUiAdbTcpPolicy
+    public val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
+    public open val tcpModeEnabled: MutableStateFlow<Boolean> = store.tcpModeEnabled
+    public open val adbTcpPolicy: PrivilegeUiAdbTcpPolicy
         get() = store.config.adbTcpPolicy
 
-    open fun attach(
+    public open fun attach(
         context: Context,
         config: PrivilegeUiConfig = PrivilegeUiConfig(),
-    ) {
+    ): Unit {
         val appContext = context.applicationContext
         if (store.attached && store.applicationContext === appContext && store.config == config) return
         store.attached = true
@@ -46,37 +46,37 @@ open class PrivilegeUiViewModel : ViewModel() {
         refreshTcpModeEnabledIfSelected()
     }
 
-    open fun updatePairingCode(value: String) = adbActions.updatePairingCode(value)
+    public open fun updatePairingCode(value: String): Unit = adbActions.updatePairingCode(value)
 
-    open fun selectStartupMode(mode: PrivilegeUiStartupMode) {
+    public open fun selectStartupMode(mode: PrivilegeUiStartupMode): Unit {
         if (mode !in store.state.value.startupModes) return
         store.updateState { it.copy(selectedStartupMode = mode) }
         syncWirelessAdbStatusPolling()
         refreshTcpModeEnabledIfSelected()
     }
 
-    open fun startRoot() = runtimeActions.startRoot()
+    public open fun startRoot(): Unit = runtimeActions.startRoot()
 
-    open fun copyManualCommand(context: Context) = manualShellActions.copyCommand(context)
+    public open fun copyManualCommand(context: Context): Unit = manualShellActions.copyCommand(context)
 
-    open fun pairWirelessAdb() = adbActions.pairWirelessAdb()
+    public open fun pairWirelessAdb(): Unit = adbActions.pairWirelessAdb()
 
-    open fun startNotificationPairing(
+    public open fun startNotificationPairing(
         onNotificationPermissionRequired: () -> Unit = {},
-    ) = adbActions.startNotificationPairing(onNotificationPermissionRequired)
+    ): Unit = adbActions.startNotificationPairing(onNotificationPermissionRequired)
 
-    open fun handleNotificationPermissionResult(granted: Boolean) =
+    public open fun handleNotificationPermissionResult(granted: Boolean): Unit =
         adbActions.handleNotificationPermissionResult(granted)
 
-    open fun startWirelessAdb() = adbActions.startWirelessAdb()
+    public open fun startWirelessAdb(): Unit = adbActions.startWirelessAdb()
 
-    open fun startAdb() = adbActions.startAdb()
+    public open fun startAdb(): Unit = adbActions.startAdb()
 
-    open fun startWirelessAdbStatusPolling() = adbActions.startWirelessAdbStatusPolling()
+    public open fun startWirelessAdbStatusPolling(): Unit = adbActions.startWirelessAdbStatusPolling()
 
-    open fun refreshWirelessAdbStatus() = adbActions.refreshWirelessAdbStatus()
+    public open fun refreshWirelessAdbStatus(): Unit = adbActions.refreshWirelessAdbStatus()
 
-    open fun onHostResume() {
+    public open fun onHostResume(): Unit {
         syncWirelessAdbStatusPolling()
         if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB) {
             refreshWirelessAdbStatus()
@@ -84,18 +84,18 @@ open class PrivilegeUiViewModel : ViewModel() {
         refreshTcpModeEnabledIfSelected()
     }
 
-    open fun stopWirelessAdbStatusPolling() = adbActions.stopWirelessAdbStatusPolling()
+    public open fun stopWirelessAdbStatusPolling(): Unit = adbActions.stopWirelessAdbStatusPolling()
 
-    open fun enableTcpMode() = adbActions.enableTcpMode()
+    public open fun enableTcpMode(): Unit = adbActions.enableTcpMode()
 
-    open fun refreshTcpModeEnabled() = adbActions.refreshTcpModeEnabled()
+    public open fun refreshTcpModeEnabled(): Unit = adbActions.refreshTcpModeEnabled()
 
-    open fun startTcpAdb() = adbActions.startTcpAdb()
+    public open fun startTcpAdb(): Unit = adbActions.startTcpAdb()
 
-    open fun refreshDelegateStatus(providerId: String? = null) =
+    public open fun refreshDelegateStatus(providerId: String? = null): Unit =
         delegateActions.refreshDelegateStatus(providerId)
 
-    open fun authorizeOrStartDelegate(providerId: String) =
+    public open fun authorizeOrStartDelegate(providerId: String): Unit =
         delegateActions.authorizeOrStartDelegate(providerId)
 
     private fun syncWirelessAdbStatusPolling() {

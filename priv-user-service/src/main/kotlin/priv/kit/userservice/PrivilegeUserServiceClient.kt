@@ -6,12 +6,12 @@ import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.RemoteException
 
-class PrivilegeUserServiceClient(
+public class PrivilegeUserServiceClient public constructor(
     private val managerProvider: () -> IBinder?,
 ) {
     private val ownerBinder = Binder()
 
-    fun start(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus {
+    public fun start(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus {
         val response = callManager("start UserService") {
             it.startUserService(PrivilegeUserServiceContract.requestBundle(spec), ownerBinder)
         }
@@ -19,7 +19,7 @@ class PrivilegeUserServiceClient(
         return PrivilegeUserServiceContract.statusFrom(response)
     }
 
-    fun bind(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceConnection {
+    public fun bind(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceConnection {
         val response = callManager("bind UserService") {
             it.bindUserService(PrivilegeUserServiceContract.requestBundle(spec), ownerBinder)
         }
@@ -37,7 +37,7 @@ class PrivilegeUserServiceClient(
         )
     }
 
-    fun stop(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus {
+    public fun stop(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus {
         val response = callManager("stop UserService") {
             it.stopUserService(PrivilegeUserServiceContract.requestBundle(spec))
         }
@@ -45,7 +45,7 @@ class PrivilegeUserServiceClient(
         return PrivilegeUserServiceContract.statusFrom(response)
     }
 
-    fun getStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus {
+    public fun getStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus {
         val response = callManager("get UserService status") {
             it.getUserServiceStatus(PrivilegeUserServiceContract.requestBundle(spec))
         }

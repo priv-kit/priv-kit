@@ -17,7 +17,7 @@ import priv.kit.userservice.PrivilegeUserServiceContract
 import priv.kit.userservice.PrivilegeUserServiceHandshakeRegistry
 import java.util.concurrent.ConcurrentHashMap
 
-class PrivilegeHandshakeProvider : ContentProvider() {
+public class PrivilegeHandshakeProvider public constructor() : ContentProvider() {
     override fun onCreate(): Boolean {
         context?.let(PrivilegeRuntimeContext::install)
         return true
@@ -284,7 +284,7 @@ class PrivilegeHandshakeProvider : ContentProvider() {
             "Handshake request is missing $key"
         }
 
-    companion object {
+    private companion object {
         private const val TAG = "PrivKitRuntime"
         private const val ROOT_UID = 0
         private const val SYSTEM_UID = 1000

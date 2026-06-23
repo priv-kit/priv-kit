@@ -7,7 +7,7 @@ import android.os.Parcel
 import android.os.RemoteException
 import java.io.FileDescriptor
 
-class PrivilegeRemoteBinderWrapper(
+public class PrivilegeRemoteBinderWrapper public constructor(
     private val targetBinder: IBinder,
 ) : IBinder {
     override fun transact(
@@ -78,8 +78,8 @@ class PrivilegeRemoteBinderWrapper(
     internal fun requireServerBinder(): IBinder =
         PrivilegeBinderRuntime.requireServerBinder()
 
-    companion object {
-        const val DESCRIPTOR = "priv.kit.binder.IPrivilegeRemoteBinder"
-        const val TRANSACTION_TRANSACT_REMOTE = 0x00FF0001
+    public companion object {
+        public const val DESCRIPTOR: String = "priv.kit.binder.IPrivilegeRemoteBinder"
+        public const val TRANSACTION_TRANSACT_REMOTE: Int = 0x00FF0001
     }
 }

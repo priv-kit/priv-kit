@@ -1,6 +1,6 @@
 package priv.kit.userservice
 
-enum class PrivilegeUserServiceState(
+public enum class PrivilegeUserServiceState(
     internal val wireValue: Int,
 ) {
     STOPPED(0),
@@ -9,7 +9,7 @@ enum class PrivilegeUserServiceState(
     FAILED(3),
     ;
 
-    companion object {
+    internal companion object {
         internal fun fromWireValue(value: Int): PrivilegeUserServiceState =
             entries.firstOrNull { it.wireValue == value } ?: STOPPED
     }

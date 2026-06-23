@@ -4,15 +4,15 @@ import android.os.IBinder
 import android.os.RemoteException
 import java.io.Closeable
 
-class PrivilegeBinderEndpoint(
+public class PrivilegeBinderEndpoint public constructor(
     private val binder: IBinder,
 ) {
-    val isAlive: Boolean
+    public val isAlive: Boolean
         get() = binder.pingBinder()
 
-    fun asBinder(): IBinder = binder
+    public fun asBinder(): IBinder = binder
 
-    fun watchDeath(onDied: (PrivilegeBinderEndpoint) -> Unit): Closeable {
+    public fun watchDeath(onDied: (PrivilegeBinderEndpoint) -> Unit): Closeable {
         val deathRecipient = IBinder.DeathRecipient {
             onDied(this)
         }

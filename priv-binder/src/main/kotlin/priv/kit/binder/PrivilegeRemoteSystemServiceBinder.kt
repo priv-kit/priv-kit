@@ -14,7 +14,7 @@ import java.io.FileDescriptor
  * the current Privileged Server, which resolves the service name from its own SELinux domain and
  * forwards only the original Binder transaction.
  */
-class PrivilegeRemoteSystemServiceBinder(
+public class PrivilegeRemoteSystemServiceBinder public constructor(
     private val serviceName: String,
 ) : IBinder {
     init {
@@ -109,8 +109,8 @@ class PrivilegeRemoteSystemServiceBinder(
     internal fun requireServerBinder(): IBinder =
         PrivilegeBinderRuntime.requireServerBinder()
 
-    companion object {
-        const val DESCRIPTOR = "priv.kit.binder.IPrivilegeRemoteSystemServiceBinder"
-        const val TRANSACTION_TRANSACT_SYSTEM_SERVICE = 0x00FF0002
+    public companion object {
+        public const val DESCRIPTOR: String = "priv.kit.binder.IPrivilegeRemoteSystemServiceBinder"
+        public const val TRANSACTION_TRANSACT_SYSTEM_SERVICE: Int = 0x00FF0002
     }
 }

@@ -1,25 +1,25 @@
 package priv.kit.core
 
-object PrivilegeHandshakeContract {
-    const val METHOD_SERVER_START_TOKEN = "privilege_server_start_token"
-    const val METHOD_SERVER_READY = "privilege_server_ready"
+public object PrivilegeHandshakeContract {
+    public const val METHOD_SERVER_START_TOKEN: String = "privilege_server_start_token"
+    public const val METHOD_SERVER_READY: String = "privilege_server_ready"
 
-    const val EXTRA_TOKEN = "privilege_token"
-    const val EXTRA_SERVER_BINDER = "privilege_server_binder"
-    const val EXTRA_UID = "privilege_uid"
-    const val EXTRA_PID = "privilege_pid"
-    const val EXTRA_LAUNCH_MODE = "privilege_launch_mode"
-    const val EXTRA_PROTOCOL_VERSION = "privilege_protocol_version"
-    const val EXTRA_SERVER_VERSION = "privilege_server_version"
-    const val EXTRA_CLASSPATH_IDENTITY = "privilege_classpath_identity"
+    public const val EXTRA_TOKEN: String = "privilege_token"
+    public const val EXTRA_SERVER_BINDER: String = "privilege_server_binder"
+    public const val EXTRA_UID: String = "privilege_uid"
+    public const val EXTRA_PID: String = "privilege_pid"
+    public const val EXTRA_LAUNCH_MODE: String = "privilege_launch_mode"
+    public const val EXTRA_PROTOCOL_VERSION: String = "privilege_protocol_version"
+    public const val EXTRA_SERVER_VERSION: String = "privilege_server_version"
+    public const val EXTRA_CLASSPATH_IDENTITY: String = "privilege_classpath_identity"
 
-    const val RESULT_ACCEPTED = "privilege_accepted"
-    const val RESULT_TOKEN = "privilege_token"
-    const val RESULT_SHOULD_SHUTDOWN = "privilege_should_shutdown"
-    const val RESULT_RESTART_COMMAND_LINE = "privilege_restart_command_line"
-    const val RESULT_OWNER_BINDER = "privilege_owner_binder"
-    const val RESULT_FOLLOW_DEATH_DELAY_MILLIS = "privilege_follow_death_delay_millis"
-    const val RESULT_ACTIVE_RECONNECT_ON_OWNER_DEATH = "privilege_active_reconnect_on_owner_death"
+    public const val RESULT_ACCEPTED: String = "privilege_accepted"
+    public const val RESULT_TOKEN: String = "privilege_token"
+    public const val RESULT_SHOULD_SHUTDOWN: String = "privilege_should_shutdown"
+    public const val RESULT_RESTART_COMMAND_LINE: String = "privilege_restart_command_line"
+    public const val RESULT_OWNER_BINDER: String = "privilege_owner_binder"
+    public const val RESULT_FOLLOW_DEATH_DELAY_MILLIS: String = "privilege_follow_death_delay_millis"
+    public const val RESULT_ACTIVE_RECONNECT_ON_OWNER_DEATH: String = "privilege_active_reconnect_on_owner_death"
 
-    fun providerAuthority(packageName: String): String = "$packageName.privilege.handshake"
+    public fun providerAuthority(packageName: String): String = "$packageName.privilege.handshake"
 }

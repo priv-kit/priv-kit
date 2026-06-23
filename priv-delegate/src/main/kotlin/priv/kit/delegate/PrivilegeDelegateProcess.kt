@@ -1,20 +1,20 @@
 package priv.kit.delegate
 
-interface PrivilegeDelegateProcess {
-    val isAlive: Boolean
+public interface PrivilegeDelegateProcess {
+    public val isAlive: Boolean
 
-    fun destroy()
+    public fun destroy(): Unit
 
-    fun outputText(): String
+    public fun outputText(): String
 
-    companion object {
-        fun unmanaged(outputText: String = NO_OUTPUT): PrivilegeDelegateProcess =
+    public companion object {
+        public fun unmanaged(outputText: String = NO_OUTPUT): PrivilegeDelegateProcess =
             StaticPrivilegeDelegateProcess(
                 isAlive = true,
                 outputText = outputText,
             )
 
-        fun completed(outputText: String = NO_OUTPUT): PrivilegeDelegateProcess =
+        public fun completed(outputText: String = NO_OUTPUT): PrivilegeDelegateProcess =
             StaticPrivilegeDelegateProcess(
                 isAlive = false,
                 outputText = outputText,

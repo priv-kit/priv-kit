@@ -5,12 +5,12 @@ import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArraySet
 
-object PrivilegeServerHandshakeRegistry {
+public object PrivilegeServerHandshakeRegistry {
     private val pendingHandshakes = ConcurrentHashMap<String, PrivilegePendingHandshake>()
     private val readyHandshakes = ConcurrentHashMap<String, PrivilegeServerHandshakeResult>()
     private val readyListeners = ConcurrentHashMap<String, CopyOnWriteArraySet<(PrivilegeServerHandshakeResult) -> Unit>>()
 
-    fun prepare(token: String): PrivilegePendingHandshake {
+    public fun prepare(token: String): PrivilegePendingHandshake {
         require(token.isNotBlank()) { "token must not be blank" }
         val handshake = PrivilegePendingHandshake(token)
         val previous = pendingHandshakes.putIfAbsent(token, handshake)
@@ -19,7 +19,7 @@ object PrivilegeServerHandshakeRegistry {
         return handshake
     }
 
-    fun deliver(
+    public fun deliver(
         token: String?,
         serverBinder: IBinder?,
         serverInfo: PrivilegeServerInfo,
@@ -37,7 +37,7 @@ object PrivilegeServerHandshakeRegistry {
         return true
     }
 
-    fun deliverReady(
+    public fun deliverReady(
         token: String?,
         serverBinder: IBinder?,
         serverInfo: PrivilegeServerInfo,
@@ -65,12 +65,12 @@ object PrivilegeServerHandshakeRegistry {
         return true
     }
 
-    fun claimReady(token: String): PrivilegeServerHandshakeResult? {
+    public fun claimReady(token: String): PrivilegeServerHandshakeResult? {
         require(token.isNotBlank()) { "token must not be blank" }
         return readyHandshakes.remove(token)
     }
 
-    fun addReadyListener(
+    public fun addReadyListener(
         token: String,
         listener: (PrivilegeServerHandshakeResult) -> Unit,
     ): Closeable {
@@ -86,7 +86,7 @@ object PrivilegeServerHandshakeRegistry {
         }
     }
 
-    fun cancel(token: String) {
+    public fun cancel(token: String) {
         pendingHandshakes.remove(token)
     }
 }

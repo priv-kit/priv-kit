@@ -1,16 +1,16 @@
 package priv.kit.userservice
 
-data class PrivilegeUserServiceId(
-    val serviceClassName: String,
-    val tag: String = PrivilegeUserServiceSpec.DEFAULT_TAG,
+public data class PrivilegeUserServiceId public constructor(
+    public val serviceClassName: String,
+    public val tag: String = PrivilegeUserServiceSpec.DEFAULT_TAG,
 ) {
     init {
         require(serviceClassName.isNotBlank()) { "serviceClassName must not be blank" }
         require(tag.isNotBlank()) { "tag must not be blank" }
     }
 
-    companion object {
-        fun from(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceId =
+    public companion object {
+        public fun from(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceId =
             PrivilegeUserServiceId(
                 serviceClassName = spec.serviceClassName,
                 tag = spec.tag,

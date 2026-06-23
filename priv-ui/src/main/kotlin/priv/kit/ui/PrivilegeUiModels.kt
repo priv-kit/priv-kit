@@ -7,14 +7,14 @@ import priv.kit.core.PrivilegeStartupException
 import priv.kit.delegate.PrivilegeDelegateExecutor
 import priv.kit.runtime.PrivilegeRuntime
 
-enum class PrivilegeUiRuntimeStatus {
+public enum class PrivilegeUiRuntimeStatus {
     DISCONNECTED,
     STARTING,
     CONNECTED,
     FAILED,
 }
 
-enum class PrivilegeUiStartupMode {
+public enum class PrivilegeUiStartupMode {
     ROOT,
     MANUAL_SHELL,
     ADB,
@@ -25,13 +25,13 @@ enum class PrivilegeUiStartupMode {
     DELEGATE,
 }
 
-enum class PrivilegeUiAdbTcpPolicy {
+public enum class PrivilegeUiAdbTcpPolicy {
     DISABLED,
     PREFER_EXISTING,
     AUTO_ENABLE_AFTER_WIRELESS_PAIRED,
 }
 
-enum class PrivilegeUiAdbPairingStatus {
+public enum class PrivilegeUiAdbPairingStatus {
     NOT_PAIRED,
     CHECKING,
     SEARCHING,
@@ -41,28 +41,28 @@ enum class PrivilegeUiAdbPairingStatus {
     FAILED,
 }
 
-enum class PrivilegeUiWirelessAdbStatus {
+public enum class PrivilegeUiWirelessAdbStatus {
     UNKNOWN,
     CHECKING,
     ON,
     OFF,
 }
 
-data class PrivilegeUiConfig(
-    val startupModes: Set<PrivilegeUiStartupMode> = setOf(
+public data class PrivilegeUiConfig public constructor(
+    public val startupModes: Set<PrivilegeUiStartupMode> = setOf(
         PrivilegeUiStartupMode.ADB,
         PrivilegeUiStartupMode.MANUAL_SHELL,
         PrivilegeUiStartupMode.ROOT,
     ),
-    val delegateProviders: List<PrivilegeUiDelegateProvider> = emptyList(),
-    val adbDeviceName: String? = null,
-    val tcpPort: Int = PrivilegeAdbStartOptions.DEFAULT_TCP_PORT,
-    val adbTcpPolicy: PrivilegeUiAdbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
-    val wirelessStatusPollIntervalMillis: Long = DEFAULT_WIRELESS_STATUS_POLL_INTERVAL_MILLIS,
-    val wirelessStatusDiscoveryTimeoutMillis: Long = DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS,
-    val startTimeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
-    val followDeathDelayMillis: Long = PrivilegeRuntime.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
-    val activeReconnectOnOwnerDeath: Boolean = PrivilegeRuntime.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
+    public val delegateProviders: List<PrivilegeUiDelegateProvider> = emptyList(),
+    public val adbDeviceName: String? = null,
+    public val tcpPort: Int = PrivilegeAdbStartOptions.DEFAULT_TCP_PORT,
+    public val adbTcpPolicy: PrivilegeUiAdbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
+    public val wirelessStatusPollIntervalMillis: Long = DEFAULT_WIRELESS_STATUS_POLL_INTERVAL_MILLIS,
+    public val wirelessStatusDiscoveryTimeoutMillis: Long = DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS,
+    public val startTimeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
+    public val followDeathDelayMillis: Long = PrivilegeRuntime.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
+    public val activeReconnectOnOwnerDeath: Boolean = PrivilegeRuntime.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
 ) {
     init {
         require(startTimeoutMillis > 0L) { "startTimeoutMillis must be positive" }
@@ -79,69 +79,69 @@ data class PrivilegeUiConfig(
         }
     }
 
-    companion object {
-        const val DEFAULT_START_TIMEOUT_MILLIS = 15_000L
-        const val DEFAULT_WIRELESS_STATUS_POLL_INTERVAL_MILLIS = 3_000L
-        const val DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS = 1_500L
+    public companion object {
+        public const val DEFAULT_START_TIMEOUT_MILLIS: Long = 15_000L
+        public const val DEFAULT_WIRELESS_STATUS_POLL_INTERVAL_MILLIS: Long = 3_000L
+        public const val DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS: Long = 1_500L
     }
 }
 
-interface PrivilegeUiDelegateProvider {
-    val id: String
+public interface PrivilegeUiDelegateProvider {
+    public val id: String
 
-    val label: CharSequence
+    public val label: CharSequence
 
-    fun snapshot(context: Context): PrivilegeUiDelegateSnapshot =
+    public fun snapshot(context: Context): PrivilegeUiDelegateSnapshot =
         PrivilegeUiDelegateSnapshot()
 
-    fun requestAuthorization(context: Context): PrivilegeUiDelegateSnapshot =
+    public fun requestAuthorization(context: Context): PrivilegeUiDelegateSnapshot =
         snapshot(context)
 
     @Throws(PrivilegeStartupException::class)
-    fun createExecutor(context: Context): PrivilegeDelegateExecutor
+    public fun createExecutor(context: Context): PrivilegeDelegateExecutor
 }
 
-data class PrivilegeUiDelegateSnapshot(
-    val available: Boolean = false,
-    val authorized: Boolean = false,
-    val uid: Int? = null,
-    val version: Int? = null,
-    val message: CharSequence = "",
-    val exceptionText: String = "",
+public data class PrivilegeUiDelegateSnapshot public constructor(
+    public val available: Boolean = false,
+    public val authorized: Boolean = false,
+    public val uid: Int? = null,
+    public val version: Int? = null,
+    public val message: CharSequence = "",
+    public val exceptionText: String = "",
 ) {
-    val canStart: Boolean
+    public val canStart: Boolean
         get() = available && authorized
 }
 
-data class PrivilegeUiDelegateItemState(
-    val id: String,
-    val label: CharSequence,
-    val snapshot: PrivilegeUiDelegateSnapshot = PrivilegeUiDelegateSnapshot(),
-    val busy: Boolean = false,
+public data class PrivilegeUiDelegateItemState public constructor(
+    public val id: String,
+    public val label: CharSequence,
+    public val snapshot: PrivilegeUiDelegateSnapshot = PrivilegeUiDelegateSnapshot(),
+    public val busy: Boolean = false,
 )
 
-data class PrivilegeUiState(
-    val busy: Boolean = false,
-    val runtimeStatus: PrivilegeUiRuntimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
-    val serverInfo: PrivilegeServerInfo? = null,
-    val selectedStartupMode: PrivilegeUiStartupMode = PrivilegeUiStartupMode.ADB,
-    val startupModes: List<PrivilegeUiStartupMode> = listOf(
+public data class PrivilegeUiState public constructor(
+    public val busy: Boolean = false,
+    public val runtimeStatus: PrivilegeUiRuntimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+    public val serverInfo: PrivilegeServerInfo? = null,
+    public val selectedStartupMode: PrivilegeUiStartupMode = PrivilegeUiStartupMode.ADB,
+    public val startupModes: List<PrivilegeUiStartupMode> = listOf(
         PrivilegeUiStartupMode.ADB,
         PrivilegeUiStartupMode.MANUAL_SHELL,
         PrivilegeUiStartupMode.ROOT,
     ),
-    val message: String = "",
-    val manualShellCommandLine: String? = null,
-    val pairingCode: String = "",
-    val pairingStatus: PrivilegeUiAdbPairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
-    val pairingMessage: String = "",
-    val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
-    val wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
-    val wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
-    val wirelessStatusPollingActive: Boolean = false,
-    val notificationPairingRunning: Boolean = false,
-    val delegateItems: List<PrivilegeUiDelegateItemState> = emptyList(),
-    val connectionSerial: Long = 0L,
+    public val message: String = "",
+    public val manualShellCommandLine: String? = null,
+    public val pairingCode: String = "",
+    public val pairingStatus: PrivilegeUiAdbPairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
+    public val pairingMessage: String = "",
+    public val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+    public val wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+    public val wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+    public val wirelessStatusPollingActive: Boolean = false,
+    public val notificationPairingRunning: Boolean = false,
+    public val delegateItems: List<PrivilegeUiDelegateItemState> = emptyList(),
+    public val connectionSerial: Long = 0L,
 )
 
 internal fun String.toPrivilegeUiPairingCodeDigits(): String =

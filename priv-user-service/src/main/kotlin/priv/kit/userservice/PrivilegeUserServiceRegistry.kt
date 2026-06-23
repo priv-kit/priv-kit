@@ -6,7 +6,7 @@ import android.os.Process
 import android.os.RemoteException
 import java.util.UUID
 
-class PrivilegeUserServiceRegistry(
+public class PrivilegeUserServiceRegistry public constructor(
     private val host: PrivilegeUserServiceHost,
     private val dedicatedStartTimeoutMillis: Long = DEFAULT_DEDICATED_START_TIMEOUT_MILLIS,
 ) {
@@ -18,7 +18,7 @@ class PrivilegeUserServiceRegistry(
     private val records = mutableMapOf<PrivilegeUserServiceId, Record>()
     private val connections = mutableMapOf<String, Connection>()
 
-    fun start(
+    public fun start(
         spec: PrivilegeUserServiceSpec,
         client: IBinder,
     ): PrivilegeUserServiceStatus =
@@ -29,7 +29,7 @@ class PrivilegeUserServiceRegistry(
             record.status()
         }
 
-    fun bind(
+    public fun bind(
         spec: PrivilegeUserServiceSpec,
         client: IBinder,
     ): BindResult =
@@ -45,14 +45,14 @@ class PrivilegeUserServiceRegistry(
             )
         }
 
-    fun unbind(connectionId: String): PrivilegeUserServiceStatus =
+    public fun unbind(connectionId: String): PrivilegeUserServiceStatus =
         synchronized(lock) {
             unbindLocked(connectionId) ?: throw PrivilegeUserServiceNotRunningException(
                 "UserService connection was not found: $connectionId",
             )
         }
 
-    fun stop(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
+    public fun stop(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
         synchronized(lock) {
             val id = spec.id()
             val record = records[id] ?: return@synchronized stoppedStatus(spec)
@@ -65,12 +65,12 @@ class PrivilegeUserServiceRegistry(
             }
         }
 
-    fun getStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
+    public fun getStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
         synchronized(lock) {
             records[spec.id()]?.status() ?: stoppedStatus(spec)
         }
 
-    fun destroyOnOwnerDeath() {
+    public fun destroyOnOwnerDeath(): Unit {
         synchronized(lock) {
             records.entries
                 .filter { it.value.spec.ownerDeathPolicy == PrivilegeUserServiceOwnerDeathPolicy.DESTROY_ON_OWNER_DEATH }
@@ -81,7 +81,7 @@ class PrivilegeUserServiceRegistry(
         }
     }
 
-    fun destroyAll() {
+    public fun destroyAll(): Unit {
         synchronized(lock) {
             records.entries
                 .map { it.key to it.value }
@@ -272,10 +272,10 @@ class PrivilegeUserServiceRegistry(
             pid = 0,
         )
 
-    data class BindResult(
-        val connectionId: String,
-        val binder: IBinder,
-        val status: PrivilegeUserServiceStatus,
+    public data class BindResult public constructor(
+        public val connectionId: String,
+        public val binder: IBinder,
+        public val status: PrivilegeUserServiceStatus,
     )
 
     private abstract inner class Record(
@@ -520,8 +520,8 @@ class PrivilegeUserServiceRegistry(
         val deathRecipient: IBinder.DeathRecipient,
     )
 
-    companion object {
-        const val DEFAULT_DEDICATED_START_TIMEOUT_MILLIS = 15_000L
+    public companion object {
+        public const val DEFAULT_DEDICATED_START_TIMEOUT_MILLIS: Long = 15_000L
 
         internal fun binderFrom(
             instance: Any,

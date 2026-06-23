@@ -2,13 +2,13 @@ package priv.kit.delegate
 
 import priv.kit.core.PrivilegeStartupException
 
-interface PrivilegeDelegateExecutor {
-    val name: String
+public interface PrivilegeDelegateExecutor {
+    public val name: String
         get() = javaClass.name
 
     @Throws(PrivilegeStartupException::class)
-    fun isAvailable(): Boolean = true
+    public fun isAvailable(): Boolean = true
 
     @Throws(PrivilegeStartupException::class)
-    fun start(command: PrivilegeDelegateCommand): PrivilegeDelegateProcess
+    public fun start(command: PrivilegeDelegateCommand): PrivilegeDelegateProcess
 }

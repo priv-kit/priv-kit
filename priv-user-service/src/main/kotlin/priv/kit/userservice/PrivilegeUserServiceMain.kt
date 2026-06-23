@@ -7,9 +7,9 @@ import android.util.Log
 import java.io.File
 import kotlin.system.exitProcess
 
-object PrivilegeUserServiceMain {
+public object PrivilegeUserServiceMain {
     @JvmStatic
-    fun main(args: Array<String>) {
+    public fun main(args: Array<String>): Unit {
         try {
             prepareMainLooper()
             val config = Arguments.parse(args)

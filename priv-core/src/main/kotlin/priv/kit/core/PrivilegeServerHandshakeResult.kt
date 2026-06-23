@@ -2,8 +2,8 @@ package priv.kit.core
 
 import android.os.IBinder
 
-data class PrivilegeServerHandshakeResult(
-    val token: String,
-    val serverInfo: PrivilegeServerInfo,
-    val serverBinder: IBinder,
+public data class PrivilegeServerHandshakeResult public constructor(
+    public val token: String,
+    public val serverInfo: PrivilegeServerInfo,
+    public val serverBinder: IBinder,
 )

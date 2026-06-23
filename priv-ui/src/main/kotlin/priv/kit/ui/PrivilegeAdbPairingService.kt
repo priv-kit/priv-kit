@@ -21,7 +21,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.concurrent.atomic.AtomicInteger
 
-class PrivilegeAdbPairingService : Service() {
+public class PrivilegeAdbPairingService public constructor() : Service() {
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val searchGeneration = AtomicInteger()
@@ -421,19 +421,19 @@ class PrivilegeAdbPairingService : Service() {
     private fun Throwable.failureMessage(): String =
         message ?: javaClass.simpleName
 
-    companion object {
-        const val EXTRA_EVENT = "event"
-        const val EXTRA_MESSAGE = "message"
-        const val EXTRA_PAIRING_PORT = "pairing_port"
-        const val EXTRA_ADB_DEVICE_NAME = "adb_device_name"
-        const val EXTRA_ADB_KEY_FINGERPRINT = "adb_key_fingerprint"
+    public companion object {
+        public const val EXTRA_EVENT: String = "event"
+        public const val EXTRA_MESSAGE: String = "message"
+        public const val EXTRA_PAIRING_PORT: String = "pairing_port"
+        public const val EXTRA_ADB_DEVICE_NAME: String = "adb_device_name"
+        public const val EXTRA_ADB_KEY_FINGERPRINT: String = "adb_key_fingerprint"
 
-        const val EVENT_SEARCHING = "searching"
-        const val EVENT_FOUND = "found"
-        const val EVENT_PAIRING = "pairing"
-        const val EVENT_PAIRED = "paired"
-        const val EVENT_FAILED = "failed"
-        const val EVENT_STOPPED = "stopped"
+        public const val EVENT_SEARCHING: String = "searching"
+        public const val EVENT_FOUND: String = "found"
+        public const val EVENT_PAIRING: String = "pairing"
+        public const val EVENT_PAIRED: String = "paired"
+        public const val EVENT_FAILED: String = "failed"
+        public const val EVENT_STOPPED: String = "stopped"
 
         private const val ACTION_START = "priv.kit.ui.action.START_ADB_PAIRING_NOTIFICATION"
         private const val ACTION_REPLY = "priv.kit.ui.action.REPLY_ADB_PAIRING_NOTIFICATION"
@@ -452,12 +452,12 @@ class PrivilegeAdbPairingService : Service() {
         private const val PAIRING_DISCOVERY_RETRY_DELAY_MILLIS = 500L
 
         private val runningState = MutableStateFlow(false)
-        val running: StateFlow<Boolean> = runningState.asStateFlow()
+        public val running: StateFlow<Boolean> = runningState.asStateFlow()
 
-        fun actionPairingEvent(context: Context): String =
+        public fun actionPairingEvent(context: Context): String =
             context.packageName + ".priv.kit.ui.action.ADB_PAIRING_EVENT"
 
-        fun start(context: Context, adbDeviceName: String?) {
+        public fun start(context: Context, adbDeviceName: String?): Unit {
             val intent = Intent(context, PrivilegeAdbPairingService::class.java)
                 .setAction(ACTION_START)
                 .apply {
@@ -468,7 +468,7 @@ class PrivilegeAdbPairingService : Service() {
             context.startForegroundService(intent)
         }
 
-        fun stop(context: Context) {
+        public fun stop(context: Context): Unit {
             context.startService(
                 Intent(context, PrivilegeAdbPairingService::class.java)
                     .setAction(ACTION_STOP),

@@ -6,16 +6,16 @@ import android.os.RemoteException
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
 
-class PrivilegeUserServiceConnection internal constructor(
-    val id: String,
-    val spec: PrivilegeUserServiceSpec,
-    val binder: IBinder,
-    val status: PrivilegeUserServiceStatus,
+public class PrivilegeUserServiceConnection internal constructor(
+    public val id: String,
+    public val spec: PrivilegeUserServiceSpec,
+    public val binder: IBinder,
+    public val status: PrivilegeUserServiceStatus,
     private val unbind: (String) -> Unit,
 ) : Closeable {
     private val closed = AtomicBoolean(false)
 
-    fun <T> requireInterface(
+    public fun <T> requireInterface(
         operation: String = "resolve UserService interface",
         factory: (IBinder) -> T?,
     ): T =
@@ -23,7 +23,7 @@ class PrivilegeUserServiceConnection internal constructor(
             "$operation returned an invalid UserService Binder: ${spec.serviceClassName}",
         )
 
-    fun <T> call(
+    public fun <T> call(
         operation: String = "call UserService",
         block: (IBinder) -> T,
     ): T =

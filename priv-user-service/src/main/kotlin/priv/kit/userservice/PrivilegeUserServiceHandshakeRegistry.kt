@@ -3,10 +3,10 @@ package priv.kit.userservice
 import android.os.IBinder
 import java.util.concurrent.ConcurrentHashMap
 
-object PrivilegeUserServiceHandshakeRegistry {
+public object PrivilegeUserServiceHandshakeRegistry {
     private val readyProcesses = ConcurrentHashMap<String, ReadyProcess>()
 
-    fun deliverReady(
+    public fun deliverReady(
         token: String?,
         processBinder: IBinder?,
         pid: Int,
@@ -21,15 +21,15 @@ object PrivilegeUserServiceHandshakeRegistry {
         return true
     }
 
-    fun claimReady(token: String?): ReadyProcess? {
+    public fun claimReady(token: String?): ReadyProcess? {
         if (token.isNullOrBlank()) {
             return null
         }
         return readyProcesses.remove(token)
     }
 
-    data class ReadyProcess(
-        val processBinder: IBinder,
-        val pid: Int,
+    public data class ReadyProcess public constructor(
+        public val processBinder: IBinder,
+        public val pid: Int,
     )
 }

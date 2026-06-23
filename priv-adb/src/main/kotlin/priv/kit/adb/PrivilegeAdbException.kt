@@ -1,13 +1,15 @@
 package priv.kit.adb
 
-open class PrivilegeAdbException : Exception {
-    constructor(message: String, cause: Throwable? = null) : super(message, cause)
-    constructor(cause: Throwable) : super(cause)
+public open class PrivilegeAdbException : Exception {
+    public constructor(message: String, cause: Throwable? = null) : super(message, cause)
+    public constructor(cause: Throwable) : super(cause)
 }
 
-class PrivilegeAdbInvalidPairingCodeException : PrivilegeAdbException("Invalid ADB pairing code")
+public class PrivilegeAdbInvalidPairingCodeException public constructor() :
+    PrivilegeAdbException("Invalid ADB pairing code")
 
-class PrivilegeAdbKeyException(cause: Throwable) : PrivilegeAdbException("Failed to load ADB key", cause)
+public class PrivilegeAdbKeyException public constructor(cause: Throwable) :
+    PrivilegeAdbException("Failed to load ADB key", cause)
 
 internal fun privilegeAdbError(message: Any): Nothing =
     throw PrivilegeAdbException(message.toString())

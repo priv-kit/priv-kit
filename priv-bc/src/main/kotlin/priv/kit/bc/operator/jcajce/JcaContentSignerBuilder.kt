@@ -6,10 +6,10 @@ import java.io.OutputStream
 import java.security.PrivateKey
 import java.security.Signature
 
-class JcaContentSignerBuilder(
+public class JcaContentSignerBuilder public constructor(
     private val signatureAlgorithm: String,
 ) {
-    fun build(privateKey: PrivateKey): ContentSigner {
+    public fun build(privateKey: PrivateKey): ContentSigner {
         require(signatureAlgorithm.equals("SHA256withRSA", ignoreCase = true)) {
             "Only SHA256withRSA is supported"
         }

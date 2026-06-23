@@ -2,10 +2,10 @@ package priv.kit.root
 
 import priv.kit.core.PrivilegeServerLaunchCommand
 
-data class PrivilegeRootCommand(
-    val commandLine: String,
-    val classpath: String,
-    val mainClass: String,
-    val providerAuthority: String,
-    val launchCommand: PrivilegeServerLaunchCommand,
+public data class PrivilegeRootCommand public constructor(
+    public val commandLine: String,
+    public val classpath: String,
+    public val mainClass: String,
+    public val providerAuthority: String,
+    public val launchCommand: PrivilegeServerLaunchCommand,
 )

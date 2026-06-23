@@ -1,9 +1,9 @@
 package priv.kit.core
 
-data class PrivilegeServerInfo(
-    val uid: Int,
-    val pid: Int,
-    val launchMode: Int,
-    val protocolVersion: Int,
-    val serverVersion: String,
+public data class PrivilegeServerInfo public constructor(
+    public val uid: Int,
+    public val pid: Int,
+    public val launchMode: Int,
+    public val protocolVersion: Int,
+    public val serverVersion: String,
 )

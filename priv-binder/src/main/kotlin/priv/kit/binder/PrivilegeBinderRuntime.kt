@@ -2,19 +2,19 @@ package priv.kit.binder
 
 import android.os.IBinder
 
-object PrivilegeBinderRuntime {
+public object PrivilegeBinderRuntime {
     private val lock = Any()
     private var serverProvider: (() -> IPrivilegeServer)? = null
 
     @JvmSynthetic
-    fun installServerProvider(provider: () -> IPrivilegeServer) {
+    public fun installServerProvider(provider: () -> IPrivilegeServer): Unit {
         synchronized(lock) {
             serverProvider = provider
         }
     }
 
     @JvmSynthetic
-    fun clearServerProvider() {
+    public fun clearServerProvider(): Unit {
         synchronized(lock) {
             serverProvider = null
         }

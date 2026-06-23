@@ -25,7 +25,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import priv.kit.core.PrivilegeServerInfo
 
 @Composable
-fun PrivilegeScaffold(
+public fun PrivilegeScaffold(
     modifier: Modifier = Modifier,
     config: PrivilegeUiConfig = PrivilegeUiConfig(),
     viewModel: PrivilegeUiViewModel = viewModel(),
@@ -33,7 +33,7 @@ fun PrivilegeScaffold(
     onHelpClick: () -> Unit = {},
     onConnected: (PrivilegeServerInfo) -> Unit = {},
     onNotificationPermissionRequired: () -> Unit = {},
-) {
+): Unit {
     val context = LocalContext.current
     LaunchedEffect(viewModel, config, context) {
         viewModel.attach(context.applicationContext, config)
