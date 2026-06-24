@@ -44,6 +44,7 @@ public open class PrivilegeUiViewModel public constructor() : ViewModel() {
         runtimeActions.refreshRuntimeStatus()
         manualShellActions.loadCommand()
         externalStartActions.refreshExternalStartStatus()
+        adbActions.refreshAdbIdentityInfo()
         syncWirelessAdbStatusPolling()
         syncExternalStartStatusPolling()
         refreshTcpModeEnabledIfSelected()

@@ -121,7 +121,7 @@ internal class PrivilegeAdbKey(
     }
 
     val adbPublicKeyFingerprint: String by lazy(LazyThreadSafetyMode.NONE) {
-        adbPublicKeyPayload.sha256Fingerprint()
+        adbPublicKeyPayload.adbDialogFingerprint()
     }
 
     val sslContext: SSLContext by lazy(LazyThreadSafetyMode.NONE) {
@@ -300,7 +300,12 @@ private fun ByteArray.adbPublicKeyWithName(name: String): ByteArray {
     }
 }
 
-private fun ByteArray.sha256Fingerprint(): String =
-    MessageDigest.getInstance("SHA-256")
+internal fun ByteArray.adbDialogFingerprint(): String =
+    MessageDigest.getInstance("MD5")
         .digest(this)
-        .joinToString(":") { byte -> (byte.toInt() and 0xff).toString(16).padStart(2, '0') }
+        .joinToString(":") { byte ->
+            val value = byte.toInt() and 0xff
+            "${UPPER_HEX[value ushr 4]}${UPPER_HEX[value and 0x0f]}"
+        }
+
+private val UPPER_HEX = "0123456789ABCDEF".toCharArray()

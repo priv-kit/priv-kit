@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -36,7 +37,8 @@ internal fun AdbPanel(
     Panel {
         val paired = state.wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON
         val tcpAvailable = tcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED && tcpModeEnabled
-        val canStart = paired || tcpAvailable
+        val adbEndpointAvailable = state.wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.ON || tcpAvailable
+        val canStart = paired || adbEndpointAvailable
         Text(
             text = stringResource(R.string.priv_ui_adb_authorization_title),
             style = MaterialTheme.typography.titleMedium,
@@ -126,6 +128,7 @@ private fun AdbRealtimeStatusPanel(
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
             )
+            AdbFingerprintRow(fingerprint = state.adbKeyFingerprint)
             RealtimeStatusRow(
                 label = stringResource(R.string.priv_ui_wireless_status_debugging),
                 status = state.wirelessDebuggingStatus,
@@ -149,6 +152,27 @@ private fun AdbRealtimeStatusPanel(
                 StableAdbStatusRow(enabled = tcpModeEnabled)
             }
         }
+    }
+}
+
+@Composable
+private fun AdbFingerprintRow(fingerprint: String?) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.priv_ui_adb_key_fingerprint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            modifier = Modifier.fillMaxWidth(),
+            text = fingerprint ?: stringResource(R.string.priv_ui_adb_key_fingerprint_unavailable),
+            style = MaterialTheme.typography.labelMedium,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

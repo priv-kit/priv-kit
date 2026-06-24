@@ -99,6 +99,9 @@ public class PrivilegeAdbStarter private constructor(
         )
     }
 
+    public fun getActiveTcpPort(): Int? =
+        PrivilegeAdbEnvironment.getAdbTcpPort().takeIf { it > 0 }
+
     @Throws(PrivilegeStartupException::class)
     public fun checkPairing(
         port: Int? = null,

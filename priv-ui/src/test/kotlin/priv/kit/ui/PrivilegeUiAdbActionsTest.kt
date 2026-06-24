@@ -5,22 +5,35 @@ import org.junit.Test
 
 class PrivilegeUiAdbActionsTest {
     @Test
-    fun pairingCheckStatusIsUnknownWithoutConnectPort() {
+    fun passivePairingCheckStatusIsUnknownWithoutWirelessDebugging() {
         assertEquals(
             PrivilegeUiWirelessAdbStatus.UNKNOWN,
-            privilegeUiWirelessPairingCheckStatus(null),
+            privilegeUiPassivePairingCheckStatus(
+                wirelessDebuggingOn = false,
+                currentStatus = PrivilegeUiWirelessAdbStatus.ON,
+            ),
         )
     }
 
     @Test
-    fun pairingCheckStatusUsesCheckedResultWhenConnectPortExists() {
+    fun passivePairingCheckStatusPreservesExplicitPairingSuccess() {
         assertEquals(
             PrivilegeUiWirelessAdbStatus.ON,
-            privilegeUiWirelessPairingCheckStatus(true),
+            privilegeUiPassivePairingCheckStatus(
+                wirelessDebuggingOn = true,
+                currentStatus = PrivilegeUiWirelessAdbStatus.ON,
+            ),
         )
+    }
+
+    @Test
+    fun passivePairingCheckStatusDoesNotInventPairingFailure() {
         assertEquals(
-            PrivilegeUiWirelessAdbStatus.OFF,
-            privilegeUiWirelessPairingCheckStatus(false),
+            PrivilegeUiWirelessAdbStatus.UNKNOWN,
+            privilegeUiPassivePairingCheckStatus(
+                wirelessDebuggingOn = true,
+                currentStatus = PrivilegeUiWirelessAdbStatus.CHECKING,
+            ),
         )
     }
 }

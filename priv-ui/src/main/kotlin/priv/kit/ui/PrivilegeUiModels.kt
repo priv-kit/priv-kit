@@ -143,6 +143,7 @@ public data class PrivilegeUiState public constructor(
     public val wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val wirelessStatusPollingActive: Boolean = false,
+    public val adbKeyFingerprint: String? = null,
     public val notificationPairingRunning: Boolean = false,
     public val externalStartItems: List<PrivilegeUiExternalStartItemState> = emptyList(),
     public val connectionSerial: Long = 0L,

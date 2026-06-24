@@ -30,6 +30,8 @@
     <string name="priv_ui_adb_stable_ready">Ready</string>
     <string name="priv_ui_adb_stable_unavailable">Not ready</string>
     <string name="priv_ui_adb_prepare_stable_action">Prepare stable connection</string>
+    <string name="priv_ui_adb_key_fingerprint">RSA key fingerprint</string>
+    <string name="priv_ui_adb_key_fingerprint_unavailable">Not loaded</string>
     <string name="priv_ui_wireless_realtime_status_title">Wireless debugging status</string>
     <string name="priv_ui_wireless_status_debugging">Wireless debugging</string>
     <string name="priv_ui_wireless_status_pairing_service">Pairing service</string>

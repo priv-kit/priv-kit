@@ -40,7 +40,6 @@ internal fun MainActivity.initializePrivilegeSample() {
     watchServerDisconnected()
     refreshShizukuStatus(append = false)
     refreshAdbFingerprint()
-    checkWirelessAdbPairing(showBusy = false)
 }
 
 internal fun MainActivity.updatePairingCode(value: String) {
