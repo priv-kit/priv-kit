@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 4.1)
 
-project("privkitstarter")
+project("privkitruntime")
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -19,7 +19,7 @@ if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif ()
 
 add_executable(libprivkitstarter.so
-    privilege_adb_starter.cpp
+    privilege_runtime_starter.cpp
 )
 
 target_link_libraries(libprivkitstarter.so

@@ -20,7 +20,7 @@ Advanced entry points:
 - `PrivilegeHandshakeProvider`, the app-side Binder handoff endpoint protected by the persisted owner token. Manual token-hidden starter commands can resolve that token through the provider before the final Binder handoff.
 - Ready-server connection helpers, owner-death reconnect configuration, and raw Binder bridge types for custom diagnostics or low-level Binder validation.
 
-Runtime owns token generation, shared server launch command construction, Root `su` execution, pending handshakes, protocol validation, current server Binder installation, and Binder death handling. The ADB module only executes or transports the launch command.
+Runtime owns token generation, shared server launch command construction, the native starter executable, Root `su` execution, pending handshakes, protocol validation, current server Binder installation, and Binder death handling. The ADB module only executes or transports the launch command.
 
 `PrivilegeHandshakeProvider` initializes the runtime with the app `Context`, so callers use `PrivilegeRuntime` directly without passing `Context` into start, ADB, manual shell, or ready-server APIs.
 

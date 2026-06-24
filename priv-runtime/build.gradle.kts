@@ -4,6 +4,20 @@ plugins {
 
 android {
     namespace = "priv.kit.runtime"
+
+    defaultConfig {
+        externalNativeBuild {
+            cmake {
+                arguments += "-DANDROID_STL=none"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
+    }
 }
 
 dependencies {

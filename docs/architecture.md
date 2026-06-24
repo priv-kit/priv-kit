@@ -127,7 +127,7 @@ Privileged Server 是以特权运行的运行时端点。
 
 Root 和 ADB 策略把应用配置转换成服务端启动或连接尝试。Manual Shell 面向用户复制粘贴，External Start Command 面向 Shizuku、Dhizuku 或类似授权工具代执行；两者都只生成启动命令并复用同一条 Binder handoff。
 
-共享的 `app_process` 服务端启动命令由运行时根据核心启动值模型构造。Root 执行器留在运行时内部，只负责 `su` 执行通道和失败诊断；ADB 模块只负责 ADB 命令执行通道和失败诊断。运行时负责 token、pending handshake、全局 server-binder 安装、Manual Shell 命令、External Start Command 和 death handling。
+共享的 `app_process` 服务端启动命令由运行时根据核心启动值模型构造。供 shell/manual/ADB 通道复用的 native starter 可执行文件也由 `:priv-runtime` 打包。Root 执行器留在运行时内部，只负责 `su` 执行通道和失败诊断；ADB 模块只负责 ADB 命令执行通道和失败诊断。运行时负责 token、pending handshake、全局 server-binder 安装、Manual Shell 命令、External Start Command 和 death handling。
 
 启动入口、命令执行者和服务端实际运行身份是三个概念：Root、ADB、Manual Shell 或 External Start Command 描述命令从哪里触发；`PrivilegeLaunchMode` 只记录服务端命令按 root 入口还是 shell 入口启动；服务端最终运行身份以 `PrivilegeServerInfo.uid` 和 `pid` 为准。因此即使某些设备让服务端以 uid=1000 等系统身份运行，运行时也不会把它强行归类为 root 或 shell 权限等级。
 

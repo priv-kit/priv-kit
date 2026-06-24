@@ -32,7 +32,7 @@ public object PrivilegeRuntime {
     public const val DEFAULT_FOLLOW_DEATH_DELAY_MILLIS: Long = PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS
     public const val DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH: Boolean =
         PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH
-    private const val STARTER_LIBRARY_NAME = "libprivkitstarter.so"
+    private const val NATIVE_STARTER_LIBRARY_NAME = "libprivkitstarter.so"
     private const val TAG = "PrivKitRuntime"
     private const val DEFAULT_USER_SERVICE_STATUS_WATCH_INTERVAL_MILLIS = 1_000L
 
@@ -493,7 +493,7 @@ public object PrivilegeRuntime {
         )
         return PrivilegeManualShellCommand(
             token = token,
-            commandLine = buildShortAdbStarterCommand(),
+            commandLine = buildShortNativeStarterCommand(),
             classpath = launchCommand.classpath,
             mainClass = launchCommand.mainClass,
             providerAuthority = launchCommand.providerAuthority,
@@ -525,9 +525,9 @@ public object PrivilegeRuntime {
             System.currentTimeMillis() +
             ".log"
         return PrivilegeAdbCommand(
-            commandLine = buildAdbStarterCommand(
+            commandLine = buildNativeStarterCommand(
                 launchCommand = launchCommand,
-                starterPath = buildAdbStarterPath(),
+                starterPath = buildNativeStarterPath(),
                 diagnosticLogPath = diagnosticLogPath,
             ),
             classpath = launchCommand.classpath,
@@ -555,7 +555,7 @@ public object PrivilegeRuntime {
         )
     }
 
-    private fun buildAdbStarterCommand(
+    private fun buildNativeStarterCommand(
         launchCommand: PrivilegeServerLaunchCommand,
         starterPath: String,
         diagnosticLogPath: String,
@@ -597,13 +597,13 @@ public object PrivilegeRuntime {
             append(launchCommand.activeReconnectOnOwnerDeath)
         }
 
-    internal fun buildShortAdbStarterCommand(
-        starterPath: String = buildAdbStarterPath(),
+    internal fun buildShortNativeStarterCommand(
+        starterPath: String = buildNativeStarterPath(),
     ): String =
         PrivilegeServerLaunchCommandBuilder.shellArg(starterPath)
 
-    private fun buildAdbStarterPath(): String =
-        PrivilegeRuntimeContext.require().applicationInfo.nativeLibraryDir.trimEnd('/') + "/" + STARTER_LIBRARY_NAME
+    private fun buildNativeStarterPath(): String =
+        PrivilegeRuntimeContext.require().applicationInfo.nativeLibraryDir.trimEnd('/') + "/" + NATIVE_STARTER_LIBRARY_NAME
 
     private fun buildAdbStarter(
         ownerToken: String,

@@ -43,8 +43,8 @@ class PrivilegeRuntimeTest {
     }
 
     @Test
-    fun shortAdbStarterCommandUsesStarterPathOnly() {
-        val commandLine = PrivilegeRuntime.buildShortAdbStarterCommand(
+    fun shortNativeStarterCommandUsesStarterPathOnly() {
+        val commandLine = PrivilegeRuntime.buildShortNativeStarterCommand(
             starterPath = "/data/app/example/lib/arm64/libprivkitstarter.so",
         )
 

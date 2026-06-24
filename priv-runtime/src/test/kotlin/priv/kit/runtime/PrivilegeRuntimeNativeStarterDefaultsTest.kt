@@ -1,11 +1,11 @@
-package priv.kit.adb
+package priv.kit.runtime
 
 import java.io.File
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import priv.kit.core.PrivilegeProtocol
 
-class PrivilegeAdbStarterNativeDefaultsTest {
+class PrivilegeRuntimeNativeStarterDefaultsTest {
     @Test
     fun nativeStarterDefaultsMatchPrivilegeProtocol() {
         val source = nativeStarterSource().readText()
@@ -36,8 +36,8 @@ class PrivilegeAdbStarterNativeDefaultsTest {
 
     private fun nativeStarterSource(): File =
         listOf(
-            File("src/main/cpp/privilege_adb_starter.cpp"),
-            File("priv-adb/src/main/cpp/privilege_adb_starter.cpp"),
+            File("src/main/cpp/privilege_runtime_starter.cpp"),
+            File("priv-runtime/src/main/cpp/privilege_runtime_starter.cpp"),
         ).firstOrNull(File::isFile)
-            ?: error("Unable to find privilege_adb_starter.cpp")
+            ?: error("Unable to find privilege_runtime_starter.cpp")
 }

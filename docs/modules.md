@@ -123,6 +123,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - `PrivilegeRuntimeUserServiceClient`、`PrivilegeUserServiceConnection`；
 - Root 启动的 `su` 可用性检查、命令执行和启动诊断；
 - Manual Shell、External Start Command、owner token/config store、handshake provider；
+- 通用 native starter 可执行文件；
 - 通过 `runtimeOnly(:priv-server)` 携带服务端入口，让接入应用优先只依赖 `:priv-runtime`。
 
 允许：
@@ -131,6 +132,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 作为原语暴露 Binder 和 UserService 入口；
 - 创建显式系统服务名的 raw Binder transaction 桥；
 - 构造项目自有 Privileged Server 的 `app_process` 启动命令；
+- 打包供 shell/manual/ADB 通道复用的 native starter 可执行文件；
 - 通过 `su` 执行共享服务端启动命令；
 - root 启动诊断和 root 特有启动失败建模；
 - 为用户手动执行或外部授权工具代执行提供启动命令；
@@ -138,7 +140,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 禁止：
 
-- 直接实现 ADB pairing、socket 或 mDNS 机制；
+- 直接实现 ADB pairing、socket、mDNS 或 ADB 命令执行通道；
 - 公开 root 命令库、特权操作 helper、package/input/settings/app-ops/activity API；
 - 服务端侧 UserService registry/loader/manager 实现；
 - 高级 Android 操作 API；
@@ -214,7 +216,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 - ADB 启动配置；
 - Wireless Debugging pairing/connect；
-- 通过 ADB shell 执行共享服务端启动命令；
+- 通过 ADB shell 执行 `:priv-runtime` 生成的共享服务端启动命令；
 - ADB 启动诊断；
 - ADB 特有启动失败建模；
 - 使用 hidden-api 编译期 stub 调用 ADB pairing 所需的 framework hidden API；
@@ -227,6 +229,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 禁止：
 
 - 公开 ADB 命令库；
+- 持有或构建通用 native starter 可执行文件；
 - shell 便利 API；
 - 面向无关系统操作的 ADB helper。
 
