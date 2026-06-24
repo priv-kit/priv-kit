@@ -20,9 +20,6 @@ import priv.kit.core.PrivilegeServerHandshakeResult
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeServerLaunchCommand
 import priv.kit.core.PrivilegeStartupException
-import priv.kit.root.PrivilegeRootCommand
-import priv.kit.root.PrivilegeRootStartResult
-import priv.kit.root.PrivilegeRootStarter
 import priv.kit.userservice.PrivilegeUserServiceManagerUnavailableException
 import priv.kit.userservice.PrivilegeUserServiceSpec
 import priv.kit.userservice.PrivilegeUserServiceStatus
@@ -58,11 +55,11 @@ public object PrivilegeRuntime {
         val runtimeConfig = applyRuntimeConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
         val token = ownerTokenStore().readOrCreate()
         val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
-        var startResult: PrivilegeRootStartResult? = null
+        var rootProcess: PrivilegeRootProcess? = null
 
         try {
-            startResult = PrivilegeRootStarter().start(
-                buildRootCommand(
+            rootProcess = PrivilegeRootStarter.start(
+                buildRootCommandLine(
                     token = token,
                     config = runtimeConfig,
                 ),
@@ -70,7 +67,6 @@ public object PrivilegeRuntime {
             val handshakeResult = pendingHandshake.await(timeoutMillis)
             return connectHandshake(handshakeResult)
         } catch (e: PrivilegeStartupException) {
-            val rootProcess = startResult?.process
             if (rootProcess != null && !rootProcess.isAlive) {
                 throw PrivilegeStartupException(
                     "Privileged Server command exited before handshake: ${rootProcess.outputText()}",
@@ -504,21 +500,16 @@ public object PrivilegeRuntime {
         )
     }
 
-    private fun buildRootCommand(
+    private fun buildRootCommandLine(
         token: String,
         config: PrivilegeRuntimeConfig,
-    ): PrivilegeRootCommand {
+    ): String {
         val launchCommand = buildServerLaunchCommand(
             token = token,
             launchMode = PrivilegeLaunchMode.ROOT,
             config = config,
         )
-        return PrivilegeRootCommand(
-            commandLine = launchCommand.foregroundCommandLine,
-            classpath = launchCommand.classpath,
-            mainClass = launchCommand.mainClass,
-            providerAuthority = launchCommand.providerAuthority,
-        )
+        return launchCommand.foregroundCommandLine
     }
 
     private fun buildAdbCommand(

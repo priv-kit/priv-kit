@@ -49,7 +49,7 @@ PrivilegeRuntime.shutdownServer()
 Maven 坐标：
 
 - `groupId`：`io.github.priv-kit`
-- `artifactId`：`priv-core`、`priv-runtime`、`priv-server`、`priv-bc`、`priv-ssl`、`priv-adb`、`priv-root`、`priv-ui`
+- `artifactId`：`priv-core`、`priv-runtime`、`priv-server`、`priv-bc`、`priv-ssl`、`priv-adb`、`priv-ui`
 
 示例：
 
@@ -65,7 +65,6 @@ Gradle 模块必须使用 `priv-*` 命名：
 - `:priv-bc`
 - `:priv-ssl`
 - `:priv-adb`
-- `:priv-root`
 - `:priv-ui`
 - `:priv-sample`
 
@@ -83,7 +82,6 @@ Gradle 模块必须使用 `priv-*` 命名：
 - `priv.kit.bc`
 - `priv.kit.ssl`
 - `priv.kit.adb`
-- `priv.kit.root`
 - `priv.kit.ui`
 
 禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*` 作为源码 package。
@@ -135,7 +133,6 @@ Gradle 模块必须使用 `priv-*` 命名：
 - `:priv-bc`
 - `:priv-ssl`
 - `:priv-adb`
-- `:priv-root`
 - `:priv-ui`
 - `:priv-sample`
 

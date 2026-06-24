@@ -18,7 +18,6 @@ Binder 和 UserService 仍保留 `priv.kit.binder.*` / `priv.kit.userservice.*` 
 - `:priv-bc`
 - `:priv-ssl`
 - `:priv-adb`
-- `:priv-root`
 - `:priv-ui`
 - `:priv-sample`
 - `:hidden-api`
@@ -43,7 +42,6 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 | `:priv-bc` | `priv-bc` | `priv.kit.bc` |
 | `:priv-ssl` | `priv-ssl` | `priv.kit.ssl` |
 | `:priv-adb` | `priv-adb` | `priv.kit.adb` |
-| `:priv-root` | `priv-root` | `priv.kit.root` |
 | `:priv-ui` | `priv-ui` | `priv.kit.ui` |
 | `:priv-sample` | 不作为发布 artifact | `priv.kit.sample` |
 | `:hidden-api` | 不作为发布 artifact | framework mirror/stub package |
@@ -60,7 +58,6 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 :priv-runtime
     -> :priv-core
     -> :priv-adb
-    -> :priv-root
     -> runtimeOnly(:priv-server)
 
 :priv-server
@@ -72,9 +69,6 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
     -> :priv-bc
     -> :priv-ssl
     -> compileOnly(:hidden-api)
-
-:priv-root
-    -> :priv-core
 
 :priv-ui
     -> :priv-runtime
@@ -102,7 +96,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - `priv.kit.core.*` 运行时模型、启动模型、协议版本和 handshake registry；
 - `priv.kit.binder.*` AIDL、Binder endpoint 原语、共享异常、runtime/server 共享 registry、raw Binder wrapper；
 - `priv.kit.userservice.*` AIDL、UserService spec/status/state/id、共享异常、wire contract、handshake registry；
-- 运行时、服务端、示例和启动模块都需要理解的底层契约。
+- 运行时、服务端、示例和启动实现都需要理解的底层契约。
 
 允许：
 
@@ -130,6 +124,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - `PrivilegeRuntime` 公开入口；
 - 运行时状态、启动策略选择、服务端连接和重连；
 - `PrivilegeRuntimeUserServiceClient`、`PrivilegeUserServiceConnection`；
+- Root 启动的 `su` 可用性检查、命令执行和启动诊断；
 - Manual Shell、External Start Command、owner token/config store、handshake provider；
 - 通过 `runtimeOnly(:priv-server)` 携带服务端入口，让接入应用优先只依赖 `:priv-runtime`。
 
@@ -139,12 +134,15 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 作为原语暴露 Binder 和 UserService 入口；
 - 创建显式系统服务名的 raw Binder transaction 桥；
 - 构造项目自有 Privileged Server 的 `app_process` 启动命令；
+- 通过 `su` 执行共享服务端启动命令；
+- root 启动诊断和 root 特有启动失败建模；
 - 为用户手动执行或外部授权工具代执行提供启动命令；
 - token、pending handshake、当前全局 server-binder 安装和 Binder death handling。
 
 禁止：
 
-- 直接实现 Root 或 ADB 机制；
+- 直接实现 ADB pairing、socket 或 mDNS 机制；
+- 公开 root 命令库、特权操作 helper、package/input/settings/app-ops/activity API；
 - 服务端侧 UserService registry/loader/manager 实现；
 - 高级 Android 操作 API；
 - 类型化 Android 系统服务 API；
@@ -250,22 +248,6 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 项目内部 ADB Wireless Debugging pairing 所需的最小 BoringSSL 兼容能力。
 
 禁止通用 SSL/TLS 协议栈、通用密码学工具箱、证书/ASN.1/PKI 能力，以及 ADB socket、mDNS 或启动命令执行逻辑。
-
-## `:priv-root`
-
-职责：
-
-- 基于 Root 的服务端启动。
-
-允许：
-
-- 启动所需的 root 可用性检查；
-- 通过 `su` 执行共享服务端启动命令；
-- root 启动诊断；
-- root 特有启动失败建模；
-- 转换为共享启动结果。
-
-禁止公开 root 命令库、特权操作 helper、package/input/settings/app-ops/activity API。
 
 ## `:priv-ui`
 

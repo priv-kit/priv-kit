@@ -1,12 +1,13 @@
-package priv.kit.root
+package priv.kit.runtime
 
 import priv.kit.core.PrivilegeStartupException
 import java.io.InputStream
+import java.util.Collections
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
-public class PrivilegeRootStarter public constructor() {
-    public fun isRootAvailable(): Boolean {
+internal object PrivilegeRootStarter {
+    internal fun isRootAvailable(): Boolean {
         val process = try {
             ProcessBuilder("su", "-c", "id")
                 .redirectErrorStream(true)
@@ -26,17 +27,14 @@ public class PrivilegeRootStarter public constructor() {
     }
 
     @Throws(PrivilegeStartupException::class)
-    public fun start(command: PrivilegeRootCommand): PrivilegeRootStartResult {
+    internal fun start(commandLine: String): PrivilegeRootProcess {
         if (!isRootAvailable()) {
             throw PrivilegeStartupException("Root is not available")
         }
 
         val output = PrivilegeRootProcess.Output()
-        val process = startSuProcess(command.commandLine, output)
-        return PrivilegeRootStartResult(
-            command = command,
-            process = PrivilegeRootProcess(process, output),
-        )
+        val process = startSuProcess(commandLine, output)
+        return PrivilegeRootProcess(process, output)
     }
 
     @Throws(PrivilegeStartupException::class)
@@ -64,5 +62,35 @@ public class PrivilegeRootStarter public constructor() {
                 lines.forEach { output.append(source, it) }
             }
         }
+    }
+}
+
+internal class PrivilegeRootProcess internal constructor(
+    private val process: Process,
+    private val output: Output,
+) {
+    internal val isAlive: Boolean
+        get() = process.isAlive
+
+    internal fun destroy() {
+        process.destroy()
+    }
+
+    internal fun outputText(): String = output.text()
+
+    internal class Output {
+        private val lines = Collections.synchronizedList(mutableListOf<String>())
+
+        internal fun append(source: String, line: String) {
+            if (lines.size < MAX_CAPTURED_LINES) {
+                lines += "[$source] $line"
+            }
+        }
+
+        internal fun text(): String = lines.joinToString("\n").ifBlank { "<no output>" }
+    }
+
+    private companion object {
+        private const val MAX_CAPTURED_LINES = 40
     }
 }

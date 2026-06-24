@@ -23,7 +23,6 @@ include(
     ":priv-bc",
     ":priv-ssl",
     ":priv-adb",
-    ":priv-root",
     ":priv-ui",
     ":priv-sample",
     ":hidden-api",
