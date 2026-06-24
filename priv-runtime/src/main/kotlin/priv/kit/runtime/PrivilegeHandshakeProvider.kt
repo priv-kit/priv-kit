@@ -60,7 +60,11 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
             serverInfo != null &&
             !matchesCurrentRuntime
         ) {
-            buildRestartCommandLine(token, serverInfo)
+            buildRestartCommandLine(
+                token = token,
+                serverInfo = serverInfo,
+                config = extras.toRuntimeConfig(),
+            )
         } else {
             null
         }
@@ -96,15 +100,6 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
                 putBinder(
                     PrivilegeHandshakeContract.RESULT_OWNER_BINDER,
                     ownerBinders.getOrPut(token) { Binder() },
-                )
-                val ownerDeathConfig = ownerDeathConfig()
-                putLong(
-                    PrivilegeHandshakeContract.RESULT_FOLLOW_DEATH_DELAY_MILLIS,
-                    ownerDeathConfig.followDeathDelayMillis,
-                )
-                putBoolean(
-                    PrivilegeHandshakeContract.RESULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-                    ownerDeathConfig.activeReconnectOnOwnerDeath,
                 )
             }
         }
@@ -209,14 +204,6 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
             null
         }
 
-    private fun ownerDeathConfig(): PrivilegeOwnerDeathConfig =
-        runCatching {
-            context?.let { PrivilegeOwnerDeathConfigStore(it).read() }
-        }.getOrElse { throwable ->
-            Log.e(TAG, "Failed to read owner death config for handshake response", throwable)
-            null
-        } ?: PrivilegeOwnerDeathConfig()
-
     private fun PrivilegeServerInfo.matchesCurrentRuntime(extras: Bundle): Boolean =
         protocolVersion == PrivilegeProtocol.VERSION &&
             serverVersion == PrivilegeProtocol.SERVER_VERSION &&
@@ -246,17 +233,28 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
     private fun buildRestartCommandLine(
         token: String,
         serverInfo: PrivilegeServerInfo,
+        config: PrivilegeRuntimeConfig,
     ): String? {
         val context = context ?: return null
-        val ownerDeathConfig = ownerDeathConfig()
         return PrivilegeServerLaunchCommandBuilder.build(
             context = context,
             token = token,
             launchMode = serverInfo.toPrivilegeLaunchMode(),
-            followDeathDelayMillis = ownerDeathConfig.followDeathDelayMillis,
-            activeReconnectOnOwnerDeath = ownerDeathConfig.activeReconnectOnOwnerDeath,
+            config = config,
         ).detachedCommandLine
     }
+
+    private fun Bundle.toRuntimeConfig(): PrivilegeRuntimeConfig =
+        PrivilegeRuntimeConfig(
+            followDeathDelayMillis = getLong(
+                PrivilegeHandshakeContract.EXTRA_FOLLOW_DEATH_DELAY_MILLIS,
+                PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
+            ),
+            activeReconnectOnOwnerDeath = getBoolean(
+                PrivilegeHandshakeContract.EXTRA_ACTIVE_RECONNECT_ON_OWNER_DEATH,
+                PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
+            ),
+        )
 
     private fun PrivilegeServerInfo.toPrivilegeLaunchMode(): PrivilegeLaunchMode =
         if (launchMode == PrivilegeLaunchMode.ROOT.value) {

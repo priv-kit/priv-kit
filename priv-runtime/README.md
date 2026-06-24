@@ -29,7 +29,7 @@ The runtime module carries `priv-server` as a runtime-only dependency so apps do
 
 By default, owner-death reconnect is passive: the server waits until the app main process is already running again, then sends the Binder handoff. Set `activeReconnectOnOwnerDeath = true` only if the server should actively call the app handshake provider while the app process is dead, which may start the app process.
 
-The latest owner-death configuration is persisted by the runtime and synced to the Privileged Server through every successful handshake. Calling `configureOwnerDeathBehavior()` while connected also pushes the new values to the current server immediately, so the next owner-process death follows the latest app-side configuration.
+The latest owner-death configuration is passed in the launch command and kept by the Privileged Server in memory. Calling `configureOwnerDeathBehavior()` while connected also pushes the new values to the current server immediately, so the next owner-process death follows the latest app-side configuration.
 
 Like shizuku-api, the runtime treats the Privileged Server Binder as a single process-wide handle. A repeated handshake for the same Binder keeps the current global server state; a handshake for a replacement Binder installs the new server state.
 

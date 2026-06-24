@@ -34,11 +34,11 @@ internal class PrivilegeServerBinder(
 
     override fun getServerVersion(): String = config.serverVersion
 
-    override fun updateOwnerDeathConfig(
+    override fun updateRuntimeConfig(
         followDeathDelayMillis: Long,
         activeReconnectOnOwnerDeath: Boolean,
     ) {
-        PrivilegeServerMain.updateOwnerDeathConfig(
+        PrivilegeServerMain.updateRuntimeConfig(
             followDeathDelayMillis = followDeathDelayMillis,
             activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
         )

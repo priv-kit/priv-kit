@@ -6,7 +6,7 @@ interface IPrivilegeServer {
     int getLaunchMode();
     int getProtocolVersion();
     String getServerVersion();
-    void updateOwnerDeathConfig(long followDeathDelayMillis, boolean activeReconnectOnOwnerDeath);
+    void updateRuntimeConfig(long followDeathDelayMillis, boolean activeReconnectOnOwnerDeath);
     void shutdown();
     void registerBinderEndpoint(IBinder binder);
     IBinder getBinderEndpoint();

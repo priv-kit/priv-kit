@@ -12,14 +12,14 @@ public object PrivilegeHandshakeContract {
     public const val EXTRA_PROTOCOL_VERSION: String = "privilege_protocol_version"
     public const val EXTRA_SERVER_VERSION: String = "privilege_server_version"
     public const val EXTRA_CLASSPATH_IDENTITY: String = "privilege_classpath_identity"
+    public const val EXTRA_FOLLOW_DEATH_DELAY_MILLIS: String = "privilege_follow_death_delay_millis"
+    public const val EXTRA_ACTIVE_RECONNECT_ON_OWNER_DEATH: String = "privilege_active_reconnect_on_owner_death"
 
     public const val RESULT_ACCEPTED: String = "privilege_accepted"
     public const val RESULT_TOKEN: String = "privilege_token"
     public const val RESULT_SHOULD_SHUTDOWN: String = "privilege_should_shutdown"
     public const val RESULT_RESTART_COMMAND_LINE: String = "privilege_restart_command_line"
     public const val RESULT_OWNER_BINDER: String = "privilege_owner_binder"
-    public const val RESULT_FOLLOW_DEATH_DELAY_MILLIS: String = "privilege_follow_death_delay_millis"
-    public const val RESULT_ACTIVE_RECONNECT_ON_OWNER_DEATH: String = "privilege_active_reconnect_on_owner_death"
 
     public fun providerAuthority(packageName: String): String = "$packageName.privilege.handshake"
 }

@@ -10,7 +10,7 @@ import priv.kit.core.PrivilegeProtocol
 
 class PrivilegeServerArgumentsTest {
     @Test
-    fun parseAcceptsRequiredOwnerDeathConfig() {
+    fun parseAcceptsRequiredRuntimeConfig() {
         val config = PrivilegeServerArguments.parse(requiredArgs())
 
         assertEquals("", config.token)
@@ -88,9 +88,9 @@ class PrivilegeServerArgumentsTest {
     }
 
     @Test
-    fun parseRejectsMissingOwnerDeathConfig() {
+    fun parseRejectsMissingRuntimeConfig() {
         assertThrows(IllegalArgumentException::class.java) {
-            PrivilegeServerArguments.parse(requiredArgsWithoutOwnerDeathConfig())
+            PrivilegeServerArguments.parse(requiredArgsWithoutRuntimeConfig())
         }
     }
 
@@ -117,7 +117,7 @@ class PrivilegeServerArgumentsTest {
             *extraArgs,
         )
 
-    private fun requiredArgsWithoutOwnerDeathConfig(): Array<String> =
+    private fun requiredArgsWithoutRuntimeConfig(): Array<String> =
         arrayOf(
             "--provider-authority",
             "example.privilege.handshake",

@@ -20,6 +20,11 @@ internal object PrivilegeServerHandshakeSender {
             putInt(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION, config.protocolVersion)
             putString(PrivilegeHandshakeContract.EXTRA_SERVER_VERSION, config.serverVersion)
             putString(PrivilegeHandshakeContract.EXTRA_CLASSPATH_IDENTITY, config.classpathIdentity)
+            putLong(PrivilegeHandshakeContract.EXTRA_FOLLOW_DEATH_DELAY_MILLIS, config.followDeathDelayMillis)
+            putBoolean(
+                PrivilegeHandshakeContract.EXTRA_ACTIVE_RECONNECT_ON_OWNER_DEATH,
+                config.activeReconnectOnOwnerDeath,
+            )
         }
         Log.i(TAG, "Calling handshake provider authority=${config.providerAuthority}")
         val response = PrivilegeServerProviderCall.call(
@@ -36,14 +41,12 @@ internal object PrivilegeServerHandshakeSender {
         ) == true
         val ownerBinder = response?.getBinder(PrivilegeHandshakeContract.RESULT_OWNER_BINDER)
         val restartCommandLine = response?.getString(PrivilegeHandshakeContract.RESULT_RESTART_COMMAND_LINE)
-        val ownerConfig = if (accepted) {
+        if (accepted) {
             requireNotNull(ownerBinder) {
                 "Accepted handshake response is missing ${PrivilegeHandshakeContract.RESULT_OWNER_BINDER}"
             }
-            response.toOwnerConfig(config)
-        } else {
-            config
         }
+        val ownerConfig = config
         Log.i(
             TAG,
             "Handshake provider response accepted=$accepted, hasResponse=${response != null}, " +
@@ -67,21 +70,6 @@ internal object PrivilegeServerHandshakeSender {
         val ownerBinder: IBinder?,
         val ownerConfig: PrivilegeServerConfig,
     )
-
-    private fun Bundle.toOwnerConfig(base: PrivilegeServerConfig): PrivilegeServerConfig {
-        require(containsKey(PrivilegeHandshakeContract.RESULT_FOLLOW_DEATH_DELAY_MILLIS)) {
-            "Accepted handshake response is missing ${PrivilegeHandshakeContract.RESULT_FOLLOW_DEATH_DELAY_MILLIS}"
-        }
-        require(containsKey(PrivilegeHandshakeContract.RESULT_ACTIVE_RECONNECT_ON_OWNER_DEATH)) {
-            "Accepted handshake response is missing ${PrivilegeHandshakeContract.RESULT_ACTIVE_RECONNECT_ON_OWNER_DEATH}"
-        }
-        return base.copy(
-            followDeathDelayMillis = getLong(PrivilegeHandshakeContract.RESULT_FOLLOW_DEATH_DELAY_MILLIS),
-            activeReconnectOnOwnerDeath = getBoolean(
-                PrivilegeHandshakeContract.RESULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-            ),
-        )
-    }
 
     private const val TAG = "PrivKitServer"
 }

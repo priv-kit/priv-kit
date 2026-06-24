@@ -31,7 +31,7 @@ public object PrivilegeServerMain {
         scheduleOwnerReconnect(config, serverBinder, "Owner process died")
     }
 
-    internal fun updateOwnerDeathConfig(
+    internal fun updateRuntimeConfig(
         followDeathDelayMillis: Long,
         activeReconnectOnOwnerDeath: Boolean,
     ) {
@@ -45,7 +45,7 @@ public object PrivilegeServerMain {
         }
         Log.i(
             TAG,
-            "Owner death config updated followDeathDelayMillis=$followDeathDelayMillis, " +
+            "Runtime config updated followDeathDelayMillis=$followDeathDelayMillis, " +
                 "activeReconnectOnOwnerDeath=$activeReconnectOnOwnerDeath",
         )
     }

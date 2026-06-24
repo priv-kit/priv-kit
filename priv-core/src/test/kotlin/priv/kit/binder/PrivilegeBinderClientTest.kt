@@ -104,7 +104,7 @@ class PrivilegeBinderClientTest {
 
         override fun getServerVersion(): String = "test"
 
-        override fun updateOwnerDeathConfig(
+        override fun updateRuntimeConfig(
             followDeathDelayMillis: Long,
             activeReconnectOnOwnerDeath: Boolean,
         ) = Unit

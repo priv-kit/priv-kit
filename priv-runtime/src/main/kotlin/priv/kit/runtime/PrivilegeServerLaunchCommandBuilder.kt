@@ -12,8 +12,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
         context: Context,
         token: String,
         launchMode: PrivilegeLaunchMode,
-        followDeathDelayMillis: Long,
-        activeReconnectOnOwnerDeath: Boolean,
+        config: PrivilegeRuntimeConfig,
     ): PrivilegeServerLaunchCommand {
         val packageName = context.packageName
         val userId = userIdFromUid(context.applicationInfo.uid)
@@ -46,9 +45,9 @@ internal object PrivilegeServerLaunchCommandBuilder {
             append(" --classpath-identity ")
             append(shellArg(classpathIdentity))
             append(" --follow-death-delay-millis ")
-            append(followDeathDelayMillis)
+            append(config.followDeathDelayMillis)
             append(" --active-reconnect-on-owner-death ")
-            append(activeReconnectOnOwnerDeath)
+            append(config.activeReconnectOnOwnerDeath)
         }
 
         return PrivilegeServerLaunchCommand(
@@ -64,8 +63,8 @@ internal object PrivilegeServerLaunchCommandBuilder {
             launchMode = launchMode,
             protocolVersion = PrivilegeProtocol.VERSION,
             serverVersion = PrivilegeProtocol.SERVER_VERSION,
-            followDeathDelayMillis = followDeathDelayMillis,
-            activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
+            followDeathDelayMillis = config.followDeathDelayMillis,
+            activeReconnectOnOwnerDeath = config.activeReconnectOnOwnerDeath,
         )
     }
 
