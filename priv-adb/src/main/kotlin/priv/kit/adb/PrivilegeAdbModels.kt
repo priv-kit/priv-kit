@@ -10,22 +10,14 @@ public data class PrivilegeAdbCommand public constructor(
 
 public class PrivilegeAdbIdentity private constructor(
     public val deviceName: String,
-    internal val storageSignature: String,
 ) {
     init {
         require(deviceName.isNotBlank()) { "deviceName must not be blank" }
-        require(storageSignature.isNotBlank()) { "storageSignature must not be blank" }
         require(deviceName.length <= MAX_DEVICE_NAME_LENGTH) {
             "deviceName must be at most $MAX_DEVICE_NAME_LENGTH characters"
         }
-        require(storageSignature.length <= MAX_STORAGE_SIGNATURE_LENGTH) {
-            "storageSignature must be at most $MAX_STORAGE_SIGNATURE_LENGTH characters"
-        }
         require(deviceName.none { it == '\u0000' || it == '\r' || it == '\n' }) {
             "deviceName must not contain control line characters"
-        }
-        require(storageSignature.none { it == '\u0000' || it == '\r' || it == '\n' }) {
-            "storageSignature must not contain control line characters"
         }
     }
 
@@ -37,23 +29,29 @@ public class PrivilegeAdbIdentity private constructor(
     public companion object {
         public const val DEFAULT_DEVICE_NAME: String = "priv-kit"
         public const val MAX_DEVICE_NAME_LENGTH: Int = 128
-        internal const val DEFAULT_STORAGE_SIGNATURE = "default"
-        private const val MAX_STORAGE_SIGNATURE_LENGTH = 128
+        private const val MAX_OWNER_TOKEN_LENGTH = 128
 
         internal fun default(deviceName: String = DEFAULT_DEVICE_NAME): PrivilegeAdbIdentity =
-            PrivilegeAdbIdentity(
-                deviceName = deviceName,
-                storageSignature = DEFAULT_STORAGE_SIGNATURE,
-            )
+            PrivilegeAdbIdentity(deviceName = deviceName)
 
         internal fun forOwnerToken(
             ownerToken: String,
             deviceName: String = DEFAULT_DEVICE_NAME,
-        ): PrivilegeAdbIdentity =
-            PrivilegeAdbIdentity(
-                deviceName = deviceName,
-                storageSignature = ownerToken.trim(),
-            )
+        ): PrivilegeAdbIdentity {
+            validateOwnerToken(ownerToken)
+            return PrivilegeAdbIdentity(deviceName = deviceName)
+        }
+
+        private fun validateOwnerToken(ownerToken: String) {
+            val normalizedOwnerToken = ownerToken.trim()
+            require(normalizedOwnerToken.isNotBlank()) { "ownerToken must not be blank" }
+            require(normalizedOwnerToken.length <= MAX_OWNER_TOKEN_LENGTH) {
+                "ownerToken must be at most $MAX_OWNER_TOKEN_LENGTH characters"
+            }
+            require(normalizedOwnerToken.none { it == '\u0000' || it == '\r' || it == '\n' }) {
+                "ownerToken must not contain control line characters"
+            }
+        }
     }
 }
 

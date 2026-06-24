@@ -11,10 +11,7 @@ public class PrivilegeAdbStarter private constructor(
     private val context: Context,
     private val identity: PrivilegeAdbIdentity,
 ) {
-    private val keyStore: PrivilegeAdbKeyStore = PrivilegeAdbSharedPreferencesKeyStore.create(
-        context = context,
-        signature = identity.storageSignature,
-    )
+    private val keyStore: PrivilegeAdbKeyStore = PrivilegeAdbFileKeyStore.create(context)
 
     public constructor(
         context: Context,

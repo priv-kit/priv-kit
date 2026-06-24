@@ -9,18 +9,16 @@ class PrivilegeAdbIdentityTest {
         val identity = PrivilegeAdbIdentity.default(" Demo App ")
 
         assertEquals("DemoApp", identity.adbDeviceName)
-        assertEquals(PrivilegeAdbIdentity.DEFAULT_STORAGE_SIGNATURE, identity.storageSignature)
     }
 
     @Test
-    fun ownerTokenIsTrimmedForKeyStorage() {
+    fun ownerTokenIdentityUsesDeviceName() {
         val identity = PrivilegeAdbIdentity.forOwnerToken(
             ownerToken = " owner-token ",
             deviceName = " Demo App ",
         )
 
         assertEquals("DemoApp", identity.adbDeviceName)
-        assertEquals("owner-token", identity.storageSignature)
     }
 
     @Test

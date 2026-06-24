@@ -2,7 +2,6 @@ package priv.kit.adb
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -11,10 +10,15 @@ import priv.kit.bc.asn1.x509.SubjectPublicKeyInfo
 import priv.kit.bc.cert.X509v3CertificateBuilder
 import priv.kit.bc.operator.jcajce.JcaContentSignerBuilder
 import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.math.BigInteger
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.Key
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
@@ -45,37 +49,60 @@ internal interface PrivilegeAdbKeyStore {
     fun get(): ByteArray?
 }
 
-internal class PrivilegeAdbSharedPreferencesKeyStore(
-    private val preferences: SharedPreferences,
-    private val preferenceKey: String = PREFERENCE_KEY,
+internal class PrivilegeAdbFileKeyStore(
+    private val file: File,
 ) : PrivilegeAdbKeyStore {
     override fun put(bytes: ByteArray) {
-        preferences.edit()
-            .putString(preferenceKey, String(Base64.encode(bytes, Base64.NO_WRAP)))
-            .apply()
+        val directory = file.parentFile
+            ?: throw PrivilegeAdbException("ADB key file has no parent directory: ${file.absolutePath}")
+        if (!directory.exists() && !directory.mkdirs()) {
+            throw PrivilegeAdbException("Failed to create ADB key directory: ${directory.absolutePath}")
+        }
+
+        val temporaryFile = File(directory, "${file.name}.tmp")
+        runCatching {
+            FileOutputStream(temporaryFile).use { output ->
+                output.write(bytes)
+                output.fd.sync()
+            }
+            moveKeyFile(temporaryFile, file)
+        }.onFailure { throwable ->
+            temporaryFile.delete()
+            throw PrivilegeAdbException("Failed to write ADB key file: ${file.absolutePath}", throwable)
+        }
     }
 
     override fun get(): ByteArray? {
-        if (!preferences.contains(preferenceKey)) return null
-        return Base64.decode(preferences.getString(preferenceKey, null), Base64.NO_WRAP)
+        if (!file.isFile) return null
+        return file.readBytes()
     }
 
     companion object {
-        private const val PREFERENCE_KEY = "adbkey"
+        private const val STORAGE_DIRECTORY = ".priv-kit"
+        private const val KEY_FILE_NAME = "adbkey"
 
         fun create(
             context: Context,
-            signature: String = PrivilegeAdbIdentity.DEFAULT_STORAGE_SIGNATURE,
-        ): PrivilegeAdbSharedPreferencesKeyStore =
-            PrivilegeAdbSharedPreferencesKeyStore(
-                context.applicationContext.getSharedPreferences("privilege_adb", Context.MODE_PRIVATE),
-                preferenceKey = preferenceKeyForSignature(signature),
+        ): PrivilegeAdbFileKeyStore =
+            PrivilegeAdbFileKeyStore(
+                File(File(context.applicationContext.filesDir, STORAGE_DIRECTORY), KEY_FILE_NAME),
             )
 
-        private fun preferenceKeyForSignature(signature: String): String {
-            val normalizedSignature = signature.trim()
-            if (normalizedSignature == PrivilegeAdbIdentity.DEFAULT_STORAGE_SIGNATURE) return PREFERENCE_KEY
-            return PREFERENCE_KEY + "_" + normalizedSignature.toByteArray().sha256Hex().take(32)
+        private fun moveKeyFile(source: File, target: File) {
+            try {
+                Files.move(
+                    source.toPath(),
+                    target.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(
+                    source.toPath(),
+                    target.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
+            }
         }
     }
 }
@@ -263,9 +290,6 @@ internal fun BigInteger.toAdbEncoded(): IntArray {
     return encoded
 }
 
-internal fun RSAPublicKey.adbEncoded(name: String): ByteArray =
-    adbEncodedPayload().adbPublicKeyWithName(name)
-
 private fun RSAPublicKey.adbEncodedPayload(): ByteArray {
     val r32 = BigInteger.ZERO.setBit(32)
     val n0inv = modulus.remainder(r32).modInverse(r32).negate()
@@ -294,8 +318,3 @@ private fun ByteArray.sha256Fingerprint(): String =
     MessageDigest.getInstance("SHA-256")
         .digest(this)
         .joinToString(":") { byte -> (byte.toInt() and 0xff).toString(16).padStart(2, '0') }
-
-private fun ByteArray.sha256Hex(): String =
-    MessageDigest.getInstance("SHA-256")
-        .digest(this)
-        .joinToString("") { byte -> (byte.toInt() and 0xff).toString(16).padStart(2, '0') }
