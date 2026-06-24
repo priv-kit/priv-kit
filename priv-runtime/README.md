@@ -17,12 +17,12 @@ Advanced entry points:
 - `PrivilegeRuntime.prepareManualShell()` for callers that still want a command plus a blocking pending-handshake wait.
 - `PrivilegeRuntime.createExternalStartCommand()` for generating a non-blocking command that an external authorization tool can execute.
 - `PrivilegeRuntime.prepareExternalStart()` for callers that want an external command plus a pending-handshake wait.
-- `PrivilegeHandshakeProvider`, the app-side Binder handoff endpoint protected by the persisted owner token. Short native starter commands complete one provider handoff that returns the owner token and current in-memory owner-death config.
+- `PrivilegeHandshakeProvider`, the app-side Binder handoff endpoint protected by `android.permission.INTERACT_ACROSS_USERS_FULL` and the persisted owner token. Short native starter commands complete one provider handoff that returns the owner token and current in-memory owner-death config.
 - Ready-server connection helpers, owner-death reconnect configuration, and raw Binder bridge types for custom diagnostics or low-level Binder validation.
 
 Runtime owns token generation, shared server launch command construction, the native starter executable, Root `su` execution, pending handshakes, protocol validation, current server Binder installation, and Binder death handling. The ADB module only executes or transports the launch command.
 
-`PrivilegeHandshakeProvider` initializes the runtime with the app `Context`, so callers use `PrivilegeRuntime` directly without passing `Context` into start, ADB, manual shell, or ready-server APIs.
+`PrivilegeHandshakeProvider` initializes the runtime with the app `Context`, so callers use `PrivilegeRuntime` directly without passing `Context` into start, ADB, manual shell, or ready-server APIs. The provider remains exported so shell/root/external privileged starters can reach it, but normal apps are stopped by the provider permission before the owner-token handshake runs.
 
 The runtime module carries `priv-server` as a runtime-only dependency so apps do not need to declare the server module separately. The server module contributes the R8 consumer rule that keeps its `app_process` entry point.
 

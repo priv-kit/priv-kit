@@ -6,7 +6,7 @@
 
 ## 项目状态
 
-当前仓库已进入源码实现阶段。Phase 1 已提供 Root、ADB、Manual Shell 和 External Start Command 的 Privileged Server 启动、token-gated Binder handoff、全局 server-binder 状态和 owner-death follow 闭环。
+当前仓库已进入源码实现阶段。Phase 1 已提供 Root、ADB、Manual Shell 和 External Start Command 的 Privileged Server 启动、provider-permission + token-gated Binder handoff、全局 server-binder 状态和 owner-death follow 闭环。
 
 当前 Binder 阶段提供底层 Binder endpoint 注册、查找、注销、death 观察、显式目标 Binder 的 remote transact 原语、显式系统服务名的 raw Binder transact 桥和类型化失败语义。相关 AIDL、共享模型和 raw primitive 已并入 `:priv-core` 的 `priv.kit.binder` package 分区。server death、endpoint dead、endpoint not found 等错误可通过专门异常类型识别，不需要依赖异常 message。它不提供 Android 系统服务类型化代理，也不扩展成高级系统能力封装。
 
