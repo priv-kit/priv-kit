@@ -15,9 +15,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import priv.kit.runtime.PrivilegeRuntime
+import priv.kit.runtime.PrivilegeUserServiceConnection
 import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiViewModel
-import priv.kit.runtime.PrivilegeUserServiceConnection
 import rikka.shizuku.Shizuku
 import java.io.Closeable
 import java.util.concurrent.Executors
@@ -38,9 +38,9 @@ class MainActivity : ComponentActivity() {
     internal var dedicatedUserService: IPrivilegeSampleDedicatedUserService? = null
     internal var embeddedUserService: IPrivilegeSampleEmbeddedUserService? = null
     @Volatile
-    internal var shizukuDelegateExecutor: PrivilegeSampleShizukuDelegateExecutor? = null
+    internal var shizukuExternalStarter: PrivilegeSampleShizukuExternalStarter? = null
     internal var startNotificationPairingAfterPermission = false
-    internal var startShizukuDelegateAfterPermission = false
+    internal var startShizukuExternalAfterPermission = false
     private val pairingEventReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             handleNotificationPairingEvent(intent)
@@ -56,7 +56,7 @@ class MainActivity : ComponentActivity() {
         Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
             handleShizukuPermissionResult(requestCode, grantResult)
             if (requestCode == SHIZUKU_PERMISSION_REQUEST_CODE) {
-                privilegeUiViewModel.refreshDelegateStatus(SAMPLE_SHIZUKU_DELEGATE_ID)
+                privilegeUiViewModel.refreshExternalStartStatus(SAMPLE_SHIZUKU_EXTERNAL_START_ID)
             }
         }
     private val notificationPermissionLauncher =
@@ -105,7 +105,7 @@ class MainActivity : ComponentActivity() {
                 onTcpPortChanged = { updateTcpPort(it) },
                 onStartRootRuntime = { startRootRuntime() },
                 onCopyManualCommand = { copyManualShellCommand() },
-                onStartShizukuDelegate = { startShizukuDelegate() },
+                onStartShizukuExternal = { startShizukuExternal() },
                 onPairWirelessAdb = { pairWirelessAdb() },
                 onStartNotificationPairing = { startNotificationPairing() },
                 onStopNotificationPairing = { stopNotificationPairing() },

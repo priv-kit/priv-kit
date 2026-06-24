@@ -6,7 +6,7 @@
 
 ## 项目状态
 
-当前仓库已进入源码实现阶段。Phase 1 已提供 Root、ADB、Delegate 和 Manual Shell 的 Privileged Server 启动、token-gated Binder handoff、全局 server-binder 状态和 owner-death follow 闭环。
+当前仓库已进入源码实现阶段。Phase 1 已提供 Root、ADB、Manual Shell 和 External Start Command 的 Privileged Server 启动、token-gated Binder handoff、全局 server-binder 状态和 owner-death follow 闭环。
 
 当前 Binder 阶段提供底层 Binder endpoint 注册、查找、注销、death 观察、显式目标 Binder 的 remote transact 原语、显式系统服务名的 raw Binder transact 桥和类型化失败语义。相关 AIDL、共享模型和 raw primitive 已并入 `:priv-core` 的 `priv.kit.binder` package 分区。server death、endpoint dead、endpoint not found 等错误可通过专门异常类型识别，不需要依赖异常 message。它不提供 Android 系统服务类型化代理，也不扩展成高级系统能力封装。
 
@@ -28,7 +28,7 @@
 ```kotlin
 PrivilegeRuntime.startAdb()
 PrivilegeRuntime.startRoot()
-PrivilegeRuntime.startDelegate(executor)
+val externalStart = PrivilegeRuntime.prepareExternalStart()
 
 val connection = PrivilegeRuntime.bindUserService(spec)
 val registration = PrivilegeRuntime.registerBinderEndpoint(binder)
@@ -36,7 +36,7 @@ val registration = PrivilegeRuntime.registerBinderEndpoint(binder)
 PrivilegeRuntime.shutdownServer()
 ```
 
-`Manual Shell`、ADB pairing/TCP 细节、raw Binder transact、owner-death reconnect 和 handshake/launch command 协议都属于高级或内部路径。接入应用不应该在第一步就依赖这些对象，除非正在实现自定义授权、诊断或底层 Binder 验证。
+`Manual Shell`、External Start Command、ADB pairing/TCP 细节、raw Binder transact、owner-death reconnect 和 handshake/launch command 协议都属于高级或内部路径。接入应用不应该在第一步就依赖这些对象，除非正在实现自定义授权、诊断或底层 Binder 验证。
 
 ## 命名规范
 
@@ -49,7 +49,7 @@ PrivilegeRuntime.shutdownServer()
 Maven 坐标：
 
 - `groupId`：`io.github.priv-kit`
-- `artifactId`：`priv-core`、`priv-runtime`、`priv-server`、`priv-bc`、`priv-ssl`、`priv-adb`、`priv-root`、`priv-delegate`、`priv-ui`
+- `artifactId`：`priv-core`、`priv-runtime`、`priv-server`、`priv-bc`、`priv-ssl`、`priv-adb`、`priv-root`、`priv-ui`
 
 示例：
 
@@ -66,7 +66,6 @@ Gradle 模块必须使用 `priv-*` 命名：
 - `:priv-ssl`
 - `:priv-adb`
 - `:priv-root`
-- `:priv-delegate`
 - `:priv-ui`
 - `:priv-sample`
 
@@ -85,7 +84,6 @@ Gradle 模块必须使用 `priv-*` 命名：
 - `priv.kit.ssl`
 - `priv.kit.adb`
 - `priv.kit.root`
-- `priv.kit.delegate`
 - `priv.kit.ui`
 
 禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*` 作为源码 package。
@@ -102,7 +100,7 @@ Gradle 模块必须使用 `priv-*` 命名：
 - 提供 UserService 能力。
 - 支持 Root 启动。
 - 支持 ADB 启动。
-- 支持 Delegate 启动。
+- 支持手动命令和外部授权工具代执行启动命令。
 - 让单个应用可以管理自己的特权进程运行时。
 
 ## 非目标
@@ -138,7 +136,6 @@ Gradle 模块必须使用 `priv-*` 命名：
 - `:priv-ssl`
 - `:priv-adb`
 - `:priv-root`
-- `:priv-delegate`
 - `:priv-ui`
 - `:priv-sample`
 

@@ -92,11 +92,11 @@ internal fun StatusText(text: String) {
 }
 
 @Composable
-internal fun PrivilegeUiDelegateSnapshot.delegateStatusText(): String =
+internal fun PrivilegeUiExternalStartSnapshot.externalStartStatusText(): String =
     when {
-        canStart -> stringResource(R.string.priv_ui_delegate_ready)
-        available -> stringResource(R.string.priv_ui_delegate_permission_required)
-        else -> stringResource(R.string.priv_ui_delegate_unavailable)
+        canStart -> stringResource(R.string.priv_ui_external_ready)
+        available -> stringResource(R.string.priv_ui_external_permission_required)
+        else -> stringResource(R.string.priv_ui_external_unavailable)
     }
 
 private data class StatusUi(

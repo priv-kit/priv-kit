@@ -19,7 +19,6 @@ Binder 和 UserService 仍保留 `priv.kit.binder.*` / `priv.kit.userservice.*` 
 - `:priv-ssl`
 - `:priv-adb`
 - `:priv-root`
-- `:priv-delegate`
 - `:priv-ui`
 - `:priv-sample`
 - `:hidden-api`
@@ -45,7 +44,6 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 | `:priv-ssl` | `priv-ssl` | `priv.kit.ssl` |
 | `:priv-adb` | `priv-adb` | `priv.kit.adb` |
 | `:priv-root` | `priv-root` | `priv.kit.root` |
-| `:priv-delegate` | `priv-delegate` | `priv.kit.delegate` |
 | `:priv-ui` | `priv-ui` | `priv.kit.ui` |
 | `:priv-sample` | 不作为发布 artifact | `priv.kit.sample` |
 | `:hidden-api` | 不作为发布 artifact | framework mirror/stub package |
@@ -63,7 +61,6 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
     -> :priv-core
     -> :priv-adb
     -> :priv-root
-    -> :priv-delegate
     -> runtimeOnly(:priv-server)
 
 :priv-server
@@ -77,9 +74,6 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
     -> compileOnly(:hidden-api)
 
 :priv-root
-    -> :priv-core
-
-:priv-delegate
     -> :priv-core
 
 :priv-ui
@@ -122,7 +116,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 - Android 系统服务类型化封装；
 - 启动命令构造逻辑；
-- Root、ADB 或 Delegate transport 实现；
+- Root 或 ADB transport 实现；
 - UserService registry、manager、loader、process 或 destroy 实现；
 - UI 依赖；
 - 只服务于示例的 helper；
@@ -136,7 +130,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - `PrivilegeRuntime` 公开入口；
 - 运行时状态、启动策略选择、服务端连接和重连；
 - `PrivilegeRuntimeUserServiceClient`、`PrivilegeUserServiceConnection`；
-- Manual Shell、owner token/config store、handshake provider；
+- Manual Shell、External Start Command、owner token/config store、handshake provider；
 - 通过 `runtimeOnly(:priv-server)` 携带服务端入口，让接入应用优先只依赖 `:priv-runtime`。
 
 允许：
@@ -145,11 +139,12 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 作为原语暴露 Binder 和 UserService 入口；
 - 创建显式系统服务名的 raw Binder transaction 桥；
 - 构造项目自有 Privileged Server 的 `app_process` 启动命令；
+- 为用户手动执行或外部授权工具代执行提供启动命令；
 - token、pending handshake、当前全局 server-binder 安装和 Binder death handling。
 
 禁止：
 
-- 直接实现 Root、ADB 或 Delegate 机制；
+- 直接实现 Root 或 ADB 机制；
 - 服务端侧 UserService registry/loader/manager 实现；
 - 高级 Android 操作 API；
 - 类型化 Android 系统服务 API；
@@ -271,23 +266,6 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 转换为共享启动结果。
 
 禁止公开 root 命令库、特权操作 helper、package/input/settings/app-ops/activity API。
-
-## `:priv-delegate`
-
-职责：
-
-- 基于 Delegate 的服务端启动。
-
-允许：
-
-- 启动所需的 delegate 发现；
-- 服务端启动所需的 delegate 连接；
-- 通过 app-provided delegate executor 执行共享服务端启动命令；
-- delegate 启动诊断；
-- delegate 特有失败建模；
-- 转换为共享启动结果。
-
-禁止全局 delegate 市场、多应用特权代理能力、第三方特权操作路由和系统能力抽象。
 
 ## `:priv-ui`
 

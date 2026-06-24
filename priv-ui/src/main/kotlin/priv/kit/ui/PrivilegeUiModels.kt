@@ -4,7 +4,7 @@ import android.content.Context
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeStartupException
-import priv.kit.delegate.PrivilegeDelegateExecutor
+import priv.kit.runtime.PrivilegeExternalStartCommand
 import priv.kit.runtime.PrivilegeRuntime
 
 public enum class PrivilegeUiRuntimeStatus {
@@ -18,7 +18,7 @@ public enum class PrivilegeUiStartupMode {
     ROOT,
     MANUAL_SHELL,
     ADB,
-    DELEGATE,
+    EXTERNAL,
 }
 
 public enum class PrivilegeUiAdbTcpPolicy {
@@ -50,12 +50,13 @@ public data class PrivilegeUiConfig public constructor(
         PrivilegeUiStartupMode.MANUAL_SHELL,
         PrivilegeUiStartupMode.ROOT,
     ),
-    public val delegateProviders: List<PrivilegeUiDelegateProvider> = emptyList(),
+    public val externalStartProviders: List<PrivilegeUiExternalStartProvider> = emptyList(),
     public val adbDeviceName: String? = null,
     public val tcpPort: Int = PrivilegeAdbStartOptions.DEFAULT_TCP_PORT,
     public val adbTcpPolicy: PrivilegeUiAdbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
     public val wirelessStatusPollIntervalMillis: Long = DEFAULT_WIRELESS_STATUS_POLL_INTERVAL_MILLIS,
     public val wirelessStatusDiscoveryTimeoutMillis: Long = DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS,
+    public val externalStartStatusPollIntervalMillis: Long = DEFAULT_EXTERNAL_START_STATUS_POLL_INTERVAL_MILLIS,
     public val startTimeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
     public val followDeathDelayMillis: Long = PrivilegeRuntime.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
     public val activeReconnectOnOwnerDeath: Boolean = PrivilegeRuntime.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
@@ -70,8 +71,11 @@ public data class PrivilegeUiConfig public constructor(
         require(wirelessStatusDiscoveryTimeoutMillis > 0L) {
             "wirelessStatusDiscoveryTimeoutMillis must be positive"
         }
-        require(delegateProviders.map { it.id }.distinct().size == delegateProviders.size) {
-            "delegate provider ids must be unique"
+        require(externalStartStatusPollIntervalMillis > 0L) {
+            "externalStartStatusPollIntervalMillis must be positive"
+        }
+        require(externalStartProviders.map { it.id }.distinct().size == externalStartProviders.size) {
+            "external start provider ids must be unique"
         }
     }
 
@@ -79,25 +83,29 @@ public data class PrivilegeUiConfig public constructor(
         public const val DEFAULT_START_TIMEOUT_MILLIS: Long = 15_000L
         public const val DEFAULT_WIRELESS_STATUS_POLL_INTERVAL_MILLIS: Long = 3_000L
         public const val DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS: Long = 1_500L
+        public const val DEFAULT_EXTERNAL_START_STATUS_POLL_INTERVAL_MILLIS: Long = 3_000L
     }
 }
 
-public interface PrivilegeUiDelegateProvider {
+public interface PrivilegeUiExternalStartProvider {
     public val id: String
 
     public val label: CharSequence
 
-    public fun snapshot(context: Context): PrivilegeUiDelegateSnapshot =
-        PrivilegeUiDelegateSnapshot()
+    public fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot =
+        PrivilegeUiExternalStartSnapshot()
 
-    public fun requestAuthorization(context: Context): PrivilegeUiDelegateSnapshot =
+    public fun requestAuthorization(context: Context): PrivilegeUiExternalStartSnapshot =
         snapshot(context)
 
     @Throws(PrivilegeStartupException::class)
-    public fun createExecutor(context: Context): PrivilegeDelegateExecutor
+    public fun start(
+        context: Context,
+        command: PrivilegeExternalStartCommand,
+    )
 }
 
-public data class PrivilegeUiDelegateSnapshot public constructor(
+public data class PrivilegeUiExternalStartSnapshot public constructor(
     public val available: Boolean = false,
     public val authorized: Boolean = false,
     public val uid: Int? = null,
@@ -109,10 +117,10 @@ public data class PrivilegeUiDelegateSnapshot public constructor(
         get() = available && authorized
 }
 
-public data class PrivilegeUiDelegateItemState public constructor(
+public data class PrivilegeUiExternalStartItemState public constructor(
     public val id: String,
     public val label: CharSequence,
-    public val snapshot: PrivilegeUiDelegateSnapshot = PrivilegeUiDelegateSnapshot(),
+    public val snapshot: PrivilegeUiExternalStartSnapshot = PrivilegeUiExternalStartSnapshot(),
     public val busy: Boolean = false,
 )
 
@@ -136,7 +144,7 @@ public data class PrivilegeUiState public constructor(
     public val wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val wirelessStatusPollingActive: Boolean = false,
     public val notificationPairingRunning: Boolean = false,
-    public val delegateItems: List<PrivilegeUiDelegateItemState> = emptyList(),
+    public val externalStartItems: List<PrivilegeUiExternalStartItemState> = emptyList(),
     public val connectionSerial: Long = 0L,
 )
 

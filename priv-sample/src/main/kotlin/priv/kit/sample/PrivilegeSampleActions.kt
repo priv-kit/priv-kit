@@ -72,7 +72,7 @@ internal fun MainActivity.releasePrivilegeSample() {
     sampleMqsNativeBinder = null
     sampleUserManager = null
     closeSampleUserServices()
-    releaseShizukuDelegate()
+    releaseShizukuExternalStart()
     readyServerWatcher?.close()
     readyServerWatcher = null
     serverDisconnectedWatcher?.close()
@@ -273,9 +273,9 @@ internal fun MainActivity.refreshShizukuStatus(append: Boolean = true) {
 }
 
 internal fun MainActivity.handleShizukuBinderDead() {
-    startShizukuDelegateAfterPermission = false
-    shizukuDelegateExecutor?.close()
-    shizukuDelegateExecutor = null
+    startShizukuExternalAfterPermission = false
+    shizukuExternalStarter?.close()
+    shizukuExternalStarter = null
     val message = "Shizuku binder died"
     screenState = screenState.copy(
         shizukuReady = false,
@@ -295,7 +295,7 @@ internal fun MainActivity.handleShizukuPermissionResult(
     if (requestCode != SHIZUKU_PERMISSION_REQUEST_CODE) return
     val granted = grantResult == PackageManager.PERMISSION_GRANTED
     if (!granted) {
-        startShizukuDelegateAfterPermission = false
+        startShizukuExternalAfterPermission = false
         val message = "Shizuku permission denied"
         screenState = screenState.copy(
             shizukuReady = false,
@@ -307,30 +307,36 @@ internal fun MainActivity.handleShizukuPermissionResult(
         return
     }
 
-    val shouldStart = startShizukuDelegateAfterPermission
-    startShizukuDelegateAfterPermission = false
+    val shouldStart = startShizukuExternalAfterPermission
+    startShizukuExternalAfterPermission = false
     refreshShizukuStatus()
     if (shouldStart) {
-        startShizukuDelegate()
+        startShizukuExternal()
     }
 }
 
-internal fun MainActivity.startShizukuDelegate() {
+internal fun MainActivity.startShizukuExternal() {
     if (screenState.busy) return
     val readiness = checkShizukuReadiness(requestPermission = true)
     applyShizukuReadiness(readiness)
     appendLog(readiness.message)
     if (!readiness.ready) return
 
-    val delegateExecutor = PrivilegeSampleShizukuDelegateExecutor(this)
-    shizukuDelegateExecutor = delegateExecutor
-    runServerStart("Starting through Shizuku Delegate...") {
+    val externalStarter = PrivilegeSampleShizukuExternalStarter(this)
+    shizukuExternalStarter = externalStarter
+    runServerStart("Starting through Shizuku...") {
+        val externalStart = PrivilegeRuntime.prepareExternalStart()
         try {
-            PrivilegeRuntime.startDelegate(delegateExecutor)
+            val output = externalStarter.start(externalStart.command)
+            appendLog(output)
+            externalStart.awaitServer()
+        } catch (throwable: Throwable) {
+            externalStart.cancel()
+            throw throwable
         } finally {
-            delegateExecutor.close()
-            if (shizukuDelegateExecutor === delegateExecutor) {
-                shizukuDelegateExecutor = null
+            externalStarter.close()
+            if (shizukuExternalStarter === externalStarter) {
+                shizukuExternalStarter = null
             }
         }
     }
@@ -374,7 +380,7 @@ private fun MainActivity.checkShizukuReadiness(requestPermission: Boolean): Shiz
         }
 
         if (requestPermission) {
-            startShizukuDelegateAfterPermission = true
+            startShizukuExternalAfterPermission = true
             Shizuku.requestPermission(SHIZUKU_PERMISSION_REQUEST_CODE)
             return ShizukuReadiness(
                 uid = uid,
@@ -410,10 +416,10 @@ private fun MainActivity.applyShizukuReadiness(readiness: ShizukuReadiness) {
     }
 }
 
-private fun MainActivity.releaseShizukuDelegate() {
-    shizukuDelegateExecutor?.close()
-    shizukuDelegateExecutor = null
-    startShizukuDelegateAfterPermission = false
+private fun MainActivity.releaseShizukuExternalStart() {
+    shizukuExternalStarter?.close()
+    shizukuExternalStarter = null
+    startShizukuExternalAfterPermission = false
 }
 
 internal fun MainActivity.pairWirelessAdb() {

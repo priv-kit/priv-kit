@@ -142,9 +142,9 @@ private fun AuthorizationModePanel(
             onEnableTcpMode = viewModel::enableTcpMode,
             onStartAdb = viewModel::startAdb,
         )
-        PrivilegeUiStartupMode.DELEGATE -> DelegatePanel(
+        PrivilegeUiStartupMode.EXTERNAL -> ExternalStartPanel(
             state = state,
-            onAuthorizeOrStart = viewModel::authorizeOrStartDelegate,
+            onAuthorizeOrStart = viewModel::authorizeOrStartExternal,
         )
     }
 }

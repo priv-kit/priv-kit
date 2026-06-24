@@ -85,5 +85,5 @@ internal fun PrivilegeUiStartupMode.labelRes(): Int =
         PrivilegeUiStartupMode.ROOT -> R.string.priv_ui_auth_method_root
         PrivilegeUiStartupMode.MANUAL_SHELL -> R.string.priv_ui_auth_method_manual_shell
         PrivilegeUiStartupMode.ADB -> R.string.priv_ui_auth_method_adb
-        PrivilegeUiStartupMode.DELEGATE -> R.string.priv_ui_auth_method_delegate
+        PrivilegeUiStartupMode.EXTERNAL -> R.string.priv_ui_auth_method_external
     }

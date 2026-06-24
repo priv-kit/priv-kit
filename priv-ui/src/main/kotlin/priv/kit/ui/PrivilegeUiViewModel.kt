@@ -17,7 +17,9 @@ public open class PrivilegeUiViewModel public constructor() : ViewModel() {
     private val adbActions = PrivilegeUiAdbActions(store, runtimeActions).also { actions ->
         addCloseable { actions.clear() }
     }
-    private val delegateActions = PrivilegeUiDelegateActions(store, runtimeActions)
+    private val externalStartActions = PrivilegeUiExternalStartActions(store, runtimeActions).also { actions ->
+        addCloseable { actions.clear() }
+    }
 
     public val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
     public open val tcpModeEnabled: MutableStateFlow<Boolean> = store.tcpModeEnabled
@@ -41,8 +43,9 @@ public open class PrivilegeUiViewModel public constructor() : ViewModel() {
 
         runtimeActions.refreshRuntimeStatus()
         manualShellActions.loadCommand()
-        delegateActions.refreshDelegateStatus()
+        externalStartActions.refreshExternalStartStatus()
         syncWirelessAdbStatusPolling()
+        syncExternalStartStatusPolling()
         refreshTcpModeEnabledIfSelected()
     }
 
@@ -54,6 +57,7 @@ public open class PrivilegeUiViewModel public constructor() : ViewModel() {
         if (mode !in store.state.value.startupModes) return
         store.updateState { it.copy(selectedStartupMode = mode) }
         syncWirelessAdbStatusPolling()
+        syncExternalStartStatusPolling()
         refreshTcpModeEnabledIfSelected()
     }
 
@@ -97,8 +101,12 @@ public open class PrivilegeUiViewModel public constructor() : ViewModel() {
 
     public open fun onHostResume() {
         syncWirelessAdbStatusPolling()
+        syncExternalStartStatusPolling()
         if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB) {
             refreshWirelessAdbStatus()
+        }
+        if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.EXTERNAL) {
+            refreshExternalStartStatus()
         }
         refreshTcpModeEnabledIfSelected()
     }
@@ -119,12 +127,20 @@ public open class PrivilegeUiViewModel public constructor() : ViewModel() {
         adbActions.startTcpAdb()
     }
 
-    public open fun refreshDelegateStatus(providerId: String? = null) {
-        delegateActions.refreshDelegateStatus(providerId)
+    public open fun refreshExternalStartStatus(providerId: String? = null) {
+        externalStartActions.refreshExternalStartStatus(providerId)
     }
 
-    public open fun authorizeOrStartDelegate(providerId: String) {
-        delegateActions.authorizeOrStartDelegate(providerId)
+    public open fun startExternalStartStatusPolling() {
+        externalStartActions.startExternalStartStatusPolling()
+    }
+
+    public open fun stopExternalStartStatusPolling() {
+        externalStartActions.stopExternalStartStatusPolling()
+    }
+
+    public open fun authorizeOrStartExternal(providerId: String) {
+        externalStartActions.authorizeOrStartExternal(providerId)
     }
 
     private fun syncWirelessAdbStatusPolling() {
@@ -132,6 +148,14 @@ public open class PrivilegeUiViewModel public constructor() : ViewModel() {
             startWirelessAdbStatusPolling()
         } else {
             stopWirelessAdbStatusPolling()
+        }
+    }
+
+    private fun syncExternalStartStatusPolling() {
+        if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.EXTERNAL) {
+            startExternalStartStatusPolling()
+        } else {
+            stopExternalStartStatusPolling()
         }
     }
 

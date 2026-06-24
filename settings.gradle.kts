@@ -24,7 +24,6 @@ include(
     ":priv-ssl",
     ":priv-adb",
     ":priv-root",
-    ":priv-delegate",
     ":priv-ui",
     ":priv-sample",
     ":hidden-api",

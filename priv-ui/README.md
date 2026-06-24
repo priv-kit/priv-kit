@@ -10,7 +10,7 @@ Public entry points:
 
 - `PrivilegeScaffold`, the root Compose page.
 - `PrivilegeUiViewModel`, an `open` default state manager that callers may subclass.
-- `PrivilegeUiConfig`, used to enable startup modes and external Delegate providers.
+- `PrivilegeUiConfig`, used to enable startup modes, polling intervals, and external start providers.
 - `PrivilegeAdbPairingService`, a foreground service that accepts Wireless ADB pairing codes through notification `RemoteInput`.
 
 The UI covers ordinary user-facing authorization only:
@@ -19,17 +19,17 @@ The UI covers ordinary user-facing authorization only:
 - Root startup.
 - Manual shell command copy.
 - ADB authorization, including Wireless ADB pairing, notification pairing, status polling, startup, and optional TCP reuse.
-- Delegate startup through app-provided `PrivilegeUiDelegateProvider` implementations.
+- External startup through app-provided `PrivilegeUiExternalStartProvider` implementations, with status refreshed on foreground resume and while the External tab is selected.
 - Service started/not-started status.
 
-It does not include Shizuku, Dhizuku, app-owned service management, stop-service controls, package management, input injection, settings, app-ops, diagnostic logs, or other high-level Android system operation UI. Shizuku-style support belongs in the app as a `PrivilegeUiDelegateProvider` that returns a `PrivilegeDelegateExecutor`.
+It does not include Shizuku, Dhizuku, app-owned service management, stop-service controls, package management, input injection, settings, app-ops, diagnostic logs, or other high-level Android system operation UI. Shizuku-style support belongs in the app as a `PrivilegeUiExternalStartProvider` that executes the external start command.
 
 Basic usage:
 
 ```kotlin
 PrivilegeScaffold(
     config = PrivilegeUiConfig(
-        delegateProviders = listOf(myShizukuProvider),
+        externalStartProviders = listOf(myShizukuProvider),
     ),
     onBackClick = {
         // Return to the host app page.

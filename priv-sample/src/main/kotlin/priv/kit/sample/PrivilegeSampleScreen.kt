@@ -228,7 +228,7 @@ internal fun PrivilegeSampleScreen(
     onTcpPortChanged: (String) -> Unit,
     onStartRootRuntime: () -> Unit,
     onCopyManualCommand: () -> Unit,
-    onStartShizukuDelegate: () -> Unit,
+    onStartShizukuExternal: () -> Unit,
     onPairWirelessAdb: () -> Unit,
     onStartNotificationPairing: () -> Unit,
     onStopNotificationPairing: () -> Unit,
@@ -273,7 +273,7 @@ internal fun PrivilegeSampleScreen(
                         onTcpPortChanged = onTcpPortChanged,
                         onStartRootRuntime = onStartRootRuntime,
                         onCopyManualCommand = onCopyManualCommand,
-                        onStartShizukuDelegate = onStartShizukuDelegate,
+                        onStartShizukuExternal = onStartShizukuExternal,
                         onPairWirelessAdb = onPairWirelessAdb,
                         onStartNotificationPairing = onStartNotificationPairing,
                         onStopNotificationPairing = onStopNotificationPairing,
@@ -459,7 +459,7 @@ private fun ConnectionTestPage(
     onTcpPortChanged: (String) -> Unit,
     onStartRootRuntime: () -> Unit,
     onCopyManualCommand: () -> Unit,
-    onStartShizukuDelegate: () -> Unit,
+    onStartShizukuExternal: () -> Unit,
     onPairWirelessAdb: () -> Unit,
     onStartNotificationPairing: () -> Unit,
     onStopNotificationPairing: () -> Unit,
@@ -493,9 +493,9 @@ private fun ConnectionTestPage(
         when (selectedStartupTab) {
             PrivilegeStartupTab.Root -> RootPage(state, onStartRootRuntime)
             PrivilegeStartupTab.Manual -> ManualPage(state, onCopyManualCommand)
-            PrivilegeStartupTab.Shizuku -> ShizukuDelegatePage(
+            PrivilegeStartupTab.Shizuku -> ShizukuPage(
                 state = state,
-                onStartShizukuDelegate = onStartShizukuDelegate,
+                onStartShizukuExternal = onStartShizukuExternal,
             )
             PrivilegeStartupTab.WirelessAdb -> WirelessAdbPage(
                 state = state,
@@ -965,9 +965,9 @@ private fun ManualPage(
 }
 
 @Composable
-private fun ShizukuDelegatePage(
+private fun ShizukuPage(
     state: PrivilegeSampleScreenState,
-    onStartShizukuDelegate: () -> Unit,
+    onStartShizukuExternal: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(
@@ -995,10 +995,10 @@ private fun ShizukuDelegatePage(
             }
         }
         SampleAction(
-            label = state.shizukuDelegateActionLabel(),
+            label = state.shizukuExternalActionLabel(),
             enabled = !state.busy,
             background = Color(0xFF1769E0),
-            onClick = onStartShizukuDelegate,
+            onClick = onStartShizukuExternal,
         )
         if (state.shizukuLastException.isNotBlank()) {
             DiagnosticBlock(state.shizukuLastException)
@@ -1006,11 +1006,11 @@ private fun ShizukuDelegatePage(
     }
 }
 
-private fun PrivilegeSampleScreenState.shizukuDelegateActionLabel(): String =
+private fun PrivilegeSampleScreenState.shizukuExternalActionLabel(): String =
     if (shizukuReady && shizukuPermissionGranted) {
-        "Start Delegate"
+        "Start with Shizuku"
     } else {
-        "Authorize and Start Delegate"
+        "Authorize and Start Shizuku"
     }
 
 @Composable

@@ -13,20 +13,20 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 
 @Composable
-internal fun DelegatePanel(
+internal fun ExternalStartPanel(
     state: PrivilegeUiState,
     onAuthorizeOrStart: (String) -> Unit,
 ) {
     Panel {
         Text(
-            text = stringResource(R.string.priv_ui_delegate_authorization_title),
+            text = stringResource(R.string.priv_ui_external_authorization_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
         )
-        if (state.delegateItems.isEmpty()) {
-            Text(stringResource(R.string.priv_ui_delegate_no_provider))
+        if (state.externalStartItems.isEmpty()) {
+            Text(stringResource(R.string.priv_ui_external_no_provider))
         }
-        state.delegateItems.forEach { item ->
+        state.externalStartItems.forEach { item ->
             ItemPanel {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -38,7 +38,7 @@ internal fun DelegatePanel(
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    StatusText(item.snapshot.delegateStatusText())
+                    StatusText(item.snapshot.externalStartStatusText())
                 }
                 if (item.snapshot.message.isNotBlank()) {
                     Text(
@@ -54,9 +54,9 @@ internal fun DelegatePanel(
                 ) {
                     Text(
                         if (item.snapshot.canStart) {
-                            stringResource(R.string.priv_ui_delegate_start)
+                            stringResource(R.string.priv_ui_external_start)
                         } else {
-                            stringResource(R.string.priv_ui_delegate_authorize_start)
+                            stringResource(R.string.priv_ui_external_authorize_start)
                         },
                     )
                 }

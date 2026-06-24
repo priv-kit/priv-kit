@@ -8,7 +8,6 @@ android {
 
 dependencies {
     api(project(":priv-core"))
-    api(project(":priv-delegate"))
     implementation(project(":priv-adb"))
     implementation(project(":priv-root"))
     runtimeOnly(project(":priv-server"))

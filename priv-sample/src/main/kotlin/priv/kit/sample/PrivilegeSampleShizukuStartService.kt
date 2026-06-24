@@ -4,16 +4,14 @@ import android.content.Context
 import androidx.annotation.Keep
 import java.io.InputStream
 import java.util.Collections
+import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import kotlin.system.exitProcess
 
 @Keep
-internal class PrivilegeSampleShizukuDelegateService @Keep constructor() :
-    IPrivilegeSampleShizukuDelegateService.Stub() {
+internal class PrivilegeSampleShizukuStartService @Keep constructor() :
+    IPrivilegeSampleShizukuStartService.Stub() {
     private val output = Collections.synchronizedList(mutableListOf<String>())
-
-    @Volatile
-    private var process: Process? = null
 
     @Keep
     constructor(context: Context) : this() {
@@ -22,52 +20,50 @@ internal class PrivilegeSampleShizukuDelegateService @Keep constructor() :
 
     override fun start(commandLine: String): String {
         require(commandLine.isNotBlank()) { "commandLine must not be blank" }
-        stopLaunchProcess()
         output.clear()
         appendOutput(
             "diag",
-            "Starting Priv Kit detached activation command uid=${android.os.Process.myUid()}, length=${commandLine.length}",
+            "Starting Priv Kit external command uid=${android.os.Process.myUid()}, length=${commandLine.length}",
         )
-        val startedProcess = try {
+        val process = try {
             ProcessBuilder("/system/bin/sh", "-c", commandLine).start()
         } catch (throwable: Throwable) {
             appendOutput("diag", throwable.toOutputLine("Failed to start command"))
             throw throwable
         }
-        process = startedProcess
-        consume(startedProcess.inputStream, "stdout")
-        consume(startedProcess.errorStream, "stderr")
+        consume(process.inputStream, "stdout")
+        consume(process.errorStream, "stderr")
+
+        if (!process.waitFor(SHELL_COMMAND_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
+            process.destroy()
+            val message = "External command did not return after ${SHELL_COMMAND_TIMEOUT_MILLIS}ms"
+            appendOutput("diag", message)
+            throw IllegalStateException(message)
+        }
+
+        val exitCode = process.exitValue()
+        appendOutput("diag", "External command shell exited code=$exitCode")
+        if (exitCode != 0) {
+            throw IllegalStateException(getLaunchOutput())
+        }
         return getLaunchOutput()
     }
 
-    override fun isLaunchProcessAlive(): Boolean =
-        process?.isAlive == true
+    override fun destroy() {
+        appendOutput("diag", "Destroying Shizuku start UserService")
+        exitProcess(0)
+    }
 
-    override fun getLaunchOutput(): String =
+    private fun getLaunchOutput(): String =
         synchronized(output) {
             output.joinToString("\n").ifBlank { "<no output>" }
         }
-
-    override fun stopLaunchProcess() {
-        val current = process
-        if (current != null && current.isAlive) {
-            appendOutput("diag", "Destroying launch process")
-            current.destroy()
-        }
-        process = null
-    }
-
-    override fun destroy() {
-        stopLaunchProcess()
-        appendOutput("diag", "Destroying Shizuku delegate UserService")
-        exitProcess(0)
-    }
 
     private fun consume(
         inputStream: InputStream,
         source: String,
     ) {
-        thread(name = "priv-kit-shizuku-delegate-$source", isDaemon = true) {
+        thread(name = "priv-kit-shizuku-start-$source", isDaemon = true) {
             inputStream.bufferedReader().useLines { lines ->
                 lines.forEach { line ->
                     appendOutput(source, line)
@@ -91,6 +87,7 @@ internal class PrivilegeSampleShizukuDelegateService @Keep constructor() :
         "$prefix: ${javaClass.simpleName}: ${message.orEmpty()}"
 
     private companion object {
+        const val SHELL_COMMAND_TIMEOUT_MILLIS = 2_000L
         const val MAX_CAPTURED_LINES = 80
     }
 }

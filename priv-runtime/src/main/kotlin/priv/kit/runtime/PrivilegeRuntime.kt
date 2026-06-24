@@ -20,11 +20,6 @@ import priv.kit.core.PrivilegeServerHandshakeResult
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeServerLaunchCommand
 import priv.kit.core.PrivilegeStartupException
-import priv.kit.delegate.PrivilegeDelegateCommand
-import priv.kit.delegate.PrivilegeDelegateExecutor
-import priv.kit.delegate.PrivilegeDelegateProcess
-import priv.kit.delegate.PrivilegeDelegateStartResult
-import priv.kit.delegate.PrivilegeDelegateStarter
 import priv.kit.root.PrivilegeRootCommand
 import priv.kit.root.PrivilegeRootStartResult
 import priv.kit.root.PrivilegeRootStarter
@@ -113,6 +108,43 @@ public object PrivilegeRuntime {
         val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(command.token)
         return PrivilegeManualShellConnection(
             command = command,
+            pendingHandshake = pendingHandshake,
+            onHandshake = ::connectHandshake,
+        )
+    }
+
+    @Throws(PrivilegeStartupException::class)
+    public fun createExternalStartCommand(
+        launchMode: PrivilegeLaunchMode = PrivilegeLaunchMode.SHELL,
+        followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
+        activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
+    ): PrivilegeExternalStartCommand {
+        val runtimeConfig = applyRuntimeConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
+        val token = ownerTokenStore().readOrCreate()
+        return buildExternalStartCommand(
+            token = token,
+            launchMode = launchMode,
+            config = runtimeConfig,
+        )
+    }
+
+    @Throws(PrivilegeStartupException::class)
+    public fun prepareExternalStart(
+        launchMode: PrivilegeLaunchMode = PrivilegeLaunchMode.SHELL,
+        followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
+        activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
+    ): PrivilegeExternalStartConnection {
+        val runtimeConfig = applyRuntimeConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
+        val token = ownerTokenStore().readOrCreate()
+        val command = buildExternalStartCommand(
+            token = token,
+            launchMode = launchMode,
+            config = runtimeConfig,
+        )
+        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
+        return PrivilegeExternalStartConnection(
+            command = command,
+            token = token,
             pendingHandshake = pendingHandshake,
             onHandshake = ::connectHandshake,
         )
@@ -209,46 +241,6 @@ public object PrivilegeRuntime {
                     e,
                 )
             }
-            throw e
-        } finally {
-            PrivilegeServerHandshakeRegistry.cancel(token)
-        }
-    }
-
-    @Throws(PrivilegeStartupException::class)
-    public fun startDelegate(
-        executor: PrivilegeDelegateExecutor,
-        launchMode: PrivilegeLaunchMode = PrivilegeLaunchMode.SHELL,
-        timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
-        followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
-        activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-    ): PrivilegeServerInfo {
-        val runtimeConfig = applyRuntimeConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
-        val token = ownerTokenStore().readOrCreate()
-        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
-        var startResult: PrivilegeDelegateStartResult? = null
-
-        try {
-            startResult = PrivilegeDelegateStarter(executor).start(
-                buildDelegateCommand(
-                    token = token,
-                    launchMode = launchMode,
-                    config = runtimeConfig,
-                ),
-            )
-            val handshakeResult = pendingHandshake.await(timeoutMillis)
-            return connectHandshake(handshakeResult)
-        } catch (e: PrivilegeStartupException) {
-            val delegateResult = startResult
-            val delegateProcess = delegateResult?.process
-            if (delegateProcess != null && !delegateProcess.isAlive) {
-                throw PrivilegeStartupException(
-                    "Delegate executor ${delegateResult.executorName} command exited before handshake: " +
-                        delegateProcess.safeOutputText(),
-                    e,
-                )
-            }
-            delegateProcess?.destroy()
             throw e
         } finally {
             PrivilegeServerHandshakeRegistry.cancel(token)
@@ -554,19 +546,18 @@ public object PrivilegeRuntime {
         )
     }
 
-    internal fun buildDelegateCommand(
+    private fun buildExternalStartCommand(
         token: String,
         launchMode: PrivilegeLaunchMode,
         config: PrivilegeRuntimeConfig,
-    ): PrivilegeDelegateCommand {
+    ): PrivilegeExternalStartCommand {
         val launchCommand = buildServerLaunchCommand(
             token = token,
             launchMode = launchMode,
             config = config,
         )
-        return PrivilegeDelegateCommand(
-            foregroundCommandLine = launchCommand.foregroundCommandLine,
-            detachedCommandLine = launchCommand.detachedCommandLine,
+        return PrivilegeExternalStartCommand(
+            commandLine = launchCommand.detachedCommandLine,
             classpath = launchCommand.classpath,
             mainClass = launchCommand.mainClass,
             providerAuthority = launchCommand.providerAuthority,
@@ -662,12 +653,6 @@ public object PrivilegeRuntime {
             launchMode = launchMode,
             config = config,
         )
-
-    private fun PrivilegeDelegateProcess.safeOutputText(): String =
-        runCatching { outputText() }
-            .getOrElse { throwable ->
-                "<failed to read delegate output: ${throwable.javaClass.simpleName}: ${throwable.message}>"
-            }
 
     private fun PrivilegeServerInfo.matchesCurrentRuntime(): Boolean =
         protocolVersion == PrivilegeProtocol.VERSION &&

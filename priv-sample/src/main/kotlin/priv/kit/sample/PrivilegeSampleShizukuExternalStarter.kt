@@ -8,43 +8,40 @@ import android.content.pm.PackageManager
 import android.os.IBinder
 import android.os.RemoteException
 import priv.kit.core.PrivilegeStartupException
-import priv.kit.delegate.PrivilegeDelegateCommand
-import priv.kit.delegate.PrivilegeDelegateExecutor
-import priv.kit.delegate.PrivilegeDelegateProcess
+import priv.kit.runtime.PrivilegeExternalStartCommand
 import rikka.shizuku.Shizuku
 import java.io.Closeable
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
-internal class PrivilegeSampleShizukuDelegateExecutor(
+internal class PrivilegeSampleShizukuExternalStarter(
     context: Context,
-) : PrivilegeDelegateExecutor,
-    Closeable {
+) : Closeable {
     private val applicationContext = context.applicationContext
 
     @Volatile
-    private var service: IPrivilegeSampleShizukuDelegateService? = null
+    private var service: IPrivilegeSampleShizukuStartService? = null
 
     @Volatile
     private var serviceConnection: ServiceConnection? = null
 
-    override val name: String = "Shizuku UserService"
-
-    override fun isAvailable(): Boolean =
+    fun isAvailable(): Boolean =
         Shizuku.pingBinder() &&
             !Shizuku.isPreV11() &&
             Shizuku.getVersion() >= SHIZUKU_USER_SERVICE_MIN_VERSION &&
             Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
 
-    override fun start(command: PrivilegeDelegateCommand): PrivilegeDelegateProcess {
-        val activeService = bindOrGetService()
-        val output = try {
-            activeService.start(command.detachedCommandLine)
-        } catch (exception: RemoteException) {
-            throw PrivilegeStartupException("Shizuku delegate UserService failed to start command", exception)
+    fun start(command: PrivilegeExternalStartCommand): String {
+        if (!isAvailable()) {
+            throw PrivilegeStartupException("Shizuku external starter is not available")
         }
-        return ShizukuDelegateProcess(activeService, output, ::close)
+        val activeService = bindOrGetService()
+        return try {
+            activeService.start(command.commandLine)
+        } catch (exception: RemoteException) {
+            throw PrivilegeStartupException("Shizuku UserService failed to start external command", exception)
+        }
     }
 
     override fun close() {
@@ -54,12 +51,12 @@ internal class PrivilegeSampleShizukuDelegateExecutor(
         removeUserService(connection)
     }
 
-    private fun bindOrGetService(): IPrivilegeSampleShizukuDelegateService {
+    private fun bindOrGetService(): IPrivilegeSampleShizukuStartService {
         service?.takeIf { service ->
             runCatching { service.asBinder().pingBinder() }.getOrDefault(false)
         }?.let { return it }
 
-        val serviceRef = AtomicReference<IPrivilegeSampleShizukuDelegateService?>()
+        val serviceRef = AtomicReference<IPrivilegeSampleShizukuStartService?>()
         val failureRef = AtomicReference<Throwable?>()
         val latch = CountDownLatch(1)
         val connection = object : ServiceConnection {
@@ -67,11 +64,11 @@ internal class PrivilegeSampleShizukuDelegateExecutor(
                 name: ComponentName,
                 binder: IBinder,
             ) {
-                val delegateService = IPrivilegeSampleShizukuDelegateService.Stub.asInterface(binder)
-                if (delegateService == null) {
-                    failureRef.set(PrivilegeStartupException("Shizuku delegate UserService returned an invalid Binder"))
+                val startService = IPrivilegeSampleShizukuStartService.Stub.asInterface(binder)
+                if (startService == null) {
+                    failureRef.set(PrivilegeStartupException("Shizuku UserService returned an invalid Binder"))
                 } else {
-                    serviceRef.set(delegateService)
+                    serviceRef.set(startService)
                 }
                 latch.countDown()
             }
@@ -79,7 +76,7 @@ internal class PrivilegeSampleShizukuDelegateExecutor(
             override fun onServiceDisconnected(name: ComponentName) {
                 service = null
                 if (serviceRef.get() == null) {
-                    failureRef.set(PrivilegeStartupException("Shizuku delegate UserService disconnected while binding"))
+                    failureRef.set(PrivilegeStartupException("Shizuku UserService disconnected while binding"))
                     latch.countDown()
                 }
             }
@@ -90,24 +87,24 @@ internal class PrivilegeSampleShizukuDelegateExecutor(
             Shizuku.bindUserService(userServiceArgs(), connection)
         } catch (throwable: Throwable) {
             serviceConnection = null
-            throw PrivilegeStartupException("Failed to bind Shizuku delegate UserService", throwable)
+            throw PrivilegeStartupException("Failed to bind Shizuku UserService", throwable)
         }
 
         if (!latch.await(SHIZUKU_BIND_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
             removeUserService(connection)
             serviceConnection = null
-            throw PrivilegeStartupException("Timed out binding Shizuku delegate UserService")
+            throw PrivilegeStartupException("Timed out binding Shizuku UserService")
         }
 
         failureRef.get()?.let { throwable ->
             removeUserService(connection)
             serviceConnection = null
             if (throwable is PrivilegeStartupException) throw throwable
-            throw PrivilegeStartupException("Failed to bind Shizuku delegate UserService", throwable)
+            throw PrivilegeStartupException("Failed to bind Shizuku UserService", throwable)
         }
 
         val boundService = serviceRef.get()
-            ?: throw PrivilegeStartupException("Shizuku delegate UserService returned no Binder")
+            ?: throw PrivilegeStartupException("Shizuku UserService returned no Binder")
         service = boundService
         return boundService
     }
@@ -116,14 +113,14 @@ internal class PrivilegeSampleShizukuDelegateExecutor(
         Shizuku.UserServiceArgs(
             ComponentName(
                 applicationContext.packageName,
-                PrivilegeSampleShizukuDelegateService::class.java.name,
+                PrivilegeSampleShizukuStartService::class.java.name,
             ),
         )
             .daemon(false)
-            .tag(SHIZUKU_DELEGATE_TAG)
-            .processNameSuffix(SHIZUKU_DELEGATE_PROCESS_SUFFIX)
+            .tag(SHIZUKU_START_TAG)
+            .processNameSuffix(SHIZUKU_START_PROCESS_SUFFIX)
             .debuggable(applicationContext.isDebuggable())
-            .version(SHIZUKU_DELEGATE_SERVICE_VERSION)
+            .version(SHIZUKU_START_SERVICE_VERSION)
 
     private fun removeUserService(connection: ServiceConnection) {
         val args = userServiceArgs()
@@ -139,35 +136,11 @@ internal class PrivilegeSampleShizukuDelegateExecutor(
     private fun Context.isDebuggable(): Boolean =
         applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
 
-    private class ShizukuDelegateProcess(
-        private val service: IPrivilegeSampleShizukuDelegateService,
-        private val initialOutput: String,
-        private val closeService: () -> Unit,
-    ) : PrivilegeDelegateProcess {
-        override val isAlive: Boolean
-            get() = runCatching { service.isLaunchProcessAlive }.getOrDefault(false)
-
-        override fun destroy() {
-            runCatching {
-                service.stopLaunchProcess()
-            }
-            closeService()
-        }
-
-        override fun outputText(): String =
-            runCatching { service.launchOutput }
-                .getOrElse { throwable ->
-                    initialOutput.ifBlank {
-                        "<failed to read Shizuku delegate output: ${throwable.javaClass.simpleName}: ${throwable.message}>"
-                    }
-                }
-    }
-
     private companion object {
         const val SHIZUKU_USER_SERVICE_MIN_VERSION = 10
         const val SHIZUKU_BIND_TIMEOUT_MILLIS = 10_000L
-        const val SHIZUKU_DELEGATE_TAG = "priv-kit-delegate"
-        const val SHIZUKU_DELEGATE_PROCESS_SUFFIX = "priv-kit-shizuku-delegate"
-        const val SHIZUKU_DELEGATE_SERVICE_VERSION = 1
+        const val SHIZUKU_START_TAG = "priv-kit-external-start"
+        const val SHIZUKU_START_PROCESS_SUFFIX = "priv-kit-shizuku-start"
+        const val SHIZUKU_START_SERVICE_VERSION = 1
     }
 }

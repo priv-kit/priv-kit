@@ -23,8 +23,11 @@ internal class PrivilegeUiViewModelStore : AutoCloseable {
     var startNotificationPairingAfterPermission: Boolean = false
     var wirelessStatusPollingStop: AtomicBoolean? = null
     var wirelessStatusPollingThread: Thread? = null
+    var externalStartStatusPollingStop: AtomicBoolean? = null
+    var externalStartStatusPollingThread: Thread? = null
     val wirelessStatusRefreshRunning = AtomicBoolean(false)
     val tcpModeRefreshRunning = AtomicBoolean(false)
+    val externalStartStatusRefreshRunning = AtomicBoolean(false)
 
     fun initializeState(config: PrivilegeUiConfig) {
         val context = requireContext()
@@ -39,8 +42,8 @@ internal class PrivilegeUiViewModelStore : AutoCloseable {
                     context.getString(R.string.priv_ui_pairing_default_message)
                 },
                 notificationPairingRunning = PrivilegeAdbPairingService.running.value,
-                delegateItems = config.delegateProviders.map { provider ->
-                    PrivilegeUiDelegateItemState(
+                externalStartItems = config.externalStartProviders.map { provider ->
+                    PrivilegeUiExternalStartItemState(
                         id = provider.id,
                         label = provider.label,
                     )
@@ -53,13 +56,13 @@ internal class PrivilegeUiViewModelStore : AutoCloseable {
         state.update(transform)
     }
 
-    fun updateDelegateItem(
+    fun updateExternalStartItem(
         id: String,
-        transform: (PrivilegeUiDelegateItemState) -> PrivilegeUiDelegateItemState,
+        transform: (PrivilegeUiExternalStartItemState) -> PrivilegeUiExternalStartItemState,
     ) {
         updateState { current ->
             current.copy(
-                delegateItems = current.delegateItems.map { item ->
+                externalStartItems = current.externalStartItems.map { item ->
                     if (item.id == id) transform(item) else item
                 },
             )
@@ -98,7 +101,7 @@ internal class PrivilegeUiViewModelStore : AutoCloseable {
     private fun PrivilegeUiConfig.effectiveStartupModes(): List<PrivilegeUiStartupMode> {
         val modes = startupModes
             .filterTo(mutableSetOf()) { it in USER_VISIBLE_AUTHORIZATION_MODES }
-        if (delegateProviders.isNotEmpty()) modes += PrivilegeUiStartupMode.DELEGATE
+        if (externalStartProviders.isNotEmpty()) modes += PrivilegeUiStartupMode.EXTERNAL
         if (modes.isEmpty()) modes += PrivilegeUiStartupMode.ROOT
         return USER_VISIBLE_AUTHORIZATION_MODE_ORDER.filter { it in modes }
     }
@@ -106,13 +109,13 @@ internal class PrivilegeUiViewModelStore : AutoCloseable {
     private companion object {
         val USER_VISIBLE_AUTHORIZATION_MODES = setOf(
             PrivilegeUiStartupMode.ADB,
-            PrivilegeUiStartupMode.DELEGATE,
+            PrivilegeUiStartupMode.EXTERNAL,
             PrivilegeUiStartupMode.MANUAL_SHELL,
             PrivilegeUiStartupMode.ROOT,
         )
         val USER_VISIBLE_AUTHORIZATION_MODE_ORDER = listOf(
             PrivilegeUiStartupMode.ADB,
-            PrivilegeUiStartupMode.DELEGATE,
+            PrivilegeUiStartupMode.EXTERNAL,
             PrivilegeUiStartupMode.MANUAL_SHELL,
             PrivilegeUiStartupMode.ROOT,
         )
