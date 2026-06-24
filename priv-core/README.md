@@ -10,7 +10,7 @@ Primary package partitions:
 
 Current contents:
 
-- `PrivilegeServerInfo`, protocol constants, Root/Shell launch mode constants, startup errors, and random token generation.
+- `PrivilegeServerInfo`, protocol constants, startup errors, and random token generation.
 - `PrivilegeServerLaunchCommand`, the shared `app_process` launch command value model used by startup transports.
 - `PrivilegeServerHandshakeRegistry`, the in-process registry used by the app-side runtime to accept token-matched Privileged Server Binder handoff calls.
 - `IPrivilegeServer`, the project-owned Binder protocol for the Privileged Server.

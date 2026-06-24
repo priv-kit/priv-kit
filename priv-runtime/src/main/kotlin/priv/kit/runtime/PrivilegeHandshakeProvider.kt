@@ -9,7 +9,6 @@ import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
 import priv.kit.core.PrivilegeHandshakeContract
-import priv.kit.core.PrivilegeLaunchMode
 import priv.kit.core.PrivilegeProtocol
 import priv.kit.core.PrivilegeServerHandshakeRegistry
 import priv.kit.core.PrivilegeServerInfo
@@ -24,9 +23,6 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method == PrivilegeHandshakeContract.METHOD_SERVER_START_TOKEN) {
-            return handleServerStartToken(extras)
-        }
         if (method == PrivilegeUserServiceContract.METHOD_USER_SERVICE_READY) {
             return handleUserServiceReady(arg, extras)
         }
@@ -37,93 +33,75 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
             return super.call(method, arg, extras)
         }
 
-        val token = extras?.getString(PrivilegeHandshakeContract.EXTRA_TOKEN)
+        return handleServerReady(arg, extras)
+    }
+
+    private fun handleServerReady(arg: String?, extras: Bundle?): Bundle {
+        val callingUid = Binder.getCallingUid()
+        val callingPid = Binder.getCallingPid()
+        val token = extras?.getString(PrivilegeHandshakeContract.EXTRA_TOKEN)?.takeIf { it.isNotBlank() }
         val serverBinder = extras?.getBinder(PrivilegeHandshakeContract.EXTRA_SERVER_BINDER)
         Log.i(
             TAG,
-            "Handshake call received tokenMatches=${token == arg}, hasExtras=${extras != null}, " +
+            "Handshake call received initial=${token == null}, tokenMatches=${token == arg}, " +
+                "callingUid=$callingUid, callingPid=$callingPid, hasExtras=${extras != null}, " +
                 "hasBinder=${serverBinder != null}",
         )
-        val tokenAccepted = extras != null && token == arg && token == ownerToken()
-        val serverInfo = if (tokenAccepted) {
-            extras.toServerInfo()
+        val serverInfo = if (extras != null) {
+            extras.toServerInfo(
+                uid = callingUid,
+                pid = callingPid,
+            )
         } else {
             null
         }
         val matchesCurrentRuntime = extras != null &&
             serverInfo != null &&
             serverInfo.matchesCurrentRuntime(extras)
-        val classpathIdentityMatches = extras?.classpathIdentityMatches() == true
-        val restartCommandLine = if (
-            tokenAccepted &&
-            token != null &&
-            serverInfo != null &&
-            !matchesCurrentRuntime
-        ) {
-            buildRestartCommandLine(
-                token = token,
-                serverInfo = serverInfo,
-                config = extras.toRuntimeConfig(),
-            )
-        } else {
-            null
-        }
-        val shouldShutdown = if (tokenAccepted && serverInfo != null && !matchesCurrentRuntime) {
+        val trustedCaller = isTrustedServerStarterCaller(callingUid)
+        val acceptedToken = acceptedToken(
+            token = token,
+            arg = arg,
+            trustedCaller = trustedCaller,
+            matchesCurrentRuntime = matchesCurrentRuntime,
+        )
+        if (serverInfo != null && trustedCaller && !matchesCurrentRuntime) {
             Log.w(
                 TAG,
                 "Rejecting server mismatch protocol=${serverInfo.protocolVersion}, " +
-                    "serverVersion=${serverInfo.serverVersion}, " +
-                    "classpathIdentityMatches=$classpathIdentityMatches",
+                    "classpathIdentityMatches=${extras?.classpathIdentityMatches() == true}",
             )
-            true
-        } else {
-            false
         }
-        val accepted = if (tokenAccepted && !shouldShutdown && serverInfo != null) {
+        val accepted = if (acceptedToken != null && matchesCurrentRuntime) {
             PrivilegeServerHandshakeRegistry.deliverReady(
-                token = token,
+                token = acceptedToken,
                 serverBinder = serverBinder,
-                serverInfo = serverInfo,
+                serverInfo = requireNotNull(serverInfo),
             )
         } else {
             false
         }
-        Log.i(TAG, "Handshake call accepted=$accepted, shouldShutdown=$shouldShutdown")
+        Log.i(TAG, "Handshake call accepted=$accepted")
 
         return Bundle().apply {
             putBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, accepted)
-            putBoolean(PrivilegeHandshakeContract.RESULT_SHOULD_SHUTDOWN, shouldShutdown)
-            restartCommandLine?.let {
-                putString(PrivilegeHandshakeContract.RESULT_RESTART_COMMAND_LINE, it)
-            }
-            if (accepted && token != null) {
+            if (accepted && acceptedToken != null) {
                 putBinder(
                     PrivilegeHandshakeContract.RESULT_OWNER_BINDER,
-                    ownerBinders.getOrPut(token) { Binder() },
+                    ownerBinders.getOrPut(acceptedToken) { Binder() },
                 )
-            }
-        }
-    }
-
-    private fun handleServerStartToken(extras: Bundle?): Bundle {
-        val callingUid = Binder.getCallingUid()
-        val accepted = isTrustedServerStarterCaller(callingUid) &&
-            extras != null &&
-            extras.startTokenRequestMatchesCurrentRuntime()
-        val token = if (accepted) {
-            ownerTokenOrCreate()
-        } else {
-            null
-        }
-        Log.i(
-            TAG,
-            "Server start token requested accepted=${token != null}, callingUid=$callingUid, " +
-                "hasExtras=${extras != null}",
-        )
-        return Bundle().apply {
-            putBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, token != null)
-            if (token != null) {
-                putString(PrivilegeHandshakeContract.RESULT_TOKEN, token)
+                if (token == null) {
+                    val runtimeConfig = PrivilegeRuntime.runtimeConfig()
+                    putString(PrivilegeHandshakeContract.RESULT_TOKEN, acceptedToken)
+                    putLong(
+                        PrivilegeHandshakeContract.EXTRA_FOLLOW_DEATH_DELAY_MILLIS,
+                        runtimeConfig.followDeathDelayMillis,
+                    )
+                    putBoolean(
+                        PrivilegeHandshakeContract.EXTRA_ACTIVE_RECONNECT_ON_OWNER_DEATH,
+                        runtimeConfig.activeReconnectOnOwnerDeath,
+                    )
+                }
             }
         }
     }
@@ -200,13 +178,28 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
         runCatching {
             context?.let { PrivilegeOwnerTokenStore(it).readOrCreate() }
         }.getOrElse { throwable ->
-            Log.e(TAG, "Failed to create owner token for start token request", throwable)
+            Log.e(TAG, "Failed to create owner token for initial server handshake", throwable)
             null
         }
 
+    private fun acceptedToken(
+        token: String?,
+        arg: String?,
+        trustedCaller: Boolean,
+        matchesCurrentRuntime: Boolean,
+    ): String? {
+        if (token != null) {
+            return if (token == arg && token == ownerToken()) token else null
+        }
+        return if (trustedCaller && matchesCurrentRuntime) {
+            ownerTokenOrCreate()
+        } else {
+            null
+        }
+    }
+
     private fun PrivilegeServerInfo.matchesCurrentRuntime(extras: Bundle): Boolean =
         protocolVersion == PrivilegeProtocol.VERSION &&
-            serverVersion == PrivilegeProtocol.SERVER_VERSION &&
             extras.classpathIdentityMatches()
 
     private fun Bundle.classpathIdentityMatches(): Boolean {
@@ -217,11 +210,6 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
         return getString(PrivilegeHandshakeContract.EXTRA_CLASSPATH_IDENTITY) == expected
     }
 
-    private fun Bundle.startTokenRequestMatchesCurrentRuntime(): Boolean =
-        getInt(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION, -1) == PrivilegeProtocol.VERSION &&
-            getString(PrivilegeHandshakeContract.EXTRA_SERVER_VERSION) == PrivilegeProtocol.SERVER_VERSION &&
-            classpathIdentityMatches()
-
     private fun isTrustedServerStarterCaller(callingUid: Int): Boolean {
         val ownerUid = context?.applicationInfo?.uid
         return callingUid == ROOT_UID ||
@@ -230,46 +218,14 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
             ownerUid == callingUid
     }
 
-    private fun buildRestartCommandLine(
-        token: String,
-        serverInfo: PrivilegeServerInfo,
-        config: PrivilegeRuntimeConfig,
-    ): String? {
-        val context = context ?: return null
-        return PrivilegeServerLaunchCommandBuilder.build(
-            context = context,
-            token = token,
-            launchMode = serverInfo.toPrivilegeLaunchMode(),
-            config = config,
-        ).detachedCommandLine
-    }
-
-    private fun Bundle.toRuntimeConfig(): PrivilegeRuntimeConfig =
-        PrivilegeRuntimeConfig(
-            followDeathDelayMillis = getLong(
-                PrivilegeHandshakeContract.EXTRA_FOLLOW_DEATH_DELAY_MILLIS,
-                PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
-            ),
-            activeReconnectOnOwnerDeath = getBoolean(
-                PrivilegeHandshakeContract.EXTRA_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-                PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-            ),
-        )
-
-    private fun PrivilegeServerInfo.toPrivilegeLaunchMode(): PrivilegeLaunchMode =
-        if (launchMode == PrivilegeLaunchMode.ROOT.value) {
-            PrivilegeLaunchMode.ROOT
-        } else {
-            PrivilegeLaunchMode.SHELL
-        }
-
-    private fun Bundle.toServerInfo(): PrivilegeServerInfo =
+    private fun Bundle.toServerInfo(
+        uid: Int,
+        pid: Int,
+    ): PrivilegeServerInfo =
         PrivilegeServerInfo(
-            uid = requireIntExtra(PrivilegeHandshakeContract.EXTRA_UID),
-            pid = requireIntExtra(PrivilegeHandshakeContract.EXTRA_PID),
-            launchMode = requireIntExtra(PrivilegeHandshakeContract.EXTRA_LAUNCH_MODE),
+            uid = uid,
+            pid = pid,
             protocolVersion = requireIntExtra(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION),
-            serverVersion = requireStringExtra(PrivilegeHandshakeContract.EXTRA_SERVER_VERSION),
         )
 
     private fun Bundle.requireIntExtra(key: String): Int {

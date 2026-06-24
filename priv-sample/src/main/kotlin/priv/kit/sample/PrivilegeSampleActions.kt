@@ -87,7 +87,7 @@ internal fun MainActivity.watchReadyServers() {
                 connectServer(serverInfo, commandLine = null)
                 appendLog(
                     "Connected from server handshake: uid=${serverInfo.uid}, " +
-                        "pid=${serverInfo.pid}, launchMode=${serverInfo.launchMode}",
+                        "pid=${serverInfo.pid}",
                 )
             }
         },
@@ -1060,7 +1060,7 @@ private fun MainActivity.connectServer(
         binderLastException = "",
         message = "Connected",
     )
-    appendLog("Connected: uid=${serverInfo.uid}, pid=${serverInfo.pid}, launchMode=${serverInfo.launchMode}")
+    appendLog("Connected: uid=${serverInfo.uid}, pid=${serverInfo.pid}")
 }
 
 private fun MainActivity.handleServerDisconnected() {

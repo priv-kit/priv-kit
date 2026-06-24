@@ -54,7 +54,7 @@ class PrivilegeServerUserServiceHostTest {
                 "--token",
                 "token-1",
                 "--provider-authority",
-                "priv.kit.sample.provider",
+                "priv.kit.sample.privilege.handshake",
                 "--package-name",
                 "priv.kit.sample",
                 "--user-id",
@@ -270,7 +270,6 @@ class PrivilegeServerUserServiceHostTest {
     private companion object {
         fun config(classpath: String = "/data/app/base.apk"): PrivilegeServerConfig =
             PrivilegeServerConfig(
-                providerAuthority = "priv.kit.sample.provider",
                 packageName = "priv.kit.sample",
                 userId = 10,
                 classpath = classpath,

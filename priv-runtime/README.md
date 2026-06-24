@@ -13,11 +13,11 @@ Common entry points:
 
 Advanced entry points:
 
-- `PrivilegeRuntime.createManualShellCommand()` for generating a token-hidden starter command that a developer can paste into `adb shell`.
+- `PrivilegeRuntime.createManualShellCommand()` for generating the short native starter command that a developer can paste into `adb shell`.
 - `PrivilegeRuntime.prepareManualShell()` for callers that still want a command plus a blocking pending-handshake wait.
 - `PrivilegeRuntime.createExternalStartCommand()` for generating a non-blocking command that an external authorization tool can execute.
 - `PrivilegeRuntime.prepareExternalStart()` for callers that want an external command plus a pending-handshake wait.
-- `PrivilegeHandshakeProvider`, the app-side Binder handoff endpoint protected by the persisted owner token. Manual token-hidden starter commands can resolve that token through the provider before the final Binder handoff.
+- `PrivilegeHandshakeProvider`, the app-side Binder handoff endpoint protected by the persisted owner token. Short native starter commands complete one provider handoff that returns the owner token and current in-memory owner-death config.
 - Ready-server connection helpers, owner-death reconnect configuration, and raw Binder bridge types for custom diagnostics or low-level Binder validation.
 
 Runtime owns token generation, shared server launch command construction, the native starter executable, Root `su` execution, pending handshakes, protocol validation, current server Binder installation, and Binder death handling. The ADB module only executes or transports the launch command.
@@ -30,13 +30,13 @@ The runtime module carries `priv-server` as a runtime-only dependency so apps do
 
 By default, owner-death reconnect is passive: the server waits until the app main process is already running again, then sends the Binder handoff. Set `activeReconnectOnOwnerDeath = true` only if the server should actively call the app handshake provider while the app process is dead, which may start the app process.
 
-The latest owner-death configuration is passed in the launch command and kept by the Privileged Server in memory. Calling `configureOwnerDeathBehavior()` while connected also pushes the new values to the current server immediately, so the next owner-process death follows the latest app-side configuration.
+The latest owner-death configuration is held in the runtime process and returned by the app-side provider during the initial server handoff. A running server keeps the configuration it received at startup; later calls to `configureOwnerDeathBehavior()` affect the next server start only.
 
 Like shizuku-api, the runtime treats the Privileged Server Binder as a single process-wide handle. A repeated handshake for the same Binder keeps the current global server state; a handshake for a replacement Binder installs the new server state.
 
 `PrivilegeRuntime.getServerInfo()`, `PrivilegeRuntime.requireBinderEndpoint()`, `PrivilegeRemoteBinderWrapper`, and `PrivilegeRemoteSystemServiceBinder` all resolve the server Binder through the same global getter. If the server was killed after a caller cached a framework service proxy backed by `PrivilegeRemoteBinderWrapper` or the raw system-service Binder bridge, the next transaction is normalized to `PrivilegeServerDisconnectedException` instead of leaking raw Binder state.
 
-If a reconnected server reports a different protocol, server version, or APK classpath identity than the current app runtime, the runtime rejects it and returns a replacement `app_process` command built from the current APK. The server executes that command in-place before exiting, so client and server code come from the same install without repeating the original privilege authorization flow.
+If a server reports a different protocol or APK classpath identity than the current app runtime, the runtime rejects that handshake. Startup paths are expected to launch code from the current install.
 
 Manual Shell only creates a command for the same Binder handoff path. It does not execute `adb`, implement Wireless Debugging, or add an ADB startup strategy.
 

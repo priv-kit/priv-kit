@@ -913,9 +913,7 @@ private fun StatusPanel(
         }
         RuntimeInfoRow(label = "uid", value = state.serverInfo?.uid?.toString() ?: "-")
         RuntimeInfoRow(label = "pid", value = state.serverInfo?.pid?.toString() ?: "-")
-        RuntimeInfoRow(label = "launchMode", value = state.serverInfo?.launchMode?.toString() ?: "-")
         RuntimeInfoRow(label = "protocol", value = state.serverInfo?.protocolVersion?.toString() ?: "-")
-        RuntimeInfoRow(label = "serverVersion", value = state.serverInfo?.serverVersion ?: "-")
         SampleAction(
             label = "Stop Server",
             enabled = !state.busy && state.status == PrivilegeSampleStatus.CONNECTED,

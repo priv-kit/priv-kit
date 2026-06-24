@@ -76,9 +76,12 @@ public class PrivilegeAdbStarter private constructor(
                 connectWithRetry(client, options, output)
                 client.command("shell:${command.commandLine}", output)
             }
+            val startedCommand = command.copy(
+                diagnosticLogPath = command.diagnosticLogPath ?: output.extractStarterDiagnosticLogPath(),
+            )
 
             PrivilegeAdbStartResult(
-                command = command,
+                command = startedCommand,
                 host = options.host,
                 port = activePort,
                 output = output,
@@ -473,5 +476,13 @@ internal fun String.toPrivilegeAdbPairingCode(): String =
 
 private fun Throwable.toFailureMessage(): String =
     "${javaClass.simpleName}: ${message.orEmpty()}".trim()
+
+private fun PrivilegeAdbOutput.extractStarterDiagnosticLogPath(): String? =
+    Regex("""priv-kit-server-log=([^\r\n]+)""")
+        .find(text())
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.trim()
+        ?.takeIf { it.startsWith(PrivilegeAdbStarter.DIAGNOSTIC_LOG_PREFIX) }
 
 private const val ADB_PAIRING_CODE_LENGTH = 6

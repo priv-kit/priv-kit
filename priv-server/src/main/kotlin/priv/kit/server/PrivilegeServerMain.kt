@@ -5,8 +5,8 @@ import android.os.Looper
 import android.os.RemoteException
 import android.os.SystemClock
 import android.util.Log
+import priv.kit.core.PrivilegeHandshakeContract
 import java.io.File
-import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
 
 public object PrivilegeServerMain {
@@ -31,55 +31,33 @@ public object PrivilegeServerMain {
         scheduleOwnerReconnect(config, serverBinder, "Owner process died")
     }
 
-    internal fun updateRuntimeConfig(
-        followDeathDelayMillis: Long,
-        activeReconnectOnOwnerDeath: Boolean,
-    ) {
-        require(followDeathDelayMillis >= 0L) { "followDeathDelayMillis must not be negative" }
-        synchronized(lock) {
-            val config = activeConfig ?: return
-            activeConfig = config.copy(
-                followDeathDelayMillis = followDeathDelayMillis,
-                activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
-            )
-        }
-        Log.i(
-            TAG,
-            "Runtime config updated followDeathDelayMillis=$followDeathDelayMillis, " +
-                "activeReconnectOnOwnerDeath=$activeReconnectOnOwnerDeath",
-        )
-    }
-
     @JvmStatic
     public fun main(args: Array<String>) {
         try {
             Log.i(TAG, "Privileged Server main entered args=${args.toDiagnosticString()}")
             prepareMainLooper()
-            val config = PrivilegeServerStartTokenResolver.resolve(
-                PrivilegeServerArguments.parse(args),
-            )
+            val config = PrivilegeServerArguments.parse(args)
+            val providerAuthority = PrivilegeHandshakeContract.providerAuthority(config.packageName)
             Log.i(
                 TAG,
-                "Config parsed package=${config.packageName}, provider=${config.providerAuthority}, " +
+                "Config parsed package=${config.packageName}, provider=$providerAuthority, " +
                     "userId=${config.userId}, " +
-                    "launchMode=${config.launchMode}, protocol=${config.protocolVersion}, version=${config.serverVersion}, " +
-                    "followDeathDelayMillis=${config.followDeathDelayMillis}, " +
-                    "activeReconnectOnOwnerDeath=${config.activeReconnectOnOwnerDeath}",
+                    "protocol=${config.protocolVersion}",
             )
             val binder = PrivilegeServerBinder(config)
             Log.i(TAG, "Sending handshake uid=${android.os.Process.myUid()}, pid=${android.os.Process.myPid()}")
             val handshakeResult = PrivilegeServerHandshakeSender.send(config, binder)
             Log.i(TAG, "Handshake result accepted=${handshakeResult.accepted}")
             if (!handshakeResult.accepted) {
-                if (handshakeResult.shouldShutdown) {
-                    startReplacementServer(handshakeResult.restartCommandLine)
-                    Log.i(TAG, "Handshake provider requested shutdown; exiting Privileged Server")
-                    exitProcess(0)
-                }
                 System.err.println("Privileged Server handshake was rejected")
                 exitProcess(2)
             }
             val ownerConfig = handshakeResult.ownerConfig
+            Log.i(
+                TAG,
+                "Owner config received followDeathDelayMillis=${ownerConfig.followDeathDelayMillis}, " +
+                    "activeReconnectOnOwnerDeath=${ownerConfig.activeReconnectOnOwnerDeath}",
+            )
             synchronized(lock) {
                 activeConfig = ownerConfig
                 activeServerBinder = binder
@@ -279,33 +257,8 @@ public object PrivilegeServerMain {
                 return true
             }
             Log.w(TAG, "Owner reconnect attempt $attempt did not return a live owner Binder")
-        } else if (result?.shouldShutdown == true) {
-            startReplacementServer(result.restartCommandLine)
-            Log.i(TAG, "Owner reconnect provider requested shutdown; exiting Privileged Server")
-            exitProcess(0)
         }
         return false
-    }
-
-    private fun startReplacementServer(commandLine: String?) {
-        if (commandLine.isNullOrBlank()) {
-            Log.i(TAG, "No replacement server command returned")
-            return
-        }
-        try {
-            Log.i(TAG, "Starting replacement Privileged Server")
-            val process = ProcessBuilder("/system/bin/sh", "-c", commandLine)
-                .redirectErrorStream(true)
-                .start()
-            val finished = process.waitFor(RESTART_COMMAND_WAIT_MILLIS, TimeUnit.MILLISECONDS)
-            if (!finished) {
-                Log.w(TAG, "Replacement server command did not finish quickly")
-                return
-            }
-            Log.i(TAG, "Replacement server command exit=${process.exitValue()}")
-        } catch (throwable: Throwable) {
-            Log.e(TAG, "Failed to start replacement Privileged Server", throwable)
-        }
     }
 
     private fun relinkOwner(
@@ -381,13 +334,7 @@ public object PrivilegeServerMain {
     }
 
     private fun Array<String>.toDiagnosticString(): String =
-        mapIndexed { index, arg ->
-            if (index > 0 && this[index - 1] == "--token") {
-                "<redacted>"
-            } else {
-                arg
-            }
-        }.joinToString(prefix = "[", postfix = "]") { arg ->
+        joinToString(prefix = "[", postfix = "]") { arg ->
             if (arg.length > 16 && arg.any { it.isLetterOrDigit() }) {
                 arg.take(16) + "..."
             } else {
@@ -397,5 +344,4 @@ public object PrivilegeServerMain {
 
     private const val TAG = "PrivKitServer"
     private const val OWNER_RECONNECT_RETRY_DELAY_MILLIS = 1_000L
-    private const val RESTART_COMMAND_WAIT_MILLIS = 2_000L
 }

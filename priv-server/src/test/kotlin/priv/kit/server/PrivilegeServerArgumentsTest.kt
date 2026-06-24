@@ -1,157 +1,75 @@
 package priv.kit.server
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
-import org.junit.Assert.assertTrue
 import org.junit.Test
-import priv.kit.core.PrivilegeLaunchMode
 import priv.kit.core.PrivilegeProtocol
+import java.io.File
 
 class PrivilegeServerArgumentsTest {
     @Test
-    fun parseAcceptsRequiredRuntimeConfig() {
-        val config = PrivilegeServerArguments.parse(requiredArgs())
+    fun parseInfersConfigFromClasspath() {
+        val apk = testApk("example.app-hash")
+
+        val config = PrivilegeServerArguments.parse(
+            args = emptyArray(),
+            classpath = apk.path,
+            uid = SHELL_UID,
+        )
 
         assertEquals("", config.token)
-        assertEquals("classpath@1@2", config.classpathIdentity)
-        assertEquals(10, config.userId)
-        assertEquals(PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS, config.followDeathDelayMillis)
-        assertFalse(config.activeReconnectOnOwnerDeath)
-    }
-
-    @Test
-    fun parseAcceptsExplicitToken() {
-        val config = PrivilegeServerArguments.parse(
-            requiredArgs(
-                "--token",
-                "token",
-            ),
-        )
-
-        assertEquals("token", config.token)
-    }
-
-    @Test
-    fun parseAcceptsFollowDeathDelay() {
-        val config = PrivilegeServerArguments.parse(
-            requiredArgs(
-                "--follow-death-delay-millis",
-                "1234",
-            ),
-        )
-
-        assertEquals(1234L, config.followDeathDelayMillis)
-    }
-
-    @Test
-    fun parseAcceptsActiveReconnectOnOwnerDeath() {
-        val config = PrivilegeServerArguments.parse(
-            requiredArgs(
-                "--active-reconnect-on-owner-death",
-                "true",
-            ),
-        )
-
-        assertTrue(config.activeReconnectOnOwnerDeath)
-    }
-
-    @Test
-    fun parseDefaultsMissingUserIdToSystemUser() {
-        val config = PrivilegeServerArguments.parse(requiredArgsWithoutUserId())
-
+        assertEquals("example.app", config.packageName)
         assertEquals(0, config.userId)
+        assertEquals(apk.path, config.classpath)
+        assertEquals(PrivilegeProtocol.VERSION, config.protocolVersion)
+        assertEquals(PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS, config.followDeathDelayMillis)
+        assertEquals(
+            PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
+            config.activeReconnectOnOwnerDeath,
+        )
     }
 
     @Test
-    fun parseRejectsNegativeFollowDeathDelay() {
+    fun parseInfersUserIdFromApplicationUid() {
+        val config = PrivilegeServerArguments.parse(
+            args = emptyArray(),
+            classpath = testApk("example.user-hash").path,
+            uid = 1_012_345,
+        )
+
+        assertEquals(10, config.userId)
+    }
+
+    @Test
+    fun parseRejectsLaunchArguments() {
         assertThrows(IllegalArgumentException::class.java) {
             PrivilegeServerArguments.parse(
-                requiredArgs(
-                    "--follow-death-delay-millis",
-                    "-1",
-                ),
+                args = arrayOf("--token", "token"),
+                classpath = testApk("example.args-hash").path,
+                uid = SHELL_UID,
             )
         }
     }
 
     @Test
-    fun parseRejectsInvalidActiveReconnectOnOwnerDeath() {
+    fun parseRejectsBlankClasspath() {
         assertThrows(IllegalArgumentException::class.java) {
             PrivilegeServerArguments.parse(
-                requiredArgs(
-                    "--active-reconnect-on-owner-death",
-                    "yes",
-                ),
+                args = emptyArray(),
+                classpath = " ",
+                uid = SHELL_UID,
             )
         }
     }
 
-    @Test
-    fun parseRejectsMissingRuntimeConfig() {
-        assertThrows(IllegalArgumentException::class.java) {
-            PrivilegeServerArguments.parse(requiredArgsWithoutRuntimeConfig())
+    private fun testApk(installDirectoryName: String): File {
+        val directory = File("build/tmp/serverArgs/$installDirectoryName").also { it.mkdirs() }
+        return File(directory, "base.apk").also {
+            it.writeText("apk")
         }
     }
 
-    private fun requiredArgs(vararg extraArgs: String): Array<String> =
-        arrayOf(
-            "--provider-authority",
-            "example.privilege.handshake",
-            "--package-name",
-            "example",
-            "--user-id",
-            "10",
-            "--launch-mode",
-            PrivilegeLaunchMode.SHELL.value.toString(),
-            "--protocol-version",
-            PrivilegeProtocol.VERSION.toString(),
-            "--server-version",
-            PrivilegeProtocol.SERVER_VERSION,
-            "--classpath-identity",
-            "classpath@1@2",
-            "--follow-death-delay-millis",
-            PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS.toString(),
-            "--active-reconnect-on-owner-death",
-            PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH.toString(),
-            *extraArgs,
-        )
-
-    private fun requiredArgsWithoutRuntimeConfig(): Array<String> =
-        arrayOf(
-            "--provider-authority",
-            "example.privilege.handshake",
-            "--package-name",
-            "example",
-            "--user-id",
-            "10",
-            "--launch-mode",
-            PrivilegeLaunchMode.SHELL.value.toString(),
-            "--protocol-version",
-            PrivilegeProtocol.VERSION.toString(),
-            "--server-version",
-            PrivilegeProtocol.SERVER_VERSION,
-            "--classpath-identity",
-            "classpath@1@2",
-        )
-
-    private fun requiredArgsWithoutUserId(): Array<String> =
-        arrayOf(
-            "--provider-authority",
-            "example.privilege.handshake",
-            "--package-name",
-            "example",
-            "--launch-mode",
-            PrivilegeLaunchMode.SHELL.value.toString(),
-            "--protocol-version",
-            PrivilegeProtocol.VERSION.toString(),
-            "--server-version",
-            PrivilegeProtocol.SERVER_VERSION,
-            "--classpath-identity",
-            "classpath@1@2",
-            "--follow-death-delay-millis",
-            PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS.toString(),
-            "--active-reconnect-on-owner-death",
-            PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH.toString(),
-        )
+    private companion object {
+        private const val SHELL_UID = 2000
+    }
 }

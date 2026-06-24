@@ -2,9 +2,9 @@ package priv.kit.server
 
 import android.os.Bundle
 import android.os.IBinder
-import android.os.Process
 import android.util.Log
 import priv.kit.core.PrivilegeHandshakeContract
+import java.io.File
 
 internal object PrivilegeServerHandshakeSender {
     fun send(
@@ -12,52 +12,55 @@ internal object PrivilegeServerHandshakeSender {
         serverBinder: PrivilegeServerBinder,
     ): Result {
         val extras = Bundle().apply {
-            putString(PrivilegeHandshakeContract.EXTRA_TOKEN, config.token)
+            config.token.takeIf { it.isNotBlank() }?.let {
+                putString(PrivilegeHandshakeContract.EXTRA_TOKEN, it)
+            }
             putBinder(PrivilegeHandshakeContract.EXTRA_SERVER_BINDER, serverBinder.asBinder())
-            putInt(PrivilegeHandshakeContract.EXTRA_UID, Process.myUid())
-            putInt(PrivilegeHandshakeContract.EXTRA_PID, Process.myPid())
-            putInt(PrivilegeHandshakeContract.EXTRA_LAUNCH_MODE, config.launchMode)
             putInt(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION, config.protocolVersion)
-            putString(PrivilegeHandshakeContract.EXTRA_SERVER_VERSION, config.serverVersion)
-            putString(PrivilegeHandshakeContract.EXTRA_CLASSPATH_IDENTITY, config.classpathIdentity)
-            putLong(PrivilegeHandshakeContract.EXTRA_FOLLOW_DEATH_DELAY_MILLIS, config.followDeathDelayMillis)
-            putBoolean(
-                PrivilegeHandshakeContract.EXTRA_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-                config.activeReconnectOnOwnerDeath,
-            )
+            putString(PrivilegeHandshakeContract.EXTRA_CLASSPATH_IDENTITY, buildClasspathIdentity(config.classpath))
         }
-        Log.i(TAG, "Calling handshake provider authority=${config.providerAuthority}")
+        val providerAuthority = PrivilegeHandshakeContract.providerAuthority(config.packageName)
+        Log.i(TAG, "Calling handshake provider authority=$providerAuthority")
         val response = PrivilegeServerProviderCall.call(
-            authority = config.providerAuthority,
+            authority = providerAuthority,
             method = PrivilegeHandshakeContract.METHOD_SERVER_READY,
-            arg = config.token,
+            arg = config.token.takeIf { it.isNotBlank() },
             extras = extras,
             userId = config.userId,
         )
         val accepted = response?.getBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, false) == true
-        val shouldShutdown = response?.getBoolean(
-            PrivilegeHandshakeContract.RESULT_SHOULD_SHUTDOWN,
-            false,
-        ) == true
         val ownerBinder = response?.getBinder(PrivilegeHandshakeContract.RESULT_OWNER_BINDER)
-        val restartCommandLine = response?.getString(PrivilegeHandshakeContract.RESULT_RESTART_COMMAND_LINE)
         if (accepted) {
             requireNotNull(ownerBinder) {
                 "Accepted handshake response is missing ${PrivilegeHandshakeContract.RESULT_OWNER_BINDER}"
             }
         }
-        val ownerConfig = config
+        val ownerConfig = if (accepted && config.token.isBlank()) {
+            val token = requireNotNull(
+                response.getString(PrivilegeHandshakeContract.RESULT_TOKEN)?.takeIf { it.isNotBlank() },
+            ) {
+                "Accepted initial handshake response is missing ${PrivilegeHandshakeContract.RESULT_TOKEN}"
+            }
+            config.copy(
+                token = token,
+                followDeathDelayMillis = response.requireLong(
+                    PrivilegeHandshakeContract.EXTRA_FOLLOW_DEATH_DELAY_MILLIS,
+                ),
+                activeReconnectOnOwnerDeath = response.requireBoolean(
+                    PrivilegeHandshakeContract.EXTRA_ACTIVE_RECONNECT_ON_OWNER_DEATH,
+                ),
+            )
+        } else {
+            config
+        }
         Log.i(
             TAG,
             "Handshake provider response accepted=$accepted, hasResponse=${response != null}, " +
-                "shouldShutdown=$shouldShutdown, hasRestartCommand=${!restartCommandLine.isNullOrBlank()}, " +
                 "followDeathDelayMillis=${ownerConfig.followDeathDelayMillis}, " +
                 "activeReconnectOnOwnerDeath=${ownerConfig.activeReconnectOnOwnerDeath}",
         )
         return Result(
             accepted = accepted,
-            shouldShutdown = shouldShutdown,
-            restartCommandLine = restartCommandLine,
             ownerBinder = ownerBinder,
             ownerConfig = ownerConfig,
         )
@@ -65,11 +68,27 @@ internal object PrivilegeServerHandshakeSender {
 
     data class Result(
         val accepted: Boolean,
-        val shouldShutdown: Boolean,
-        val restartCommandLine: String?,
         val ownerBinder: IBinder?,
         val ownerConfig: PrivilegeServerConfig,
     )
+
+    private fun Bundle.requireLong(key: String): Long {
+        require(containsKey(key)) { "Accepted initial handshake response is missing $key" }
+        return getLong(key)
+    }
+
+    private fun Bundle.requireBoolean(key: String): Boolean {
+        require(containsKey(key)) { "Accepted initial handshake response is missing $key" }
+        return getBoolean(key)
+    }
+
+    private fun buildClasspathIdentity(classpath: String): String =
+        classpath.split(':')
+            .filter { it.isNotBlank() }
+            .joinToString(":") { path ->
+                val file = File(path)
+                "$path@${file.length()}@${file.lastModified() / 1000L}"
+            }
 
     private const val TAG = "PrivKitServer"
 }

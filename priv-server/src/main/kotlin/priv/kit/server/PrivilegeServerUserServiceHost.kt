@@ -2,6 +2,7 @@ package priv.kit.server
 
 import android.os.Bundle
 import android.os.SystemClock
+import priv.kit.core.PrivilegeHandshakeContract
 import android.os.Process as AndroidProcess
 import priv.kit.userservice.IPrivilegeUserServiceProcess
 import priv.kit.userservice.PrivilegeUserServiceContract
@@ -96,6 +97,7 @@ internal object PrivilegeServerUserServiceProcessCommand {
         val classpath = config.classpath.ifBlank {
             throw PrivilegeUserServiceStartException("Server classpath is unavailable")
         }
+        val providerAuthority = PrivilegeHandshakeContract.providerAuthority(config.packageName)
         val processName = buildProcessName(config.packageName, spec)
         return PrivilegeServerUserServiceProcessStartCommand(
             arguments = listOf(
@@ -106,7 +108,7 @@ internal object PrivilegeServerUserServiceProcessCommand {
                 "--token",
                 token,
                 "--provider-authority",
-                config.providerAuthority,
+                providerAuthority,
                 "--package-name",
                 config.packageName,
                 "--user-id",
@@ -184,7 +186,7 @@ internal class PrivilegeServerUserServiceProcessClaimer(
             token: String,
         ): Bundle? =
             PrivilegeServerProviderCall.call(
-                authority = config.providerAuthority,
+                authority = PrivilegeHandshakeContract.providerAuthority(config.packageName),
                 method = PrivilegeUserServiceContract.METHOD_USER_SERVICE_CLAIM,
                 arg = token,
                 extras = Bundle().apply {

@@ -46,7 +46,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 除 `:hidden-api` 中的 framework mirror/stub 外，所有源码 package 必须位于 `priv.kit.*`。禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*`。
 
-所有公开 API 必须使用完整单词 `Privilege*` 命名，例如 `PrivilegeLaunchMode`、`PrivilegeBinderEndpoint`、`PrivilegeUserServiceSpec`、`PrivilegeRuntime` 和 `PrivilegeUserServiceConnection`。禁止公开 API 使用 `Priv*` 缩写。
+所有公开 API 必须使用完整单词 `Privilege*` 命名，例如 `PrivilegeBinderEndpoint`、`PrivilegeUserServiceSpec`、`PrivilegeRuntime` 和 `PrivilegeUserServiceConnection`。禁止公开 API 使用 `Priv*` 缩写。
 
 ## 依赖方向
 
@@ -122,7 +122,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 运行时状态、启动策略选择、服务端连接和重连；
 - `PrivilegeRuntimeUserServiceClient`、`PrivilegeUserServiceConnection`；
 - Root 启动的 `su` 可用性检查、命令执行和启动诊断；
-- Manual Shell、External Start Command、owner token/config store、handshake provider；
+- Manual Shell、External Start Command、owner token store、运行时内存配置和 handshake provider；
 - 通用 native starter 可执行文件；
 - 通过 `runtimeOnly(:priv-server)` 携带服务端入口，让接入应用优先只依赖 `:priv-runtime`。
 

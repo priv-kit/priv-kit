@@ -13,7 +13,7 @@ Phase 1 contents:
 - Binder tests for getting and caching an `IUserManager` proxy.
 - A Binder remote transact smoke test that calls cached `IUserManager.getUsers()` through a hidden API stub.
 - UserService tests for binding and calling separate app-owned AIDL services with `Context` constructors in the default dedicated-process mode and the explicit embedded-in-server mode.
-- Display of connection state, uid, pid, launch mode, protocol version, and server version.
+- Display of connection state, uid, pid, and protocol version.
 - Manual command display and copy support for pasting into `adb shell` on non-root devices.
 - Binder death observation through `PrivilegeRuntime`.
 - A sample Shizuku UserService starter that runs the shared detached Priv Kit external start command, then immediately destroys the Shizuku UserService while the app waits for the privileged server handoff.

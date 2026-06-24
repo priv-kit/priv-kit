@@ -100,7 +100,6 @@ Gradle 模块必须使用 `priv-*` 命名：
 允许示例：
 
 - `PrivilegeKit`
-- `PrivilegeLaunchMode`
 - `PrivilegeServer`
 - `PrivilegeBinder`
 - `PrivilegeUserService`

@@ -3,7 +3,6 @@ package priv.kit.server
 import android.os.Binder
 import android.os.IBinder
 import android.os.Parcel
-import android.os.Process
 import android.os.ServiceManager
 import android.util.Log
 import priv.kit.binder.IPrivilegeServer
@@ -23,26 +22,6 @@ internal class PrivilegeServerBinder(
             host = PrivilegeServerUserServiceHost(config),
         ),
     )
-
-    override fun getUid(): Int = Process.myUid()
-
-    override fun getPid(): Int = Process.myPid()
-
-    override fun getLaunchMode(): Int = config.launchMode
-
-    override fun getProtocolVersion(): Int = config.protocolVersion
-
-    override fun getServerVersion(): String = config.serverVersion
-
-    override fun updateRuntimeConfig(
-        followDeathDelayMillis: Long,
-        activeReconnectOnOwnerDeath: Boolean,
-    ) {
-        PrivilegeServerMain.updateRuntimeConfig(
-            followDeathDelayMillis = followDeathDelayMillis,
-            activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
-        )
-    }
 
     override fun registerBinderEndpoint(binder: IBinder) {
         binderRegistry.register(binder)

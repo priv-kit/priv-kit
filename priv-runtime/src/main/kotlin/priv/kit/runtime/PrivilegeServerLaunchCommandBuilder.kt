@@ -2,7 +2,6 @@ package priv.kit.runtime
 
 import android.content.Context
 import priv.kit.core.PrivilegeHandshakeContract
-import priv.kit.core.PrivilegeLaunchMode
 import priv.kit.core.PrivilegeProtocol
 import priv.kit.core.PrivilegeServerLaunchCommand
 import java.io.File
@@ -10,66 +9,32 @@ import java.io.File
 internal object PrivilegeServerLaunchCommandBuilder {
     fun build(
         context: Context,
-        token: String,
-        launchMode: PrivilegeLaunchMode,
-        config: PrivilegeRuntimeConfig,
     ): PrivilegeServerLaunchCommand {
         val packageName = context.packageName
         val userId = userIdFromUid(context.applicationInfo.uid)
         val classpath = buildClasspath(context)
         val classpathIdentity = buildClasspathIdentity(classpath)
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(packageName)
-        val processName = buildServerProcessName(packageName)
-        val foregroundCommandLine = buildString {
-            append("CLASSPATH=")
-            append(shellArg(classpath))
-            append(" /system/bin/app_process /system/bin")
-            append(" --nice-name=")
-            append(shellArg(processName))
-            append(' ')
-            append(shellArg(SERVER_MAIN_CLASS))
-            append(" --token ")
-            append(shellArg(token))
-            append(" --provider-authority ")
-            append(shellArg(providerAuthority))
-            append(" --package-name ")
-            append(shellArg(packageName))
-            append(" --user-id ")
-            append(userId)
-            append(" --launch-mode ")
-            append(launchMode.value)
-            append(" --protocol-version ")
-            append(PrivilegeProtocol.VERSION)
-            append(" --server-version ")
-            append(shellArg(PrivilegeProtocol.SERVER_VERSION))
-            append(" --classpath-identity ")
-            append(shellArg(classpathIdentity))
-            append(" --follow-death-delay-millis ")
-            append(config.followDeathDelayMillis)
-            append(" --active-reconnect-on-owner-death ")
-            append(config.activeReconnectOnOwnerDeath)
-        }
+        val starterCommandLine = buildNativeStarterCommand(context)
 
         return PrivilegeServerLaunchCommand(
-            token = token,
-            foregroundCommandLine = foregroundCommandLine,
-            detachedCommandLine = "($foregroundCommandLine </dev/null >/dev/null 2>&1 &)",
+            foregroundCommandLine = starterCommandLine,
+            detachedCommandLine = starterCommandLine,
             classpath = classpath,
             classpathIdentity = classpathIdentity,
             mainClass = SERVER_MAIN_CLASS,
             providerAuthority = providerAuthority,
             packageName = packageName,
             userId = userId,
-            launchMode = launchMode,
             protocolVersion = PrivilegeProtocol.VERSION,
-            serverVersion = PrivilegeProtocol.SERVER_VERSION,
-            followDeathDelayMillis = config.followDeathDelayMillis,
-            activeReconnectOnOwnerDeath = config.activeReconnectOnOwnerDeath,
         )
     }
 
-    fun buildServerProcessName(packageName: String): String =
-        "$packageName$SERVER_PROCESS_SUFFIX"
+    internal fun buildNativeStarterCommand(context: Context): String =
+        shellArg(buildNativeStarterPath(context))
+
+    internal fun buildNativeStarterPath(context: Context): String =
+        context.applicationInfo.nativeLibraryDir.trimEnd('/') + "/" + NATIVE_STARTER_LIBRARY_NAME
 
     fun shellArg(value: String): String =
         if (value.isNotEmpty() && value.all(::isShellBareChar)) {
@@ -82,7 +47,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
         val applicationInfo = context.applicationInfo
         val apkPaths = buildList {
             add(applicationInfo.sourceDir)
-            applicationInfo.splitSourceDirs?.forEach { add(it) }
+            applicationInfo.splitSourceDirs?.sorted()?.forEach { add(it) }
         }
         return apkPaths.joinToString(":")
     }
@@ -114,7 +79,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
             char == ',' ||
             char == '~'
 
-    private const val SERVER_PROCESS_SUFFIX = ":priv-kit-server"
     private const val SERVER_MAIN_CLASS = "priv.kit.server.PrivilegeServerMain"
+    private const val NATIVE_STARTER_LIBRARY_NAME = "libprivkitstarter.so"
     private const val PER_USER_RANGE = 100_000
 }

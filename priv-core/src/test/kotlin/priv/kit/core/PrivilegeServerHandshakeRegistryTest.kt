@@ -75,9 +75,7 @@ class PrivilegeServerHandshakeRegistryTest {
         PrivilegeServerInfo(
             uid = 2000,
             pid = 1234,
-            launchMode = PrivilegeLaunchMode.SHELL.value,
             protocolVersion = PrivilegeProtocol.VERSION,
-            serverVersion = PrivilegeProtocol.SERVER_VERSION,
         )
 
     private fun fakeBinder(): IBinder =

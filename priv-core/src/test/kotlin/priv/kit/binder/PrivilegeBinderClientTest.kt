@@ -94,21 +94,6 @@ class PrivilegeBinderClientTest {
     ) : IPrivilegeServer {
         override fun asBinder(): IBinder = serverBinder
 
-        override fun getUid(): Int = 0
-
-        override fun getPid(): Int = 0
-
-        override fun getLaunchMode(): Int = 0
-
-        override fun getProtocolVersion(): Int = 0
-
-        override fun getServerVersion(): String = "test"
-
-        override fun updateRuntimeConfig(
-            followDeathDelayMillis: Long,
-            activeReconnectOnOwnerDeath: Boolean,
-        ) = Unit
-
         override fun shutdown() = Unit
 
         override fun registerBinderEndpoint(binder: IBinder) = Unit
