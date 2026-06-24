@@ -8,14 +8,15 @@ import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import javax.net.ssl.SSLSocket
-import priv.kit.ssl.adb.PrivilegeSslAdbPairingContext
+import priv.kit.adb.crypto.pairing.PrivilegeAdbPairingCryptoContext
 
 private const val CURRENT_KEY_HEADER_VERSION = 1.toByte()
 private const val MIN_SUPPORTED_KEY_HEADER_VERSION = 1.toByte()
 private const val MAX_SUPPORTED_KEY_HEADER_VERSION = 1.toByte()
 private const val MAX_PEER_INFO_SIZE = 8192
 private const val MAX_PAYLOAD_SIZE = MAX_PEER_INFO_SIZE * 2
-private const val EXPORTED_KEY_LABEL = "adb-label\u0000"
+// ADB pairing derives the SPAKE2 password from TLS exported keying material using this label.
+private const val ADB_PAIRING_EXPORTED_KEY_LABEL = "adb-label\u0000"
 private const val EXPORTED_KEY_SIZE = 64
 private const val PAIRING_PACKET_HEADER_SIZE = 6
 
@@ -74,7 +75,7 @@ private class PairingPacketHeader(
 }
 
 internal class PrivilegeAdbPairingContext private constructor(
-    private val context: PrivilegeSslAdbPairingContext,
+    private val context: PrivilegeAdbPairingCryptoContext,
 ) {
     val msg: ByteArray = context.msg
 
@@ -84,9 +85,9 @@ internal class PrivilegeAdbPairingContext private constructor(
     fun destroy() = context.destroy()
 
     companion object {
-        fun create(password: ByteArray): PrivilegeAdbPairingContext? {
-            val context = PrivilegeSslAdbPairingContext.createClient(password)
-            return context?.let(::PrivilegeAdbPairingContext)
+        fun create(password: ByteArray): PrivilegeAdbPairingContext {
+            val context = PrivilegeAdbPairingCryptoContext.createClient(password)
+            return PrivilegeAdbPairingContext(context)
         }
     }
 }
@@ -120,7 +121,7 @@ internal class PrivilegeAdbPairingClient(
         val pairCodeBytes = pairCode.toByteArray()
         val keyMaterial = Conscrypt.exportKeyingMaterial(
             sslSocket,
-            EXPORTED_KEY_LABEL,
+            ADB_PAIRING_EXPORTED_KEY_LABEL,
             null,
             EXPORTED_KEY_SIZE,
         )
@@ -128,9 +129,7 @@ internal class PrivilegeAdbPairingClient(
         pairCodeBytes.copyInto(passwordBytes)
         keyMaterial.copyInto(passwordBytes, pairCodeBytes.size)
 
-        pairingContext = checkNotNull(PrivilegeAdbPairingContext.create(passwordBytes)) {
-            "Unable to create ADB pairing context"
-        }
+        pairingContext = PrivilegeAdbPairingContext.create(passwordBytes)
     }
 
     private fun doExchangeMsgs(): Boolean {

@@ -5,11 +5,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import priv.kit.bc.asn1.x500.X500Name
-import priv.kit.bc.asn1.x509.SubjectPublicKeyInfo
-import priv.kit.bc.cert.X509v3CertificateBuilder
-import priv.kit.bc.operator.jcajce.JcaContentSignerBuilder
-import java.io.ByteArrayInputStream
+import priv.kit.adb.crypto.certificate.PrivilegeAdbCertificateFactory
 import java.io.File
 import java.io.FileOutputStream
 import java.math.BigInteger
@@ -27,15 +23,12 @@ import java.security.MessageDigest
 import java.security.Principal
 import java.security.PrivateKey
 import java.security.SecureRandom
-import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.security.interfaces.RSAPrivateKey
 import java.security.interfaces.RSAPublicKey
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.RSAKeyGenParameterSpec
 import java.security.spec.RSAPublicKeySpec
-import java.util.Date
-import java.util.Locale
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.spec.GCMParameterSpec
@@ -115,7 +108,7 @@ internal class PrivilegeAdbKey(
         ?: throw PrivilegeAdbException("Failed to generate ADB encryption key")
     private val privateKey: RSAPrivateKey = getOrCreatePrivateKey()
     private val publicKey: RSAPublicKey =
-        KeyFactory.getInstance("RSA").generatePublic(
+        KeyFactory.getInstance(RSA_KEY_ALGORITHM).generatePublic(
             RSAPublicKeySpec(privateKey.modulus, RSAKeyGenParameterSpec.F4),
         ) as RSAPublicKey
     private val certificate: X509Certificate = createCertificate()
@@ -132,14 +125,14 @@ internal class PrivilegeAdbKey(
     }
 
     val sslContext: SSLContext by lazy(LazyThreadSafetyMode.NONE) {
-        SSLContext.getInstance("TLSv1.3").apply {
+        SSLContext.getInstance(TLS_PROTOCOL).apply {
             init(arrayOf(keyManager), arrayOf(trustManager), SecureRandom())
         }
     }
 
     fun sign(data: ByteArray?): ByteArray {
         val token = requireNotNull(data) { "ADB auth token is null" }
-        val cipher = Cipher.getInstance("RSA/ECB/NoPadding")
+        val cipher = Cipher.getInstance(RSA_AUTH_SIGNATURE_TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, privateKey)
         cipher.update(PADDING)
         return cipher.doFinal(token)
@@ -165,12 +158,12 @@ internal class PrivilegeAdbKey(
 
     private fun getOrCreatePrivateKey(): RSAPrivateKey {
         val aad = ByteArray(16)
-        "adbkey".toByteArray().copyInto(aad)
+        ADB_KEY_STORAGE_AAD.copyInto(aad)
 
         keyStore.get()?.let { ciphertext ->
             runCatching {
                 val plaintext = decrypt(ciphertext, aad)
-                val keyFactory = KeyFactory.getInstance("RSA")
+                val keyFactory = KeyFactory.getInstance(RSA_KEY_ALGORITHM)
                 keyFactory.generatePrivate(PKCS8EncodedKeySpec(plaintext)) as RSAPrivateKey
             }.getOrNull()?.let { return it }
         }
@@ -185,7 +178,7 @@ internal class PrivilegeAdbKey(
     private fun encrypt(plaintext: ByteArray, aad: ByteArray?): ByteArray? {
         if (plaintext.size > Int.MAX_VALUE - IV_SIZE_IN_BYTES - TAG_SIZE_IN_BYTES) return null
         val ciphertext = ByteArray(IV_SIZE_IN_BYTES + plaintext.size + TAG_SIZE_IN_BYTES)
-        val cipher = Cipher.getInstance(TRANSFORMATION)
+        val cipher = Cipher.getInstance(ADB_KEY_ENCRYPTION_TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, encryptionKey)
         cipher.updateAAD(aad)
         cipher.doFinal(plaintext, 0, plaintext.size, ciphertext, IV_SIZE_IN_BYTES)
@@ -196,36 +189,24 @@ internal class PrivilegeAdbKey(
     private fun decrypt(ciphertext: ByteArray, aad: ByteArray?): ByteArray? {
         if (ciphertext.size < IV_SIZE_IN_BYTES + TAG_SIZE_IN_BYTES) return null
         val params = GCMParameterSpec(8 * TAG_SIZE_IN_BYTES, ciphertext, 0, IV_SIZE_IN_BYTES)
-        val cipher = Cipher.getInstance(TRANSFORMATION)
+        val cipher = Cipher.getInstance(ADB_KEY_ENCRYPTION_TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, encryptionKey, params)
         cipher.updateAAD(aad)
         return cipher.doFinal(ciphertext, IV_SIZE_IN_BYTES, ciphertext.size - IV_SIZE_IN_BYTES)
     }
 
-    private fun createCertificate(): X509Certificate {
-        val signer = JcaContentSignerBuilder("SHA256withRSA").build(privateKey)
-        val certificateHolder = X509v3CertificateBuilder(
-            X500Name("CN=00"),
-            BigInteger.ONE,
-            Date(0),
-            Date(2_461_449_600L * 1000L),
-            Locale.ROOT,
-            X500Name("CN=00"),
-            SubjectPublicKeyInfo.getInstance(publicKey.encoded),
-        ).build(signer)
-        return CertificateFactory.getInstance("X.509")
-            .generateCertificate(ByteArrayInputStream(certificateHolder.encoded)) as X509Certificate
-    }
+    private fun createCertificate(): X509Certificate =
+        PrivilegeAdbCertificateFactory.createRsaCertificate(privateKey, publicKey)
 
     private val keyManager: X509ExtendedKeyManager
         get() = object : X509ExtendedKeyManager() {
-            private val alias = "key"
+            private val alias = KEY_MANAGER_ALIAS
 
             override fun chooseClientAlias(
                 keyTypes: Array<out String>,
                 issuers: Array<out Principal>?,
                 socket: Socket?,
-            ): String? = keyTypes.firstOrNull { it == "RSA" }?.let { alias }
+            ): String? = keyTypes.firstOrNull { it == RSA_KEY_ALGORITHM }?.let { alias }
 
             override fun getCertificateChain(alias: String?): Array<X509Certificate>? =
                 if (alias == this.alias) arrayOf(certificate) else null
@@ -244,9 +225,14 @@ internal class PrivilegeAdbKey(
     companion object {
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val ENCRYPTION_KEY_ALIAS = "_privilege_adbkey_encryption_key_"
-        private const val TRANSFORMATION = "AES/GCM/NoPadding"
+        private const val ADB_KEY_ENCRYPTION_TRANSFORMATION = "AES/GCM/NoPadding"
+        private const val RSA_AUTH_SIGNATURE_TRANSFORMATION = "RSA/ECB/NoPadding"
+        private const val RSA_KEY_ALGORITHM = "RSA"
+        private const val TLS_PROTOCOL = "TLSv1.3"
+        private const val KEY_MANAGER_ALIAS = "key"
         private const val IV_SIZE_IN_BYTES = 12
         private const val TAG_SIZE_IN_BYTES = 16
+        private val ADB_KEY_STORAGE_AAD = "adbkey".toByteArray()
 
         private val SHA1_DIGEST_INFO_PREFIX = byteArrayOf(
             0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00,

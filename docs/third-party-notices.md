@@ -12,10 +12,10 @@ ADB startup boundary.
 
 ## BoringSSL and AOSP ADB pairing
 
-The `:priv-ssl` ADB pairing implementation is derived from BoringSSL's
+The `:priv-adb-crypto` ADB pairing implementation is derived from BoringSSL's
 SPAKE2-over-Edwards25519 behavior and AOSP's ADB pairing_auth AES-GCM/HKDF
 boundary.
 
 BoringSSL and AOSP are distributed under the Apache License, Version 2.0. The
-copied logic has been adapted to the `priv.kit.ssl` package and narrowed to the
-ADB Wireless Debugging pairing boundary.
+copied logic has been adapted to the `priv.kit.adb.crypto.pairing` package and
+narrowed to the ADB Wireless Debugging pairing boundary.

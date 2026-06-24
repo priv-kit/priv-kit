@@ -23,7 +23,6 @@ android {
 dependencies {
     api(project(":priv-core"))
     compileOnly(project(":hidden-api"))
-    implementation(project(":priv-bc"))
-    implementation(project(":priv-ssl"))
+    implementation(project(":priv-adb-crypto"))
     testImplementation(libs.junit)
 }

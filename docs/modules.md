@@ -15,8 +15,7 @@ Binder 和 UserService 仍保留 `priv.kit.binder.*` / `priv.kit.userservice.*` 
 - `:priv-core`
 - `:priv-runtime`
 - `:priv-server`
-- `:priv-bc`
-- `:priv-ssl`
+- `:priv-adb-crypto`
 - `:priv-adb`
 - `:priv-ui`
 - `:priv-sample`
@@ -39,8 +38,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 | `:priv-core` | `priv-core` | `priv.kit.core`, `priv.kit.binder`, `priv.kit.userservice` |
 | `:priv-runtime` | `priv-runtime` | `priv.kit.runtime` |
 | `:priv-server` | `priv-server` | `priv.kit.server`, 服务端侧 `priv.kit.userservice` 实现 |
-| `:priv-bc` | `priv-bc` | `priv.kit.bc` |
-| `:priv-ssl` | `priv-ssl` | `priv.kit.ssl` |
+| `:priv-adb-crypto` | `priv-adb-crypto` | `priv.kit.adb.crypto.certificate`, `priv.kit.adb.crypto.pairing` |
 | `:priv-adb` | `priv-adb` | `priv.kit.adb` |
 | `:priv-ui` | `priv-ui` | `priv.kit.ui` |
 | `:priv-sample` | 不作为发布 artifact | `priv.kit.sample` |
@@ -66,8 +64,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 :priv-adb
     -> :priv-core
-    -> :priv-bc
-    -> :priv-ssl
+    -> :priv-adb-crypto
     -> compileOnly(:hidden-api)
 
 :priv-ui
@@ -233,21 +230,19 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - shell 便利 API；
 - 面向无关系统操作的 ADB helper。
 
-## `:priv-bc`
+## `:priv-adb-crypto`
 
 职责：
 
-- 项目内部 ADB 启动客户端证书所需的最小 BC 兼容 ASN.1 / X.509 证书生成能力。
+- 项目内部 ADB 启动客户端证书所需的最小 X.509 / DER 生成能力；
+- 项目内部 ADB Wireless Debugging pairing 所需的最小 BoringSSL 兼容 SPAKE2 / HKDF / AES-GCM 能力。
 
-禁止通用证书管理、通用 PKI API、Android API 依赖，以及非 ADB 启动所需的加密能力。
+package 分区：
 
-## `:priv-ssl`
+- `priv.kit.adb.crypto.certificate` 只承载 ADB 客户端证书生成；
+- `priv.kit.adb.crypto.pairing` 只承载 Wireless Debugging pairing 加密上下文。
 
-职责：
-
-- 项目内部 ADB Wireless Debugging pairing 所需的最小 BoringSSL 兼容能力。
-
-禁止通用 SSL/TLS 协议栈、通用密码学工具箱、证书/ASN.1/PKI 能力，以及 ADB socket、mDNS 或启动命令执行逻辑。
+禁止通用 SSL/TLS 协议栈、通用密码学工具箱、通用证书管理、通用 PKI API、Android API 依赖，以及 ADB socket、mDNS 或启动命令执行逻辑。
 
 ## `:priv-ui`
 

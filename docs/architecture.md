@@ -27,8 +27,8 @@
 - GitHub Organization 和 Repository 都固定为 `priv-kit`。
 - 项目对外名称固定为 `Priv Kit`。
 - Maven `groupId` 固定为 `io.github.priv-kit`。
-- 发布模块的 Maven `artifactId` 使用 `priv-*`：`priv-core`、`priv-runtime`、`priv-server`、`priv-bc`、`priv-ssl`、`priv-adb`、`priv-ui`。
-- Gradle 模块使用 `:priv-core`、`:priv-runtime`、`:priv-server`、`:priv-bc`、`:priv-ssl`、`:priv-adb`、`:priv-ui`、`:priv-sample`，以及内部编译期 stub 模块 `:hidden-api`。
+- 发布模块的 Maven `artifactId` 使用 `priv-*`：`priv-core`、`priv-runtime`、`priv-server`、`priv-adb-crypto`、`priv-adb`、`priv-ui`。
+- Gradle 模块使用 `:priv-core`、`:priv-runtime`、`:priv-server`、`:priv-adb-crypto`、`:priv-adb`、`:priv-ui`、`:priv-sample`，以及内部编译期 stub 模块 `:hidden-api`。
 - 除 `:hidden-api` 中的 framework mirror/stub 外，Kotlin package 统一使用 `priv.kit.*`，例如 `priv.kit.runtime`、`priv.kit.server`、`priv.kit.binder`、`priv.kit.userservice`。
 - 禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*` 作为源码 package。
 - 公开 API 使用完整单词 `Privilege*`，例如 `PrivilegeKit`、`PrivilegeRuntime`、`PrivilegeConnection`。
