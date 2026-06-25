@@ -1,6 +1,5 @@
 package priv.kit.server
 
-import android.os.Binder
 import android.os.IBinder
 import android.os.Parcel
 import android.os.ServiceManager
@@ -14,7 +13,7 @@ import priv.kit.userservice.PrivilegeUserServiceRegistry
 import kotlin.system.exitProcess
 
 internal class PrivilegeServerBinder(
-    private val config: PrivilegeServerConfig,
+    config: PrivilegeServerConfig,
 ) : IPrivilegeServer.Stub() {
     private val binderRegistry = PrivilegeBinderRegistry()
     private val userServiceManager = PrivilegeUserServiceManagerBinder(
@@ -79,11 +78,11 @@ internal class PrivilegeServerBinder(
         val targetData = Parcel.obtain()
         try {
             targetData.appendFrom(data, data.dataPosition(), data.dataAvail())
-            val identity = Binder.clearCallingIdentity()
+            val identity = clearCallingIdentity()
             try {
                 targetBinder.transact(targetCode, targetData, reply, targetFlags)
             } finally {
-                Binder.restoreCallingIdentity(identity)
+                restoreCallingIdentity(identity)
             }
         } finally {
             targetData.recycle()
@@ -129,11 +128,11 @@ internal class PrivilegeServerBinder(
         val targetData = Parcel.obtain()
         try {
             targetData.appendFrom(data, data.dataPosition(), data.dataAvail())
-            val identity = Binder.clearCallingIdentity()
+            val identity = clearCallingIdentity()
             try {
                 targetBinder.transact(targetCode, targetData, reply, targetFlags)
             } finally {
-                Binder.restoreCallingIdentity(identity)
+                restoreCallingIdentity(identity)
             }
         } finally {
             targetData.recycle()

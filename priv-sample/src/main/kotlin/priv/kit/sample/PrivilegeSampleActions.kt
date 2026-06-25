@@ -341,8 +341,8 @@ internal fun MainActivity.startShizukuExternal() {
     }
 }
 
-private fun MainActivity.checkShizukuReadiness(requestPermission: Boolean): ShizukuReadiness =
-    try {
+private fun MainActivity.checkShizukuReadiness(requestPermission: Boolean): ShizukuReadiness {
+    return try {
         if (!Shizuku.pingBinder()) {
             return ShizukuReadiness(message = "Shizuku is not running")
         }
@@ -399,6 +399,7 @@ private fun MainActivity.checkShizukuReadiness(requestPermission: Boolean): Shiz
             exceptionText = throwable.toDiagnosticString(),
         )
     }
+}
 
 private fun MainActivity.applyShizukuReadiness(readiness: ShizukuReadiness) {
     screenState = screenState.copy(
@@ -976,7 +977,7 @@ private fun ShizukuReadiness.toGlobalMessage(): String =
 
 private fun List<PrivilegeSampleUserInfo>.toBinderMessage(): String =
     buildString {
-        append("IUserManager.getUsers returned ${size} user(s)")
+        append("IUserManager.getUsers returned $size user(s)")
         this@toBinderMessage.forEach { user ->
             appendLine()
             append("user id=${user.id}, name=${user.name.ifBlank { "<unnamed>" }}")
@@ -1153,7 +1154,7 @@ private fun PrivilegeSampleScreenState.idleServiceMessage(): String =
         PrivilegeSampleStatus.STARTING -> message
     }
 
-private fun MainActivity.sampleUserServiceSpec(
+private fun sampleUserServiceSpec(
     label: String,
     processMode: PrivilegeUserServiceProcessMode,
 ): PrivilegeUserServiceSpec =
@@ -1164,7 +1165,7 @@ private fun MainActivity.sampleUserServiceSpec(
         processMode = processMode,
     )
 
-private fun MainActivity.sampleUserServiceProcessMode(label: String): PrivilegeUserServiceProcessMode =
+private fun sampleUserServiceProcessMode(label: String): PrivilegeUserServiceProcessMode =
     if (label == "embedded") {
         PrivilegeUserServiceProcessMode.IN_SERVER_PROCESS
     } else {

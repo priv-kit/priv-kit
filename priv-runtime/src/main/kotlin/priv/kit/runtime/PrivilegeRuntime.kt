@@ -111,7 +111,8 @@ public object PrivilegeRuntime {
         activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
     ): PrivilegeExternalStartCommand {
         applyRuntimeConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
-        val token = ownerTokenStore().readOrCreate()
+        // No-token external starts recover the persisted owner token through the handshake provider.
+        ownerTokenStore().readOrCreate()
         return buildExternalStartCommand()
     }
 
@@ -244,7 +245,7 @@ public object PrivilegeRuntime {
         try {
             requireServerInterface().shutdown()
         } finally {
-            clearCurrentServer(notify = true)
+            clearCurrentServer()
         }
     }
 
@@ -430,14 +431,14 @@ public object PrivilegeRuntime {
         }
     }
 
-    private fun clearCurrentServer(notify: Boolean) {
+    private fun clearCurrentServer() {
         val previous = synchronized(serverLock) {
             currentServer.also {
                 currentServer = null
             }
         }
         previous?.unlink()
-        if (notify && previous != null) {
+        if (previous != null) {
             notifyServerDisconnected()
         }
     }

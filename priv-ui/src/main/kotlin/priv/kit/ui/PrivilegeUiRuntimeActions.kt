@@ -5,7 +5,7 @@ import priv.kit.runtime.PrivilegeRuntime
 
 internal class PrivilegeUiRuntimeActions(
     private val store: PrivilegeUiViewModelStore,
-) {
+) : AutoCloseable {
     fun configureOwnerDeathBehavior() {
         PrivilegeRuntime.configureOwnerDeathBehavior(
             followDeathDelayMillis = store.config.followDeathDelayMillis,
@@ -124,7 +124,7 @@ internal class PrivilegeUiRuntimeActions(
         }
     }
 
-    fun clear() {
+    override fun close() {
         store.readyServerWatcher?.close()
         store.serverDisconnectedWatcher?.close()
         store.readyServerWatcher = null

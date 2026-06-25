@@ -100,19 +100,13 @@ internal class PrivilegeUiViewModelStore : AutoCloseable {
 
     private fun PrivilegeUiConfig.effectiveStartupModes(): List<PrivilegeUiStartupMode> {
         val modes = startupModes
-            .filterTo(mutableSetOf()) { it in USER_VISIBLE_AUTHORIZATION_MODES }
+            .filterTo(mutableSetOf()) { it in USER_VISIBLE_AUTHORIZATION_MODE_ORDER }
         if (externalStartProviders.isNotEmpty()) modes += PrivilegeUiStartupMode.EXTERNAL
         if (modes.isEmpty()) modes += PrivilegeUiStartupMode.ROOT
         return USER_VISIBLE_AUTHORIZATION_MODE_ORDER.filter { it in modes }
     }
 
     private companion object {
-        val USER_VISIBLE_AUTHORIZATION_MODES = setOf(
-            PrivilegeUiStartupMode.ADB,
-            PrivilegeUiStartupMode.EXTERNAL,
-            PrivilegeUiStartupMode.MANUAL_SHELL,
-            PrivilegeUiStartupMode.ROOT,
-        )
         val USER_VISIBLE_AUTHORIZATION_MODE_ORDER = listOf(
             PrivilegeUiStartupMode.ADB,
             PrivilegeUiStartupMode.EXTERNAL,

@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 internal class PrivilegeUiExternalStartActions(
     private val store: PrivilegeUiViewModelStore,
     private val runtimeActions: PrivilegeUiRuntimeActions,
-) {
+) : AutoCloseable {
     fun refreshExternalStartStatus(providerId: String? = null) {
         Thread {
             refreshExternalStartStatusNow(stop = null, providerId = providerId)
@@ -45,7 +45,7 @@ internal class PrivilegeUiExternalStartActions(
         thread?.interrupt()
     }
 
-    fun clear() {
+    override fun close() {
         stopExternalStartStatusPolling()
     }
 

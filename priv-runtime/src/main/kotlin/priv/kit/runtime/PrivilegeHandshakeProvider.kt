@@ -47,14 +47,10 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
                 "callingUid=$callingUid, callingPid=$callingPid, hasExtras=${extras != null}, " +
                 "hasBinder=${serverBinder != null}",
         )
-        val serverInfo = if (extras != null) {
-            extras.toServerInfo(
-                uid = callingUid,
-                pid = callingPid,
-            )
-        } else {
-            null
-        }
+        val serverInfo = extras?.toServerInfo(
+            uid = callingUid,
+            pid = callingPid,
+        )
         val matchesCurrentRuntime = extras != null &&
             serverInfo != null &&
             serverInfo.matchesCurrentRuntime(extras)
@@ -69,14 +65,14 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
             Log.w(
                 TAG,
                 "Rejecting server mismatch protocol=${serverInfo.protocolVersion}, " +
-                    "classpathIdentityMatches=${extras?.classpathIdentityMatches() == true}",
+                    "classpathIdentityMatches=${extras.classpathIdentityMatches()}",
             )
         }
         val accepted = if (acceptedToken != null && matchesCurrentRuntime) {
             PrivilegeServerHandshakeRegistry.deliverReady(
                 token = acceptedToken,
                 serverBinder = serverBinder,
-                serverInfo = requireNotNull(serverInfo),
+                serverInfo = serverInfo,
             )
         } else {
             false
@@ -85,7 +81,7 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
 
         return Bundle().apply {
             putBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, accepted)
-            if (accepted && acceptedToken != null) {
+            if (accepted) {
                 putBinder(
                     PrivilegeHandshakeContract.RESULT_OWNER_BINDER,
                     ownerBinders.getOrPut(acceptedToken) { Binder() },
@@ -232,11 +228,6 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
         require(containsKey(key)) { "Handshake request is missing $key" }
         return getInt(key)
     }
-
-    private fun Bundle.requireStringExtra(key: String): String =
-        requireNotNull(getString(key)?.takeIf { it.isNotBlank() }) {
-            "Handshake request is missing $key"
-        }
 
     private companion object {
         private const val TAG = "PrivKitRuntime"

@@ -5,6 +5,7 @@ import com.android.build.gradle.LibraryPlugin
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
 import org.gradle.api.plugins.JavaPluginExtension
 import org.jetbrains.kotlin.gradle.dsl.KotlinBaseExtension
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
@@ -25,6 +26,7 @@ private object Cfg {
     const val minSdk = 26
     val javaTargetVersion = JavaVersion.VERSION_11
     val kotlinJvmTarget = JvmTarget.fromTarget(javaTargetVersion.majorVersion)
+    val kotlinLanguageVersion = KotlinVersion.KOTLIN_2_2
 }
 
 private val unpublishedModuleNames = setOf(
@@ -54,6 +56,8 @@ subprojects {
     tasks.withType<KotlinJvmCompile>().configureEach {
         compilerOptions {
             jvmTarget.set(Cfg.kotlinJvmTarget)
+            languageVersion.set(Cfg.kotlinLanguageVersion)
+            apiVersion.set(Cfg.kotlinLanguageVersion)
         }
     }
 

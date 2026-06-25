@@ -1,11 +1,12 @@
 package priv.kit.runtime
 
 import android.content.Context
+import android.util.Base64
 import priv.kit.core.PrivilegeStartupException
-import priv.kit.core.PrivilegeToken
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
+import java.security.SecureRandom
 
 internal class PrivilegeOwnerTokenStore(
     private val context: Context,
@@ -17,7 +18,7 @@ internal class PrivilegeOwnerTokenStore(
                 return@synchronized readExisting(file)
             }
 
-            val token = PrivilegeToken.generate()
+            val token = generateToken()
             writeNew(file, token)
             token
         }
@@ -36,9 +37,6 @@ internal class PrivilegeOwnerTokenStore(
         }
         if (token.isBlank()) {
             throw PrivilegeStartupException("Owner token file is empty: ${file.absolutePath}")
-        }
-        if (!PrivilegeToken.isValid(token)) {
-            throw PrivilegeStartupException("Owner token file is invalid: ${file.absolutePath}")
         }
         return token
     }
@@ -72,6 +70,16 @@ internal class PrivilegeOwnerTokenStore(
     companion object {
         private const val OWNER_TOKEN_DIRECTORY = ".priv-kit"
         private const val OWNER_TOKEN_FILE = "token.txt"
+        private const val TOKEN_BYTE_LENGTH = 12
         private val lock = Any()
+
+        private fun generateToken(): String {
+            val bytes = ByteArray(TOKEN_BYTE_LENGTH)
+            SecureRandom().nextBytes(bytes)
+            return Base64.encodeToString(
+                bytes,
+                Base64.NO_PADDING or Base64.NO_WRAP or Base64.URL_SAFE,
+            )
+        }
     }
 }

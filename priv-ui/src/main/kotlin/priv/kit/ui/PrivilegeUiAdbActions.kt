@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 internal class PrivilegeUiAdbActions(
     private val store: PrivilegeUiViewModelStore,
     private val runtimeActions: PrivilegeUiRuntimeActions,
-) {
+) : AutoCloseable {
     fun updatePairingCode(value: String) {
         store.updateState { current ->
             current.copy(
@@ -315,7 +315,7 @@ internal class PrivilegeUiAdbActions(
         }
     }
 
-    fun clear() {
+    override fun close() {
         stopWirelessAdbStatusPolling()
         store.pairingEventReceiver?.let { receiver ->
             store.applicationContext?.let { context ->

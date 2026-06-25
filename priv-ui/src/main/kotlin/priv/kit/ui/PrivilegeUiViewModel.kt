@@ -7,19 +7,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 public open class PrivilegeUiViewModel public constructor() : ViewModel() {
-    private val store = PrivilegeUiViewModelStore().also { store ->
-        addCloseable { store.close() }
-    }
-    private val runtimeActions = PrivilegeUiRuntimeActions(store).also { actions ->
-        addCloseable { actions.clear() }
-    }
+    private val store = PrivilegeUiViewModelStore().also(::addCloseable)
+    private val runtimeActions = PrivilegeUiRuntimeActions(store).also(::addCloseable)
     private val manualShellActions = PrivilegeUiManualShellActions(store)
-    private val adbActions = PrivilegeUiAdbActions(store, runtimeActions).also { actions ->
-        addCloseable { actions.clear() }
-    }
-    private val externalStartActions = PrivilegeUiExternalStartActions(store, runtimeActions).also { actions ->
-        addCloseable { actions.clear() }
-    }
+    private val adbActions = PrivilegeUiAdbActions(store, runtimeActions).also(::addCloseable)
+    private val externalStartActions = PrivilegeUiExternalStartActions(store, runtimeActions).also(::addCloseable)
 
     public val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
     public open val tcpModeEnabled: MutableStateFlow<Boolean> = store.tcpModeEnabled
