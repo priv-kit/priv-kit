@@ -120,12 +120,12 @@ internal class PrivilegeUiExternalStartActions(
         }
 
         runtimeActions.runServerStart(store.text(R.string.priv_ui_external_starting)) {
-            val start = PrivilegeRuntime.prepareExternalStart(
+            val start = PrivilegeRuntime.prepareShellStart(
                 followDeathDelayMillis = store.config.followDeathDelayMillis,
                 activeReconnectOnOwnerDeath = store.config.activeReconnectOnOwnerDeath,
             )
             try {
-                provider.start(context, start.command)
+                provider.start(context, start.commandLine)
                 start.awaitServer(store.config.startTimeoutMillis)
             } catch (throwable: Throwable) {
                 start.cancel()

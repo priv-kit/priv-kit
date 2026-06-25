@@ -1,8 +1,7 @@
 package priv.kit.core
 
 public data class PrivilegeServerLaunchCommand public constructor(
-    public val foregroundCommandLine: String,
-    public val detachedCommandLine: String,
+    public val commandLine: String,
     public val classpath: String,
     public val classpathIdentity: String,
     public val mainClass: String,

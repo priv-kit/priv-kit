@@ -78,55 +78,26 @@ public object PrivilegeRuntime {
     }
 
     @Throws(PrivilegeStartupException::class)
-    public fun createManualShellCommand(
+    public fun createShellStartCommand(
         followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
         activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-    ): PrivilegeManualShellCommand {
+    ): String {
         applyRuntimeConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
-        val token = ownerTokenStore().readOrCreate()
-        return buildManualShellCommand(
-            token = token,
-        )
-    }
-
-    @Throws(PrivilegeStartupException::class)
-    public fun prepareManualShell(
-        followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
-        activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-    ): PrivilegeManualShellConnection {
-        applyRuntimeConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
-        val token = ownerTokenStore().readOrCreate()
-        val command = buildManualShellCommand(token)
-        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(command.token)
-        return PrivilegeManualShellConnection(
-            command = command,
-            pendingHandshake = pendingHandshake,
-            onHandshake = ::connectHandshake,
-        )
-    }
-
-    @Throws(PrivilegeStartupException::class)
-    public fun createExternalStartCommand(
-        followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
-        activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-    ): PrivilegeExternalStartCommand {
-        applyRuntimeConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
-        // No-token external starts recover the persisted owner token through the handshake provider.
         ownerTokenStore().readOrCreate()
-        return buildExternalStartCommand()
+        return buildShellStartCommandLine()
     }
 
     @Throws(PrivilegeStartupException::class)
-    public fun prepareExternalStart(
+    public fun prepareShellStart(
         followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
         activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-    ): PrivilegeExternalStartConnection {
+    ): PrivilegeShellStartConnection {
         applyRuntimeConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
         val token = ownerTokenStore().readOrCreate()
-        val command = buildExternalStartCommand()
+        val commandLine = buildShellStartCommandLine()
         val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
-        return PrivilegeExternalStartConnection(
-            command = command,
+        return PrivilegeShellStartConnection(
+            commandLine = commandLine,
             token = token,
             pendingHandshake = pendingHandshake,
             onHandshake = ::connectHandshake,
@@ -451,18 +422,8 @@ public object PrivilegeRuntime {
         }
     }
 
-    private fun buildManualShellCommand(
-        token: String,
-    ): PrivilegeManualShellCommand {
-        val launchCommand = buildServerLaunchCommand()
-        return PrivilegeManualShellCommand(
-            token = token,
-            commandLine = buildShortNativeStarterCommand(),
-            classpath = launchCommand.classpath,
-            mainClass = launchCommand.mainClass,
-            providerAuthority = launchCommand.providerAuthority,
-        )
-    }
+    private fun buildShellStartCommandLine(): String =
+        buildShortNativeStarterCommand()
 
     private fun buildRootCommandLine(): String =
         buildShortNativeStarterCommand()
@@ -470,21 +431,11 @@ public object PrivilegeRuntime {
     private fun buildAdbCommand(): PrivilegeAdbCommand {
         val launchCommand = buildServerLaunchCommand()
         return PrivilegeAdbCommand(
-            commandLine = launchCommand.foregroundCommandLine,
+            commandLine = launchCommand.commandLine,
             classpath = launchCommand.classpath,
             mainClass = launchCommand.mainClass,
             providerAuthority = launchCommand.providerAuthority,
             diagnosticLogPath = null,
-        )
-    }
-
-    private fun buildExternalStartCommand(): PrivilegeExternalStartCommand {
-        val launchCommand = buildServerLaunchCommand()
-        return PrivilegeExternalStartCommand(
-            commandLine = launchCommand.detachedCommandLine,
-            classpath = launchCommand.classpath,
-            mainClass = launchCommand.mainClass,
-            providerAuthority = launchCommand.providerAuthority,
         )
     }
 

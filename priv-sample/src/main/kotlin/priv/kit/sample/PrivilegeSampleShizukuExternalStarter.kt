@@ -8,7 +8,6 @@ import android.content.pm.PackageManager
 import android.os.IBinder
 import android.os.RemoteException
 import priv.kit.core.PrivilegeStartupException
-import priv.kit.runtime.PrivilegeExternalStartCommand
 import rikka.shizuku.Shizuku
 import java.io.Closeable
 import java.util.concurrent.CountDownLatch
@@ -32,13 +31,13 @@ internal class PrivilegeSampleShizukuExternalStarter(
             Shizuku.getVersion() >= SHIZUKU_USER_SERVICE_MIN_VERSION &&
             Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
 
-    fun start(command: PrivilegeExternalStartCommand): String {
+    fun start(commandLine: String): String {
         if (!isAvailable()) {
             throw PrivilegeStartupException("Shizuku external starter is not available")
         }
         val activeService = bindOrGetService()
         return try {
-            activeService.start(command.commandLine)
+            activeService.start(commandLine)
         } catch (exception: RemoteException) {
             throw PrivilegeStartupException("Shizuku UserService failed to start external command", exception)
         }

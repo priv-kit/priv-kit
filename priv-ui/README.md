@@ -22,7 +22,7 @@ The UI covers ordinary user-facing authorization only:
 - External startup through app-provided `PrivilegeUiExternalStartProvider` implementations, with status refreshed on foreground resume and while the External tab is selected.
 - Service started/not-started status.
 
-It does not include Shizuku, Dhizuku, app-owned service management, stop-service controls, package management, input injection, settings, app-ops, diagnostic logs, or other high-level Android system operation UI. Shizuku-style support belongs in the app as a `PrivilegeUiExternalStartProvider` that executes the external start command.
+It does not include Shizuku, Dhizuku, app-owned service management, stop-service controls, package management, input injection, settings, app-ops, diagnostic logs, or other high-level Android system operation UI. Shizuku-style support belongs in the app as a `PrivilegeUiExternalStartProvider` that executes the shell start command.
 
 Basic usage:
 

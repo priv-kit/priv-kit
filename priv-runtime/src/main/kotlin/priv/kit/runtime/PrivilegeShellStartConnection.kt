@@ -6,8 +6,9 @@ import priv.kit.core.PrivilegeServerHandshakeResult
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeStartupException
 
-public class PrivilegeManualShellConnection internal constructor(
-    public val command: PrivilegeManualShellCommand,
+public class PrivilegeShellStartConnection internal constructor(
+    public val commandLine: String,
+    private val token: String,
     private val pendingHandshake: PrivilegePendingHandshake,
     private val onHandshake: (PrivilegeServerHandshakeResult) -> PrivilegeServerInfo,
 ) {
@@ -18,7 +19,7 @@ public class PrivilegeManualShellConnection internal constructor(
     }
 
     public fun cancel() {
-        PrivilegeServerHandshakeRegistry.cancel(command.token)
+        PrivilegeServerHandshakeRegistry.cancel(token)
     }
 
     public companion object {

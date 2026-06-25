@@ -23,7 +23,7 @@ internal class PrivilegeSampleShizukuStartService @Keep constructor() :
         output.clear()
         appendOutput(
             "diag",
-            "Starting Priv Kit external command uid=${android.os.Process.myUid()}, length=${commandLine.length}",
+            "Starting Priv Kit shell start command uid=${android.os.Process.myUid()}, length=${commandLine.length}",
         )
         val process = try {
             ProcessBuilder("/system/bin/sh", "-c", commandLine).start()
@@ -36,13 +36,13 @@ internal class PrivilegeSampleShizukuStartService @Keep constructor() :
 
         if (!process.waitFor(SHELL_COMMAND_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
             process.destroy()
-            val message = "External command did not return after ${SHELL_COMMAND_TIMEOUT_MILLIS}ms"
+            val message = "Shell start command did not return after ${SHELL_COMMAND_TIMEOUT_MILLIS}ms"
             appendOutput("diag", message)
             throw IllegalStateException(message)
         }
 
         val exitCode = process.exitValue()
-        appendOutput("diag", "External command shell exited code=$exitCode")
+        appendOutput("diag", "Shell start command exited code=$exitCode")
         if (exitCode != 0) {
             throw IllegalStateException(getLaunchOutput())
         }

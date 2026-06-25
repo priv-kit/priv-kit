@@ -3,7 +3,6 @@ package priv.kit.sample
 import android.content.Context
 import android.content.pm.PackageManager
 import priv.kit.core.PrivilegeServerInfo
-import priv.kit.runtime.PrivilegeExternalStartCommand
 import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiExternalStartProvider
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
@@ -62,10 +61,10 @@ private class PrivilegeSampleShizukuExternalStartProvider(
 
     override fun start(
         context: Context,
-        command: PrivilegeExternalStartCommand,
+        commandLine: String,
     ) {
         PrivilegeSampleShizukuExternalStarter(context).use { starter ->
-            starter.start(command)
+            starter.start(commandLine)
         }
     }
 

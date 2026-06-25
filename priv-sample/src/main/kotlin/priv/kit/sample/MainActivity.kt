@@ -62,9 +62,9 @@ class MainActivity : ComponentActivity() {
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             handleNotificationPermissionResult(granted)
-        }
+    }
     internal val manualShellCommandLine: String by lazy(LazyThreadSafetyMode.NONE) {
-        PrivilegeRuntime.createManualShellCommand().commandLine.toSampleHostAdbShellCommand()
+        PrivilegeRuntime.createShellStartCommand().toSampleHostAdbShellCommand()
     }
     internal var screenState: PrivilegeSampleScreenState
         get() = sampleViewModel.screenState

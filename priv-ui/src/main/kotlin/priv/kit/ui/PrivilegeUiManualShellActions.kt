@@ -8,10 +8,10 @@ internal class PrivilegeUiManualShellActions(
 ) {
     fun loadCommand() {
         val commandLine = runCatching {
-            PrivilegeRuntime.createManualShellCommand(
+            PrivilegeRuntime.createShellStartCommand(
                 followDeathDelayMillis = store.config.followDeathDelayMillis,
                 activeReconnectOnOwnerDeath = store.config.activeReconnectOnOwnerDeath,
-            ).commandLine.toPrivilegeUiHostAdbShellCommand()
+            ).toPrivilegeUiHostAdbShellCommand()
         }.getOrElse { throwable ->
             store.appendLog(throwable.toPrivilegeUiDiagnosticString())
             null

@@ -18,8 +18,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
         val starterCommandLine = buildNativeStarterCommand(context)
 
         return PrivilegeServerLaunchCommand(
-            foregroundCommandLine = starterCommandLine,
-            detachedCommandLine = starterCommandLine,
+            commandLine = starterCommandLine,
             classpath = classpath,
             classpathIdentity = classpathIdentity,
             mainClass = SERVER_MAIN_CLASS,

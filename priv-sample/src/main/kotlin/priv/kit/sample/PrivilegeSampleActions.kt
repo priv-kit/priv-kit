@@ -324,13 +324,13 @@ internal fun MainActivity.startShizukuExternal() {
     val externalStarter = PrivilegeSampleShizukuExternalStarter(this)
     shizukuExternalStarter = externalStarter
     runServerStart("Starting through Shizuku...") {
-        val externalStart = PrivilegeRuntime.prepareExternalStart()
+        val shellStart = PrivilegeRuntime.prepareShellStart()
         try {
-            val output = externalStarter.start(externalStart.command)
+            val output = externalStarter.start(shellStart.commandLine)
             appendLog(output)
-            externalStart.awaitServer()
+            shellStart.awaitServer()
         } catch (throwable: Throwable) {
-            externalStart.cancel()
+            shellStart.cancel()
             throw throwable
         } finally {
             externalStarter.close()

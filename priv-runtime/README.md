@@ -13,20 +13,18 @@ Common entry points:
 
 Advanced entry points:
 
-- `PrivilegeRuntime.createManualShellCommand()` for generating the short native starter command that a developer can paste into `adb shell`.
-- `PrivilegeRuntime.prepareManualShell()` for callers that still want a command plus a blocking pending-handshake wait.
-- `PrivilegeRuntime.createExternalStartCommand()` for generating a non-blocking command that an external authorization tool can execute.
-- `PrivilegeRuntime.prepareExternalStart()` for callers that want an external command plus a pending-handshake wait.
+- `PrivilegeRuntime.createShellStartCommand()` for generating the short native starter command that a developer can show to a user or pass to an external authorization tool.
+- `PrivilegeRuntime.prepareShellStart()` for callers that want a command plus a blocking pending-handshake wait.
 - `PrivilegeHandshakeProvider`, the app-side Binder handoff endpoint protected by `android.permission.INTERACT_ACROSS_USERS_FULL` and the persisted owner token. Short native starter commands complete one provider handoff that returns the owner token and current in-memory owner-death config.
 - Ready-server connection helpers, owner-death reconnect configuration, and raw Binder bridge types for custom diagnostics or low-level Binder validation.
 
 Runtime owns token generation, shared server launch command construction, the native starter executable, Root `su` execution, pending handshakes, protocol validation, current server Binder installation, and Binder death handling. The ADB module only executes or transports the launch command.
 
-`PrivilegeHandshakeProvider` initializes the runtime with the app `Context`, so callers use `PrivilegeRuntime` directly without passing `Context` into start, ADB, manual shell, or ready-server APIs. The provider remains exported so shell/root/external privileged starters can reach it, but normal apps are stopped by the provider permission before the owner-token handshake runs.
+`PrivilegeHandshakeProvider` initializes the runtime with the app `Context`, so callers use `PrivilegeRuntime` directly without passing `Context` into start, ADB, shell-start, or ready-server APIs. The provider remains exported so shell/root/external privileged starters can reach it, but normal apps are stopped by the provider permission before the owner-token handshake runs.
 
 The runtime module carries `priv-server` as a runtime-only dependency so apps do not need to declare the server module separately. The server module contributes the R8 consumer rule that keeps its `app_process` entry point.
 
-`startRoot()`, `startAdb()`, `createManualShellCommand()`, `prepareManualShell()`, `createExternalStartCommand()`, and `prepareExternalStart()` accept `followDeathDelayMillis`. When the app-side owner process dies, the Privileged Server waits for that grace period before exiting. The default is `PrivilegeRuntime.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS` (10 minutes). Use `0` to exit immediately.
+`startRoot()`, `startAdb()`, `createShellStartCommand()`, and `prepareShellStart()` accept `followDeathDelayMillis`. When the app-side owner process dies, the Privileged Server waits for that grace period before exiting. The default is `PrivilegeRuntime.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS` (10 minutes). Use `0` to exit immediately.
 
 By default, owner-death reconnect is passive: the server waits until the app main process is already running again, then sends the Binder handoff. Set `activeReconnectOnOwnerDeath = true` only if the server should actively call the app handshake provider while the app process is dead, which may start the app process.
 
@@ -38,8 +36,8 @@ Like shizuku-api, the runtime treats the Privileged Server Binder as a single pr
 
 If a server reports a different protocol or APK classpath identity than the current app runtime, the runtime rejects that handshake. Startup paths are expected to launch code from the current install.
 
-Manual Shell only creates a command for the same Binder handoff path. It does not execute `adb`, implement Wireless Debugging, or add an ADB startup strategy.
+Shell Start only creates a command for the same Binder handoff path. It does not execute `adb`, implement Wireless Debugging, or add an ADB startup strategy. UI modules or host apps may add an `adb shell` prefix when they want to display a host-side command.
 
-External Start Command uses the same Binder handoff path. `priv-runtime` builds a detached `app_process` launch command and can wait for the handshake; app-provided Shizuku/Dhizuku/UserService code only executes that command and returns.
+External authorization tools use the same Shell Start Command. App-provided Shizuku/Dhizuku/UserService code only executes that command and returns while the app waits for the handshake.
 
 This module does not expose typed Android system service wrappers, UI, Compose, package/input/settings/app-ops/activity APIs, or app-defined UserService business methods. UserService bind returns a raw Binder for the app's own AIDL Stub, and system-service access is limited to an explicit-name raw Binder transaction bridge.

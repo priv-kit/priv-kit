@@ -4,7 +4,6 @@ import android.content.Context
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeStartupException
-import priv.kit.runtime.PrivilegeExternalStartCommand
 import priv.kit.runtime.PrivilegeRuntime
 
 public enum class PrivilegeUiRuntimeStatus {
@@ -101,7 +100,7 @@ public interface PrivilegeUiExternalStartProvider {
     @Throws(PrivilegeStartupException::class)
     public fun start(
         context: Context,
-        command: PrivilegeExternalStartCommand,
+        commandLine: String,
     )
 }
 
