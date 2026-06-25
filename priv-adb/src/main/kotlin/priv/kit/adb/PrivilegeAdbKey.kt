@@ -1,20 +1,14 @@
 package priv.kit.adb
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import priv.kit.adb.crypto.certificate.PrivilegeAdbCertificateFactory
-import java.io.File
-import java.io.FileOutputStream
 import java.math.BigInteger
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.file.AtomicMoveNotSupportedException
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 import java.security.Key
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
@@ -37,78 +31,93 @@ import javax.net.ssl.SSLEngine
 import javax.net.ssl.X509ExtendedKeyManager
 import javax.net.ssl.X509ExtendedTrustManager
 
-internal interface PrivilegeAdbKeyStore {
-    fun put(bytes: ByteArray)
-    fun get(): ByteArray?
-}
+public object PrivilegeAdbKeyBytes {
+    public fun isReadable(storedBytes: ByteArray): Boolean {
+        val encryptionKey = getOrCreateEncryptionKey()
+            ?: throw PrivilegeAdbException("Failed to generate ADB encryption key")
+        return decodePrivateKey(storedBytes, encryptionKey) != null
+    }
 
-internal class PrivilegeAdbFileKeyStore(
-    private val file: File,
-) : PrivilegeAdbKeyStore {
-    override fun put(bytes: ByteArray) {
-        val directory = file.parentFile
-            ?: throw PrivilegeAdbException("ADB key file has no parent directory: ${file.absolutePath}")
-        if (!directory.exists() && !directory.mkdirs()) {
-            throw PrivilegeAdbException("Failed to create ADB key directory: ${directory.absolutePath}")
-        }
+    public fun create(): ByteArray {
+        val encryptionKey = getOrCreateEncryptionKey()
+            ?: throw PrivilegeAdbException("Failed to generate ADB encryption key")
+        return createEncryptedPrivateKey(encryptionKey)
+    }
 
-        val temporaryFile = File(directory, "${file.name}.tmp")
+    internal fun getOrCreateEncryptionKey(): Key? {
+        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
+        keyStore.load(null)
+        keyStore.getKey(ENCRYPTION_KEY_ALIAS, null)?.let { return it }
+
+        val parameterSpec = KeyGenParameterSpec.Builder(
+            ENCRYPTION_KEY_ALIAS,
+            KeyProperties.PURPOSE_DECRYPT or KeyProperties.PURPOSE_ENCRYPT,
+        )
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+            .build()
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+        generator.init(parameterSpec)
+        return generator.generateKey()
+    }
+
+    internal fun decodePrivateKey(ciphertext: ByteArray, encryptionKey: Key): RSAPrivateKey? =
         runCatching {
-            FileOutputStream(temporaryFile).use { output ->
-                output.write(bytes)
-                output.fd.sync()
-            }
-            moveKeyFile(temporaryFile, file)
-        }.onFailure { throwable ->
-            temporaryFile.delete()
-            throw PrivilegeAdbException("Failed to write ADB key file: ${file.absolutePath}", throwable)
+            val plaintext = decrypt(ciphertext, encryptionKey)
+            val keyFactory = KeyFactory.getInstance(RSA_KEY_ALGORITHM)
+            keyFactory.generatePrivate(PKCS8EncodedKeySpec(plaintext)) as RSAPrivateKey
+        }.getOrNull()
+
+    private fun createEncryptedPrivateKey(encryptionKey: Key): ByteArray {
+        val keyPairGenerator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA)
+        keyPairGenerator.initialize(RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4))
+        val privateKey = keyPairGenerator.generateKeyPair().private as RSAPrivateKey
+        return encrypt(privateKey.encoded, encryptionKey)
+            ?: throw PrivilegeAdbException("Failed to encrypt ADB private key")
+    }
+
+    private fun encrypt(plaintext: ByteArray, encryptionKey: Key): ByteArray? {
+        if (plaintext.size > Int.MAX_VALUE - IV_SIZE_IN_BYTES - TAG_SIZE_IN_BYTES) return null
+        val ciphertext = ByteArray(IV_SIZE_IN_BYTES + plaintext.size + TAG_SIZE_IN_BYTES)
+        val cipher = Cipher.getInstance(ADB_KEY_ENCRYPTION_TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, encryptionKey)
+        cipher.updateAAD(ADB_KEY_STORAGE_AAD)
+        cipher.doFinal(plaintext, 0, plaintext.size, ciphertext, IV_SIZE_IN_BYTES)
+        System.arraycopy(cipher.iv, 0, ciphertext, 0, IV_SIZE_IN_BYTES)
+        return ciphertext
+    }
+
+    private fun decrypt(ciphertext: ByteArray, encryptionKey: Key): ByteArray {
+        if (ciphertext.size < IV_SIZE_IN_BYTES + TAG_SIZE_IN_BYTES) {
+            throw PrivilegeAdbException("Stored ADB key is too short")
         }
+        val params = GCMParameterSpec(8 * TAG_SIZE_IN_BYTES, ciphertext, 0, IV_SIZE_IN_BYTES)
+        val cipher = Cipher.getInstance(ADB_KEY_ENCRYPTION_TRANSFORMATION)
+        cipher.init(Cipher.DECRYPT_MODE, encryptionKey, params)
+        cipher.updateAAD(ADB_KEY_STORAGE_AAD)
+        return cipher.doFinal(ciphertext, IV_SIZE_IN_BYTES, ciphertext.size - IV_SIZE_IN_BYTES)
     }
 
-    override fun get(): ByteArray? {
-        if (!file.isFile) return null
-        return file.readBytes()
-    }
-
-    companion object {
-        private const val STORAGE_DIRECTORY = ".priv-kit"
-        private const val KEY_FILE_NAME = "adbkey"
-
-        fun create(
-            context: Context,
-        ): PrivilegeAdbFileKeyStore =
-            PrivilegeAdbFileKeyStore(
-                File(File(context.applicationContext.filesDir, STORAGE_DIRECTORY), KEY_FILE_NAME),
-            )
-
-        private fun moveKeyFile(source: File, target: File) {
-            try {
-                Files.move(
-                    source.toPath(),
-                    target.toPath(),
-                    StandardCopyOption.ATOMIC_MOVE,
-                    StandardCopyOption.REPLACE_EXISTING,
-                )
-            } catch (_: AtomicMoveNotSupportedException) {
-                Files.move(
-                    source.toPath(),
-                    target.toPath(),
-                    StandardCopyOption.REPLACE_EXISTING,
-                )
-            }
-        }
-    }
+    private const val ANDROID_KEYSTORE = "AndroidKeyStore"
+    private const val ENCRYPTION_KEY_ALIAS = "_privilege_adbkey_encryption_key_"
+    private const val ADB_KEY_ENCRYPTION_TRANSFORMATION = "AES/GCM/NoPadding"
+    internal const val RSA_KEY_ALGORITHM: String = "RSA"
+    private const val IV_SIZE_IN_BYTES = 12
+    private const val TAG_SIZE_IN_BYTES = 16
+    private val ADB_KEY_STORAGE_AAD = "adbkey".toByteArray()
 }
 
 internal class PrivilegeAdbKey(
-    private val keyStore: PrivilegeAdbKeyStore,
+    keyBytes: ByteArray,
     private val name: String,
 ) {
-    private val encryptionKey: Key = getOrCreateEncryptionKey()
+    private val encryptionKey: Key = PrivilegeAdbKeyBytes.getOrCreateEncryptionKey()
         ?: throw PrivilegeAdbException("Failed to generate ADB encryption key")
-    private val privateKey: RSAPrivateKey = getOrCreatePrivateKey()
+    private val privateKey: RSAPrivateKey = PrivilegeAdbKeyBytes.decodePrivateKey(keyBytes, encryptionKey)
+        ?: throw PrivilegeAdbException("Stored ADB key is unreadable")
     private val publicKey: RSAPublicKey =
-        KeyFactory.getInstance(RSA_KEY_ALGORITHM).generatePublic(
+        KeyFactory.getInstance(PrivilegeAdbKeyBytes.RSA_KEY_ALGORITHM).generatePublic(
             RSAPublicKeySpec(privateKey.modulus, RSAKeyGenParameterSpec.F4),
         ) as RSAPublicKey
     private val certificate: X509Certificate = createCertificate()
@@ -138,63 +147,6 @@ internal class PrivilegeAdbKey(
         return cipher.doFinal(token)
     }
 
-    private fun getOrCreateEncryptionKey(): Key? {
-        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
-        keyStore.load(null)
-        keyStore.getKey(ENCRYPTION_KEY_ALIAS, null)?.let { return it }
-
-        val parameterSpec = KeyGenParameterSpec.Builder(
-            ENCRYPTION_KEY_ALIAS,
-            KeyProperties.PURPOSE_DECRYPT or KeyProperties.PURPOSE_ENCRYPT,
-        )
-            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-            .setKeySize(256)
-            .build()
-        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
-        generator.init(parameterSpec)
-        return generator.generateKey()
-    }
-
-    private fun getOrCreatePrivateKey(): RSAPrivateKey {
-        val aad = ByteArray(16)
-        ADB_KEY_STORAGE_AAD.copyInto(aad)
-
-        keyStore.get()?.let { ciphertext ->
-            runCatching {
-                val plaintext = decrypt(ciphertext, aad)
-                val keyFactory = KeyFactory.getInstance(RSA_KEY_ALGORITHM)
-                keyFactory.generatePrivate(PKCS8EncodedKeySpec(plaintext)) as RSAPrivateKey
-            }.getOrNull()?.let { return it }
-        }
-
-        val keyPairGenerator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA)
-        keyPairGenerator.initialize(RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4))
-        val generatedPrivateKey = keyPairGenerator.generateKeyPair().private as RSAPrivateKey
-        encrypt(generatedPrivateKey.encoded, aad)?.let(keyStore::put)
-        return generatedPrivateKey
-    }
-
-    private fun encrypt(plaintext: ByteArray, aad: ByteArray?): ByteArray? {
-        if (plaintext.size > Int.MAX_VALUE - IV_SIZE_IN_BYTES - TAG_SIZE_IN_BYTES) return null
-        val ciphertext = ByteArray(IV_SIZE_IN_BYTES + plaintext.size + TAG_SIZE_IN_BYTES)
-        val cipher = Cipher.getInstance(ADB_KEY_ENCRYPTION_TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, encryptionKey)
-        cipher.updateAAD(aad)
-        cipher.doFinal(plaintext, 0, plaintext.size, ciphertext, IV_SIZE_IN_BYTES)
-        System.arraycopy(cipher.iv, 0, ciphertext, 0, IV_SIZE_IN_BYTES)
-        return ciphertext
-    }
-
-    private fun decrypt(ciphertext: ByteArray, aad: ByteArray?): ByteArray? {
-        if (ciphertext.size < IV_SIZE_IN_BYTES + TAG_SIZE_IN_BYTES) return null
-        val params = GCMParameterSpec(8 * TAG_SIZE_IN_BYTES, ciphertext, 0, IV_SIZE_IN_BYTES)
-        val cipher = Cipher.getInstance(ADB_KEY_ENCRYPTION_TRANSFORMATION)
-        cipher.init(Cipher.DECRYPT_MODE, encryptionKey, params)
-        cipher.updateAAD(aad)
-        return cipher.doFinal(ciphertext, IV_SIZE_IN_BYTES, ciphertext.size - IV_SIZE_IN_BYTES)
-    }
-
     private fun createCertificate(): X509Certificate =
         PrivilegeAdbCertificateFactory.createRsaCertificate(privateKey, publicKey)
 
@@ -206,7 +158,7 @@ internal class PrivilegeAdbKey(
                 keyTypes: Array<out String>,
                 issuers: Array<out Principal>?,
                 socket: Socket?,
-            ): String? = keyTypes.firstOrNull { it == RSA_KEY_ALGORITHM }?.let { alias }
+            ): String? = keyTypes.firstOrNull { it == PrivilegeAdbKeyBytes.RSA_KEY_ALGORITHM }?.let { alias }
 
             override fun getCertificateChain(alias: String?): Array<X509Certificate>? =
                 if (alias == this.alias) arrayOf(certificate) else null
@@ -223,16 +175,9 @@ internal class PrivilegeAdbKey(
         get() = PrivilegeAdbTrustManager
 
     companion object {
-        private const val ANDROID_KEYSTORE = "AndroidKeyStore"
-        private const val ENCRYPTION_KEY_ALIAS = "_privilege_adbkey_encryption_key_"
-        private const val ADB_KEY_ENCRYPTION_TRANSFORMATION = "AES/GCM/NoPadding"
         private const val RSA_AUTH_SIGNATURE_TRANSFORMATION = "RSA/ECB/NoPadding"
-        private const val RSA_KEY_ALGORITHM = "RSA"
         private const val TLS_PROTOCOL = "TLSv1.3"
         private const val KEY_MANAGER_ALIAS = "key"
-        private const val IV_SIZE_IN_BYTES = 12
-        private const val TAG_SIZE_IN_BYTES = 16
-        private val ADB_KEY_STORAGE_AAD = "adbkey".toByteArray()
 
         private val SHA1_DIGEST_INFO_PREFIX = byteArrayOf(
             0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00,

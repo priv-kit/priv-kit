@@ -1,6 +1,5 @@
 package priv.kit.adb
 
-import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
@@ -19,10 +18,9 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 internal class PrivilegeAdbMdns(
-    context: Context,
+    private val nsdManager: NsdManager,
     private val serviceType: String,
 ) : Closeable {
-    private val nsdManager = context.applicationContext.getSystemService(NsdManager::class.java)
     private val handler = Handler(Looper.getMainLooper())
     private val callbackExecutor = Executor { command -> handler.post(command) }
     private val serviceInfoCallbacks = mutableSetOf<NsdManager.ServiceInfoCallback>()

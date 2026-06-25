@@ -1,6 +1,6 @@
 package priv.kit.adb
 
-import android.content.Context
+import android.net.nsd.NsdManager
 import android.os.Build
 import priv.kit.core.PrivilegeStartupException
 import java.io.EOFException
@@ -8,19 +8,10 @@ import java.net.SocketException
 import java.net.SocketTimeoutException
 
 public class PrivilegeAdbStarter private constructor(
-    private val context: Context,
     private val identity: PrivilegeAdbIdentity,
+    private val loadKeyBytes: () -> ByteArray,
+    private val nsdManagerProvider: () -> NsdManager,
 ) {
-    private val keyStore: PrivilegeAdbKeyStore = PrivilegeAdbFileKeyStore.create(context)
-
-    public constructor(
-        context: Context,
-        adbDeviceName: String? = null,
-    ) : this(
-        context = context.applicationContext,
-        identity = PrivilegeAdbIdentity.default(resolveDeviceName(context, adbDeviceName)),
-    )
-
     @Throws(PrivilegeStartupException::class)
     public fun start(
         command: PrivilegeAdbCommand,
@@ -285,7 +276,7 @@ public class PrivilegeAdbStarter private constructor(
             throw PrivilegeStartupException("Wireless ADB pairing requires Android 11 or above")
         }
         return try {
-            PrivilegeAdbMdns(context, PrivilegeAdbMdns.TLS_PAIRING).use { it.discoverPort(timeoutMillis) }
+            PrivilegeAdbMdns(nsdManagerProvider(), PrivilegeAdbMdns.TLS_PAIRING).use { it.discoverPort(timeoutMillis) }
         } catch (throwable: Throwable) {
             if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to discover ADB pairing port", throwable)
@@ -298,7 +289,7 @@ public class PrivilegeAdbStarter private constructor(
             throw PrivilegeStartupException("Wireless ADB requires Android 11 or above")
         }
         return try {
-            PrivilegeAdbMdns(context, PrivilegeAdbMdns.TLS_CONNECT).use { it.discoverPort(timeoutMillis) }
+            PrivilegeAdbMdns(nsdManagerProvider(), PrivilegeAdbMdns.TLS_CONNECT).use { it.discoverPort(timeoutMillis) }
         } catch (throwable: Throwable) {
             if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to discover ADB connect port", throwable)
@@ -371,7 +362,10 @@ public class PrivilegeAdbStarter private constructor(
 
     private fun createKey(): PrivilegeAdbKey =
         try {
-            PrivilegeAdbKey(keyStore, identity.adbDeviceName)
+            PrivilegeAdbKey(
+                keyBytes = loadKeyBytes(),
+                name = identity.adbDeviceName,
+            )
         } catch (throwable: Throwable) {
             throw PrivilegeAdbKeyException(throwable)
         }
@@ -425,45 +419,19 @@ public class PrivilegeAdbStarter private constructor(
         public const val DIAGNOSTIC_LOG_PREFIX: String = "/data/local/tmp/priv-kit-server-"
 
         public fun forOwnerToken(
-            context: Context,
             ownerToken: String,
-            adbDeviceName: String? = null,
+            adbDeviceName: String = PrivilegeAdbIdentity.DEFAULT_DEVICE_NAME,
+            loadKeyBytes: () -> ByteArray,
+            nsdManagerProvider: () -> NsdManager,
         ): PrivilegeAdbStarter =
             PrivilegeAdbStarter(
-                context = context.applicationContext,
                 identity = PrivilegeAdbIdentity.forOwnerToken(
                     ownerToken = ownerToken,
-                    deviceName = resolveDeviceName(context, adbDeviceName),
+                    deviceName = adbDeviceName,
                 ),
+                loadKeyBytes = loadKeyBytes,
+                nsdManagerProvider = nsdManagerProvider,
             )
-
-        private fun resolveDeviceName(
-            context: Context,
-            adbDeviceName: String?,
-        ): String {
-            val requestedName = adbDeviceName?.trim()
-            if (!requestedName.isNullOrEmpty()) return requestedName
-
-            val applicationContext = context.applicationContext
-            val appLabel = runCatching {
-                applicationContext.applicationInfo
-                    .loadLabel(applicationContext.packageManager)
-                    .toString()
-            }.getOrNull()
-            return appLabel.toSafeDefaultDeviceName()
-                ?: applicationContext.packageName.toSafeDefaultDeviceName()
-                ?: PrivilegeAdbIdentity.DEFAULT_DEVICE_NAME
-        }
-
-        private fun String?.toSafeDefaultDeviceName(): String? {
-            val value = this
-                ?.replace('\u0000', ' ')
-                ?.replace('\r', ' ')
-                ?.replace('\n', ' ')
-                ?.trim()
-                ?.take(PrivilegeAdbIdentity.MAX_DEVICE_NAME_LENGTH)
-            return value?.ifBlank { null }
-        }
     }
 }
 

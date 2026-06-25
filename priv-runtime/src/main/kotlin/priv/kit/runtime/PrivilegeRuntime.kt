@@ -1,9 +1,12 @@
 package priv.kit.runtime
 
+import android.content.Context
+import android.net.nsd.NsdManager
 import android.os.IBinder
 import android.os.RemoteException
 import android.util.Log
 import priv.kit.adb.PrivilegeAdbCommand
+import priv.kit.adb.PrivilegeAdbIdentity
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStartResult
 import priv.kit.adb.PrivilegeAdbStarter
@@ -450,12 +453,47 @@ public object PrivilegeRuntime {
     private fun buildAdbStarter(
         ownerToken: String,
         adbDeviceName: String?,
-    ): PrivilegeAdbStarter =
-        PrivilegeAdbStarter.forOwnerToken(
-            context = PrivilegeRuntimeContext.require(),
+    ): PrivilegeAdbStarter {
+        val context = PrivilegeRuntimeContext.require()
+        return PrivilegeAdbStarter.forOwnerToken(
             ownerToken = ownerToken,
-            adbDeviceName = adbDeviceName,
+            adbDeviceName = resolveAdbDeviceName(context, adbDeviceName),
+            loadKeyBytes = { PrivilegeAdbKeyStore.readOrCreate() },
+            nsdManagerProvider = { requireAdbNsdManager(context) },
         )
+    }
+
+    private fun requireAdbNsdManager(context: Context): NsdManager =
+        context.applicationContext.getSystemService(NsdManager::class.java)
+            ?: throw PrivilegeStartupException("NSD manager is unavailable")
+
+    private fun resolveAdbDeviceName(
+        context: Context,
+        adbDeviceName: String?,
+    ): String {
+        val requestedName = adbDeviceName?.trim()
+        if (!requestedName.isNullOrEmpty()) return requestedName
+
+        val applicationContext = context.applicationContext
+        val appLabel = runCatching {
+            applicationContext.applicationInfo
+                .loadLabel(applicationContext.packageManager)
+                .toString()
+        }.getOrNull()
+        return appLabel.toSafeDefaultAdbDeviceName()
+            ?: applicationContext.packageName.toSafeDefaultAdbDeviceName()
+            ?: PrivilegeAdbIdentity.DEFAULT_DEVICE_NAME
+    }
+
+    private fun String?.toSafeDefaultAdbDeviceName(): String? {
+        val value = this
+            ?.replace('\u0000', ' ')
+            ?.replace('\r', ' ')
+            ?.replace('\n', ' ')
+            ?.trim()
+            ?.take(PrivilegeAdbIdentity.MAX_DEVICE_NAME_LENGTH)
+        return value?.ifBlank { null }
+    }
 
     private fun readAdbServerDiagnosticLog(
         adbResult: PrivilegeAdbStartResult,
