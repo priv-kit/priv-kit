@@ -445,7 +445,7 @@ public object PrivilegeRuntime {
         PrivilegeServerLaunchCommandBuilder.shellArg(starterPath)
 
     private fun buildNativeStarterPath(): String =
-        PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath(PrivilegeRuntimeContext.require())
+        PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath()
 
     private fun buildAdbStarter(
         ownerToken: String,
@@ -476,9 +476,7 @@ public object PrivilegeRuntime {
     }
 
     private fun buildServerLaunchCommand(): PrivilegeServerLaunchCommand =
-        PrivilegeServerLaunchCommandBuilder.build(
-            context = PrivilegeRuntimeContext.require(),
-        )
+        PrivilegeServerLaunchCommandBuilder.build()
 
     private fun PrivilegeServerInfo.matchesCurrentRuntime(): Boolean =
         protocolVersion == PrivilegeProtocol.VERSION
@@ -497,7 +495,7 @@ public object PrivilegeRuntime {
     }
 
     private fun ownerTokenStore(): PrivilegeOwnerTokenStore =
-        PrivilegeOwnerTokenStore(PrivilegeRuntimeContext.require())
+        PrivilegeOwnerTokenStore
 
     private data class ServerConnection(
         val serverInfo: PrivilegeServerInfo,

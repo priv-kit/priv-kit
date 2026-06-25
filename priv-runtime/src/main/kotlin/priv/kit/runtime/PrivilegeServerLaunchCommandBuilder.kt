@@ -1,21 +1,19 @@
 package priv.kit.runtime
 
-import android.content.Context
 import priv.kit.core.PrivilegeHandshakeContract
 import priv.kit.core.PrivilegeProtocol
 import priv.kit.core.PrivilegeServerLaunchCommand
 import java.io.File
 
 internal object PrivilegeServerLaunchCommandBuilder {
-    fun build(
-        context: Context,
-    ): PrivilegeServerLaunchCommand {
+    fun build(): PrivilegeServerLaunchCommand {
+        val context = PrivilegeRuntimeContext.require()
         val packageName = context.packageName
         val userId = userIdFromUid(context.applicationInfo.uid)
-        val classpath = buildClasspath(context)
+        val classpath = buildClasspath()
         val classpathIdentity = buildClasspathIdentity(classpath)
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(packageName)
-        val starterCommandLine = buildNativeStarterCommand(context)
+        val starterCommandLine = buildNativeStarterCommand()
 
         return PrivilegeServerLaunchCommand(
             commandLine = starterCommandLine,
@@ -29,11 +27,13 @@ internal object PrivilegeServerLaunchCommandBuilder {
         )
     }
 
-    internal fun buildNativeStarterCommand(context: Context): String =
-        shellArg(buildNativeStarterPath(context))
+    internal fun buildNativeStarterCommand(): String =
+        shellArg(buildNativeStarterPath())
 
-    internal fun buildNativeStarterPath(context: Context): String =
-        context.applicationInfo.nativeLibraryDir.trimEnd('/') + "/" + NATIVE_STARTER_LIBRARY_NAME
+    internal fun buildNativeStarterPath(): String {
+        val nativeLibraryDir = PrivilegeRuntimeContext.require().applicationInfo.nativeLibraryDir.trimEnd('/')
+        return "$nativeLibraryDir/$NATIVE_STARTER_LIBRARY_NAME"
+    }
 
     fun shellArg(value: String): String =
         if (value.isNotEmpty() && value.all(::isShellBareChar)) {
@@ -42,7 +42,8 @@ internal object PrivilegeServerLaunchCommandBuilder {
             "'" + value.replace("'", "'\"'\"'") + "'"
         }
 
-    internal fun buildClasspath(context: Context): String {
+    internal fun buildClasspath(): String {
+        val context = PrivilegeRuntimeContext.require()
         val applicationInfo = context.applicationInfo
         val apkPaths = buildList {
             add(applicationInfo.sourceDir)

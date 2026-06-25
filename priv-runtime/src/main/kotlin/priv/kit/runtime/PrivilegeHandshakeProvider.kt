@@ -164,7 +164,7 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
 
     private fun ownerToken(): String? =
         runCatching {
-            context?.let { PrivilegeOwnerTokenStore(it).readIfExists() }
+            PrivilegeOwnerTokenStore.readIfExists()
         }.getOrElse { throwable ->
             Log.e(TAG, "Failed to read owner token for handshake validation", throwable)
             null
@@ -172,7 +172,7 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
 
     private fun ownerTokenOrCreate(): String? =
         runCatching {
-            context?.let { PrivilegeOwnerTokenStore(it).readOrCreate() }
+            PrivilegeOwnerTokenStore.readOrCreate()
         }.getOrElse { throwable ->
             Log.e(TAG, "Failed to create owner token for initial server handshake", throwable)
             null
@@ -199,15 +199,14 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
             extras.classpathIdentityMatches()
 
     private fun Bundle.classpathIdentityMatches(): Boolean {
-        val currentContext = context ?: return false
         val expected = PrivilegeServerLaunchCommandBuilder.buildClasspathIdentity(
-            PrivilegeServerLaunchCommandBuilder.buildClasspath(currentContext),
+            PrivilegeServerLaunchCommandBuilder.buildClasspath(),
         )
         return getString(PrivilegeHandshakeContract.EXTRA_CLASSPATH_IDENTITY) == expected
     }
 
     private fun isTrustedServerStarterCaller(callingUid: Int): Boolean {
-        val ownerUid = context?.applicationInfo?.uid
+        val ownerUid = PrivilegeRuntimeContext.require().applicationInfo.uid
         return callingUid == ROOT_UID ||
             callingUid == SYSTEM_UID ||
             callingUid == SHELL_UID ||

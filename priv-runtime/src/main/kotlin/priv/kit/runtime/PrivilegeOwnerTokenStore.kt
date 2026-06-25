@@ -1,6 +1,5 @@
 package priv.kit.runtime
 
-import android.content.Context
 import android.util.Base64
 import priv.kit.core.PrivilegeStartupException
 import java.io.File
@@ -8,9 +7,7 @@ import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
 import java.security.SecureRandom
 
-internal class PrivilegeOwnerTokenStore(
-    private val context: Context,
-) {
+internal object PrivilegeOwnerTokenStore {
     fun readOrCreate(): String =
         synchronized(lock) {
             val file = ownerTokenFile()
@@ -64,22 +61,22 @@ internal class PrivilegeOwnerTokenStore(
         }
     }
 
-    private fun ownerTokenFile(): File =
-        File(File(context.filesDir, OWNER_TOKEN_DIRECTORY), OWNER_TOKEN_FILE)
+    private fun ownerTokenFile(): File {
+        val context = PrivilegeRuntimeContext.require()
+        return File(File(context.filesDir, OWNER_TOKEN_DIRECTORY), OWNER_TOKEN_FILE)
+    }
 
-    companion object {
-        private const val OWNER_TOKEN_DIRECTORY = ".priv-kit"
-        private const val OWNER_TOKEN_FILE = "token.txt"
-        private const val TOKEN_BYTE_LENGTH = 12
-        private val lock = Any()
+    private const val OWNER_TOKEN_DIRECTORY = ".priv-kit"
+    private const val OWNER_TOKEN_FILE = "token.txt"
+    private const val TOKEN_BYTE_LENGTH = 12
+    private val lock = Any()
 
-        private fun generateToken(): String {
-            val bytes = ByteArray(TOKEN_BYTE_LENGTH)
-            SecureRandom().nextBytes(bytes)
-            return Base64.encodeToString(
-                bytes,
-                Base64.NO_PADDING or Base64.NO_WRAP or Base64.URL_SAFE,
-            )
-        }
+    private fun generateToken(): String {
+        val bytes = ByteArray(TOKEN_BYTE_LENGTH)
+        SecureRandom().nextBytes(bytes)
+        return Base64.encodeToString(
+            bytes,
+            Base64.NO_PADDING or Base64.NO_WRAP or Base64.URL_SAFE,
+        )
     }
 }
