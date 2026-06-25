@@ -28,7 +28,8 @@
 ```kotlin
 PrivilegeRuntime.startAdb()
 PrivilegeRuntime.startRoot()
-val shellStart = PrivilegeRuntime.prepareShellStart()
+val connectedListener = PrivilegeRuntime.addServerConnectedListener { serverInfo -> ... }
+val shellCommand = PrivilegeRuntime.createShellStartCommand()
 
 val connection = PrivilegeRuntime.bindUserService(spec)
 val registration = PrivilegeRuntime.registerBinderEndpoint(binder)

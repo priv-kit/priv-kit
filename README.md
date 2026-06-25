@@ -25,6 +25,17 @@ HiddenApiBypass.addHiddenApiExemptions("L")
 
 ## 激活
 
+先观察 Privileged Server 的连接和断开：
+
+```kotlin
+val connectedListener = PrivilegeRuntime.addServerConnectedListener { serverInfo ->
+    YourApp.onServerConnected(serverInfo)
+}
+val disconnectedListener = PrivilegeRuntime.addServerDisconnectedListener {
+    YourApp.onServerDisconnected()
+}
+```
+
 Root 设备直接启动：
 
 ```kotlin
@@ -40,20 +51,20 @@ val serverInfo = PrivilegeRuntime.startAdb()
 让用户复制命令到 `adb shell` 手动执行：
 
 ```kotlin
-val start = PrivilegeRuntime.prepareShellStart()
-YourApp.showCommandToUser(start.commandLine)
-val serverInfo = start.awaitServer()
+val commandLine = PrivilegeRuntime.createShellStartCommand()
+YourApp.showCommandToUser(commandLine)
 ```
 
 把启动命令交给 Shizuku 或其他外部授权工具执行：
 
 ```kotlin
-val start = PrivilegeRuntime.prepareShellStart()
-YourApp.externalStarter.runCommand(start.commandLine)
-val serverInfo = start.awaitServer()
+val commandLine = PrivilegeRuntime.createShellStartCommand()
+YourApp.externalStarter.runCommand(commandLine)
 ```
 
-服务启动后，可连接使用 Binder/UserService
+Shell Start Command 可以在任意时刻执行。server 启动后会通过同一条 Binder handoff 回传给应用，并由 `addServerConnectedListener()` 接入。
+
+服务连接后，可使用 Binder/UserService。
 
 ## Binder
 

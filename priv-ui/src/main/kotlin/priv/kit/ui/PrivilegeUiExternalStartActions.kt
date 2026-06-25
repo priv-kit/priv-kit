@@ -119,18 +119,15 @@ internal class PrivilegeUiExternalStartActions(
             }
         }
 
-        runtimeActions.runServerStart(store.text(R.string.priv_ui_external_starting)) {
-            val start = PrivilegeRuntime.prepareShellStart(
+        runtimeActions.runServerStartRequest(
+            message = store.text(R.string.priv_ui_external_starting),
+            startedMessage = store.text(R.string.priv_ui_external_start_requested),
+        ) {
+            val commandLine = PrivilegeRuntime.createShellStartCommand(
                 followDeathDelayMillis = store.config.followDeathDelayMillis,
                 activeReconnectOnOwnerDeath = store.config.activeReconnectOnOwnerDeath,
             )
-            try {
-                provider.start(context, start.commandLine)
-                start.awaitServer(store.config.startTimeoutMillis)
-            } catch (throwable: Throwable) {
-                start.cancel()
-                throw throwable
-            }
+            provider.start(context, commandLine)
         }
     }
 

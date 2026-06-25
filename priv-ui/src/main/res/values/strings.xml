@@ -62,6 +62,7 @@
     <string name="priv_ui_external_permission_required">Permission required</string>
     <string name="priv_ui_external_no_provider">No external provider configured.</string>
     <string name="priv_ui_external_starting">Starting through external authorization...</string>
+    <string name="priv_ui_external_start_requested">External start command sent. Waiting for the server handshake.</string>
     <string name="priv_ui_pairing_channel_name">Wireless ADB pairing</string>
     <string name="priv_ui_pairing_search_title">Searching for pairing service</string>
     <string name="priv_ui_pairing_search_text">Open Wireless debugging and choose Pair device with pairing code.</string>

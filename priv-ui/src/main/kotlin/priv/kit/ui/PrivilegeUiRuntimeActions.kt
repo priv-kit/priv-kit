@@ -50,9 +50,9 @@ internal class PrivilegeUiRuntimeActions(
     }
 
     fun installRuntimeWatchers() {
-        store.readyServerWatcher?.close()
-        store.readyServerWatcher = PrivilegeRuntime.watchReadyServers(
-            onReady = ::connectServer,
+        store.serverConnectedListener?.close()
+        store.serverConnectedListener = PrivilegeRuntime.addServerConnectedListener(
+            onConnected = ::connectServer,
             onFailure = { throwable -> store.appendLog(throwable.toPrivilegeUiDiagnosticString()) },
             followDeathDelayMillis = store.config.followDeathDelayMillis,
             activeReconnectOnOwnerDeath = store.config.activeReconnectOnOwnerDeath,
@@ -80,6 +80,38 @@ internal class PrivilegeUiRuntimeActions(
         store.executor.execute {
             try {
                 connectServer(start())
+            } catch (throwable: Throwable) {
+                setRuntimeFailure(throwable)
+            }
+        }
+    }
+
+    fun runServerStartRequest(
+        message: String,
+        startedMessage: String,
+        start: () -> Unit,
+    ) {
+        if (store.state.value.busy) return
+        store.updateState {
+            it.copy(
+                busy = true,
+                runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
+                serverInfo = null,
+                message = message,
+            )
+        }
+        store.appendLog(message)
+        store.executor.execute {
+            try {
+                start()
+                store.updateState {
+                    it.copy(
+                        busy = false,
+                        runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
+                        message = startedMessage,
+                    )
+                }
+                store.appendLog(startedMessage)
             } catch (throwable: Throwable) {
                 setRuntimeFailure(throwable)
             }
@@ -125,9 +157,9 @@ internal class PrivilegeUiRuntimeActions(
     }
 
     override fun close() {
-        store.readyServerWatcher?.close()
+        store.serverConnectedListener?.close()
         store.serverDisconnectedWatcher?.close()
-        store.readyServerWatcher = null
+        store.serverConnectedListener = null
         store.serverDisconnectedWatcher = null
     }
 

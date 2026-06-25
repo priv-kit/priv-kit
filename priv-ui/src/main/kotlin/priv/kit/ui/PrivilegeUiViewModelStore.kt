@@ -17,7 +17,7 @@ internal class PrivilegeUiViewModelStore : AutoCloseable {
     var applicationContext: Context? = null
     var config: PrivilegeUiConfig = PrivilegeUiConfig()
     var attached: Boolean = false
-    var readyServerWatcher: Closeable? = null
+    var serverConnectedListener: Closeable? = null
     var serverDisconnectedWatcher: Closeable? = null
     var pairingEventReceiver: android.content.BroadcastReceiver? = null
     var startNotificationPairingAfterPermission: Boolean = false

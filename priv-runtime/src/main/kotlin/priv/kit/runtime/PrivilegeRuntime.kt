@@ -91,23 +91,6 @@ public object PrivilegeRuntime {
     }
 
     @Throws(PrivilegeStartupException::class)
-    public fun prepareShellStart(
-        followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
-        activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
-    ): PrivilegeShellStartConnection {
-        applyRuntimeConfig(followDeathDelayMillis, activeReconnectOnOwnerDeath)
-        val token = ownerTokenStore().readOrCreate()
-        val commandLine = buildShellStartCommandLine()
-        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
-        return PrivilegeShellStartConnection(
-            commandLine = commandLine,
-            token = token,
-            pendingHandshake = pendingHandshake,
-            onHandshake = ::connectHandshake,
-        )
-    }
-
-    @Throws(PrivilegeStartupException::class)
     public fun createAdbStarter(
         adbDeviceName: String? = null,
     ): PrivilegeAdbStarter =
@@ -136,8 +119,8 @@ public object PrivilegeRuntime {
     }
 
     @Throws(PrivilegeStartupException::class)
-    public fun watchReadyServers(
-        onReady: (PrivilegeServerInfo) -> Unit,
+    public fun addServerConnectedListener(
+        onConnected: (PrivilegeServerInfo) -> Unit,
         onFailure: (Throwable) -> Unit = {},
         followDeathDelayMillis: Long = DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
         activeReconnectOnOwnerDeath: Boolean = DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
@@ -146,7 +129,7 @@ public object PrivilegeRuntime {
         val token = ownerTokenStore().readOrCreate()
         return PrivilegeServerHandshakeRegistry.addReadyListener(token) { handshakeResult ->
             try {
-                onReady(connectHandshake(handshakeResult))
+                onConnected(connectHandshake(handshakeResult))
             } catch (throwable: Throwable) {
                 onFailure(throwable)
             }

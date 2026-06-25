@@ -136,7 +136,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 通过 `su` 执行共享服务端启动命令；
 - root 启动诊断和 root 特有启动失败建模；
 - 为用户手动执行或外部授权工具代执行提供启动命令；
-- token、pending handshake、当前全局 server-binder 安装和 Binder death handling。
+- token、Root/ADB pending handshake、ready-server handoff、当前全局 server-binder 安装和 Binder death handling。
 
 禁止：
 

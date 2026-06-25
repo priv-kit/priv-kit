@@ -36,7 +36,7 @@ internal fun MainActivity.initializePrivilegeSample() {
         appendLog("Manual shell command error: $message")
         appendLog(throwable.toDiagnosticString())
     }
-    watchReadyServers()
+    watchServerConnected()
     watchServerDisconnected()
     refreshShizukuStatus(append = false)
     refreshAdbFingerprint()
@@ -72,17 +72,17 @@ internal fun MainActivity.releasePrivilegeSample() {
     sampleUserManager = null
     closeSampleUserServices()
     releaseShizukuExternalStart()
-    readyServerWatcher?.close()
-    readyServerWatcher = null
+    serverConnectedListener?.close()
+    serverConnectedListener = null
     serverDisconnectedWatcher?.close()
     serverDisconnectedWatcher = null
     executor.shutdownNow()
 }
 
-internal fun MainActivity.watchReadyServers() {
-    readyServerWatcher?.close()
-    readyServerWatcher = PrivilegeRuntime.watchReadyServers(
-        onReady = { serverInfo ->
+internal fun MainActivity.watchServerConnected() {
+    serverConnectedListener?.close()
+    serverConnectedListener = PrivilegeRuntime.addServerConnectedListener(
+        onConnected = { serverInfo ->
             runOnUiThread {
                 connectServer(serverInfo, commandLine = null)
                 appendLog(
@@ -93,7 +93,7 @@ internal fun MainActivity.watchReadyServers() {
         },
         onFailure = { throwable ->
             runOnUiThread {
-                appendLog("Ready server handshake error: ${throwable.message ?: throwable.javaClass.name}")
+                appendLog("Server connection handoff error: ${throwable.message ?: throwable.javaClass.name}")
                 appendLog(throwable.toDiagnosticString())
             }
         },
@@ -323,15 +323,13 @@ internal fun MainActivity.startShizukuExternal() {
 
     val externalStarter = PrivilegeSampleShizukuExternalStarter(this)
     shizukuExternalStarter = externalStarter
-    runServerStart("Starting through Shizuku...") {
-        val shellStart = PrivilegeRuntime.prepareShellStart()
+    runServerStartRequest(
+        message = "Starting through Shizuku...",
+        startedMessage = "Shizuku command sent. Waiting for server handshake...",
+    ) {
+        val commandLine = PrivilegeRuntime.createShellStartCommand()
         try {
-            val output = externalStarter.start(shellStart.commandLine)
-            appendLog(output)
-            shellStart.awaitServer()
-        } catch (throwable: Throwable) {
-            shellStart.cancel()
-            throw throwable
+            externalStarter.start(commandLine)
         } finally {
             externalStarter.close()
             if (shizukuExternalStarter === externalStarter) {
@@ -1002,6 +1000,40 @@ private fun MainActivity.runServerStart(
             val serverInfo = start()
             runOnUiThread {
                 connectServer(serverInfo, commandLine = null)
+            }
+        } catch (throwable: Throwable) {
+            runOnUiThread {
+                setFailure(throwable)
+            }
+        }
+    }
+}
+
+private fun MainActivity.runServerStartRequest(
+    message: String,
+    startedMessage: String,
+    start: () -> String,
+) {
+    if (screenState.busy) return
+    screenState = screenState.copy(
+        busy = true,
+        status = PrivilegeSampleStatus.STARTING,
+        serverInfo = null,
+        message = message,
+    )
+    appendLog(message)
+
+    executor.execute {
+        try {
+            val output = start()
+            runOnUiThread {
+                screenState = screenState.copy(
+                    busy = false,
+                    status = PrivilegeSampleStatus.STARTING,
+                    message = startedMessage,
+                )
+                appendLog(output)
+                appendLog(startedMessage)
             }
         } catch (throwable: Throwable) {
             runOnUiThread {
