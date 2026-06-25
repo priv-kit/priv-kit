@@ -66,9 +66,9 @@ private class PairingPacketHeader(
             val version = buffer.get()
             val type = buffer.get()
             val payload = buffer.int
-            if (version < MIN_SUPPORTED_KEY_HEADER_VERSION || version > MAX_SUPPORTED_KEY_HEADER_VERSION) return null
+            if (version !in MIN_SUPPORTED_KEY_HEADER_VERSION..MAX_SUPPORTED_KEY_HEADER_VERSION) return null
             if (type != TYPE_SPAKE2_MSG && type != TYPE_PEER_INFO) return null
-            if (payload <= 0 || payload > MAX_PAYLOAD_SIZE) return null
+            if (payload !in 1..MAX_PAYLOAD_SIZE) return null
             return PairingPacketHeader(version, type, payload)
         }
     }

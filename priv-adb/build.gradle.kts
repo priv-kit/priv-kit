@@ -9,6 +9,7 @@ android {
 dependencies {
     api(project(":priv-core"))
     compileOnly(project(":hidden-api"))
+    compileOnly(libs.androidx.annotation)
     implementation(project(":priv-adb-crypto"))
     testImplementation(libs.junit)
 }

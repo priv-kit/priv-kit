@@ -1,12 +1,12 @@
 package priv.kit.adb
 
-import android.annotation.TargetApi
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import androidx.annotation.RequiresApi
 import java.io.Closeable
 import java.io.IOException
 import java.net.InetAddress
@@ -130,7 +130,7 @@ internal class PrivilegeAdbMdns(
         override fun onServiceLost(serviceInfo: NsdServiceInfo) = Unit
     }
 
-    @TargetApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private fun registerServiceInfoCallback(serviceInfo: NsdServiceInfo) {
         val callback = object : NsdManager.ServiceInfoCallback {
             override fun onServiceInfoCallbackRegistrationFailed(errorCode: Int) {
