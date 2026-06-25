@@ -1,159 +1,179 @@
 # Priv Kit
 
-`Priv Kit`（仓库名 `priv-kit`）是一个面向 Android 单应用的自管理 Privileged Runtime。
+`Priv Kit` 是一个面向 Android 单应用的自管理 Privileged Runtime。它帮助应用启动、连接并管理自己的 Privileged Server 进程，再通过 Binder 或 UserService 承载应用自定义的特权逻辑。
 
-这个项目只解决一件很窄的事：帮助一个应用启动、连接并使用自己的 Privileged Server 进程。项目提供运行时生命周期、Binder 接入、UserService 支持和多种启动策略，不提供 Android 系统 API 兼容层，也不提供高级系统能力封装。
+它不是 Android 系统 API 兼容层，也不提供包管理、输入注入、Settings、AppOps、ActivityManager 等高级系统能力封装。需要这些能力时，接入应用可以基于 `Priv Kit` 提供的 Binder 或 UserService 原语自行实现。
 
-## 项目状态
+## 适用场景
 
-当前仓库已进入源码实现阶段。Phase 1 已提供 Root、ADB、Manual Shell 和 External Start Command 的 Privileged Server 启动、provider-permission + token-gated Binder handoff、全局 server-binder 状态和 owner-death follow 闭环。
+- 应用需要在 Root、ADB、手动 shell 或外部授权工具下启动自己的特权进程。
+- 应用已经有自己的 AIDL 或 Binder 协议，只缺少稳定的特权进程启动、连接、死亡监听和重连基础设施。
+- 应用希望把特权逻辑放进自己的 UserService，由运行时负责启动、绑定、销毁和状态观察。
+- 应用需要支持 Wireless Debugging / TCP ADB、复制命令到 `adb shell`、或交给 Shizuku / Dhizuku 这类外部工具代执行启动命令。
+- 应用想保留业务能力的完全控制权，不希望引入一个会替它定义系统操作 API 的通用特权库。
 
-当前 Binder 阶段提供底层 Binder endpoint 注册、查找、注销、death 观察、显式目标 Binder 的 remote transact 原语、显式系统服务名的 raw Binder transact 桥和类型化失败语义。相关 AIDL、共享模型和 raw primitive 已并入 `:priv-core` 的 `priv.kit.binder` package 分区。server death、endpoint dead、endpoint not found 等错误可通过专门异常类型识别，不需要依赖异常 message。它不提供 Android 系统服务类型化代理，也不扩展成高级系统能力封装。
+## 功能特性
 
-当前 UserService 阶段提供多实例 Binder 管线。共享 AIDL、spec/status/exception、wire contract 和 handshake registry 位于 `:priv-core` 的 `priv.kit.userservice` package 分区；registry、manager、loader、host、destroyer 和独立 UserService 进程入口属于 `:priv-server`。每个实例由 `serviceClassName + tag` 标识，`version` 只用于控制同一实例是否复用或替换；默认运行在独立 `app_process` 子进程中，低风险服务可以显式选择嵌入 Privileged Server 进程。UserService 可以声明无参构造器，也可以声明 `Context` 构造器；独立进程会优先尝试基于应用 `Application` 初始化，失败后回退 package `Context`，嵌入式只使用 package `Context`，不调用 `makeApplication`。独立进程 UserService 应在自己的 `destroy()` 完成清理并主动 `System.exit()`，server 只做可关闭的超时强杀兜底；嵌入式 UserService 的 `destroy()` 可不实现，且不能调用 `System.exit()`。项目只返回应用自定义 AIDL 的 Binder，不理解也不封装业务接口。
+- **运行时生命周期**：通过 `PrivilegeRuntime` 启动、连接、关闭和观察 Privileged Server。
+- **多种启动入口**：支持 Root、ADB、Manual Shell 和 External Start Command。
+- **安全 handoff**：服务端通过 app 侧 handshake provider 回传 Binder，provider 使用 `android.permission.INTERACT_ACROSS_USERS_FULL` 和 owner token 做入口收窄。
+- **Binder 原语**：支持注册、查找和注销应用 Binder endpoint，支持 death 观察和显式目标 Binder 的 raw transaction 转发。
+- **UserService 管线**：支持应用自定义 UserService 的 start、bind、unbind、stop、状态轮询和 dedicated process / in-server process 两种运行模式。
+- **可选 Compose UI**：`:priv-ui` 提供运行时状态展示和授权流程控件，接入方也可以完全使用自己的 UI。
+- **示例应用**：`:priv-sample` 演示 Root、ADB、Manual Shell、外部启动、Binder 和 UserService 的基本路径。
 
-项目边界以 [docs/project-constitution.md](docs/project-constitution.md) 为准。后续所有设计和实现都必须遵守该文档。
+## 优点
 
-## 推荐接入路径
+- **边界窄**：项目只负责运行时、启动、Binder 和 UserService，不把系统操作包装成公共 API。
+- **接入轻**：通常从 `:priv-runtime` 进入，服务端入口由运行时携带，接入应用不需要自己拼 `app_process` 细节。
+- **能力归属清楚**：特权业务逻辑属于接入应用，`Priv Kit` 只提供稳定的承载管线。
+- **启动路径统一**：Root、ADB、手动命令和外部授权工具最终走同一条 Binder handoff。
+- **失败可处理**：运行时、Binder 和 UserService 都提供类型化状态或异常，接入方不需要靠字符串解析判断失败原因。
 
-普通接入方优先只理解四件事：
+## 接入依赖
 
-1. 启动或连接自己的 Privileged Server。
-2. 观察当前运行时状态。
-3. 通过 Binder 或 UserService 暴露应用自定义能力。
-4. 在不需要时停止或断开运行时。
-
-推荐入口集中在 `PrivilegeRuntime`：
-
-```kotlin
-PrivilegeRuntime.startAdb()
-PrivilegeRuntime.startRoot()
-val externalStart = PrivilegeRuntime.prepareExternalStart()
-
-val connection = PrivilegeRuntime.bindUserService(spec)
-val registration = PrivilegeRuntime.registerBinderEndpoint(binder)
-
-PrivilegeRuntime.shutdownServer()
-```
-
-`Manual Shell`、External Start Command、ADB pairing/TCP 细节、raw Binder transact、owner-death reconnect 和 handshake/launch command 协议都属于高级或内部路径。接入应用不应该在第一步就依赖这些对象，除非正在实现自定义授权、诊断或底层 Binder 验证。
-
-## 命名规范
-
-项目身份：
-
-- GitHub Organization：`priv-kit`
-- GitHub Repository：`priv-kit`
-- 项目对外名称：`Priv Kit`
-
-Maven 坐标：
-
-- `groupId`：`io.github.priv-kit`
-- `artifactId`：`priv-core`、`priv-runtime`、`priv-server`、`priv-adb-crypto`、`priv-adb`、`priv-ui`
-
-示例：
+源码工程内接入：
 
 ```kotlin
-implementation("io.github.priv-kit:priv-runtime:1.0.0")
+dependencies {
+    implementation(project(":priv-runtime"))
+    implementation(project(":priv-ui")) // 可选，只有需要内置 Compose 授权界面时添加
+}
 ```
 
-Gradle 模块必须使用 `priv-*` 命名：
+发布 artifact 接入时使用 Maven 坐标，并将 `<version>` 替换为实际发布版本：
 
-- `:priv-core`
-- `:priv-runtime`
-- `:priv-server`
-- `:priv-adb-crypto`
-- `:priv-adb`
-- `:priv-ui`
-- `:priv-sample`
+```kotlin
+dependencies {
+    implementation("io.github.priv-kit:priv-runtime:<version>")
+    implementation("io.github.priv-kit:priv-ui:<version>") // 可选
+}
+```
 
-内部编译期 hidden framework stub 模块为 `:hidden-api`，不作为发布 artifact。
+如果接入方直接使用 ADB 启动能力，Android P+ 上需要在使用前配置 hidden API exemption。具体要求见 [priv-adb/README.md](priv-adb/README.md)。
 
-除 `:hidden-api` 中的 framework mirror/stub 外，Kotlin package 必须统一使用 `priv.kit.*`。`:priv-core` 承载 `priv.kit.core`、`priv.kit.binder` 和共享 `priv.kit.userservice` 协议；`:priv-server` 承载 `priv.kit.server` 和服务端侧 `priv.kit.userservice` 实现。
+## 最小启动示例
 
-允许的 package 分区包括：
+在后台线程启动或连接 Privileged Server：
 
-- `priv.kit.core`
-- `priv.kit.runtime`
-- `priv.kit.server`
-- `priv.kit.binder`
-- `priv.kit.userservice`
-- `priv.kit.adb.crypto.certificate`
-- `priv.kit.adb.crypto.pairing`
-- `priv.kit.adb`
-- `priv.kit.ui`
+```kotlin
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import priv.kit.core.PrivilegeServerInfo
+import priv.kit.runtime.PrivilegeRuntime
 
-禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*` 作为源码 package。
+suspend fun startServerWithRoot(): PrivilegeServerInfo =
+    withContext(Dispatchers.IO) {
+        PrivilegeRuntime.startRoot()
+    }
 
-公开 API 必须使用完整单词 `Privilege*` 命名，例如 `PrivilegeKit`、`PrivilegeServer`、`PrivilegeBinder`、`PrivilegeUserService`、`PrivilegeRuntime` 和 `PrivilegeConnection`。
+suspend fun startServerWithAdb(): PrivilegeServerInfo =
+    withContext(Dispatchers.IO) {
+        PrivilegeRuntime.startAdb()
+    }
+```
 
-禁止公开 API 使用 `Priv*` 缩写，例如 `PrivKit`、`PrivSession`、`PrivMode`、`PrivServer`、`PrivBinder` 和 `PrivUserService`。
+需要让用户手动执行命令时，可以生成一条可复制到 `adb shell` 的命令，然后等待同一条 Binder handoff：
 
-## 目标
+```kotlin
+val manual = PrivilegeRuntime.prepareManualShell()
 
-- 启动 Privileged Server。
-- 连接 Privileged Server。
-- 提供 Binder 能力。
-- 提供 UserService 能力。
-- 支持 Root 启动。
-- 支持 ADB 启动。
-- 支持手动命令和外部授权工具代执行启动命令。
-- 让单个应用可以管理自己的特权进程运行时。
+showCommandToUser(manual.command.commandLine)
 
-## 非目标
+val serverInfo = manual.awaitServer()
+```
 
-本项目不是 Android 系统 API 兼容层，也不能发展成兼容层。
+需要交给外部授权工具代执行时，使用 External Start Command：
 
-本项目不提供以下封装：
+```kotlin
+val external = PrivilegeRuntime.prepareExternalStart()
 
-- ActivityManager
-- PackageManager
-- InputManager
-- Settings
-- AppOps
-- 其他高级 Android 系统能力
+externalStarter.runCommand(external.command.commandLine)
 
-以下风格的 API 明确不属于本项目范围：
+val serverInfo = external.awaitServer()
+```
 
-- `PrivilegeRuntime.input.tap(...)`
-- `PrivilegeRuntime.package.install(...)`
-- `PrivilegeRuntime.settings.put(...)`
-- `PrivilegeRuntime.appops.setMode(...)`
+## UserService 示例
 
-需要这些能力的接入方，应基于本项目提供的 Binder 或 UserService 原语自行实现。
+应用定义自己的 AIDL，例如 `IMyPrivilegeService.aidl`：
 
-## 模块
+```aidl
+package com.example.app;
 
-计划模块：
+interface IMyPrivilegeService {
+    void destroy() = 16777114;
+    String readPrivilegedState() = 1;
+}
+```
 
-- `:priv-core`
-- `:priv-runtime`
-- `:priv-server`
-- `:priv-adb-crypto`
-- `:priv-adb`
-- `:priv-ui`
-- `:priv-sample`
+实现自己的 UserService。Release 构建中，可能被反射调用的构造器需要保留：
 
-各模块职责和依赖规则见 [docs/modules.md](docs/modules.md)。
+```kotlin
+import android.content.Context
+import androidx.annotation.Keep
 
-## 架构
+class MyPrivilegeService private constructor(
+    private val context: Context?,
+) : IMyPrivilegeService.Stub() {
+    @Keep
+    constructor() : this(context = null)
 
-项目整体分为几层：
+    @Keep
+    constructor(context: Context) : this(context = context)
 
-- 客户端运行时，负责选择启动策略并连接服务端；
-- Privileged Server 进程，只暴露项目自己的底层特权能力；
-- `:priv-core` 中的 Binder/UserService 共享原语，供应用定义自己的能力；
-- `:priv-server` 中的服务端 UserService 生命周期实现；
-- 可选 Compose UI 帮助层和示例代码，用来展示运行时状态和启动流程，不扩展核心范围。
+    override fun readPrivilegedState(): String {
+        return "uid=${android.os.Process.myUid()}"
+    }
 
-完整设计见 [docs/architecture.md](docs/architecture.md)。
+    override fun destroy() {
+        kotlin.system.exitProcess(0)
+    }
+}
+```
 
-## 语言和构建约束
+启动并绑定这个服务：
 
-- 除 hidden-api stub、framework mirror class、AIDL 兼容桥接外，所有手写源码都必须使用 Kotlin。
-- 所有 Gradle 构建脚本都必须使用 Kotlin DSL，也就是 `.gradle.kts`。
-- 普通业务模块不得新增 Java 源码。
+```kotlin
+import priv.kit.runtime.PrivilegeRuntime
+import priv.kit.userservice.PrivilegeUserServiceSpec
 
-## 开发规则
+val spec = PrivilegeUserServiceSpec(
+    serviceClassName = MyPrivilegeService::class.java.name,
+    tag = "main",
+    version = 1,
+)
 
-新增任何源码实现之前，必须先对照 [docs/project-constitution.md](docs/project-constitution.md)。如果某个设计需要高级 Android API 封装，它属于接入应用，不属于本项目。
+PrivilegeRuntime.startUserService(spec)
+
+PrivilegeRuntime.bindUserService(spec).use { connection ->
+    val service = connection.requireInterface { binder ->
+        IMyPrivilegeService.Stub.asInterface(binder)
+    }
+    val state = service.readPrivilegedState()
+}
+```
+
+## Binder endpoint 示例
+
+如果应用已经有自己的 Binder 对象，也可以直接注册到当前 Privileged Server：
+
+```kotlin
+val registration = PrivilegeRuntime.registerBinderEndpoint(myBinder)
+
+try {
+    val endpoint = PrivilegeRuntime.requireBinderEndpoint()
+    // 将 endpoint 交给应用自己的协议使用
+} finally {
+    registration.close()
+}
+```
+
+## 文档
+
+- [详细项目说明](docs/README.md)
+- [项目宪章](docs/project-constitution.md)
+- [架构设计](docs/architecture.md)
+- [模块说明](docs/modules.md)
+- [第三方声明](docs/third-party-notices.md)
+
+所有新能力、公开 API 和示例都必须遵守 [项目宪章](docs/project-constitution.md)。如果某个能力更像包管理、输入、设置、app-ops 或 activity 管理，它应留在接入应用或下游库中，而不是进入 `Priv Kit` 本身。
