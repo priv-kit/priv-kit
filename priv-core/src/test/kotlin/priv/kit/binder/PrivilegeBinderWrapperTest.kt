@@ -4,8 +4,8 @@ import android.os.IBinder
 import android.os.IInterface
 import android.os.Parcel
 import android.os.RemoteException
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -14,22 +14,34 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 class PrivilegeBinderWrapperTest {
     @Test
-    fun requireServerBinderReturnsLiveServerBinder() {
+    fun serverProcessSystemServiceLinkToDeathUsesLiveServerBinder() {
         val serverBinder = FakeBinder()
-        withServerProvider({ FakePrivilegeServer(serverBinder) }) {
-            val wrapper = PrivilegeBinderWrapper.fromBinder(FakeBinder())
+        withServerProvider({ FakePrivilegeServer(serverBinder, hasSystemService = true) }) {
+            val wrapper = PrivilegeBinderWrapper.fromSystemService(
+                serviceName = "activity",
+                source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+            )!!
+            val recipient = IBinder.DeathRecipient { }
 
-            assertSame(serverBinder, wrapper.requireServerBinder())
+            wrapper.linkToDeath(recipient, 0)
+
+            assertEquals(1, serverBinder.deathRecipientCount)
         }
     }
 
     @Test
-    fun requireServerBinderThrowsTypedExceptionWhenServerBinderIsDead() {
-        withServerProvider({ FakePrivilegeServer(FakeBinder(alive = false)) }) {
-            val wrapper = PrivilegeBinderWrapper.fromBinder(FakeBinder())
+    fun serverProcessSystemServiceLinkToDeathThrowsTypedExceptionWhenServerBinderIsDead() {
+        val serverBinder = FakeBinder()
+        withServerProvider({ FakePrivilegeServer(serverBinder, hasSystemService = true) }) {
+            val wrapper = PrivilegeBinderWrapper.fromSystemService(
+                serviceName = "activity",
+                source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+            )!!
+            val recipient = IBinder.DeathRecipient { }
+            serverBinder.kill()
 
             assertThrows(PrivilegeServerDisconnectedException::class.java) {
-                wrapper.requireServerBinder()
+                wrapper.linkToDeath(recipient, 0)
             }
         }
     }
@@ -61,6 +73,7 @@ class PrivilegeBinderWrapperTest {
 
     private class FakePrivilegeServer(
         private val serverBinder: IBinder,
+        private val hasSystemService: Boolean = false,
     ) : IPrivilegeServer {
         override fun asBinder(): IBinder = serverBinder
 
@@ -68,7 +81,7 @@ class PrivilegeBinderWrapperTest {
 
         override fun getUserServiceManager(): IBinder? = null
 
-        override fun hasSystemService(serviceName: String?): Boolean = false
+        override fun hasSystemService(serviceName: String?): Boolean = hasSystemService
     }
 
     private class FakeBinder(
@@ -76,6 +89,12 @@ class PrivilegeBinderWrapperTest {
         private var alive: Boolean = true,
     ) : IBinder {
         private val deathRecipients = CopyOnWriteArrayList<IBinder.DeathRecipient>()
+        val deathRecipientCount: Int
+            get() = deathRecipients.size
+
+        fun kill() {
+            alive = false
+        }
 
         override fun getInterfaceDescriptor(): String = "fake"
 

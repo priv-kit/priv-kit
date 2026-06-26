@@ -152,8 +152,16 @@ public object PrivilegeRuntime {
     public fun getServerInfo(): PrivilegeServerInfo =
         requireServerConnection().serverInfo
 
-    public fun pingServer(): Boolean =
-        runCatching { requireServerBinder().pingBinder() }.getOrDefault(false)
+    public fun pingServer(): Boolean {
+        val connection = synchronized(serverLock) {
+            currentServer
+        } ?: return false
+        if (runCatching { connection.server.asBinder().pingBinder() }.getOrDefault(false)) {
+            return true
+        }
+        markServerDisconnected(connection)
+        return false
+    }
 
     public fun addServerDisconnectedListener(listener: () -> Unit): Closeable {
         disconnectedListeners += listener
@@ -294,15 +302,9 @@ public object PrivilegeRuntime {
     }
 
     private fun requireServerConnection(): ServerConnection {
-        val connection = synchronized(serverLock) {
+        return synchronized(serverLock) {
             currentServer
         } ?: throw PrivilegeServerDisconnectedException()
-
-        if (!connection.server.asBinder().pingBinder()) {
-            markServerDisconnected(connection)
-            throw PrivilegeServerDisconnectedException()
-        }
-        return connection
     }
 
     private fun requireServerInterface(): IPrivilegeServer =
@@ -314,9 +316,6 @@ public object PrivilegeRuntime {
         } catch (exception: RemoteException) {
             throw PrivilegeUserServiceManagerUnavailableException(exception)
         }
-
-    internal fun requireServerBinder(): IBinder =
-        requireServerConnection().server.asBinder()
 
     internal fun runtimeConfig(): PrivilegeRuntimeConfigSnapshot =
         PrivilegeRuntimeConfig.snapshot()

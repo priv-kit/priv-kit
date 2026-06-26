@@ -24,11 +24,7 @@ public object PrivilegeBinderRuntime {
         val provider = synchronized(lock) {
             serverProvider
         } ?: throw PrivilegeServerDisconnectedException()
-        val server = provider()
-        if (!server.asBinder().pingBinder()) {
-            throw PrivilegeServerDisconnectedException()
-        }
-        return server
+        return provider()
     }
 
     internal fun requireServerBinder(): IBinder =

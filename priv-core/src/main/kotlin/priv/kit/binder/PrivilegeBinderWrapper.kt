@@ -22,7 +22,7 @@ public class PrivilegeBinderWrapper private constructor(
         reply: Parcel?,
         flags: Int,
     ): Boolean {
-        val serverBinder = requireServerBinder()
+        val serverBinder = PrivilegeBinderRuntime.requireServerBinder()
         val remoteData = Parcel.obtain()
         try {
             remoteData.writeInterfaceToken(DESCRIPTOR)
@@ -80,9 +80,6 @@ public class PrivilegeBinderWrapper private constructor(
         flags: Int,
     ): Boolean =
         target.unlinkToDeath(this, recipient, flags)
-
-    internal fun requireServerBinder(): IBinder =
-        PrivilegeBinderRuntime.requireServerBinder()
 
     private fun readRemoteInterfaceDescriptor(): String? {
         val data = Parcel.obtain()
@@ -207,7 +204,14 @@ public class PrivilegeBinderWrapper private constructor(
                 recipient: IBinder.DeathRecipient,
                 flags: Int,
             ) {
-                owner.requireServerBinder().linkToDeath(recipient, flags)
+                try {
+                    PrivilegeBinderRuntime.requireServerBinder().linkToDeath(recipient, flags)
+                } catch (exception: RemoteException) {
+                    throw PrivilegeServerDisconnectedException(
+                        "Privilege server Binder died while trying to link system service death: $serviceName",
+                        exception,
+                    )
+                }
             }
 
             override fun unlinkToDeath(
@@ -216,7 +220,7 @@ public class PrivilegeBinderWrapper private constructor(
                 flags: Int,
             ): Boolean =
                 runCatching {
-                    owner.requireServerBinder().unlinkToDeath(recipient, flags)
+                    PrivilegeBinderRuntime.requireServerBinder().unlinkToDeath(recipient, flags)
                 }.getOrDefault(false)
         }
     }

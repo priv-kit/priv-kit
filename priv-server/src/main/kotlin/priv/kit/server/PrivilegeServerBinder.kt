@@ -8,6 +8,7 @@ import priv.kit.binder.IPrivilegeServer
 import priv.kit.binder.PrivilegeBinderWrapper
 import priv.kit.userservice.PrivilegeUserServiceManagerBinder
 import priv.kit.userservice.PrivilegeUserServiceRegistry
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.system.exitProcess
 
 internal class PrivilegeServerBinder(
@@ -18,6 +19,7 @@ internal class PrivilegeServerBinder(
             host = PrivilegeServerUserServiceHost(config),
         ),
     )
+    private val systemServiceCache = ConcurrentHashMap<String, IBinder>()
 
     override fun getUserServiceManager(): IBinder =
         userServiceManager.asBinder()
@@ -42,7 +44,7 @@ internal class PrivilegeServerBinder(
         }
 
         return try {
-            ServiceManager.getService(serviceName) != null
+            getSystemService(serviceName) != null
         } catch (throwable: Throwable) {
             throw IllegalStateException(
                 "Failed to get system service: $serviceName",
@@ -102,7 +104,7 @@ internal class PrivilegeServerBinder(
         }
 
         val targetBinder = try {
-            ServiceManager.getService(serviceName)
+            getSystemService(serviceName)
         } catch (throwable: Throwable) {
             writeRemoteBinderException(
                 reply = reply,
@@ -122,6 +124,11 @@ internal class PrivilegeServerBinder(
         }
         return targetBinder
     }
+
+    private fun getSystemService(serviceName: String): IBinder? =
+        systemServiceCache[serviceName] ?: ServiceManager.getService(serviceName)?.also {
+            systemServiceCache[serviceName] = it
+        }
 
     private fun writeRemoteBinderException(
         reply: Parcel?,
