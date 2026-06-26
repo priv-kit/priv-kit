@@ -52,12 +52,8 @@ internal object PrivilegeServerProviderCall {
         }
     }
 
-    private fun activityManager(): IActivityManager {
-        val binder = ServiceManager.getService(Context.ACTIVITY_SERVICE)
-            ?: throw IllegalStateException("Activity service was not found")
-        return IActivityManager.Stub.asInterface(binder)
-            ?: throw IllegalStateException("Activity service returned an invalid Binder")
-    }
+    private fun activityManager(): IActivityManager =
+        IActivityManager.Stub.asInterface(ServiceManager.getService(Context.ACTIVITY_SERVICE))
 
     private fun getContentProviderExternal(
         activityManager: Any,

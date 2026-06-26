@@ -17,13 +17,6 @@ class PrivilegeRuntimeTest {
     }
 
     @Test
-    fun requireBinderEndpointWithoutServerThrowsDisconnectedException() {
-        assertThrows(PrivilegeServerDisconnectedException::class.java) {
-            PrivilegeRuntime.requireBinderEndpoint()
-        }
-    }
-
-    @Test
     fun classpathIdentityIncludesPathSizeAndModifiedSeconds() {
         val directory = File("build/tmp/classpathIdentityTest").also { it.mkdirs() }
         val apk = File(directory, "base.apk").also {

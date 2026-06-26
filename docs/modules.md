@@ -46,7 +46,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 除 `:hidden-api` 中的 framework mirror/stub 外，所有源码 package 必须位于 `priv.kit.*`。禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*`。
 
-所有公开 API 必须使用完整单词 `Privilege*` 命名，例如 `PrivilegeBinderEndpoint`、`PrivilegeUserServiceSpec`、`PrivilegeRuntime` 和 `PrivilegeUserServiceConnection`。禁止公开 API 使用 `Priv*` 缩写。
+所有公开 API 必须使用完整单词 `Privilege*` 命名，例如 `PrivilegeBinderWrapper`、`PrivilegeUserServiceSpec`、`PrivilegeRuntime` 和 `PrivilegeUserServiceConnection`。禁止公开 API 使用 `Priv*` 缩写。
 
 ## 依赖方向
 
@@ -57,6 +57,9 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
     -> :priv-core
     -> :priv-adb
     -> runtimeOnly(:priv-server)
+
+:priv-core
+    -> compileOnly(:hidden-api)
 
 :priv-server
     -> :priv-core
@@ -91,7 +94,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 - 共享协议和值类型；
 - `priv.kit.core.*` 运行时模型、启动模型、协议版本和 handshake registry；
-- `priv.kit.binder.*` AIDL、Binder endpoint 原语、共享异常、runtime/server 共享 registry、raw Binder wrapper；
+- `priv.kit.binder.*` AIDL、共享异常、raw Binder wrapper；
 - `priv.kit.userservice.*` AIDL、UserService spec/status/state/id、共享异常、wire contract、handshake registry；
 - 运行时、服务端、示例和启动实现都需要理解的底层契约。
 
@@ -99,7 +102,8 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 - 原语化运行时、Binder 和 UserService 模型；
 - 项目自有 AIDL 协议；
-- 显式目标 Binder 或显式系统服务名的 raw Binder transaction 桥；
+- 显式目标 Binder、当前进程系统服务 Binder 或显式服务端系统服务名的 raw Binder transaction 桥；
+- 在方法体内部通过 `compileOnly(:hidden-api)` 调用 `ServiceManager.getService(name)`，但不得把 hidden framework 类型暴露到 public API 签名；
 - 错误和诊断值类型；
 - 用于解耦模块的共享接口或常量。
 
@@ -112,6 +116,10 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - UI 依赖；
 - 只服务于示例的 helper；
 - 面向输入、包、设置、app-ops 或 activity 管理的领域 API。
+
+调用方要求：
+
+- Android P+ 上接入应用使用 `PrivilegeBinderWrapper.fromSystemService(...)` 默认当前进程入口前，必须先配置 hidden API exemption，例如在 `Application.attachBaseContext` 中调用 `HiddenApiBypass.addHiddenApiExemptions("L")`。
 
 ## `:priv-runtime`
 
@@ -130,6 +138,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 - start、stop、connect、reconnect 生命周期；
 - 作为原语暴露 Binder 和 UserService 入口；
+- 创建显式目标 Binder 的 raw Binder transaction 桥；
 - 创建显式系统服务名的 raw Binder transaction 桥；
 - 构造项目自有 Privileged Server 的 `app_process` 启动命令；
 - 打包供 shell/manual/ADB 通道复用的 native starter 可执行文件；
@@ -174,7 +183,6 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 服务端 bootstrap；
 - 发布项目 Binder 端点；
 - 在可行时检查客户端身份；
-- 管理 Binder endpoint slot；
 - 启动、claim、绑定、销毁 UserService 子进程；
 - 嵌入式 UserService 实例生命周期；
 - 为 raw 系统服务 Binder 桥执行显式服务名解析和 transaction 转发。
@@ -269,7 +277,7 @@ package 分区：
 - 启动服务端；
 - 连接服务端；
 - 观察运行时状态；
-- 交换 Binder 端点；
+- 使用 raw Binder transaction 桥；
 - 启动或绑定应用自定义 UserService；
 - 展示错误和恢复路径。
 

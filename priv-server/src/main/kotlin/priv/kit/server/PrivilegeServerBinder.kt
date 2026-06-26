@@ -5,9 +5,7 @@ import android.os.Parcel
 import android.os.ServiceManager
 import android.util.Log
 import priv.kit.binder.IPrivilegeServer
-import priv.kit.binder.PrivilegeBinderRegistry
-import priv.kit.binder.PrivilegeRemoteBinderWrapper
-import priv.kit.binder.PrivilegeRemoteSystemServiceBinder
+import priv.kit.binder.PrivilegeBinderWrapper
 import priv.kit.userservice.PrivilegeUserServiceManagerBinder
 import priv.kit.userservice.PrivilegeUserServiceRegistry
 import kotlin.system.exitProcess
@@ -15,22 +13,11 @@ import kotlin.system.exitProcess
 internal class PrivilegeServerBinder(
     config: PrivilegeServerConfig,
 ) : IPrivilegeServer.Stub() {
-    private val binderRegistry = PrivilegeBinderRegistry()
     private val userServiceManager = PrivilegeUserServiceManagerBinder(
         PrivilegeUserServiceRegistry(
             host = PrivilegeServerUserServiceHost(config),
         ),
     )
-
-    override fun registerBinderEndpoint(binder: IBinder) {
-        binderRegistry.register(binder)
-    }
-
-    override fun getBinderEndpoint(): IBinder? =
-        binderRegistry.getBinder()
-
-    override fun unregisterBinderEndpoint(): Boolean =
-        binderRegistry.unregister()
 
     override fun getUserServiceManager(): IBinder =
         userServiceManager.asBinder()
@@ -41,22 +28,31 @@ internal class PrivilegeServerBinder(
         reply: Parcel?,
         flags: Int,
     ): Boolean {
-        if (code == PrivilegeRemoteBinderWrapper.TRANSACTION_TRANSACT_REMOTE) {
-            data.enforceInterface(PrivilegeRemoteBinderWrapper.DESCRIPTOR)
+        if (code == PrivilegeBinderWrapper.TRANSACTION_TRANSACT_BINDER) {
+            data.enforceInterface(PrivilegeBinderWrapper.DESCRIPTOR)
             transactRemote(data, reply)
-            return true
-        }
-        if (code == PrivilegeRemoteSystemServiceBinder.TRANSACTION_TRANSACT_SYSTEM_SERVICE) {
-            data.enforceInterface(PrivilegeRemoteSystemServiceBinder.DESCRIPTOR)
-            transactSystemService(data, reply)
             return true
         }
         return super.onTransact(code, data, reply, flags)
     }
 
+    override fun hasSystemService(serviceName: String?): Boolean {
+        if (serviceName.isNullOrBlank()) {
+            throw IllegalArgumentException("System service name must not be blank")
+        }
+
+        return try {
+            ServiceManager.getService(serviceName) != null
+        } catch (throwable: Throwable) {
+            throw IllegalStateException(
+                "Failed to get system service: $serviceName",
+                throwable,
+            )
+        }
+    }
+
     override fun shutdown() {
         Log.i(TAG, "Shutdown requested by client")
-        binderRegistry.clear()
         userServiceManager.destroyAll()
         Thread {
             Thread.sleep(SHUTDOWN_DELAY_MILLIS)
@@ -72,7 +68,11 @@ internal class PrivilegeServerBinder(
         data: Parcel,
         reply: Parcel?,
     ) {
-        val targetBinder = data.readStrongBinder()
+        val targetBinder = when (val targetKind = data.readInt()) {
+            TARGET_BINDER -> data.readStrongBinder()
+            TARGET_SYSTEM_SERVICE -> resolveSystemService(data.readString(), reply) ?: return
+            else -> error("Unknown remote Binder target kind: $targetKind")
+        }
         val targetCode = data.readInt()
         val targetFlags = data.readInt()
         val targetData = Parcel.obtain()
@@ -89,57 +89,41 @@ internal class PrivilegeServerBinder(
         }
     }
 
-    private fun transactSystemService(
-        data: Parcel,
+    private fun resolveSystemService(
+        serviceName: String?,
         reply: Parcel?,
-    ) {
-        val serviceName = data.readString()
+    ): IBinder? {
         if (serviceName.isNullOrBlank()) {
-            writeSystemServiceException(
+            writeRemoteBinderException(
                 reply = reply,
                 exception = IllegalArgumentException("System service name must not be blank"),
             )
-            return
+            return null
         }
 
-        val targetCode = data.readInt()
-        val targetFlags = data.readInt()
         val targetBinder = try {
             ServiceManager.getService(serviceName)
         } catch (throwable: Throwable) {
-            writeSystemServiceException(
+            writeRemoteBinderException(
                 reply = reply,
                 exception = IllegalStateException(
                     "Failed to get system service: $serviceName",
                     throwable,
                 ),
             )
-            return
+            return null
         }
 
         if (targetBinder == null) {
-            writeSystemServiceException(
+            writeRemoteBinderException(
                 reply = reply,
                 exception = IllegalStateException("System service not found: $serviceName"),
             )
-            return
         }
-
-        val targetData = Parcel.obtain()
-        try {
-            targetData.appendFrom(data, data.dataPosition(), data.dataAvail())
-            val identity = clearCallingIdentity()
-            try {
-                targetBinder.transact(targetCode, targetData, reply, targetFlags)
-            } finally {
-                restoreCallingIdentity(identity)
-            }
-        } finally {
-            targetData.recycle()
-        }
+        return targetBinder
     }
 
-    private fun writeSystemServiceException(
+    private fun writeRemoteBinderException(
         reply: Parcel?,
         exception: RuntimeException,
     ) {
@@ -153,5 +137,7 @@ internal class PrivilegeServerBinder(
     companion object {
         private const val TAG = "PrivKitServer"
         private const val SHUTDOWN_DELAY_MILLIS = 50L
+        private const val TARGET_BINDER = 1
+        private const val TARGET_SYSTEM_SERVICE = 2
     }
 }

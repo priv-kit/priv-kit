@@ -12,12 +12,12 @@ import org.junit.Test
 import java.io.FileDescriptor
 import java.util.concurrent.CopyOnWriteArrayList
 
-class PrivilegeRemoteBinderWrapperTest {
+class PrivilegeBinderWrapperTest {
     @Test
     fun requireServerBinderReturnsLiveServerBinder() {
         val serverBinder = FakeBinder()
         withServerProvider({ FakePrivilegeServer(serverBinder) }) {
-            val wrapper = PrivilegeRemoteBinderWrapper(FakeBinder())
+            val wrapper = PrivilegeBinderWrapper.fromBinder(FakeBinder())
 
             assertSame(serverBinder, wrapper.requireServerBinder())
         }
@@ -26,7 +26,7 @@ class PrivilegeRemoteBinderWrapperTest {
     @Test
     fun requireServerBinderThrowsTypedExceptionWhenServerBinderIsDead() {
         withServerProvider({ FakePrivilegeServer(FakeBinder(alive = false)) }) {
-            val wrapper = PrivilegeRemoteBinderWrapper(FakeBinder())
+            val wrapper = PrivilegeBinderWrapper.fromBinder(FakeBinder())
 
             assertThrows(PrivilegeServerDisconnectedException::class.java) {
                 wrapper.requireServerBinder()
@@ -37,8 +37,8 @@ class PrivilegeRemoteBinderWrapperTest {
     @Test
     fun pingBinderAndIsBinderAliveOnlyReportTargetBinderState() {
         withServerProvider({ throw PrivilegeServerDisconnectedException() }) {
-            val liveWrapper = PrivilegeRemoteBinderWrapper(FakeBinder())
-            val deadWrapper = PrivilegeRemoteBinderWrapper(FakeBinder(alive = false))
+            val liveWrapper = PrivilegeBinderWrapper.fromBinder(FakeBinder())
+            val deadWrapper = PrivilegeBinderWrapper.fromBinder(FakeBinder(alive = false))
 
             assertTrue(liveWrapper.pingBinder())
             assertTrue(liveWrapper.isBinderAlive)
@@ -66,13 +66,9 @@ class PrivilegeRemoteBinderWrapperTest {
 
         override fun shutdown() = Unit
 
-        override fun registerBinderEndpoint(binder: IBinder) = Unit
-
-        override fun getBinderEndpoint(): IBinder? = null
-
-        override fun unregisterBinderEndpoint(): Boolean = false
-
         override fun getUserServiceManager(): IBinder? = null
+
+        override fun hasSystemService(serviceName: String?): Boolean = false
     }
 
     private class FakeBinder(

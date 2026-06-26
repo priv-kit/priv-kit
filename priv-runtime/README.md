@@ -31,7 +31,7 @@ The latest owner-death configuration is held in the runtime process and returned
 
 Like shizuku-api, the runtime treats the Privileged Server Binder as a single process-wide handle. A repeated handshake for the same Binder keeps the current global server state; a handshake for a replacement Binder installs the new server state.
 
-`PrivilegeRuntime.getServerInfo()`, `PrivilegeRuntime.requireBinderEndpoint()`, `PrivilegeRemoteBinderWrapper`, and `PrivilegeRemoteSystemServiceBinder` all resolve the server Binder through the same global getter. If the server was killed after a caller cached a framework service proxy backed by `PrivilegeRemoteBinderWrapper` or the raw system-service Binder bridge, the next transaction is normalized to `PrivilegeServerDisconnectedException` instead of leaking raw Binder state.
+`PrivilegeRuntime.getServerInfo()` and `PrivilegeBinderWrapper` both resolve the server Binder through the same global getter. If the server was killed after a caller cached a framework service proxy backed by `PrivilegeBinderWrapper`, the next transaction is normalized to `PrivilegeServerDisconnectedException` instead of leaking raw Binder state.
 
 If a server reports a different protocol or APK classpath identity than the current app runtime, the runtime rejects that handshake. Startup paths are expected to launch code from the current install.
 

@@ -11,5 +11,6 @@ android {
 }
 
 dependencies {
+    compileOnly(project(":hidden-api"))
     testImplementation(libs.junit)
 }

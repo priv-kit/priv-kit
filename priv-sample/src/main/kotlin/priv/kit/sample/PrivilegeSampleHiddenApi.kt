@@ -5,9 +5,8 @@ import android.content.pm.UserInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.IUserManager
-import android.os.ServiceManager
-import priv.kit.binder.PrivilegeRemoteBinderWrapper
-import priv.kit.binder.PrivilegeRemoteSystemServiceBinder
+import priv.kit.binder.PrivilegeBinderWrapper
+import priv.kit.binder.PrivilegeSystemServiceSource
 
 internal data class PrivilegeSampleUserInfo(
     val id: Int,
@@ -16,15 +15,12 @@ internal data class PrivilegeSampleUserInfo(
 
 internal object PrivilegeSampleUserManager {
     fun createFromCurrentProcess(): PrivilegeSampleUserManagerProxy {
-        val serviceBinder = createCurrentProcessBinder()
+        val serviceBinder = PrivilegeBinderWrapper.fromSystemService(Context.USER_SERVICE)
+            ?: throw IllegalStateException("System service not found: ${Context.USER_SERVICE}")
         return create(
-            remoteBinder = PrivilegeRemoteBinderWrapper(serviceBinder),
+            remoteBinder = serviceBinder,
         )
     }
-
-    private fun createCurrentProcessBinder(): IBinder =
-        ServiceManager.getService(Context.USER_SERVICE)
-            ?: throw IllegalStateException("System service not found: ${Context.USER_SERVICE}")
 
     private fun create(remoteBinder: IBinder): PrivilegeSampleUserManagerProxy =
         PrivilegeSampleUserManagerProxy(IUserManager.Stub.asInterface(remoteBinder))
@@ -41,14 +37,18 @@ internal object PrivilegeSampleMqsNative {
     private const val SERVICE_NAME = "miui.mqsas.IMQSNative"
 
     fun createRemoteBinder(): IBinder =
-        PrivilegeRemoteSystemServiceBinder(SERVICE_NAME)
+        PrivilegeBinderWrapper.fromSystemService(
+            serviceName = SERVICE_NAME,
+            source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+        )
+            ?: throw IllegalStateException("Server process system service not found: $SERVICE_NAME")
 
     fun probeDescriptor(
         remoteBinder: IBinder = createRemoteBinder(),
     ): PrivilegeSampleMqsNativeProbeResult {
         val localResult = runCatching {
-            ServiceManager.getService(SERVICE_NAME)?.interfaceDescriptor
-                ?: throw IllegalStateException("Current process ServiceManager returned null")
+            PrivilegeBinderWrapper.fromSystemService(SERVICE_NAME)?.interfaceDescriptor
+                ?: throw IllegalStateException("Current process system service not found")
         }
         val remoteResult = runCatching {
             remoteBinder.interfaceDescriptor
