@@ -123,10 +123,7 @@ internal class PrivilegeUiExternalStartActions(
             message = store.text(R.string.priv_ui_external_starting),
             startedMessage = store.text(R.string.priv_ui_external_start_requested),
         ) {
-            val commandLine = PrivilegeRuntime.createShellStartCommand(
-                followDeathDelayMillis = store.config.followDeathDelayMillis,
-                activeReconnectOnOwnerDeath = store.config.activeReconnectOnOwnerDeath,
-            )
+            val commandLine = PrivilegeRuntime.createShellStartCommand()
             provider.start(context, commandLine)
         }
     }

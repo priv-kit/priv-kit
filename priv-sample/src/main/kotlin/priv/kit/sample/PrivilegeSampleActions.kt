@@ -81,23 +81,15 @@ internal fun MainActivity.releasePrivilegeSample() {
 
 internal fun MainActivity.watchServerConnected() {
     serverConnectedListener?.close()
-    serverConnectedListener = PrivilegeRuntime.addServerConnectedListener(
-        onConnected = { serverInfo ->
-            runOnUiThread {
-                connectServer(serverInfo, commandLine = null)
-                appendLog(
-                    "Connected from server handshake: uid=${serverInfo.uid}, " +
-                        "pid=${serverInfo.pid}",
-                )
-            }
-        },
-        onFailure = { throwable ->
-            runOnUiThread {
-                appendLog("Server connection handoff error: ${throwable.message ?: throwable.javaClass.name}")
-                appendLog(throwable.toDiagnosticString())
-            }
-        },
-    )
+    serverConnectedListener = PrivilegeRuntime.addServerConnectedListener { serverInfo ->
+        runOnUiThread {
+            connectServer(serverInfo, commandLine = null)
+            appendLog(
+                "Connected from server handshake: uid=${serverInfo.uid}, " +
+                    "pid=${serverInfo.pid}",
+            )
+        }
+    }
 }
 
 internal fun MainActivity.watchServerDisconnected() {

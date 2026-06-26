@@ -2,12 +2,13 @@ package priv.kit.ui
 
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.runtime.PrivilegeRuntime
+import priv.kit.runtime.PrivilegeRuntimeConfig
 
 internal class PrivilegeUiRuntimeActions(
     private val store: PrivilegeUiViewModelStore,
 ) : AutoCloseable {
     fun configureOwnerDeathBehavior() {
-        PrivilegeRuntime.configureOwnerDeathBehavior(
+        PrivilegeRuntimeConfig.configure(
             followDeathDelayMillis = store.config.followDeathDelayMillis,
             activeReconnectOnOwnerDeath = store.config.activeReconnectOnOwnerDeath,
         )
@@ -17,8 +18,6 @@ internal class PrivilegeUiRuntimeActions(
         runServerStart(store.text(R.string.priv_ui_starting_root)) {
             PrivilegeRuntime.startRoot(
                 timeoutMillis = store.config.startTimeoutMillis,
-                followDeathDelayMillis = store.config.followDeathDelayMillis,
-                activeReconnectOnOwnerDeath = store.config.activeReconnectOnOwnerDeath,
             )
         }
     }
@@ -51,12 +50,7 @@ internal class PrivilegeUiRuntimeActions(
 
     fun installRuntimeWatchers() {
         store.serverConnectedListener?.close()
-        store.serverConnectedListener = PrivilegeRuntime.addServerConnectedListener(
-            onConnected = ::connectServer,
-            onFailure = { throwable -> store.appendLog(throwable.toPrivilegeUiDiagnosticString()) },
-            followDeathDelayMillis = store.config.followDeathDelayMillis,
-            activeReconnectOnOwnerDeath = store.config.activeReconnectOnOwnerDeath,
-        )
+        store.serverConnectedListener = PrivilegeRuntime.addServerConnectedListener(::connectServer)
         store.serverDisconnectedWatcher?.close()
         store.serverDisconnectedWatcher = PrivilegeRuntime.addServerDisconnectedListener {
             handleServerDisconnected()

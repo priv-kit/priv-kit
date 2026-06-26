@@ -143,8 +143,6 @@ internal class PrivilegeUiAdbActions(
                 options = PrivilegeAdbStartOptions(),
                 timeoutMillis = store.config.startTimeoutMillis,
                 adbDeviceName = store.currentAdbDeviceNameOverride(),
-                followDeathDelayMillis = store.config.followDeathDelayMillis,
-                activeReconnectOnOwnerDeath = store.config.activeReconnectOnOwnerDeath,
             )
         }
     }
@@ -195,8 +193,6 @@ internal class PrivilegeUiAdbActions(
                 ),
                 timeoutMillis = store.config.startTimeoutMillis,
                 adbDeviceName = store.currentAdbDeviceNameOverride(),
-                followDeathDelayMillis = store.config.followDeathDelayMillis,
-                activeReconnectOnOwnerDeath = store.config.activeReconnectOnOwnerDeath,
             )
             store.tcpModeEnabled.value = true
             serverInfo
