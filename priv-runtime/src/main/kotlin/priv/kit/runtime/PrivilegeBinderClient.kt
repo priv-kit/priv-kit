@@ -1,11 +1,21 @@
-package priv.kit.binder
+package priv.kit.runtime
 
 import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.RemoteException
+import priv.kit.binder.IPrivilegeServer
+import priv.kit.binder.PrivilegeBinderEndpoint
+import priv.kit.binder.PrivilegeBinderEndpointDeadException
+import priv.kit.binder.PrivilegeBinderEndpointNotFoundException
+import priv.kit.binder.PrivilegeBinderRemoteCallException
+import priv.kit.binder.PrivilegeServerDisconnectedException
+import java.io.Closeable
+import java.util.concurrent.atomic.AtomicBoolean
 
-public class PrivilegeBinderClient public constructor() {
-    public fun register(binder: IBinder): PrivilegeBinderRegistration {
+internal class PrivilegeBinderClient internal constructor(
+    private val serverProvider: () -> IPrivilegeServer,
+) {
+    fun register(binder: IBinder): Closeable {
         if (!binder.pingBinder()) {
             throw PrivilegeBinderEndpointDeadException()
         }
@@ -13,25 +23,25 @@ public class PrivilegeBinderClient public constructor() {
         callServer("register Binder endpoint") {
             it.registerBinderEndpoint(binder)
         }
-        return PrivilegeBinderRegistration {
+        return CloseOnce {
             unregister()
         }
     }
 
-    public fun register(endpoint: PrivilegeBinderEndpoint): PrivilegeBinderRegistration =
+    fun register(endpoint: PrivilegeBinderEndpoint): Closeable =
         register(endpoint.asBinder())
 
-    public fun get(): PrivilegeBinderEndpoint? {
+    fun get(): PrivilegeBinderEndpoint? {
         val binder = callServer("get Binder endpoint") {
             it.getBinderEndpoint()
         } ?: return null
         return PrivilegeBinderEndpoint(binder)
     }
 
-    public fun require(): PrivilegeBinderEndpoint =
+    fun require(): PrivilegeBinderEndpoint =
         get() ?: throw PrivilegeBinderEndpointNotFoundException()
 
-    public fun unregister(): Boolean =
+    fun unregister(): Boolean =
         callServer("unregister Binder endpoint") {
             it.unregisterBinderEndpoint()
         }
@@ -40,7 +50,7 @@ public class PrivilegeBinderClient public constructor() {
         operation: String,
         block: (IPrivilegeServer) -> T,
     ): T {
-        val server = PrivilegeBinderRuntime.requireServer()
+        val server = serverProvider()
         if (!server.asBinder().pingBinder()) {
             throw PrivilegeServerDisconnectedException()
         }
@@ -53,6 +63,18 @@ public class PrivilegeBinderClient public constructor() {
             )
         } catch (exception: RemoteException) {
             throw PrivilegeBinderRemoteCallException("Failed to $operation", exception)
+        }
+    }
+}
+
+private class CloseOnce(
+    private val closeAction: () -> Unit,
+) : Closeable {
+    private val closed = AtomicBoolean(false)
+
+    override fun close() {
+        if (closed.compareAndSet(false, true)) {
+            closeAction()
         }
     }
 }

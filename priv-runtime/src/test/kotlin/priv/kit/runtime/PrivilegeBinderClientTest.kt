@@ -1,90 +1,92 @@
-package priv.kit.binder
+package priv.kit.runtime
 
 import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.IInterface
 import android.os.Parcel
 import android.os.RemoteException
+import java.io.FileDescriptor
+import java.util.concurrent.CopyOnWriteArrayList
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.FileDescriptor
-import java.util.concurrent.CopyOnWriteArrayList
+import priv.kit.binder.IPrivilegeServer
+import priv.kit.binder.PrivilegeBinderEndpointDeadException
+import priv.kit.binder.PrivilegeBinderEndpointNotFoundException
+import priv.kit.binder.PrivilegeBinderRemoteCallException
+import priv.kit.binder.PrivilegeServerDisconnectedException
 
 class PrivilegeBinderClientTest {
     @Test
     fun requireMissingEndpointThrowsTypedException() {
-        withServerProvider({ FakePrivilegeServer() }) {
-            val client = PrivilegeBinderClient()
+        val client = PrivilegeBinderClient { FakePrivilegeServer() }
 
-            assertThrows(PrivilegeBinderEndpointNotFoundException::class.java) {
-                client.require()
-            }
+        assertThrows(PrivilegeBinderEndpointNotFoundException::class.java) {
+            client.require()
         }
     }
 
     @Test
     fun getWithDeadServerBinderThrowsServerDisconnectedException() {
-        withServerProvider({ FakePrivilegeServer(serverBinder = FakeBinder(alive = false)) }) {
-            val client = PrivilegeBinderClient()
+        val client = PrivilegeBinderClient {
+            FakePrivilegeServer(serverBinder = FakeBinder(alive = false))
+        }
 
-            assertThrows(PrivilegeServerDisconnectedException::class.java) {
-                client.get()
-            }
+        assertThrows(PrivilegeServerDisconnectedException::class.java) {
+            client.get()
         }
     }
 
     @Test
     fun getDeadObjectExceptionThrowsServerDisconnectedException() {
         val deadObjectException = DeadObjectException("server died")
-        withServerProvider({ FakePrivilegeServer(getFailure = deadObjectException) }) {
-            val client = PrivilegeBinderClient()
-
-            val exception = assertThrows(PrivilegeServerDisconnectedException::class.java) {
-                client.get()
-            }
-
-            assertSame(deadObjectException, exception.cause)
+        val client = PrivilegeBinderClient {
+            FakePrivilegeServer(getFailure = deadObjectException)
         }
+
+        val exception = assertThrows(PrivilegeServerDisconnectedException::class.java) {
+            client.get()
+        }
+
+        assertSame(deadObjectException, exception.cause)
     }
 
     @Test
     fun getRemoteExceptionThrowsRemoteCallException() {
         val remoteException = RemoteException("remote failure")
-        withServerProvider({ FakePrivilegeServer(getFailure = remoteException) }) {
-            val client = PrivilegeBinderClient()
-
-            val exception = assertThrows(PrivilegeBinderRemoteCallException::class.java) {
-                client.get()
-            }
-
-            assertSame(remoteException, exception.cause)
-            assertTrue(exception.message?.contains("get Binder endpoint") == true)
+        val client = PrivilegeBinderClient {
+            FakePrivilegeServer(getFailure = remoteException)
         }
+
+        val exception = assertThrows(PrivilegeBinderRemoteCallException::class.java) {
+            client.get()
+        }
+
+        assertSame(remoteException, exception.cause)
+        assertTrue(exception.message?.contains("get Binder endpoint") == true)
     }
 
     @Test
     fun registerDeadEndpointThrowsEndpointDeadException() {
-        withServerProvider({ FakePrivilegeServer() }) {
-            val client = PrivilegeBinderClient()
+        val client = PrivilegeBinderClient { FakePrivilegeServer() }
 
-            assertThrows(PrivilegeBinderEndpointDeadException::class.java) {
-                client.register(FakeBinder(alive = false))
-            }
+        assertThrows(PrivilegeBinderEndpointDeadException::class.java) {
+            client.register(FakeBinder(alive = false))
         }
     }
 
-    private fun withServerProvider(
-        provider: () -> IPrivilegeServer,
-        block: () -> Unit,
-    ) {
-        PrivilegeBinderRuntime.installServerProvider(provider)
-        try {
-            block()
-        } finally {
-            PrivilegeBinderRuntime.clearServerProvider()
-        }
+    @Test
+    fun registrationCloseUnregistersOnce() {
+        val server = FakePrivilegeServer()
+        val client = PrivilegeBinderClient { server }
+
+        val registration = client.register(FakeBinder())
+        registration.close()
+        registration.close()
+
+        assertEquals(1, server.unregisterCalls)
     }
 
     private class FakePrivilegeServer(
@@ -92,6 +94,9 @@ class PrivilegeBinderClientTest {
         private val endpointBinder: IBinder? = null,
         private val getFailure: RemoteException? = null,
     ) : IPrivilegeServer {
+        var unregisterCalls = 0
+            private set
+
         override fun asBinder(): IBinder = serverBinder
 
         override fun shutdown() = Unit
@@ -103,7 +108,10 @@ class PrivilegeBinderClientTest {
             return endpointBinder
         }
 
-        override fun unregisterBinderEndpoint(): Boolean = false
+        override fun unregisterBinderEndpoint(): Boolean {
+            unregisterCalls += 1
+            return true
+        }
 
         override fun getUserServiceManager(): IBinder? = null
     }

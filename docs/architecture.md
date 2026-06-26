@@ -155,9 +155,9 @@ Binder 支持应覆盖：
 当前 Binder 原语由 `:priv-core` 的 `priv.kit.binder` package 分区承载，服务端侧 transaction 执行归属于 `:priv-server`：
 
 - `IPrivilegeServer` 定义项目自有 Privileged Server Binder 协议；
-- `PrivilegeBinderClient` 作为 `PrivilegeRuntime` 内部 helper 支撑单 endpoint 访问入口；
+- `PrivilegeRuntime` 内部的 Binder client helper 支撑单 endpoint 访问入口；
 - `PrivilegeBinderRegistry` 作为共享 endpoint slot 原语，由服务端用于注册、查找、注销和 death 自动清理；
-- `PrivilegeBinderEndpoint` 和 `PrivilegeBinderRegistration` 提供应用侧 Binder 句柄和注册生命周期；
+- `PrivilegeBinderEndpoint` 提供应用侧 Binder 句柄，`PrivilegeRuntime` 返回注册生命周期关闭句柄；
 - `PrivilegeRemoteBinderWrapper` 将显式目标 `IBinder` 的 `transact` 通过当前 Privileged Server 执行，并通过 `PrivilegeRuntime` 的全局 server-binder getter 在每次 transaction 前统一拦截 server 断连；
 - `PrivilegeRemoteSystemServiceBinder` 将显式系统服务名的 `transact` 通过当前 Privileged Server 执行，由服务端在自己的 SELinux 域内解析该服务名；
 - `PrivilegeBinderException` 是 Binder 原语异常密封基类，`PrivilegeServerDisconnectedException`、`PrivilegeBinderEndpointDeadException`、`PrivilegeBinderEndpointNotFoundException` 和 `PrivilegeBinderRemoteCallException` 提供可按类型捕获的失败语义。

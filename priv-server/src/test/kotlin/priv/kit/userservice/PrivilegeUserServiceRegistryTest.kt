@@ -295,7 +295,7 @@ class PrivilegeUserServiceRegistryTest {
         override fun startDedicatedProcess(
             spec: PrivilegeUserServiceSpec,
             token: String,
-        ): PrivilegeUserServiceProcessHandle {
+        ): Process {
             error("Dedicated process is not used by this test")
         }
 
@@ -307,11 +307,11 @@ class PrivilegeUserServiceRegistryTest {
         }
 
         override fun awaitDedicatedProcessExit(
-            handle: PrivilegeUserServiceProcessHandle,
+            process: Process,
             timeoutMillis: Long,
         ): Boolean = true
 
-        override fun killDedicatedProcess(handle: PrivilegeUserServiceProcessHandle) = Unit
+        override fun killDedicatedProcess(process: Process) = Unit
     }
 
     private class DedicatedFakeHost(
@@ -328,8 +328,8 @@ class PrivilegeUserServiceRegistryTest {
         override fun startDedicatedProcess(
             spec: PrivilegeUserServiceSpec,
             token: String,
-        ): PrivilegeUserServiceProcessHandle =
-            PrivilegeUserServiceProcessHandle(FakeProcess())
+        ): Process =
+            FakeProcess()
 
         override fun awaitDedicatedProcess(
             token: String,
@@ -337,14 +337,14 @@ class PrivilegeUserServiceRegistryTest {
         ): IPrivilegeUserServiceProcess = process
 
         override fun awaitDedicatedProcessExit(
-            handle: PrivilegeUserServiceProcessHandle,
+            process: Process,
             timeoutMillis: Long,
         ): Boolean {
             awaitExitCalls.incrementAndGet()
             return false
         }
 
-        override fun killDedicatedProcess(handle: PrivilegeUserServiceProcessHandle) {
+        override fun killDedicatedProcess(process: Process) {
             killCalls.incrementAndGet()
         }
     }

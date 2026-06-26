@@ -114,12 +114,12 @@ class PrivilegeServerUserServiceHostTest {
             },
         )
 
-        val handle = host.startDedicatedProcess(
+        val startedProcess = host.startDedicatedProcess(
             spec = PrivilegeUserServiceSpec(serviceClassName = "test.UserService"),
             token = "token-1",
         )
 
-        assertSame(process, handle.process)
+        assertSame(process, startedProcess)
         assertEquals("token-1", startedCommands.single().arguments[5])
     }
 

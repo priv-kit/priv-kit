@@ -108,7 +108,7 @@ class PrivilegeUserServiceManagerBinderTest {
             override fun startDedicatedProcess(
                 spec: PrivilegeUserServiceSpec,
                 token: String,
-            ): PrivilegeUserServiceProcessHandle {
+            ): Process {
                 throw IllegalStateException("host exploded")
             }
         }
@@ -153,7 +153,7 @@ class PrivilegeUserServiceManagerBinderTest {
         override fun startDedicatedProcess(
             spec: PrivilegeUserServiceSpec,
             token: String,
-        ): PrivilegeUserServiceProcessHandle {
+        ): Process {
             error("Dedicated process is not used by this test")
         }
 
@@ -165,11 +165,11 @@ class PrivilegeUserServiceManagerBinderTest {
         }
 
         override fun awaitDedicatedProcessExit(
-            handle: PrivilegeUserServiceProcessHandle,
+            process: Process,
             timeoutMillis: Long,
         ): Boolean = true
 
-        override fun killDedicatedProcess(handle: PrivilegeUserServiceProcessHandle) = Unit
+        override fun killDedicatedProcess(process: Process) = Unit
     }
 
     private open class DedicatedHost(
@@ -183,8 +183,8 @@ class PrivilegeUserServiceManagerBinderTest {
         override fun startDedicatedProcess(
             spec: PrivilegeUserServiceSpec,
             token: String,
-        ): PrivilegeUserServiceProcessHandle =
-            PrivilegeUserServiceProcessHandle(FakeProcess())
+        ): Process =
+            FakeProcess()
 
         override fun awaitDedicatedProcess(
             token: String,
@@ -192,11 +192,11 @@ class PrivilegeUserServiceManagerBinderTest {
         ): IPrivilegeUserServiceProcess = process
 
         override fun awaitDedicatedProcessExit(
-            handle: PrivilegeUserServiceProcessHandle,
+            process: Process,
             timeoutMillis: Long,
         ): Boolean = true
 
-        override fun killDedicatedProcess(handle: PrivilegeUserServiceProcessHandle) = Unit
+        override fun killDedicatedProcess(process: Process) = Unit
     }
 
     private open class FakeUserServiceProcess : IPrivilegeUserServiceProcess {

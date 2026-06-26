@@ -11,9 +11,7 @@ import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStartResult
 import priv.kit.adb.PrivilegeAdbStarter
 import priv.kit.binder.IPrivilegeServer
-import priv.kit.binder.PrivilegeBinderClient
 import priv.kit.binder.PrivilegeBinderEndpoint
-import priv.kit.binder.PrivilegeBinderRegistration
 import priv.kit.binder.PrivilegeBinderRuntime
 import priv.kit.binder.PrivilegeServerDisconnectedException
 import priv.kit.core.PrivilegeProtocol
@@ -37,7 +35,7 @@ public object PrivilegeRuntime {
     private val serverLock = Any()
     private var currentServer: ServerConnection? = null
     private val disconnectedListeners = CopyOnWriteArraySet<() -> Unit>()
-    private val binderClient = PrivilegeBinderClient()
+    private val binderClient = PrivilegeBinderClient(::requireServerInterface)
     private val userServiceClient = PrivilegeRuntimeUserServiceClient(::getUserServiceManagerBinder)
 
     init {
@@ -175,10 +173,10 @@ public object PrivilegeRuntime {
         }
     }
 
-    public fun registerBinderEndpoint(binder: IBinder): PrivilegeBinderRegistration =
+    public fun registerBinderEndpoint(binder: IBinder): Closeable =
         binderClient.register(binder)
 
-    public fun registerBinderEndpoint(endpoint: PrivilegeBinderEndpoint): PrivilegeBinderRegistration =
+    public fun registerBinderEndpoint(endpoint: PrivilegeBinderEndpoint): Closeable =
         binderClient.register(endpoint)
 
     public fun getBinderEndpoint(): PrivilegeBinderEndpoint? =

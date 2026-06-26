@@ -5,7 +5,7 @@ import android.os.IInterface
 import android.os.RemoteException
 import java.util.UUID
 
-public class PrivilegeUserServiceRegistry public constructor(
+internal class PrivilegeUserServiceRegistry internal constructor(
     private val host: PrivilegeUserServiceHost,
     private val dedicatedStartTimeoutMillis: Long = DEFAULT_DEDICATED_START_TIMEOUT_MILLIS,
 ) {
@@ -370,7 +370,7 @@ public class PrivilegeUserServiceRegistry public constructor(
     private inner class DedicatedRecord(
         spec: PrivilegeUserServiceSpec,
         private val host: PrivilegeUserServiceHost,
-        private val handle: PrivilegeUserServiceProcessHandle,
+        private val handle: Process,
         private val process: IPrivilegeUserServiceProcess,
     ) : Record(spec) {
         private val processBinder = process.asBinder()
@@ -519,8 +519,8 @@ public class PrivilegeUserServiceRegistry public constructor(
         val deathRecipient: IBinder.DeathRecipient,
     )
 
-    public companion object {
-        public const val DEFAULT_DEDICATED_START_TIMEOUT_MILLIS: Long = 15_000L
+    companion object {
+        const val DEFAULT_DEDICATED_START_TIMEOUT_MILLIS: Long = 15_000L
 
         internal fun binderFrom(
             instance: Any,

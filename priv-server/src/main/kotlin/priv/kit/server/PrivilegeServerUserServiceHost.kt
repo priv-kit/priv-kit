@@ -7,7 +7,6 @@ import android.os.Process as AndroidProcess
 import priv.kit.userservice.IPrivilegeUserServiceProcess
 import priv.kit.userservice.PrivilegeUserServiceContract
 import priv.kit.userservice.PrivilegeUserServiceHost
-import priv.kit.userservice.PrivilegeUserServiceProcessHandle
 import priv.kit.userservice.PrivilegeUserServiceSpec
 import priv.kit.userservice.PrivilegeUserServiceStartException
 import java.util.concurrent.TimeUnit
@@ -34,15 +33,14 @@ internal class PrivilegeServerUserServiceHost(
     override fun startDedicatedProcess(
         spec: PrivilegeUserServiceSpec,
         token: String,
-    ): PrivilegeUserServiceProcessHandle {
+    ): Process {
         val command = PrivilegeServerUserServiceProcessCommand.build(
             config = config,
             spec = spec,
             token = token,
             serverPid = AndroidProcess.myPid(),
         )
-        val process = processStarter(command)
-        return PrivilegeUserServiceProcessHandle(process)
+        return processStarter(command)
     }
 
     override fun awaitDedicatedProcess(
@@ -55,20 +53,20 @@ internal class PrivilegeServerUserServiceHost(
             timeoutMillis = timeoutMillis,
         )
 
-    override fun killDedicatedProcess(handle: PrivilegeUserServiceProcessHandle) {
-        PrivilegeServerUserServiceProcessKiller.kill(handle.process)
+    override fun killDedicatedProcess(process: Process) {
+        PrivilegeServerUserServiceProcessKiller.kill(process)
     }
 
     override fun awaitDedicatedProcessExit(
-        handle: PrivilegeUserServiceProcessHandle,
+        process: Process,
         timeoutMillis: Long,
     ): Boolean {
-        if (timeoutMillis <= 0L) return !handle.process.isAlive
+        if (timeoutMillis <= 0L) return !process.isAlive
         return try {
-            handle.process.waitFor(timeoutMillis, TimeUnit.MILLISECONDS)
+            process.waitFor(timeoutMillis, TimeUnit.MILLISECONDS)
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
-            !handle.process.isAlive
+            !process.isAlive
         }
     }
 

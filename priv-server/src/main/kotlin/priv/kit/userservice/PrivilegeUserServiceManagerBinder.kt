@@ -4,7 +4,7 @@ import android.os.Binder
 import android.os.Bundle
 import android.os.IBinder
 
-public class PrivilegeUserServiceManagerBinder public constructor(
+internal class PrivilegeUserServiceManagerBinder internal constructor(
     private val registry: PrivilegeUserServiceRegistry,
 ) : IPrivilegeUserServiceManager.Stub() {
     override fun startUserService(
@@ -55,11 +55,11 @@ public class PrivilegeUserServiceManagerBinder public constructor(
             )
         }
 
-    public fun destroyOnOwnerDeath() {
+    fun destroyOnOwnerDeath() {
         registry.destroyOnOwnerDeath()
     }
 
-    public fun destroyAll() {
+    fun destroyAll() {
         registry.destroyAll()
     }
 

@@ -162,7 +162,6 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - `PrivilegeUserServiceRegistry`
 - `PrivilegeUserServiceManagerBinder`
 - `PrivilegeUserServiceHost`
-- `PrivilegeUserServiceProcessHandle`
 - `PrivilegeUserServiceLoader`
 - `PrivilegeUserServiceDestroyer`
 - `PrivilegeUserServiceGateBinder`
