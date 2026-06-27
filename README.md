@@ -55,11 +55,11 @@ val commandLine = PrivilegeRuntime.createShellStartCommand()
 YourApp.showCommandToUser(commandLine)
 ```
 
-把启动命令交给 Shizuku 或其他外部授权工具执行：
+把启动命令交给 Shizuku UserService 或其他能够在兼容特权身份中执行代码的外部启动入口。库侧提供通用的两端 API：特权进程内调用 `PrivilegeExternalStartup.runInCurrentProcess(...)`，主进程用 `PrivilegeExternalStartup.createReceiver(...)` 接收实时日志；Shizuku 的 UserService 绑定和 AIDL 转发由接入应用自己完成。
 
 ```kotlin
 val commandLine = PrivilegeRuntime.createShellStartCommand()
-YourApp.externalStarter.runCommand(commandLine)
+YourApp.bindUserServiceAndRun(commandLine)
 ```
 
 Shell Start Command 可以在任意时刻执行。server 启动后会通过同一条 Binder handoff 回传给应用，并由 `addServerConnectedListener()` 接入。

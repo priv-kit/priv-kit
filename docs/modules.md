@@ -144,7 +144,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 打包供 shell/manual/ADB 通道复用的 native starter 可执行文件；
 - 通过 `su` 执行共享服务端启动命令；
 - root 启动诊断和 root 特有启动失败建模；
-- 为用户手动执行或外部授权工具代执行提供启动命令；
+- 为用户手动执行或具备代码执行能力的外部启动入口提供启动命令、外部特权进程内执行 helper 和主进程日志接收 helper；
 - token、Root/ADB pending handshake、ready-server handoff、当前全局 server-binder 安装和 Binder death handling。
 
 禁止：

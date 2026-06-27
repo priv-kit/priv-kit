@@ -8,10 +8,13 @@ import android.content.pm.PackageManager
 import android.os.IBinder
 import android.os.RemoteException
 import priv.kit.core.PrivilegeStartupException
+import priv.kit.core.PrivilegeStartupLogListener
+import priv.kit.runtime.external.PrivilegeExternalStartup
 import rikka.shizuku.Shizuku
 import java.io.Closeable
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 internal class PrivilegeSampleShizukuExternalStarter(
@@ -32,15 +35,87 @@ internal class PrivilegeSampleShizukuExternalStarter(
             Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
 
     fun start(commandLine: String): String {
+        return startAndWait(commandLine, startupLogListener = null)
+    }
+
+    fun start(
+        commandLine: String,
+        startupLogListener: PrivilegeStartupLogListener,
+    ) {
+        startAndWait(commandLine, startupLogListener)
+    }
+
+    private fun startAndWait(
+        commandLine: String,
+        startupLogListener: PrivilegeStartupLogListener?,
+    ): String {
         if (!isAvailable()) {
             throw PrivilegeStartupException("Shizuku external starter is not available")
         }
         val activeService = bindOrGetService()
-        return try {
-            activeService.start(commandLine)
+        val receiver = startupLogListener?.let {
+            PrivilegeExternalStartup.createReceiver(
+                startupLogListener = it,
+            )
+        }
+        val latch = CountDownLatch(1)
+        val completed = AtomicBoolean(false)
+        val outputRef = AtomicReference<String?>()
+        val failureRef = AtomicReference<Throwable?>()
+        val callback = object : IPrivilegeSampleShizukuStartCallback.Stub() {
+            override fun onOutput(
+                source: String?,
+                message: String?,
+            ) {
+                receiver?.receive(source, message)
+            }
+
+            override fun onFinished(
+                exitCode: Int,
+                output: String?,
+            ) {
+                if (!completed.compareAndSet(false, true)) return
+                outputRef.set(output.orEmpty())
+                if (exitCode != 0) {
+                    failureRef.set(
+                        PrivilegeStartupException("Shizuku UserService start command exited code=$exitCode"),
+                    )
+                }
+                latch.countDown()
+            }
+
+            override fun onFailure(
+                message: String?,
+                detail: String?,
+            ) {
+                if (!completed.compareAndSet(false, true)) return
+                failureRef.set(
+                    PrivilegeStartupException(
+                        buildString {
+                            append(message?.takeIf { it.isNotBlank() } ?: "Shizuku UserService start command failed")
+                            if (!detail.isNullOrBlank()) {
+                                append('\n')
+                                append(detail)
+                            }
+                        },
+                    ),
+                )
+                latch.countDown()
+            }
+        }
+        try {
+            activeService.startWithCallback(commandLine, callback)
         } catch (exception: RemoteException) {
             throw PrivilegeStartupException("Shizuku UserService failed to start external command", exception)
         }
+        if (!latch.await(SHIZUKU_START_RESULT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
+            throw PrivilegeStartupException("Timed out waiting for Shizuku UserService start result")
+        }
+        failureRef.get()?.let { throwable ->
+            if (throwable is PrivilegeStartupException) throw throwable
+            throw PrivilegeStartupException("Shizuku UserService start command failed", throwable)
+        }
+        return outputRef.get().orEmpty()
     }
 
     override fun close() {
@@ -138,8 +213,9 @@ internal class PrivilegeSampleShizukuExternalStarter(
     private companion object {
         const val SHIZUKU_USER_SERVICE_MIN_VERSION = 10
         const val SHIZUKU_BIND_TIMEOUT_MILLIS = 10_000L
+        const val SHIZUKU_START_RESULT_TIMEOUT_MILLIS = 10_000L
         const val SHIZUKU_START_TAG = "priv-kit-external-start"
         const val SHIZUKU_START_PROCESS_SUFFIX = "priv-kit-shizuku-start"
-        const val SHIZUKU_START_SERVICE_VERSION = 1
+        const val SHIZUKU_START_SERVICE_VERSION = 2
     }
 }

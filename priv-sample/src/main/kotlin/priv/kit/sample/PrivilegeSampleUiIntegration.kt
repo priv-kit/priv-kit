@@ -3,9 +3,10 @@ package priv.kit.sample
 import android.content.Context
 import android.content.pm.PackageManager
 import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.ui.PrivilegeUiConfig
-import priv.kit.ui.PrivilegeUiExternalStartProvider
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
+import priv.kit.ui.PrivilegeUiStreamingExternalStartProvider
 import priv.kit.ui.PrivilegeUiStartupMode
 import rikka.shizuku.Shizuku
 
@@ -36,7 +37,7 @@ internal fun MainActivity.handlePrivilegeUiConnected(serverInfo: PrivilegeServer
 
 private class PrivilegeSampleShizukuExternalStartProvider(
     override val label: CharSequence,
-) : PrivilegeUiExternalStartProvider {
+) : PrivilegeUiStreamingExternalStartProvider {
     override val id: String = SAMPLE_SHIZUKU_EXTERNAL_START_ID
 
     override fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot =
@@ -65,6 +66,16 @@ private class PrivilegeSampleShizukuExternalStartProvider(
     ) {
         PrivilegeSampleShizukuExternalStarter(context).use { starter ->
             starter.start(commandLine)
+        }
+    }
+
+    override fun start(
+        context: Context,
+        commandLine: String,
+        startupLogListener: PrivilegeStartupLogListener,
+    ) {
+        PrivilegeSampleShizukuExternalStarter(context).use { starter ->
+            starter.start(commandLine, startupLogListener)
         }
     }
 

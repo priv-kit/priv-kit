@@ -100,6 +100,9 @@ public fun PrivilegeScaffold(
                     onCopyManualCommand = { viewModel.copyManualCommand(context) },
                     onNotificationPermissionRequired = onNotificationPermissionRequired,
                 )
+                if (state.startupLogLines.isNotEmpty()) {
+                    StartupLogPanel(state.startupLogLines)
+                }
             }
         }
     }
@@ -136,8 +139,8 @@ private fun AuthorizationModePanel(
             tcpPolicy = viewModel.adbTcpPolicy,
             onPairingCodeChanged = viewModel::updatePairingCode,
             onPairByCode = viewModel::pairWirelessAdb,
-            onStartNotificationPairing = {
-                viewModel.startNotificationPairing(onNotificationPermissionRequired)
+            onNotificationPairingClick = {
+                viewModel.toggleNotificationPairing(onNotificationPermissionRequired)
             },
             onEnableTcpMode = viewModel::enableTcpMode,
             onStartAdb = viewModel::startAdb,

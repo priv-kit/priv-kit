@@ -1,6 +1,8 @@
 package priv.kit.sample;
 
+import priv.kit.sample.IPrivilegeSampleShizukuStartCallback;
+
 interface IPrivilegeSampleShizukuStartService {
-    String start(String commandLine) = 1;
+    void startWithCallback(String commandLine, IPrivilegeSampleShizukuStartCallback callback) = 1;
     void destroy() = 16777114;
 }

@@ -4,6 +4,7 @@ import android.content.Context
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeStartupException
+import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.runtime.PrivilegeRuntimeConfig
 
 public enum class PrivilegeUiRuntimeStatus {
@@ -104,6 +105,15 @@ public interface PrivilegeUiExternalStartProvider {
     )
 }
 
+public interface PrivilegeUiStreamingExternalStartProvider : PrivilegeUiExternalStartProvider {
+    @Throws(PrivilegeStartupException::class)
+    public fun start(
+        context: Context,
+        commandLine: String,
+        startupLogListener: PrivilegeStartupLogListener,
+    )
+}
+
 public data class PrivilegeUiExternalStartSnapshot public constructor(
     public val available: Boolean = false,
     public val authorized: Boolean = false,
@@ -145,6 +155,7 @@ public data class PrivilegeUiState public constructor(
     public val adbKeyFingerprint: String? = null,
     public val notificationPairingRunning: Boolean = false,
     public val externalStartItems: List<PrivilegeUiExternalStartItemState> = emptyList(),
+    public val startupLogLines: List<String> = emptyList(),
     public val connectionSerial: Long = 0L,
 )
 

@@ -18,6 +18,22 @@ class PrivilegeRuntimeNativeStarterDefaultsTest {
         assertFalse(source.contains("--active-reconnect-on-owner-death"))
     }
 
+    @Test
+    fun nativeStarterPrintsHumanReadableStartupStages() {
+        val source = nativeStarterSource().readText()
+
+        assertTrue(source.contains("info: starter begin"))
+        assertFalse(source.contains("info: killing existing server"))
+        assertTrue(source.contains("info: killed existing server pid="))
+        assertTrue(source.contains("info: starting server"))
+        assertFalse(source.contains("priv-kit-starter-pid="))
+        assertFalse(source.contains("priv-kit-server-log="))
+        assertFalse(source.contains("priv-kit-server-manual-"))
+        assertFalse(source.contains("priv-kit-starter child pid="))
+        assertTrue(source.contains("open(\"/dev/null\", O_RDWR)"))
+        assertTrue(source.contains("info: starter exit with 0"))
+    }
+
     private fun nativeStarterSource(): File =
         listOf(
             File("src/main/cpp/privilege_runtime_starter.cpp"),

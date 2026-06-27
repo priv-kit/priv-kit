@@ -1,10 +1,14 @@
 package priv.kit.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -12,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -79,6 +84,37 @@ internal fun ServiceStatusPanel(state: PrivilegeUiState) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+@Composable
+internal fun StartupLogPanel(lines: List<String>) {
+    Panel {
+        Text(
+            text = stringResource(R.string.priv_ui_startup_log_title),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 96.dp)
+                .background(
+                    color = Color(0xFF101820),
+                    shape = MaterialTheme.shapes.small,
+                )
+                .padding(12.dp),
+        ) {
+            SelectionContainer {
+                Text(
+                    modifier = Modifier.fillMaxWidth(),
+                    text = lines.joinToString("\n"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFF7FAFC),
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+        }
     }
 }
 

@@ -20,9 +20,10 @@ The UI covers ordinary user-facing authorization only:
 - Manual shell command copy.
 - ADB authorization, including Wireless ADB pairing, notification pairing, status polling, startup, and optional TCP reuse.
 - External startup through app-provided `PrivilegeUiExternalStartProvider` implementations, with status refreshed on foreground resume and while the External tab is selected.
+- Realtime startup transcript for Root, ADB, and streaming external startup providers.
 - Service started/not-started status.
 
-It does not include Shizuku, Dhizuku, app-owned service management, stop-service controls, package management, input injection, settings, app-ops, diagnostic logs, or other high-level Android system operation UI. Shizuku-style support belongs in the app as a `PrivilegeUiExternalStartProvider` that executes the shell start command.
+It does not include built-in Shizuku integration, app-owned service management, stop-service controls, package management, input injection, settings, app-ops, a general diagnostic log console, or other high-level Android system operation UI. Shizuku-style support belongs in the app or an optional integration as a `PrivilegeUiExternalStartProvider`; the external privileged process can call `PrivilegeExternalStartup.runInCurrentProcess(...)`, while the main process can bridge returned source/message pairs into the UI through `PrivilegeExternalStartup.createReceiver(...)`.
 
 Basic usage:
 

@@ -3,6 +3,7 @@ package priv.kit.adb
 import android.net.nsd.NsdManager
 import android.os.Build
 import priv.kit.core.PrivilegeStartupException
+import priv.kit.core.PrivilegeStartupLogListener
 import java.io.EOFException
 import java.net.SocketException
 import java.net.SocketTimeoutException
@@ -16,8 +17,20 @@ public class PrivilegeAdbStarter private constructor(
     public fun start(
         command: PrivilegeAdbCommand,
         options: PrivilegeAdbStartOptions = PrivilegeAdbStartOptions(),
+    ): PrivilegeAdbStartResult =
+        start(
+            command = command,
+            options = options,
+            startupLogListener = null,
+        )
+
+    @Throws(PrivilegeStartupException::class)
+    public fun start(
+        command: PrivilegeAdbCommand,
+        options: PrivilegeAdbStartOptions,
+        startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeAdbStartResult {
-        val output = PrivilegeAdbOutput()
+        val output = PrivilegeAdbOutput(startupLogListener)
         return try {
             val key = createKey()
             output.append("diag", "ADB identity name=${identity.adbDeviceName}, keySignature=<redacted>")
@@ -67,12 +80,9 @@ public class PrivilegeAdbStarter private constructor(
                 connectWithRetry(client, options, output)
                 client.command("shell:${command.commandLine}", output)
             }
-            val startedCommand = command.copy(
-                diagnosticLogPath = command.diagnosticLogPath ?: output.extractStarterDiagnosticLogPath(),
-            )
 
             PrivilegeAdbStartResult(
-                command = startedCommand,
+                command = command,
                 host = options.host,
                 port = activePort,
                 output = output,
@@ -176,16 +186,57 @@ public class PrivilegeAdbStarter private constructor(
         }
     }
 
+    public fun readRuntimeDiagnostics(
+        host: String,
+        port: Int,
+    ): PrivilegeAdbOutput =
+        readRuntimeDiagnostics(
+            host = host,
+            port = port,
+            startupLogListener = null,
+        )
+
+    public fun readRuntimeDiagnostics(
+        host: String,
+        port: Int,
+        startupLogListener: PrivilegeStartupLogListener?,
+    ): PrivilegeAdbOutput {
+        require(host.isNotBlank()) { "host must not be blank" }
+        require(port in 1..65535) { "port must be between 1 and 65535" }
+
+        val output = PrivilegeAdbOutput(startupLogListener)
+        appendRuntimeDiagnostics(
+            host = host,
+            port = port,
+            key = createKey(),
+            output = output,
+        )
+        return output
+    }
+
     public fun readDiagnosticLog(
         host: String,
         port: Int,
         path: String,
+    ): PrivilegeAdbOutput =
+        readDiagnosticLog(
+            host = host,
+            port = port,
+            path = path,
+            startupLogListener = null,
+        )
+
+    public fun readDiagnosticLog(
+        host: String,
+        port: Int,
+        path: String,
+        startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeAdbOutput {
         require(host.isNotBlank()) { "host must not be blank" }
         require(port in 1..65535) { "port must be between 1 and 65535" }
         require(path.startsWith(DIAGNOSTIC_LOG_PREFIX)) { "unsupported diagnostic log path" }
 
-        val output = PrivilegeAdbOutput()
+        val output = PrivilegeAdbOutput(startupLogListener)
         val key = createKey()
         output.append("diag", "Reading server diagnostic log: $path")
         runDiagnosticShellCommand(
@@ -196,22 +247,10 @@ public class PrivilegeAdbStarter private constructor(
             command = "cat ${path.shellQuote()} 2>&1",
             output = output,
         )
-        output.append("diag", "Reading server process state")
-        runDiagnosticShellCommand(
+        appendRuntimeDiagnostics(
             host = host,
             port = port,
             key = key,
-            label = "server process state",
-            command = "ps -A | grep '[p]riv-kit-server' 2>&1 || true",
-            output = output,
-        )
-        output.append("diag", "Reading PrivKit logcat")
-        runDiagnosticShellCommand(
-            host = host,
-            port = port,
-            key = key,
-            label = "PrivKit logcat",
-            command = "logcat -d -t 160 -s PrivKitServer:D PrivKitRuntime:D AndroidRuntime:E '*:S' 2>&1",
             output = output,
         )
         return output
@@ -391,6 +430,32 @@ public class PrivilegeAdbStarter private constructor(
         }
     }
 
+    private fun appendRuntimeDiagnostics(
+        host: String,
+        port: Int,
+        key: PrivilegeAdbKey,
+        output: PrivilegeAdbOutput,
+    ) {
+        output.append("diag", "Reading server process state")
+        runDiagnosticShellCommand(
+            host = host,
+            port = port,
+            key = key,
+            label = "server process state",
+            command = "ps -A | grep '[p]riv-kit-server' 2>&1 || true",
+            output = output,
+        )
+        output.append("diag", "Reading PrivKit logcat")
+        runDiagnosticShellCommand(
+            host = host,
+            port = port,
+            key = key,
+            label = "PrivKit logcat",
+            command = "logcat -d -t 160 -s PrivKitServer:D PrivKitRuntime:D AndroidRuntime:E '*:S' 2>&1",
+            output = output,
+        )
+    }
+
     private fun connectWithRetry(
         client: PrivilegeAdbClient,
         options: PrivilegeAdbStartOptions,
@@ -444,13 +509,5 @@ internal fun String.toPrivilegeAdbPairingCode(): String =
 
 private fun Throwable.toFailureMessage(): String =
     "${javaClass.simpleName}: ${message.orEmpty()}".trim()
-
-private fun PrivilegeAdbOutput.extractStarterDiagnosticLogPath(): String? =
-    Regex("""priv-kit-server-log=([^\r\n]+)""")
-        .find(text())
-        ?.groupValues
-        ?.getOrNull(1)
-        ?.trim()
-        ?.takeIf { it.startsWith(PrivilegeAdbStarter.DIAGNOSTIC_LOG_PREFIX) }
 
 private const val ADB_PAIRING_CODE_LENGTH = 6

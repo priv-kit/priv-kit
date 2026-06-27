@@ -19,6 +19,8 @@ import priv.kit.core.PrivilegeServerHandshakeResult
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeServerLaunchCommand
 import priv.kit.core.PrivilegeStartupException
+import priv.kit.core.PrivilegeStartupLogLine
+import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.userservice.PrivilegeUserServiceManagerUnavailableException
 import priv.kit.userservice.PrivilegeUserServiceSpec
 import priv.kit.userservice.PrivilegeUserServiceStatus
@@ -43,18 +45,33 @@ public object PrivilegeRuntime {
     @Throws(PrivilegeStartupException::class)
     public fun startRoot(
         timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
+    ): PrivilegeServerInfo =
+        startRoot(
+            timeoutMillis = timeoutMillis,
+            startupLogListener = null,
+        )
+
+    @Throws(PrivilegeStartupException::class)
+    public fun startRoot(
+        timeoutMillis: Long,
+        startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeServerInfo {
         val token = ownerTokenStore().readOrCreate()
         val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
         var rootProcess: PrivilegeRootProcess? = null
 
         try {
+            startupLogListener.emitStartupLog("runtime", "Starting with root")
             rootProcess = PrivilegeRootStarter.start(
                 buildRootCommandLine(),
+                startupLogListener = startupLogListener,
             )
+            startupLogListener.emitStartupLog("runtime", "Waiting for Privileged Server handshake")
             val handshakeResult = pendingHandshake.await(timeoutMillis)
+            startupLogListener.emitStartupLog("runtime", "Privileged Server handshake received")
             return connectHandshake(handshakeResult)
         } catch (e: PrivilegeStartupException) {
+            startupLogListener.emitStartupLog("runtime", "Startup failed: ${e.message.orEmpty()}")
             if (rootProcess != null && !rootProcess.isAlive) {
                 throw PrivilegeStartupException(
                     "Privileged Server command exited before handshake: ${rootProcess.outputText()}",
@@ -109,6 +126,20 @@ public object PrivilegeRuntime {
         options: PrivilegeAdbStartOptions = PrivilegeAdbStartOptions(),
         timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
         adbDeviceName: String? = null,
+    ): PrivilegeServerInfo =
+        startAdb(
+            options = options,
+            timeoutMillis = timeoutMillis,
+            adbDeviceName = adbDeviceName,
+            startupLogListener = null,
+        )
+
+    @Throws(PrivilegeStartupException::class)
+    public fun startAdb(
+        options: PrivilegeAdbStartOptions,
+        timeoutMillis: Long,
+        adbDeviceName: String?,
+        startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeServerInfo {
         val token = ownerTokenStore().readOrCreate()
         val adbStarter = buildAdbStarter(
@@ -120,26 +151,35 @@ public object PrivilegeRuntime {
 
         try {
             Log.i(TAG, "Starting through ADB keySignature=<redacted>")
+            startupLogListener.emitStartupLog("runtime", "Starting through ADB")
             val adbStartResult = adbStarter.start(
                 buildAdbCommand(),
                 options,
+                startupLogListener = startupLogListener,
             )
             startResult = adbStartResult
             Log.i(
                 TAG,
                 "ADB command completed on ${adbStartResult.host}:${adbStartResult.port}; waiting for Binder handshake",
             )
+            startupLogListener.emitStartupLog("runtime", "Waiting for Privileged Server handshake")
             val handshakeResult = pendingHandshake.await(timeoutMillis)
             Log.i(TAG, "ADB Binder handshake received")
+            startupLogListener.emitStartupLog("runtime", "Privileged Server handshake received")
             return connectHandshake(handshakeResult)
         } catch (e: PrivilegeStartupException) {
             Log.e(TAG, "ADB startup failed", e)
+            startupLogListener.emitStartupLog("runtime", "ADB startup failed: ${e.message.orEmpty()}")
             val adbResult = startResult
             if (adbResult != null) {
-                val serverLog = readAdbServerDiagnosticLog(adbResult, adbStarter)
+                val serverDiagnostics = readAdbServerDiagnostics(
+                    adbResult = adbResult,
+                    adbStarter = adbStarter,
+                    startupLogListener = startupLogListener,
+                )
                 throw PrivilegeStartupException(
                     "ADB start did not complete the Privileged Server handshake on " +
-                        "${adbResult.host}:${adbResult.port}: ${adbResult.output.text()}$serverLog",
+                        "${adbResult.host}:${adbResult.port}: ${adbResult.output.text()}$serverDiagnostics",
                     e,
                 )
             }
@@ -368,7 +408,6 @@ public object PrivilegeRuntime {
             classpath = launchCommand.classpath,
             mainClass = launchCommand.mainClass,
             providerAuthority = launchCommand.providerAuthority,
-            diagnosticLogPath = null,
         )
     }
 
@@ -425,22 +464,22 @@ public object PrivilegeRuntime {
         return value?.ifBlank { null }
     }
 
-    private fun readAdbServerDiagnosticLog(
+    private fun readAdbServerDiagnostics(
         adbResult: PrivilegeAdbStartResult,
         adbStarter: PrivilegeAdbStarter,
+        startupLogListener: PrivilegeStartupLogListener?,
     ): String {
-        val path = adbResult.command.diagnosticLogPath ?: return ""
         val output = runCatching {
-            adbStarter.readDiagnosticLog(
+            adbStarter.readRuntimeDiagnostics(
                 host = adbResult.host,
                 port = adbResult.port,
-                path = path,
+                startupLogListener = startupLogListener,
             )
                 .text()
         }.getOrElse { throwable ->
-            "[diag] Failed to fetch server diagnostic log: ${throwable.javaClass.simpleName}: ${throwable.message}"
+            "[diag] Failed to fetch server diagnostics: ${throwable.javaClass.simpleName}: ${throwable.message}"
         }
-        return "\n[server diagnostic log: $path]\n$output"
+        return "\n[server diagnostics]\n$output"
     }
 
     private fun buildServerLaunchCommand(): PrivilegeServerLaunchCommand =
@@ -448,6 +487,18 @@ public object PrivilegeRuntime {
 
     private fun PrivilegeServerInfo.matchesCurrentRuntime(): Boolean =
         protocolVersion == PrivilegeProtocol.VERSION
+
+    private fun PrivilegeStartupLogListener?.emitStartupLog(
+        source: String,
+        message: String,
+    ) {
+        this?.onLog(
+            PrivilegeStartupLogLine(
+                source = source,
+                message = message,
+            ),
+        )
+    }
 
     private fun ownerTokenStore(): PrivilegeOwnerTokenStore =
         PrivilegeOwnerTokenStore

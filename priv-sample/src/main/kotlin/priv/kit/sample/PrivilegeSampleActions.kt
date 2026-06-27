@@ -250,7 +250,10 @@ private fun MainActivity.defaultAdbDeviceName(): String =
         ?: DEFAULT_ADB_DEVICE_NAME
 
 internal fun MainActivity.startRootRuntime() {
-    runServerStart("Starting Root Runtime...") {
+    runServerStart(
+        message = "Starting Root Runtime...",
+        startupSource = "Root",
+    ) {
         PrivilegeRuntime.startRoot()
     }
 }
@@ -318,6 +321,7 @@ internal fun MainActivity.startShizukuExternal() {
     runServerStartRequest(
         message = "Starting through Shizuku...",
         startedMessage = "Shizuku command sent. Waiting for server handshake...",
+        startupSource = "Shizuku",
     ) {
         val commandLine = PrivilegeRuntime.createShellStartCommand()
         try {
@@ -535,7 +539,10 @@ internal fun MainActivity.handleNotificationPairingEvent(intent: Intent) {
 
 internal fun MainActivity.startWirelessAdb() {
     val adbDeviceName = currentAdbDeviceNameOverride()
-    runServerStart("Discovering ADB connect port and starting Wireless ADB...") {
+    runServerStart(
+        message = "Discovering ADB connect port and starting Wireless ADB...",
+        startupSource = "ADB",
+    ) {
         PrivilegeRuntime.startAdb(
             options = PrivilegeAdbStartOptions(),
             adbDeviceName = adbDeviceName,
@@ -562,7 +569,10 @@ internal fun MainActivity.switchToTcp() {
 internal fun MainActivity.restartTcp() {
     val tcpPort = screenState.tcpPortText.toIntOrNull() ?: PrivilegeAdbStartOptions.DEFAULT_TCP_PORT
     val adbDeviceName = currentAdbDeviceNameOverride()
-    runServerStart("Restarting through ADB TCP port $tcpPort...") {
+    runServerStart(
+        message = "Restarting through ADB TCP port $tcpPort...",
+        startupSource = "ADB",
+    ) {
         PrivilegeRuntime.startAdb(
             options = PrivilegeAdbStartOptions(
                 tcpMode = true,
@@ -976,6 +986,7 @@ private fun List<PrivilegeSampleUserInfo>.toBinderMessage(): String =
 
 private fun MainActivity.runServerStart(
     message: String,
+    startupSource: String? = null,
     start: () -> PrivilegeServerInfo,
 ) {
     if (screenState.busy) return
@@ -985,6 +996,7 @@ private fun MainActivity.runServerStart(
         serverInfo = null,
         message = message,
     )
+    appendStartupSource(startupSource)
     appendLog(message)
 
     executor.execute {
@@ -1004,6 +1016,7 @@ private fun MainActivity.runServerStart(
 private fun MainActivity.runServerStartRequest(
     message: String,
     startedMessage: String,
+    startupSource: String? = null,
     start: () -> String,
 ) {
     if (screenState.busy) return
@@ -1013,6 +1026,7 @@ private fun MainActivity.runServerStartRequest(
         serverInfo = null,
         message = message,
     )
+    appendStartupSource(startupSource)
     appendLog(message)
 
     executor.execute {
@@ -1033,6 +1047,11 @@ private fun MainActivity.runServerStartRequest(
             }
         }
     }
+}
+
+private fun MainActivity.appendStartupSource(startupSource: String?) {
+    val source = startupSource?.trim()?.takeIf { it.isNotEmpty() } ?: return
+    appendLog("Startup source: $source")
 }
 
 private fun <T> MainActivity.runBusy(

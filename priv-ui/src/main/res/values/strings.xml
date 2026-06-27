@@ -12,6 +12,8 @@
     <string name="priv_ui_connected">Connected</string>
     <string name="priv_ui_binder_died">Binder died</string>
     <string name="priv_ui_starting_root">Starting Root Runtime...</string>
+    <string name="priv_ui_startup_source">Startup source: %1$s</string>
+    <string name="priv_ui_startup_log_title">Startup log</string>
     <string name="priv_ui_root_authorization_title">Root authorization</string>
     <string name="priv_ui_root_authorization_action">Authorize with Root</string>
     <string name="priv_ui_manual_authorization_title">Manual command authorization</string>
@@ -23,7 +25,7 @@
     <string name="priv_ui_pairing_default_message">Enter the Wireless debugging pairing code, or reply from the pairing notification.</string>
     <string name="priv_ui_pairing_code">Pairing code</string>
     <string name="priv_ui_pair_via_notification">Pair via Notification</string>
-    <string name="priv_ui_notification_pairing_waiting">Waiting for notification input</string>
+    <string name="priv_ui_notification_pairing_waiting">Stop pairing service</string>
     <string name="priv_ui_adb_authorization_title">ADB authorization</string>
     <string name="priv_ui_adb_authorization_action">Authorize with ADB</string>
     <string name="priv_ui_adb_stable_status">Stable ADB connection</string>

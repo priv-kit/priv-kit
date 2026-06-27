@@ -66,10 +66,20 @@ public open class PrivilegeUiViewModel public constructor() : ViewModel() {
         adbActions.pairWirelessAdb()
     }
 
+    public open fun toggleNotificationPairing(
+        onNotificationPermissionRequired: () -> Unit = {},
+    ) {
+        adbActions.toggleNotificationPairing(onNotificationPermissionRequired)
+    }
+
     public open fun startNotificationPairing(
         onNotificationPermissionRequired: () -> Unit = {},
     ) {
         adbActions.startNotificationPairing(onNotificationPermissionRequired)
+    }
+
+    public open fun stopNotificationPairing() {
+        adbActions.stopNotificationPairing()
     }
 
     public open fun handleNotificationPermissionResult(granted: Boolean) {

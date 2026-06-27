@@ -6,9 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <sys/types.h>
-#include <time.h>
 #include <unistd.h>
 
 namespace {
@@ -17,19 +15,16 @@ constexpr size_t MAX_CLASSPATH_LENGTH = 8192;
 constexpr size_t MAX_SPLIT_APK_COUNT = 128;
 constexpr const char* DEFAULT_MAIN_CLASS = "priv.kit.server.PrivilegeServerMain";
 constexpr const char* DEFAULT_PROCESS_SUFFIX = ":priv-kit-server";
-constexpr const char* DEFAULT_LOG_PREFIX = "/data/local/tmp/priv-kit-server-manual-";
 
 struct StarterConfig {
     const char* classpath = nullptr;
     const char* main_class = DEFAULT_MAIN_CLASS;
     const char* process_name = nullptr;
-    const char* log_path = nullptr;
     const char* package_name = nullptr;
 
     char classpath_buffer[MAX_CLASSPATH_LENGTH] = {};
     char package_name_buffer[256] = {};
     char process_name_buffer[320] = {};
-    char log_path_buffer[PATH_MAX] = {};
 };
 
 bool string_copy(char* output, size_t output_size, const char* value) {
@@ -213,16 +208,6 @@ bool infer_defaults(char** argv, StarterConfig* config) {
         }
         config->process_name = config->process_name_buffer;
     }
-    if (config->log_path == nullptr) {
-        snprintf(
-            config->log_path_buffer,
-            sizeof(config->log_path_buffer),
-            "%s%ld-%d.log",
-            DEFAULT_LOG_PREFIX,
-            static_cast<long>(time(nullptr)),
-            getpid());
-        config->log_path = config->log_path_buffer;
-    }
     return true;
 }
 
@@ -252,10 +237,11 @@ bool read_process_name(pid_t pid, char* output, size_t output_size) {
     return output[0] != '\0';
 }
 
-void kill_existing_server(const char* process_name) {
+int kill_existing_server(const char* process_name) {
+    int killed_count = 0;
     DIR* proc = opendir("/proc");
     if (proc == nullptr) {
-        return;
+        return killed_count;
     }
     dirent* entry = nullptr;
     while ((entry = readdir(proc)) != nullptr) {
@@ -268,32 +254,24 @@ void kill_existing_server(const char* process_name) {
             continue;
         }
         if (kill(pid, SIGKILL) == 0) {
-            printf("priv-kit-killed-existing-server-pid=%d\n", pid);
+            killed_count++;
+            printf("info: killed existing server pid=%d\n", pid);
         } else {
             fprintf(stderr, "warn: failed to kill existing server pid=%d: %s\n", pid, strerror(errno));
         }
     }
     closedir(proc);
+    return killed_count;
 }
 
-void redirect_child_io(const char* log_path) {
-    int input_fd = open("/dev/null", O_RDONLY);
-    if (input_fd >= 0) {
-        dup2(input_fd, STDIN_FILENO);
-        if (input_fd > STDERR_FILENO) {
-            close(input_fd);
-        }
-    }
-
-    int output_fd = open(log_path, O_CREAT | O_WRONLY | O_TRUNC, 0600);
-    if (output_fd < 0) {
-        output_fd = open("/dev/null", O_WRONLY);
-    }
-    if (output_fd >= 0) {
-        dup2(output_fd, STDOUT_FILENO);
-        dup2(output_fd, STDERR_FILENO);
-        if (output_fd > STDERR_FILENO) {
-            close(output_fd);
+void redirect_child_io() {
+    int fd = open("/dev/null", O_RDWR);
+    if (fd >= 0) {
+        dup2(fd, STDIN_FILENO);
+        dup2(fd, STDOUT_FILENO);
+        dup2(fd, STDERR_FILENO);
+        if (fd > STDERR_FILENO) {
+            close(fd);
         }
     }
 }
@@ -328,8 +306,12 @@ void exec_app_process(const StarterConfig& config) {
 }
 
 int start_server(const StarterConfig& config) {
-    kill_existing_server(config.process_name);
+    if (kill_existing_server(config.process_name) > 0) {
+        fflush(stdout);
+    }
 
+    printf("info: starting server...\n");
+    fflush(stdout);
     int ready_pipe[2];
     if (pipe(ready_pipe) != 0) {
         fprintf(stderr, "fatal: pipe failed: %s\n", strerror(errno));
@@ -351,9 +333,7 @@ int start_server(const StarterConfig& config) {
             _exit(6);
         }
         chdir("/");
-        redirect_child_io(config.log_path);
-        printf("priv-kit-starter child pid=%d\n", getpid());
-        fflush(stdout);
+        redirect_child_io();
 
         const char ready = '1';
         write(ready_pipe[1], &ready, 1);
@@ -371,8 +351,7 @@ int start_server(const StarterConfig& config) {
         return 7;
     }
 
-    printf("priv-kit-starter-pid=%d\n", pid);
-    printf("priv-kit-server-log=%s\n", config.log_path);
+    printf("info: starter exit with 0\n");
     fflush(stdout);
     return 0;
 }
@@ -388,5 +367,7 @@ int main(int argc, char** argv) {
     if (!infer_defaults(argv, &config)) {
         return 2;
     }
+    printf("info: starter begin\n");
+    fflush(stdout);
     return start_server(config);
 }

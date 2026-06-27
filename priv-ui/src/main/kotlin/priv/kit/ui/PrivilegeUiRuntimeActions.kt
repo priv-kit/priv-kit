@@ -15,9 +15,13 @@ internal class PrivilegeUiRuntimeActions(
     }
 
     fun startRoot() {
-        runServerStart(store.text(R.string.priv_ui_starting_root)) {
+        runServerStart(
+            message = store.text(R.string.priv_ui_starting_root),
+            startupSource = store.text(R.string.priv_ui_auth_method_root),
+        ) {
             PrivilegeRuntime.startRoot(
                 timeoutMillis = store.config.startTimeoutMillis,
+                startupLogListener = store.startupLogListener,
             )
         }
     }
@@ -59,9 +63,11 @@ internal class PrivilegeUiRuntimeActions(
 
     fun runServerStart(
         message: String,
+        startupSource: String? = null,
         start: () -> PrivilegeServerInfo,
     ) {
         if (store.state.value.busy) return
+        store.clearStartupLog()
         store.updateState {
             it.copy(
                 busy = true,
@@ -70,7 +76,8 @@ internal class PrivilegeUiRuntimeActions(
                 message = message,
             )
         }
-        store.appendLog(message)
+        appendStartupSource(startupSource)
+        store.appendStartupLog(message)
         store.executor.execute {
             try {
                 connectServer(start())
@@ -83,9 +90,11 @@ internal class PrivilegeUiRuntimeActions(
     fun runServerStartRequest(
         message: String,
         startedMessage: String,
+        startupSource: String? = null,
         start: () -> Unit,
     ) {
         if (store.state.value.busy) return
+        store.clearStartupLog()
         store.updateState {
             it.copy(
                 busy = true,
@@ -94,7 +103,8 @@ internal class PrivilegeUiRuntimeActions(
                 message = message,
             )
         }
-        store.appendLog(message)
+        appendStartupSource(startupSource)
+        store.appendStartupLog(message)
         store.executor.execute {
             try {
                 start()
@@ -105,7 +115,7 @@ internal class PrivilegeUiRuntimeActions(
                         message = startedMessage,
                     )
                 }
-                store.appendLog(startedMessage)
+                store.appendStartupLog(startedMessage)
             } catch (throwable: Throwable) {
                 setRuntimeFailure(throwable)
             }
@@ -157,7 +167,13 @@ internal class PrivilegeUiRuntimeActions(
         store.serverDisconnectedWatcher = null
     }
 
+    private fun appendStartupSource(startupSource: String?) {
+        val source = startupSource?.trim()?.takeIf { it.isNotEmpty() } ?: return
+        store.appendStartupLog(store.text(R.string.priv_ui_startup_source, source))
+    }
+
     private fun connectServer(serverInfo: PrivilegeServerInfo) {
+        val shouldAppendLog = store.state.value.runtimeStatus == PrivilegeUiRuntimeStatus.STARTING
         store.updateState {
             it.copy(
                 busy = false,
@@ -166,6 +182,9 @@ internal class PrivilegeUiRuntimeActions(
                 message = store.text(R.string.priv_ui_connected),
                 connectionSerial = it.connectionSerial + 1L,
             )
+        }
+        if (shouldAppendLog) {
+            store.appendStartupLog(store.text(R.string.priv_ui_connected))
         }
     }
 
@@ -178,7 +197,7 @@ internal class PrivilegeUiRuntimeActions(
                 message = throwable.failureMessage(),
             )
         }
-        store.appendLog(throwable.toPrivilegeUiDiagnosticString())
+        store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
     }
 
     private fun handleServerDisconnected() {

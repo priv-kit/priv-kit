@@ -37,6 +37,6 @@ If a server reports a different protocol or APK classpath identity than the curr
 
 Shell Start only creates a command for the same Binder handoff path. The command can be executed at any time; the app observes the eventual Binder handoff through `addServerConnectedListener()` or `connectReadyServer()`. It does not execute `adb`, implement Wireless Debugging, or add an ADB startup strategy. UI modules or host apps may add an `adb shell` prefix when they want to display a host-side command.
 
-External authorization tools use the same Shell Start Command. App-provided Shizuku/Dhizuku/UserService code only executes that command and returns; the runtime-level ready-server watcher owns connection state.
+External privileged hosts use the same Shell Start Command. App-provided Shizuku UserService or similar code-executing hosts can call `PrivilegeExternalStartup.runInCurrentProcess(...)` and return source/message log pairs to a main-process `PrivilegeExternalStartup` receiver; the runtime-level ready-server watcher owns connection state.
 
 This module does not expose typed Android system service wrappers, UI, Compose, package/input/settings/app-ops/activity APIs, or app-defined UserService business methods. UserService bind returns a raw Binder for the app's own AIDL Stub, and system-service access is limited to an explicit-name raw Binder transaction bridge.

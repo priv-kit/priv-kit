@@ -9,13 +9,49 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
 
-internal class PrivilegeAdbClient(
+internal class PrivilegeAdbClient private constructor(
     private val host: String,
     private val port: Int,
-    private val key: PrivilegeAdbKey,
+    private val signAuthToken: (ByteArray?) -> ByteArray,
+    private val adbPublicKey: ByteArray,
+    private val sslContextProvider: () -> SSLContext,
+    private val socketReadTimeoutMillis: Int,
 ) : Closeable {
+    constructor(
+        host: String,
+        port: Int,
+        key: PrivilegeAdbKey,
+    ) : this(
+        host = host,
+        port = port,
+        signAuthToken = key::sign,
+        adbPublicKey = key.adbPublicKey,
+        sslContextProvider = { key.sslContext },
+        socketReadTimeoutMillis = DEFAULT_READ_TIMEOUT_MILLIS,
+    )
+
+    internal constructor(
+        host: String,
+        port: Int,
+        signAuthToken: (ByteArray?) -> ByteArray,
+        adbPublicKey: ByteArray,
+        socketReadTimeoutMillis: Int,
+    ) : this(
+        host = host,
+        port = port,
+        signAuthToken = signAuthToken,
+        adbPublicKey = adbPublicKey,
+        sslContextProvider = { SSLContext.getDefault() },
+        socketReadTimeoutMillis = socketReadTimeoutMillis,
+    )
+
+    init {
+        require(socketReadTimeoutMillis > 0) { "socketReadTimeoutMillis must be positive" }
+    }
+
     private lateinit var socket: Socket
     private lateinit var plainInputStream: DataInputStream
     private lateinit var plainOutputStream: DataOutputStream
@@ -35,6 +71,7 @@ internal class PrivilegeAdbClient(
         val newSocket = Socket()
         newSocket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MILLIS)
         newSocket.tcpNoDelay = true
+        newSocket.soTimeout = socketReadTimeoutMillis
         socket = newSocket
         plainInputStream = DataInputStream(newSocket.getInputStream())
         plainOutputStream = DataOutputStream(newSocket.getOutputStream())
@@ -50,7 +87,8 @@ internal class PrivilegeAdbClient(
                 }
                 output.diagnostic("ADB requested TLS upgrade")
                 write(PrivilegeAdbProtocol.A_STLS, PrivilegeAdbProtocol.A_STLS_VERSION, 0)
-                tlsSocket = key.sslContext.socketFactory.createSocket(newSocket, host, port, true) as SSLSocket
+                tlsSocket = sslContextProvider().socketFactory.createSocket(newSocket, host, port, true) as SSLSocket
+                tlsSocket.soTimeout = socketReadTimeoutMillis
                 tlsSocket.startHandshake()
                 output.diagnostic("ADB TLS handshake succeeded")
                 tlsInputStream = DataInputStream(tlsSocket.inputStream)
@@ -68,7 +106,7 @@ internal class PrivilegeAdbClient(
                     PrivilegeAdbProtocol.A_AUTH,
                     PrivilegeAdbProtocol.ADB_AUTH_SIGNATURE,
                     0,
-                    key.sign(message.data),
+                    signAuthToken(message.data),
                 )
                 message = read()
                 output.diagnostic("ADB auth response after signature: ${message.toStringShort()}")
@@ -78,7 +116,7 @@ internal class PrivilegeAdbClient(
                         PrivilegeAdbProtocol.A_AUTH,
                         PrivilegeAdbProtocol.ADB_AUTH_RSAPUBLICKEY,
                         0,
-                        key.adbPublicKey,
+                        adbPublicKey,
                     )
                     message = read()
                     output.diagnostic("ADB auth response after public key: ${message.toStringShort()}")
@@ -145,7 +183,7 @@ internal class PrivilegeAdbClient(
     private fun write(message: PrivilegeAdbMessage) {
         outputStream.write(message.toByteArray())
         outputStream.flush()
-        Log.d(TAG, "write ${message.toStringShort()}")
+        logDebug("write ${message.toStringShort()}")
     }
 
     private fun read(): PrivilegeAdbMessage {
@@ -165,7 +203,7 @@ internal class PrivilegeAdbClient(
         return PrivilegeAdbMessage(command, arg0, arg1, dataLength, checksum, magic, data)
             .also {
                 it.validateOrThrow()
-                Log.d(TAG, "read ${it.toStringShort()}")
+                logDebug("read ${it.toStringShort()}")
             }
     }
 
@@ -183,12 +221,19 @@ internal class PrivilegeAdbClient(
     companion object {
         private const val TAG = "PrivKitAdb"
         private const val CONNECT_TIMEOUT_MILLIS = 5_000
+        private const val DEFAULT_READ_TIMEOUT_MILLIS = 5_000
     }
 }
 
 private fun PrivilegeAdbOutput?.diagnostic(text: String) {
-    Log.d("PrivKitAdb", text)
+    logDebug(text)
     this?.append("diag", text)
+}
+
+private fun logDebug(text: String) {
+    runCatching {
+        Log.d("PrivKitAdb", text)
+    }
 }
 
 private fun String.toDiagnosticName(): String =

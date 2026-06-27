@@ -37,7 +37,7 @@ val binder = PrivilegeBinderWrapper.fromBinder(targetBinder)
 PrivilegeRuntime.shutdownServer()
 ```
 
-手动 shell、外部授权工具执行、ADB pairing/TCP 细节、raw Binder transact、owner-death reconnect 和 handshake/launch command 协议都属于高级或内部路径。接入应用不应该在第一步就依赖这些对象，除非正在实现自定义授权、诊断或底层 Binder 验证。
+手动 shell、外部启动入口、ADB pairing/TCP 细节、raw Binder transact、owner-death reconnect 和 handshake/launch command 协议都属于高级或内部路径。接入应用不应该在第一步就依赖这些对象，除非正在实现自定义启动、诊断或底层 Binder 验证。
 
 ## 命名规范
 
@@ -98,7 +98,7 @@ Gradle 模块必须使用 `priv-*` 命名：
 - 提供 UserService 能力。
 - 支持 Root 启动。
 - 支持 ADB 启动。
-- 支持手动命令和外部授权工具代执行启动命令。
+- 支持手动命令和具备代码执行能力的外部启动入口，并提供外部特权进程执行 helper 与主进程实时日志接收 helper。
 - 让单个应用可以管理自己的特权进程运行时。
 
 ## 非目标

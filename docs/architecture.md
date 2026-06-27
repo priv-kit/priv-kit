@@ -123,17 +123,17 @@ Privileged Server 是以特权运行的运行时端点。
 - `:priv-runtime` 内部的 Root 启动；
 - `:priv-adb` 中的 ADB 启动；
 - 用户手动执行的 shell 启动命令；
-- Shizuku、Dhizuku 或类似外部授权工具执行的 shell 启动命令。
+- Shizuku UserService 或其他能够在 shell/root 等兼容身份中托管应用代码并执行启动命令的外部启动入口。
 
-Root 和 ADB 策略把应用配置转换成服务端启动或连接尝试。手动 shell 和外部授权工具执行的是同一个 Shell Start Command，只是命令执行者不同；两者都复用同一条 Binder handoff。
+Root 和 ADB 策略把应用配置转换成服务端启动或连接尝试。手动 shell 和外部启动入口执行的是同一个 Shell Start Command，只是命令执行者不同；两者都复用同一条 Binder handoff。
 
 共享的 `app_process` 服务端启动命令由运行时根据核心启动值模型构造。供 shell/ADB 通道复用的 native starter 可执行文件也由 `:priv-runtime` 打包。Root 执行器留在运行时内部，只负责 `su` 执行通道和失败诊断；ADB 模块只负责 ADB 命令执行通道和失败诊断。运行时负责 token、Root/ADB pending handshake、ready-server handoff、全局 server-binder 安装、Shell Start Command 和 death handling。
 
-app 侧 handshake provider 必须保持 exported，以便 shell、root 或外部授权工具启动的 server 回传 Binder；同时 provider 使用 `android.permission.INTERACT_ACROSS_USERS_FULL` 阻止普通应用直接调用，并继续用 owner token 校验真正的 server handoff。
+app 侧 handshake provider 必须保持 exported，以便 shell、root 或外部启动入口启动的 server 回传 Binder；同时 provider 使用 `android.permission.INTERACT_ACROSS_USERS_FULL` 阻止普通应用直接调用，并继续用 owner token 校验真正的 server handoff。
 
-启动入口、命令执行者和服务端实际运行身份是三个概念：Root、ADB、手动 shell 或外部授权工具描述命令从哪里触发；服务端最终运行身份以 `PrivilegeServerInfo.uid` 和 `pid` 为准。运行时不再提供额外的 root/shell 分类，避免把设备上的实际 UID 强行归类为权限等级。
+启动入口、命令执行者和服务端实际运行身份是三个概念：Root、ADB、手动 shell 或外部启动入口描述命令从哪里触发；服务端最终运行身份以 `PrivilegeServerInfo.uid` 和 `pid` 为准。运行时不再提供额外的 root/shell 分类，避免把设备上的实际 UID 强行归类为权限等级。
 
-外部授权工具执行的 Shell Start Command 由应用交给外部工具运行。`priv-kit` 只提供可随时执行的启动命令，并通过 ready-server handoff 监听接入后续 Binder；Shizuku 等第三方能力停留在应用侧 provider 或示例代码中，不成为独立运行时策略模块。
+外部启动入口必须具备执行启动命令或托管应用启动代码的能力；仅提供授权 Binder 或权限 API、但不能执行代码的工具不属于 Priv Kit 启动策略。`priv-kit` 提供可随时执行的启动命令、可在外部特权进程内调用的 `PrivilegeExternalStartup.runInCurrentProcess(...)`、以及主进程接收实时启动日志的 `PrivilegeExternalStartup.createReceiver(...)`；Shizuku UserService 等第三方能力只负责把这两端通过应用自有 Binder/AIDL 接起来，并停留在应用侧 provider、可选集成模块或示例代码中，不成为核心运行时策略模块。
 
 启动策略不得变成操作库。`PrivilegeRuntime.startRoot()` 可以通过 root 启动服务端，但不得提供用于包安装、输入事件、设置写入、app-ops 修改或其他系统操作的公开 root helper。
 
@@ -255,7 +255,7 @@ UI 模块只映射运行时原语，不扩展项目范围。
 - 让启动参数可审计；
 - 不暴露特权操作的全局注册表；
 - 不把跨应用访问作为默认能力；
-- 将 Shizuku 等授权工具视为外部命令执行入口，而不是广泛的第三方能力共享。
+- 将 Shizuku UserService 视为外部启动桥接入口，而不是广泛的第三方能力共享。
 
 ## 兼容模型
 

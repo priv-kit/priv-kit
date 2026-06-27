@@ -3,6 +3,8 @@ package priv.kit.ui
 import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
+import priv.kit.core.PrivilegeStartupLogLine
+import priv.kit.core.PrivilegeStartupLogListener
 import java.io.Closeable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -12,6 +14,9 @@ internal class PrivilegeUiViewModelStore : AutoCloseable {
     val state = MutableStateFlow(PrivilegeUiState())
     val tcpModeEnabled = MutableStateFlow(false)
     val executor: ExecutorService = Executors.newSingleThreadExecutor()
+    val startupLogListener = PrivilegeStartupLogListener { line ->
+        appendStartupLog(line)
+    }
 
     @Volatile
     var applicationContext: Context? = null
@@ -70,8 +75,32 @@ internal class PrivilegeUiViewModelStore : AutoCloseable {
     }
 
     fun appendLog(line: String) {
-        if (line.isBlank()) return
-        // Intentionally kept as a sink; the default UI does not expose diagnostics.
+        appendStartupLog(line)
+    }
+
+    fun appendStartupLog(line: PrivilegeStartupLogLine) {
+        appendStartupLogLines(
+            line.message.toPrivilegeUiStartupLogLines()
+                .map { "[${line.source}] $it" },
+        )
+    }
+
+    fun appendStartupLog(text: String) {
+        appendStartupLogLines(text.toPrivilegeUiStartupLogLines())
+    }
+
+    private fun appendStartupLogLines(lines: List<String>) {
+        if (lines.isEmpty()) return
+        updateState { current ->
+            current.copy(
+                startupLogLines = (current.startupLogLines + lines)
+                    .takeLast(MAX_STARTUP_LOG_LINES),
+            )
+        }
+    }
+
+    fun clearStartupLog() {
+        updateState { it.copy(startupLogLines = emptyList()) }
     }
 
     fun requireContext(): Context =
@@ -107,6 +136,8 @@ internal class PrivilegeUiViewModelStore : AutoCloseable {
     }
 
     private companion object {
+        private const val MAX_STARTUP_LOG_LINES = 240
+
         val USER_VISIBLE_AUTHORIZATION_MODE_ORDER = listOf(
             PrivilegeUiStartupMode.ADB,
             PrivilegeUiStartupMode.EXTERNAL,
@@ -115,3 +146,9 @@ internal class PrivilegeUiViewModelStore : AutoCloseable {
         )
     }
 }
+
+internal fun String.toPrivilegeUiStartupLogLines(): List<String> =
+    lineSequence()
+        .map { it.trimEnd('\r') }
+        .filter { it.isNotBlank() }
+        .toList()

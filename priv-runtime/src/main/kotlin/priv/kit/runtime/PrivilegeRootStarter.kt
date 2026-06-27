@@ -1,6 +1,9 @@
 package priv.kit.runtime
 
 import priv.kit.core.PrivilegeStartupException
+import priv.kit.core.PrivilegeStartupLogLine
+import priv.kit.core.PrivilegeStartupLogListener
+import priv.kit.core.isPrivKitInternalMetadata
 import java.io.InputStream
 import java.util.Collections
 import java.util.concurrent.TimeUnit
@@ -27,12 +30,15 @@ internal object PrivilegeRootStarter {
     }
 
     @Throws(PrivilegeStartupException::class)
-    internal fun start(commandLine: String): PrivilegeRootProcess {
+    internal fun start(
+        commandLine: String,
+        startupLogListener: PrivilegeStartupLogListener? = null,
+    ): PrivilegeRootProcess {
         if (!isRootAvailable()) {
             throw PrivilegeStartupException("Root is not available")
         }
 
-        val output = PrivilegeRootProcess.Output()
+        val output = PrivilegeRootProcess.Output(startupLogListener)
         val process = startSuProcess(commandLine, output)
         return PrivilegeRootProcess(process, output)
     }
@@ -78,16 +84,29 @@ internal class PrivilegeRootProcess internal constructor(
 
     internal fun outputText(): String = output.text()
 
-    internal class Output {
+    internal class Output(
+        private val startupLogListener: PrivilegeStartupLogListener? = null,
+    ) {
         private val lines = Collections.synchronizedList(mutableListOf<String>())
 
         internal fun append(source: String, line: String) {
-            if (lines.size < MAX_CAPTURED_LINES) {
+            val startupLogLine = PrivilegeStartupLogLine(
+                source = source,
+                message = line,
+            )
+            if (lines.size < MAX_CAPTURED_LINES && !startupLogLine.isPrivKitInternalMetadata) {
                 lines += "[$source] $line"
             }
+            startupLogLine.emitIfDisplayable()
         }
 
         internal fun text(): String = lines.joinToString("\n").ifBlank { "<no output>" }
+
+        private fun PrivilegeStartupLogLine.emitIfDisplayable() {
+            if (!isPrivKitInternalMetadata) {
+                startupLogListener?.onLog(this)
+            }
+        }
     }
 
     private companion object {

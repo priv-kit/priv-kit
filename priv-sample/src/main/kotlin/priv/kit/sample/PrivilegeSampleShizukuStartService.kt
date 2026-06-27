@@ -2,92 +2,76 @@ package priv.kit.sample
 
 import android.content.Context
 import androidx.annotation.Keep
-import java.io.InputStream
-import java.util.Collections
-import java.util.concurrent.TimeUnit
+import priv.kit.core.PrivilegeStartupLogListener
+import priv.kit.runtime.external.PrivilegeExternalStartup
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import kotlin.system.exitProcess
 
 @Keep
 internal class PrivilegeSampleShizukuStartService @Keep constructor() :
     IPrivilegeSampleShizukuStartService.Stub() {
-    private val output = Collections.synchronizedList(mutableListOf<String>())
+    private val startRunning = AtomicBoolean(false)
 
     @Keep
-    constructor(context: Context) : this() {
-        appendOutput("diag", "Context constructor package=${context.packageName}")
-    }
+    constructor(context: Context) : this()
 
-    override fun start(commandLine: String): String {
-        require(commandLine.isNotBlank()) { "commandLine must not be blank" }
-        output.clear()
-        appendOutput(
-            "diag",
-            "Starting Priv Kit shell start command uid=${android.os.Process.myUid()}, length=${commandLine.length}",
-        )
-        val process = try {
-            ProcessBuilder("/system/bin/sh", "-c", commandLine).start()
-        } catch (throwable: Throwable) {
-            appendOutput("diag", throwable.toOutputLine("Failed to start command"))
-            throw throwable
+    override fun startWithCallback(
+        commandLine: String,
+        callback: IPrivilegeSampleShizukuStartCallback?,
+    ) {
+        if (!startRunning.compareAndSet(false, true)) {
+            callback.notifyFailure(
+                IllegalStateException("Shizuku start command is already running"),
+            )
+            return
         }
-        consume(process.inputStream, "stdout")
-        consume(process.errorStream, "stderr")
-
-        if (!process.waitFor(SHELL_COMMAND_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
-            process.destroy()
-            val message = "Shell start command did not return after ${SHELL_COMMAND_TIMEOUT_MILLIS}ms"
-            appendOutput("diag", message)
-            throw IllegalStateException(message)
+        thread(name = "priv-kit-shizuku-start", isDaemon = true) {
+            try {
+                val result = PrivilegeExternalStartup.runInCurrentProcess(
+                    commandLine = commandLine,
+                    startupLogListener = PrivilegeStartupLogListener { line ->
+                        runCatching {
+                            callback?.onOutput(line.source, line.message)
+                        }
+                    },
+                )
+                runCatching {
+                    callback?.onFinished(result.exitCode, result.output)
+                }
+            } catch (throwable: Throwable) {
+                callback.notifyFailure(throwable)
+            } finally {
+                startRunning.set(false)
+            }
         }
-
-        val exitCode = process.exitValue()
-        appendOutput("diag", "Shell start command exited code=$exitCode")
-        if (exitCode != 0) {
-            throw IllegalStateException(getLaunchOutput())
-        }
-        return getLaunchOutput()
     }
 
     override fun destroy() {
-        appendOutput("diag", "Destroying Shizuku start UserService")
         exitProcess(0)
     }
 
-    private fun getLaunchOutput(): String =
-        synchronized(output) {
-            output.joinToString("\n").ifBlank { "<no output>" }
-        }
-
-    private fun consume(
-        inputStream: InputStream,
-        source: String,
-    ) {
-        thread(name = "priv-kit-shizuku-start-$source", isDaemon = true) {
-            inputStream.bufferedReader().useLines { lines ->
-                lines.forEach { line ->
-                    appendOutput(source, line)
-                }
-            }
+    private fun IPrivilegeSampleShizukuStartCallback?.notifyFailure(throwable: Throwable) {
+        runCatching {
+            this?.onFailure(
+                throwable.message ?: throwable.javaClass.name,
+                throwable.toCallbackDetail(),
+            )
         }
     }
 
-    private fun appendOutput(
-        source: String,
-        line: String,
-    ) {
-        synchronized(output) {
-            if (output.size < MAX_CAPTURED_LINES) {
-                output += "[$source] $line"
+    private fun Throwable.toCallbackDetail(): String {
+        val lines = mutableListOf<String>()
+        var current: Throwable? = this
+        var depth = 0
+        while (current != null && depth < 8) {
+            lines += "Cause[$depth]: ${current.javaClass.name}: ${current.message.orEmpty()}"
+            current.stackTrace.take(8).forEach { frame ->
+                lines += "  at $frame"
             }
+            current = current.cause
+            depth++
         }
-    }
-
-    private fun Throwable.toOutputLine(prefix: String): String =
-        "$prefix: ${javaClass.simpleName}: ${message.orEmpty()}"
-
-    private companion object {
-        const val SHELL_COMMAND_TIMEOUT_MILLIS = 2_000L
-        const val MAX_CAPTURED_LINES = 80
+        return lines.joinToString("\n")
     }
 }

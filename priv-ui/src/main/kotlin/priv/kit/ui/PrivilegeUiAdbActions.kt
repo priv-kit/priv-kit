@@ -86,6 +86,16 @@ internal class PrivilegeUiAdbActions(
         )
     }
 
+    fun toggleNotificationPairing(
+        onNotificationPermissionRequired: () -> Unit = {},
+    ) {
+        if (store.state.value.notificationPairingRunning) {
+            stopNotificationPairing()
+        } else {
+            startNotificationPairing(onNotificationPermissionRequired)
+        }
+    }
+
     fun startNotificationPairing(
         onNotificationPermissionRequired: () -> Unit = {},
     ) {
@@ -121,6 +131,11 @@ internal class PrivilegeUiAdbActions(
         )
     }
 
+    fun stopNotificationPairing() {
+        val context = store.requireContext()
+        PrivilegeAdbPairingService.stop(context)
+    }
+
     fun handleNotificationPermissionResult(granted: Boolean) {
         if (granted && store.startNotificationPairingAfterPermission) {
             store.startNotificationPairingAfterPermission = false
@@ -138,11 +153,15 @@ internal class PrivilegeUiAdbActions(
     }
 
     fun startWirelessAdb() {
-        runtimeActions.runServerStart(store.text(R.string.priv_ui_wireless_adb_starting)) {
+        runtimeActions.runServerStart(
+            message = store.text(R.string.priv_ui_wireless_adb_starting),
+            startupSource = store.text(R.string.priv_ui_auth_method_adb),
+        ) {
             PrivilegeRuntime.startAdb(
                 options = PrivilegeAdbStartOptions(),
                 timeoutMillis = store.config.startTimeoutMillis,
                 adbDeviceName = store.currentAdbDeviceNameOverride(),
+                startupLogListener = store.startupLogListener,
             )
         }
     }
@@ -184,7 +203,10 @@ internal class PrivilegeUiAdbActions(
 
     fun startTcpAdb() {
         val tcpPort = store.config.tcpPort
-        runtimeActions.runServerStart(store.text(R.string.priv_ui_tcp_starting)) {
+        runtimeActions.runServerStart(
+            message = store.text(R.string.priv_ui_tcp_starting),
+            startupSource = store.text(R.string.priv_ui_auth_method_adb),
+        ) {
             val serverInfo = PrivilegeRuntime.startAdb(
                 options = PrivilegeAdbStartOptions(
                     tcpMode = true,
@@ -193,6 +215,7 @@ internal class PrivilegeUiAdbActions(
                 ),
                 timeoutMillis = store.config.startTimeoutMillis,
                 adbDeviceName = store.currentAdbDeviceNameOverride(),
+                startupLogListener = store.startupLogListener,
             )
             store.tcpModeEnabled.value = true
             serverInfo

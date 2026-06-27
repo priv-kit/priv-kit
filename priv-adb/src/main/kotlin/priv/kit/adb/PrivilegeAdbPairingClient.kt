@@ -4,6 +4,7 @@ import com.android.org.conscrypt.Conscrypt
 import java.io.Closeable
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.net.InetSocketAddress
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -110,9 +111,13 @@ internal class PrivilegeAdbPairingClient(
     }
 
     private fun setupTlsConnection() {
-        socket = Socket(host, port)
+        val plainSocket = Socket()
+        plainSocket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MILLIS)
+        plainSocket.soTimeout = READ_TIMEOUT_MILLIS
+        socket = plainSocket
         socket.tcpNoDelay = true
         val sslSocket = key.sslContext.socketFactory.createSocket(socket, host, port, true) as SSLSocket
+        sslSocket.soTimeout = READ_TIMEOUT_MILLIS
         sslSocket.startHandshake()
 
         inputStream = DataInputStream(sslSocket.inputStream)
@@ -187,5 +192,10 @@ internal class PrivilegeAdbPairingClient(
         runCatching { socket.close() }
         pairingContext?.destroy()
         pairingContext = null
+    }
+
+    private companion object {
+        const val CONNECT_TIMEOUT_MILLIS = 5_000
+        const val READ_TIMEOUT_MILLIS = 5_000
     }
 }

@@ -30,7 +30,7 @@ internal fun AdbPanel(
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
     onPairingCodeChanged: (String) -> Unit,
     onPairByCode: () -> Unit,
-    onStartNotificationPairing: () -> Unit,
+    onNotificationPairingClick: () -> Unit,
     onEnableTcpMode: () -> Unit,
     onStartAdb: () -> Unit,
 ) {
@@ -70,8 +70,8 @@ internal fun AdbPanel(
                 }
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !state.busy && !state.notificationPairingRunning,
-                    onClick = onStartNotificationPairing,
+                    enabled = !state.busy || state.notificationPairingRunning,
+                    onClick = onNotificationPairingClick,
                 ) {
                     Text(
                         if (state.notificationPairingRunning) {
