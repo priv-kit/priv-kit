@@ -19,14 +19,6 @@ public class PrivilegeUserServiceConnection internal constructor(
 ) : Closeable {
     private val closed = AtomicBoolean(false)
 
-    public fun <T> requireInterface(
-        operation: String = "resolve UserService interface",
-        factory: (IBinder) -> T?,
-    ): T =
-        factory(binder) ?: throw PrivilegeUserServiceNotRunningException(
-            "$operation returned an invalid UserService Binder: ${spec.serviceClassName}",
-        )
-
     public fun <T> call(
         operation: String = "call UserService",
         block: (IBinder) -> T,

@@ -1339,9 +1339,8 @@ private fun MainActivity.setSampleUserService(
     connection: PrivilegeUserServiceConnection,
 ): String =
     if (label == "embedded") {
-        val service = connection.requireInterface("$label UserService bind") {
-            IPrivilegeSampleEmbeddedUserService.Stub.asInterface(it)
-        }
+        val service = IPrivilegeSampleEmbeddedUserService.Stub.asInterface(connection.binder)
+            ?: throw PrivilegeUserServiceNotRunningException("$label UserService bind returned an invalid Binder")
         val message = connection.call("$label UserService bind") {
             service.describe("$label bind")
         }
@@ -1349,9 +1348,8 @@ private fun MainActivity.setSampleUserService(
         embeddedUserService = service
         message
     } else {
-        val service = connection.requireInterface("$label UserService bind") {
-            IPrivilegeSampleDedicatedUserService.Stub.asInterface(it)
-        }
+        val service = IPrivilegeSampleDedicatedUserService.Stub.asInterface(connection.binder)
+            ?: throw PrivilegeUserServiceNotRunningException("$label UserService bind returned an invalid Binder")
         val message = connection.call("$label UserService bind") {
             service.describe("$label bind")
         }

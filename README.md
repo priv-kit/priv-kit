@@ -4,7 +4,7 @@
 
 本项目旨在解决过于依赖外部授权应用，让开发者的应用内部实现自我提权
 
-激活方式：Root、无线 ADB、手动 shell，外部授权
+激活方式：Root、无线 ADB、手动 shell、外部授权
 
 使用方式：Binder（本地 / 远程）和 UserService（嵌入式 / 独立进程）
 
@@ -17,7 +17,7 @@ dependencies {
 }
 ```
 
-配置 [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass)
+必须配置 [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass)
 
 ```kotlin
 HiddenApiBypass.addHiddenApiExemptions("L")
@@ -25,82 +25,63 @@ HiddenApiBypass.addHiddenApiExemptions("L")
 
 ## 激活
 
-先观察 Privileged Server 的连接和断开：
-
-```kotlin
-val stopListenConnected = PrivilegeRuntime.addServerConnectedListener { serverInfo ->
-    YourApp.onServerConnected(serverInfo)
-}
-val stopListenDisconnected = PrivilegeRuntime.addServerDisconnectedListener {
-    YourApp.onServerDisconnected()
-}
-```
-
 Root 设备直接启动：
 
 ```kotlin
 val serverInfo = PrivilegeRuntime.startRoot()
 ```
 
-通过 ADB Wireless Debugging 或 TCP ADB 启动：
+通过 ADB Wireless Debugging 或 ADB TCP 启动：
 
 ```kotlin
 val serverInfo = PrivilegeRuntime.startAdb()
 ```
 
-让用户复制命令到 `adb shell` 手动执行：
+用户复制命令手动执行：
 
 ```kotlin
 val commandLine = PrivilegeRuntime.createShellStartCommand()
 YourApp.showCommandToUser(commandLine)
 ```
 
-把启动命令交给 Shizuku UserService 或其他能够在兼容特权身份中执行代码的外部启动入口。库侧提供通用的两端 API：特权进程内调用 `PrivilegeExternalStartup.runInCurrentProcess(...)`，主进程用 `PrivilegeExternalStartup.createReceiver(...)` 接收实时日志；Shizuku 的 UserService 绑定和 AIDL 转发由接入应用自己完成。
+把启动命令交给 Shizuku UserService 或其他能够在兼容特权身份中执行代码的外部启动入口。
+
+库侧提供通用的两端 API：特权进程内调用 `PrivilegeExternalStartup.runInCurrentProcess(...)`，主进程用 `PrivilegeExternalStartup.createReceiver(...)` 接收实时日志；Shizuku 的 UserService 绑定和 AIDL 转发由接入应用自己完成。
 
 ```kotlin
 val commandLine = PrivilegeRuntime.createShellStartCommand()
 YourApp.bindUserServiceAndRun(commandLine)
 ```
 
-Shell Start Command 可以在任意时刻执行。server 启动后会通过同一条 Binder handoff 回传给应用，并由 `addServerConnectedListener()` 接入。
-
 服务连接后，可使用 Binder/UserService。
 
 ## Binder
 
-Binder 只提供底层 raw transaction 桥，不提供注册槽位或类型化系统 API。
-
-显式目标 Binder：应用把一个目标 Binder 包成远程 Binder，让 transaction 通过 Privileged Server 执行。
+当前进程 binder
 
 ```kotlin
-val binder = PrivilegeBinderWrapper.fromBinder(targetBinder)
+val activityBinder = PrivilegeBinderWrapper.fromSystemService("activity")
+val activityManager = IActivityManager.Stub.asInterface(activityBinder)
+Log.d("activity", activityManager.getTasks(1).toString()) // 获取设备前台应用界面
 ```
 
-如果目标是当前进程可见的系统服务，可以直接按显式服务名获取 raw Binder。这个入口内部调用 hidden `ServiceManager.getService(name)`，接入应用仍需先配置 HiddenApiBypass：
+某些服务只能在 shell 进程下获取
 
 ```kotlin
-val activityService = PrivilegeBinderWrapper.fromSystemService("activity")
-    ?: error("activity service is not available in the current process")
-```
-
-如果目标只在 Privileged Server 进程可见，可以显式选择 server 进程来源。返回值仍然只是按服务名延迟解析的 raw Binder，不会向 app 暴露 server 进程里的真实 Binder：
-
-```kotlin
-val serverActivityService = PrivilegeBinderWrapper.fromSystemService(
-    serviceName = "activity",
+val binder = PrivilegeBinderWrapper.fromSystemService(
+    serviceName = "miui.mqsas.IMQSNative",
     source = PrivilegeSystemServiceSource.SERVER_PROCESS,
 )
-    ?: error("activity service is not available in the server process")
 ```
 
 ## UserService
 
-自定义 AIDL：
+自定义 AIDL，使用 `16777114` 标记销毁方法，外部停止用户服务时，此方法会被调用
 
 ```aidl
 interface IMyPrivilegeService {
     void destroy() = 16777114;
-    String readState() = 1;
+    String getUid() = 1;
 }
 ```
 
@@ -116,12 +97,12 @@ class MyPrivilegeService private constructor(
     @Keep
     constructor(context: Context) : this(context = context)
 
-    override fun readState(): String {
+    override fun getUid(): String {
         return "uid=${android.os.Process.myUid()}"
     }
 
     override fun destroy() {
-        kotlin.system.exitProcess(0)
+        exitProcess(0)
     }
 }
 ```
@@ -134,20 +115,15 @@ val spec = PrivilegeUserServiceSpec(
     tag = "main",
     processMode = PrivilegeUserServiceProcessMode.DEDICATED_PROCESS,
 )
-
 PrivilegeRuntime.startUserService(spec)
-
 PrivilegeRuntime.bindUserService(spec).use { connection ->
-    val service = connection.requireInterface {
-        IMyPrivilegeService.Stub.asInterface(it)
-    }
-    service.readState()
+    val service = IMyPrivilegeService.Stub.asInterface(connection.binder)
+    service.getUid()
 }
-
 PrivilegeRuntime.stopUserService(spec)
 ```
 
-嵌入式 UserService：服务直接跑在 Privileged Server 进程里，适合轻量、短耗时逻辑。
+嵌入式 UserService：服务直接跑在 Privileged Server 进程里，不会创建新进程，适合轻量逻辑。
 
 ```kotlin
 val spec = PrivilegeUserServiceSpec(
@@ -155,24 +131,9 @@ val spec = PrivilegeUserServiceSpec(
     tag = "embedded",
     processMode = PrivilegeUserServiceProcessMode.IN_SERVER_PROCESS,
 )
-
-PrivilegeRuntime.startUserService(spec)
-PrivilegeRuntime.stopUserService(spec)
 ```
 
-## 停止
-
-停止某个 UserService：
-
-```kotlin
-PrivilegeRuntime.stopUserService(spec)
-```
-
-关闭当前 Privileged Server：
-
-```kotlin
-PrivilegeRuntime.shutdownServer()
-```
+注意：停止嵌入式 UserService 时，`destroy` 方法仍然会调用，但内部不应该调用 `exitProcess(0)` ，否则整个 server 进程会因此销毁
 
 ## 更多文档
 
