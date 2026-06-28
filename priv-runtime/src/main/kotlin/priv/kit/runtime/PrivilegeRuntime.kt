@@ -26,12 +26,10 @@ import priv.kit.userservice.PrivilegeUserServiceSpec
 import priv.kit.userservice.PrivilegeUserServiceStatus
 import java.io.Closeable
 import java.util.concurrent.CopyOnWriteArraySet
-import java.util.concurrent.atomic.AtomicBoolean
 
 public object PrivilegeRuntime {
     private const val DEFAULT_START_TIMEOUT_MILLIS = 15_000L
     private const val TAG = "PrivKitRuntime"
-    private const val DEFAULT_USER_SERVICE_STATUS_WATCH_INTERVAL_MILLIS = 1_000L
 
     private val serverLock = Any()
     private var currentServer: ServerConnection? = null
@@ -230,43 +228,6 @@ public object PrivilegeRuntime {
 
     public fun getUserServiceStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
         userServiceClient.getStatus(spec)
-
-    public fun watchUserServiceStatus(
-        spec: PrivilegeUserServiceSpec,
-        intervalMillis: Long = DEFAULT_USER_SERVICE_STATUS_WATCH_INTERVAL_MILLIS,
-        onStatus: (PrivilegeUserServiceStatus) -> Unit,
-        onFailure: (Throwable) -> Unit = {},
-    ): Closeable {
-        require(intervalMillis > 0L) { "intervalMillis must be positive" }
-        val closed = AtomicBoolean(false)
-        val watcher = Thread {
-            while (!closed.get()) {
-                try {
-                    onStatus(getUserServiceStatus(spec))
-                } catch (throwable: Throwable) {
-                    if (!closed.get()) {
-                        runCatching {
-                            onFailure(throwable)
-                        }
-                    }
-                }
-                try {
-                    Thread.sleep(intervalMillis)
-                } catch (_: InterruptedException) {
-                    Thread.currentThread().interrupt()
-                    return@Thread
-                }
-            }
-        }.apply {
-            name = "priv-kit-user-service-status-watch"
-            isDaemon = true
-            start()
-        }
-        return Closeable {
-            closed.set(true)
-            watcher.interrupt()
-        }
-    }
 
     internal fun connectHandshake(
         handshakeResult: PrivilegeServerHandshakeResult,

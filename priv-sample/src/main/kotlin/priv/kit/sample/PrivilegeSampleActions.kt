@@ -19,8 +19,10 @@ import priv.kit.userservice.PrivilegeUserServiceSpec
 import priv.kit.userservice.PrivilegeUserServiceState
 import priv.kit.userservice.PrivilegeUserServiceStatus
 import rikka.shizuku.Shizuku
+import java.io.Closeable
 import java.io.File
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.atomic.AtomicBoolean
 
 internal fun MainActivity.initializePrivilegeSample() {
     val adbDeviceNameOverride = loadAdbDeviceNameOverride()
@@ -1227,7 +1229,7 @@ private fun MainActivity.watchSampleUserServiceStatus(
     spec: PrivilegeUserServiceSpec,
 ) {
     closeSampleUserServiceStatusWatcher(label)
-    val watcher = PrivilegeRuntime.watchUserServiceStatus(
+    val watcher = startSampleUserServiceStatusWatcher(
         spec = spec,
         onStatus = { status ->
             runOnUiThread {
@@ -1247,6 +1249,41 @@ private fun MainActivity.watchSampleUserServiceStatus(
         embeddedUserServiceStatusWatcher = watcher
     } else {
         dedicatedUserServiceStatusWatcher = watcher
+    }
+}
+
+private fun MainActivity.startSampleUserServiceStatusWatcher(
+    spec: PrivilegeUserServiceSpec,
+    onStatus: (PrivilegeUserServiceStatus) -> Unit,
+    onFailure: (Throwable) -> Unit,
+): Closeable {
+    val closed = AtomicBoolean(false)
+    val watcher = Thread {
+        while (!closed.get()) {
+            try {
+                onStatus(PrivilegeRuntime.getUserServiceStatus(spec))
+            } catch (throwable: Throwable) {
+                if (!closed.get()) {
+                    runCatching {
+                        onFailure(throwable)
+                    }
+                }
+            }
+            try {
+                Thread.sleep(SAMPLE_USER_SERVICE_STATUS_WATCH_INTERVAL_MILLIS)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return@Thread
+            }
+        }
+    }.apply {
+        name = "priv-kit-sample-user-service-status-watch"
+        isDaemon = true
+        start()
+    }
+    return Closeable {
+        closed.set(true)
+        watcher.interrupt()
     }
 }
 
@@ -1404,6 +1441,7 @@ internal const val SHIZUKU_USER_SERVICE_MIN_VERSION = 10
 private const val SAMPLE_CONFIG_DIRECTORY = ".priv-kit"
 private const val ADB_DEVICE_NAME_FILE = "adb-device-name.txt"
 private const val DEFAULT_ADB_DEVICE_NAME = "priv-kit"
+private const val SAMPLE_USER_SERVICE_STATUS_WATCH_INTERVAL_MILLIS = 1_000L
 private const val DEFAULT_PAIRING_MESSAGE =
     "Enter the Wireless debugging pairing code, or reply from the pairing notification."
 
