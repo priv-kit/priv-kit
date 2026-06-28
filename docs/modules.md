@@ -95,7 +95,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 共享协议和值类型；
 - `priv.kit.core.*` 运行时模型、启动模型、协议版本和 handshake registry；
 - `priv.kit.binder.*` AIDL、共享异常、raw Binder wrapper；
-- `priv.kit.userservice.*` AIDL、UserService spec/status/state/id、共享异常、wire contract、handshake registry；
+- `priv.kit.userservice.*` AIDL、UserService spec/id/process-mode/owner-death 模型、共享异常、wire contract、handshake registry；
 - 运行时、服务端、示例和启动实现都需要理解的底层契约。
 
 允许：

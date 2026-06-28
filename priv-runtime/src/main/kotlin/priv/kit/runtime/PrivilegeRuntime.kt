@@ -23,7 +23,6 @@ import priv.kit.core.PrivilegeStartupLogLine
 import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.userservice.PrivilegeUserServiceManagerUnavailableException
 import priv.kit.userservice.PrivilegeUserServiceSpec
-import priv.kit.userservice.PrivilegeUserServiceStatus
 import java.io.Closeable
 import java.util.concurrent.CopyOnWriteArraySet
 
@@ -217,17 +216,16 @@ public object PrivilegeRuntime {
         }
     }
 
-    public fun startUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
+    public fun startUserService(spec: PrivilegeUserServiceSpec) {
         userServiceClient.start(spec)
+    }
 
     public fun bindUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceConnection =
         userServiceClient.bind(spec)
 
-    public fun stopUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
+    public fun stopUserService(spec: PrivilegeUserServiceSpec) {
         userServiceClient.stop(spec)
-
-    public fun getUserServiceStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
-        userServiceClient.getStatus(spec)
+    }
 
     internal fun connectHandshake(
         handshakeResult: PrivilegeServerHandshakeResult,

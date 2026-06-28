@@ -9,7 +9,7 @@ Common entry points:
 - `PrivilegeRuntime.startRoot()` for the minimal Root runtime loop.
 - `PrivilegeRuntime.startAdb()` for Wireless Debugging / TCP ADB startup, including custom `PrivilegeAdbIdentity`.
 - Process-wide current Privileged Server Binder state, exposed through `PrivilegeRuntime` global methods.
-- UserService entry points for app-defined Binder services: start, bind, stop, and status.
+- UserService entry points for app-defined Binder services: start, bind, and stop.
 
 Advanced entry points:
 

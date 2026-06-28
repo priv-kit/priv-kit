@@ -8,5 +8,4 @@ interface IPrivilegeUserServiceManager {
     Bundle bindUserService(in Bundle request, IBinder client);
     Bundle unbindUserService(String connectionId);
     Bundle stopUserService(in Bundle request);
-    Bundle getUserServiceStatus(in Bundle request);
 }

@@ -108,14 +108,12 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
     ): Bundle {
         val token = extras?.getString(PrivilegeUserServiceContract.EXTRA_TOKEN)
         val processBinder = extras?.getBinder(PrivilegeUserServiceContract.EXTRA_PROCESS_BINDER)
-        val pid = extras?.getInt(PrivilegeUserServiceContract.EXTRA_PID, 0) ?: 0
         val accepted = token == arg &&
             PrivilegeUserServiceHandshakeRegistry.deliverReady(
                 token = token,
                 processBinder = processBinder,
-                pid = pid,
             )
-        Log.i(TAG, "UserService ready received accepted=$accepted pid=$pid")
+        Log.i(TAG, "UserService ready received accepted=$accepted")
         return Bundle().apply {
             putBoolean(PrivilegeUserServiceContract.KEY_SUCCESS, accepted)
         }
@@ -132,7 +130,6 @@ public class PrivilegeHandshakeProvider public constructor() : ContentProvider()
             putBoolean(PrivilegeUserServiceContract.KEY_SUCCESS, ready != null)
             if (ready != null) {
                 putBinder(PrivilegeUserServiceContract.EXTRA_PROCESS_BINDER, ready.processBinder)
-                putInt(PrivilegeUserServiceContract.EXTRA_PID, ready.pid)
             }
         }
     }

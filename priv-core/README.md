@@ -17,7 +17,7 @@ Current contents:
 - Typed Binder primitive exceptions.
 - `PrivilegeBinderWrapper`, a low-level wrapper that executes transactions for an explicit target `IBinder`, a current-process system service Binder, or an explicitly named server-process system service through the connected Privileged Server.
 - `IPrivilegeUserServiceManager` and `IPrivilegeUserServiceProcess`, the shared UserService lifecycle and dedicated-process protocols.
-- `PrivilegeUserServiceSpec`, id/status/state/process-mode/owner-death models, UserService wire contract, handshake registry, transaction constants, and typed UserService exceptions.
+- `PrivilegeUserServiceSpec`, id/process-mode/owner-death models, UserService wire contract, handshake registry, transaction constants, and typed UserService exceptions.
 
 App code should normally enter Binder and UserService through `PrivilegeRuntime`:
 

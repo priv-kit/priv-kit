@@ -23,60 +23,47 @@ import priv.kit.userservice.PrivilegeUserServiceNotRunningException
 import priv.kit.userservice.PrivilegeUserServiceRemoteCallException
 import priv.kit.userservice.PrivilegeUserServiceSpec
 import priv.kit.userservice.PrivilegeUserServiceStartException
-import priv.kit.userservice.PrivilegeUserServiceState
-import priv.kit.userservice.PrivilegeUserServiceStatus
 import java.io.FileDescriptor
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class PrivilegeRuntimeUserServiceClientTest {
     @Test
-    fun startBindUnbindStopAndStatusUseManagerProtocol() {
+    fun startBindUnbindAndStopUseManagerProtocol() {
         val spec = spec()
         val serviceBinder = FakeBinder()
         val manager = RecordingManager(spec)
         manager.startResult = {
-            PrivilegeUserServiceContract.successBundle(status(spec, started = true))
+            PrivilegeUserServiceContract.successBundle()
         }
         manager.bindResult = {
             PrivilegeUserServiceContract.bindSuccessBundle(
                 connectionId = "connection-1",
                 binder = serviceBinder,
-                status = status(spec, boundCount = 1),
             )
         }
         manager.unbindResult = {
-            PrivilegeUserServiceContract.successBundle(status(spec))
+            PrivilegeUserServiceContract.successBundle()
         }
         manager.stopResult = {
-            PrivilegeUserServiceContract.successBundle(
-                status(spec, state = PrivilegeUserServiceState.STOPPED),
-            )
-        }
-        manager.statusResult = {
-            PrivilegeUserServiceContract.successBundle(status(spec, state = PrivilegeUserServiceState.STOPPED))
+            PrivilegeUserServiceContract.successBundle()
         }
         val client = PrivilegeRuntimeUserServiceClient { manager.binder }
 
-        val started = client.start(spec)
+        client.start(spec)
         val connection = client.bind(spec)
         connection.close()
-        val stopped = client.stop(spec)
-        val current = client.getStatus(spec)
+        client.stop(spec)
 
-        assertEquals(true, started.started)
         assertEquals("connection-1", connection.id)
         assertSame(serviceBinder, connection.binder)
-        assertEquals(PrivilegeUserServiceState.STOPPED, stopped.state)
-        assertEquals(PrivilegeUserServiceState.STOPPED, current.state)
         assertEquals(
-            listOf("start", "bind", "unbind", "stop", "status"),
+            listOf("start", "bind", "unbind", "stop"),
             manager.calls,
         )
         assertEquals(spec, PrivilegeUserServiceContract.specFrom(manager.startRequests.single()))
         assertEquals(spec, PrivilegeUserServiceContract.specFrom(manager.bindRequests.single()))
         assertEquals(spec, PrivilegeUserServiceContract.specFrom(manager.stopRequests.single()))
-        assertEquals(spec, PrivilegeUserServiceContract.specFrom(manager.statusRequests.single()))
         assertEquals(listOf("connection-1"), manager.unbindIds)
         assertNotNull(manager.startClients.single())
         assertNotNull(manager.bindClients.single())
@@ -167,7 +154,7 @@ class PrivilegeRuntimeUserServiceClientTest {
     fun bindRequiresConnectionIdAndServiceBinder() {
         val firstManager = RecordingManager(spec())
         firstManager.bindResult = {
-            PrivilegeUserServiceContract.successBundle(status(spec()))
+            PrivilegeUserServiceContract.successBundle()
         }
         assertThrows(PrivilegeUserServiceBindException::class.java) {
             PrivilegeRuntimeUserServiceClient { firstManager.binder }.bind(spec())
@@ -175,7 +162,7 @@ class PrivilegeRuntimeUserServiceClientTest {
 
         val secondManager = RecordingManager(spec())
         secondManager.bindResult = {
-            PrivilegeUserServiceContract.successBundle(status(spec())).apply {
+            PrivilegeUserServiceContract.successBundle().apply {
                 putString(PrivilegeUserServiceContract.KEY_CONNECTION_ID, "connection-1")
             }
         }
@@ -185,38 +172,32 @@ class PrivilegeRuntimeUserServiceClientTest {
     }
 
     private class RecordingManager(
-        private val defaultSpec: PrivilegeUserServiceSpec,
+        @Suppress("UNUSED_PARAMETER")
+        defaultSpec: PrivilegeUserServiceSpec,
     ) : IPrivilegeUserServiceManager {
         val binder = FakeBinder(localInterface = this)
         val calls = mutableListOf<String>()
         val startRequests = mutableListOf<Bundle>()
         val bindRequests = mutableListOf<Bundle>()
         val stopRequests = mutableListOf<Bundle>()
-        val statusRequests = mutableListOf<Bundle>()
         val unbindIds = mutableListOf<String>()
         val startClients = mutableListOf<IBinder?>()
         val bindClients = mutableListOf<IBinder?>()
 
         var startResult: () -> Bundle = {
-            PrivilegeUserServiceContract.successBundle(status(defaultSpec, started = true))
+            PrivilegeUserServiceContract.successBundle()
         }
         var bindResult: () -> Bundle = {
             PrivilegeUserServiceContract.bindSuccessBundle(
                 connectionId = "connection",
                 binder = FakeBinder(),
-                status = status(defaultSpec, boundCount = 1),
             )
         }
         var unbindResult: () -> Bundle = {
-            PrivilegeUserServiceContract.successBundle(status(defaultSpec))
+            PrivilegeUserServiceContract.successBundle()
         }
         var stopResult: () -> Bundle = {
-            PrivilegeUserServiceContract.successBundle(
-                status(defaultSpec, state = PrivilegeUserServiceState.STOPPED),
-            )
-        }
-        var statusResult: () -> Bundle = {
-            PrivilegeUserServiceContract.successBundle(status(defaultSpec))
+            PrivilegeUserServiceContract.successBundle()
         }
 
         override fun asBinder(): IBinder = binder
@@ -251,12 +232,6 @@ class PrivilegeRuntimeUserServiceClientTest {
             calls += "stop"
             stopRequests += request
             return stopResult()
-        }
-
-        override fun getUserServiceStatus(request: Bundle): Bundle {
-            calls += "status"
-            statusRequests += request
-            return statusResult()
         }
     }
 
@@ -308,22 +283,5 @@ class PrivilegeRuntimeUserServiceClientTest {
     private companion object {
         fun spec(): PrivilegeUserServiceSpec =
             PrivilegeUserServiceSpec(serviceClassName = "test.UserService")
-
-        fun status(
-            spec: PrivilegeUserServiceSpec,
-            state: PrivilegeUserServiceState = PrivilegeUserServiceState.RUNNING,
-            started: Boolean = false,
-            boundCount: Int = 0,
-        ): PrivilegeUserServiceStatus =
-            PrivilegeUserServiceStatus(
-                id = spec.id(),
-                version = spec.version,
-                processMode = spec.processMode,
-                ownerDeathPolicy = spec.ownerDeathPolicy,
-                state = state,
-                started = started,
-                boundCount = boundCount,
-                pid = 1234,
-            )
     }
 }

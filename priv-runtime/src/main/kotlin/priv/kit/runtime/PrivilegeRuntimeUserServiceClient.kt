@@ -14,19 +14,17 @@ import priv.kit.userservice.PrivilegeUserServiceNotRunningException
 import priv.kit.userservice.PrivilegeUserServiceRemoteCallException
 import priv.kit.userservice.PrivilegeUserServiceSpec
 import priv.kit.userservice.PrivilegeUserServiceStartException
-import priv.kit.userservice.PrivilegeUserServiceStatus
 
 internal class PrivilegeRuntimeUserServiceClient(
     private val managerProvider: () -> IBinder?,
 ) {
     private val ownerBinder = Binder()
 
-    fun start(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus {
+    fun start(spec: PrivilegeUserServiceSpec) {
         val response = callManager("start UserService") {
             it.startUserService(PrivilegeUserServiceContract.requestBundle(spec), ownerBinder)
         }
         ensureSuccess(response)
-        return PrivilegeUserServiceContract.statusFrom(response)
     }
 
     fun bind(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceConnection {
@@ -42,25 +40,15 @@ internal class PrivilegeRuntimeUserServiceClient(
             id = connectionId,
             spec = spec,
             binder = binder,
-            status = PrivilegeUserServiceContract.statusFrom(response),
             unbind = ::unbind,
         )
     }
 
-    fun stop(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus {
+    fun stop(spec: PrivilegeUserServiceSpec) {
         val response = callManager("stop UserService") {
             it.stopUserService(PrivilegeUserServiceContract.requestBundle(spec))
         }
         ensureSuccess(response)
-        return PrivilegeUserServiceContract.statusFrom(response)
-    }
-
-    fun getStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus {
-        val response = callManager("get UserService status") {
-            it.getUserServiceStatus(PrivilegeUserServiceContract.requestBundle(spec))
-        }
-        ensureSuccess(response)
-        return PrivilegeUserServiceContract.statusFrom(response)
     }
 
     private fun unbind(connectionId: String) {

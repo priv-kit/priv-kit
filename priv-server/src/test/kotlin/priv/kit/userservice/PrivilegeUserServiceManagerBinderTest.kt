@@ -204,8 +204,6 @@ class PrivilegeUserServiceManagerBinderTest {
 
         override fun asBinder(): IBinder = binder
 
-        override fun getPid(): Int = 4321
-
         override fun start() = Unit
 
         override fun bind(): IBinder = binder

@@ -16,13 +16,10 @@ import priv.kit.runtime.PrivilegeUserServiceConnection
 import priv.kit.userservice.PrivilegeUserServiceNotRunningException
 import priv.kit.userservice.PrivilegeUserServiceProcessMode
 import priv.kit.userservice.PrivilegeUserServiceSpec
-import priv.kit.userservice.PrivilegeUserServiceState
-import priv.kit.userservice.PrivilegeUserServiceStatus
 import rikka.shizuku.Shizuku
 import java.io.Closeable
 import java.io.File
 import java.nio.charset.StandardCharsets
-import java.util.concurrent.atomic.AtomicBoolean
 
 internal fun MainActivity.initializePrivilegeSample() {
     val adbDeviceNameOverride = loadAdbDeviceNameOverride()
@@ -737,7 +734,6 @@ private fun MainActivity.bindSampleUserService(
         PrivilegeRuntime.startUserService(spec)
         val connection = PrivilegeRuntime.bindUserService(spec)
         val serviceMessage = setSampleUserService(label, connection)
-        watchSampleUserServiceStatus(label, spec)
         UserServiceActionResult(
             message = "$label UserService bound",
             dedicatedBound = if (label == "dedicated") true else null,
@@ -770,7 +766,7 @@ private fun MainActivity.stopSampleUserService(label: String) {
         requireConnected = false,
     ) {
         val spec = sampleUserServiceSpec(label, sampleUserServiceProcessMode(label))
-        val status = PrivilegeRuntime.stopUserService(spec)
+        PrivilegeRuntime.stopUserService(spec)
         clearSampleUserService(label)
         UserServiceActionResult(
             message = "$label UserService stopped",
@@ -778,8 +774,8 @@ private fun MainActivity.stopSampleUserService(label: String) {
             embeddedBound = if (label == "embedded") false else null,
             dedicatedCached = if (label == "dedicated") false else null,
             embeddedCached = if (label == "embedded") false else null,
-            dedicatedMessage = if (label == "dedicated") "state=${status.state}, bound=${status.boundCount}" else null,
-            embeddedMessage = if (label == "embedded") "state=${status.state}, bound=${status.boundCount}" else null,
+            dedicatedMessage = if (label == "dedicated") "stopped" else null,
+            embeddedMessage = if (label == "embedded") "stopped" else null,
         )
     }
 }
@@ -839,9 +835,6 @@ private fun MainActivity.runUserServiceAction(
 private fun MainActivity.setUserServiceFailure(throwable: Throwable) {
     val message = throwable.message ?: throwable.javaClass.name
     val disconnected = throwable is PrivilegeServerDisconnectedException
-    if (disconnected) {
-        closeSampleUserServiceStatusWatchers()
-    }
     screenState = screenState.copy(
         busy = false,
         status = if (disconnected) PrivilegeSampleStatus.DISCONNECTED else screenState.status,
@@ -1112,7 +1105,6 @@ private fun MainActivity.connectServer(
 private fun MainActivity.handleServerDisconnected() {
     val serviceBinderCached = screenState.systemServiceBinderCached || sampleMqsNativeBinder != null
     val userManagerCached = screenState.userManagerCached || sampleUserManager != null
-    closeSampleUserServiceStatusWatchers()
     val dedicatedCached = screenState.dedicatedUserServiceCached || dedicatedUserServiceConnection != null
     val embeddedCached = screenState.embeddedUserServiceCached || embeddedUserServiceConnection != null
     screenState = screenState.copy(
@@ -1224,113 +1216,6 @@ private fun sampleUserServiceClassName(label: String): String =
         PrivilegeSampleDedicatedUserService::class.java.name
     }
 
-private fun MainActivity.watchSampleUserServiceStatus(
-    label: String,
-    spec: PrivilegeUserServiceSpec,
-) {
-    closeSampleUserServiceStatusWatcher(label)
-    val watcher = startSampleUserServiceStatusWatcher(
-        spec = spec,
-        onStatus = { status ->
-            runOnUiThread {
-                applySampleUserServiceStatus(label, status)
-            }
-        },
-        onFailure = { throwable ->
-            if (throwable !is PrivilegeServerDisconnectedException) {
-                runOnUiThread {
-                    appendLog("UserService status error: ${throwable.message ?: throwable.javaClass.name}")
-                    appendLog(throwable.toDiagnosticString())
-                }
-            }
-        },
-    )
-    if (label == "embedded") {
-        embeddedUserServiceStatusWatcher = watcher
-    } else {
-        dedicatedUserServiceStatusWatcher = watcher
-    }
-}
-
-private fun MainActivity.startSampleUserServiceStatusWatcher(
-    spec: PrivilegeUserServiceSpec,
-    onStatus: (PrivilegeUserServiceStatus) -> Unit,
-    onFailure: (Throwable) -> Unit,
-): Closeable {
-    val closed = AtomicBoolean(false)
-    val watcher = Thread {
-        while (!closed.get()) {
-            try {
-                onStatus(PrivilegeRuntime.getUserServiceStatus(spec))
-            } catch (throwable: Throwable) {
-                if (!closed.get()) {
-                    runCatching {
-                        onFailure(throwable)
-                    }
-                }
-            }
-            try {
-                Thread.sleep(SAMPLE_USER_SERVICE_STATUS_WATCH_INTERVAL_MILLIS)
-            } catch (_: InterruptedException) {
-                Thread.currentThread().interrupt()
-                return@Thread
-            }
-        }
-    }.apply {
-        name = "priv-kit-sample-user-service-status-watch"
-        isDaemon = true
-        start()
-    }
-    return Closeable {
-        closed.set(true)
-        watcher.interrupt()
-    }
-}
-
-private fun MainActivity.applySampleUserServiceStatus(
-    label: String,
-    status: PrivilegeUserServiceStatus,
-) {
-    val bound = status.state == PrivilegeUserServiceState.RUNNING && status.boundCount > 0
-    val statusMessage = status.toSampleUserServiceMessage()
-    if (!bound) {
-        closeSampleUserServiceStatusWatcher(label)
-        appendLog("$label UserService status: $statusMessage")
-    }
-    screenState = if (label == "embedded") {
-        screenState.copy(
-            embeddedUserServiceBound = bound,
-            embeddedUserServiceCached = screenState.embeddedUserServiceCached || embeddedUserServiceConnection != null,
-            embeddedUserServiceMessage = statusMessage,
-            userServiceMessage = if (bound) screenState.userServiceMessage else "$label UserService $statusMessage",
-            message = if (bound) screenState.message else screenState.idleServiceMessage(),
-        )
-    } else {
-        screenState.copy(
-            dedicatedUserServiceBound = bound,
-            dedicatedUserServiceCached = screenState.dedicatedUserServiceCached || dedicatedUserServiceConnection != null,
-            dedicatedUserServiceMessage = statusMessage,
-            userServiceMessage = if (bound) screenState.userServiceMessage else "$label UserService $statusMessage",
-            message = if (bound) screenState.message else screenState.idleServiceMessage(),
-        )
-    }
-}
-
-private fun MainActivity.closeSampleUserServiceStatusWatcher(label: String) {
-    if (label == "embedded") {
-        embeddedUserServiceStatusWatcher?.close()
-        embeddedUserServiceStatusWatcher = null
-    } else {
-        dedicatedUserServiceStatusWatcher?.close()
-        dedicatedUserServiceStatusWatcher = null
-    }
-}
-
-private fun MainActivity.closeSampleUserServiceStatusWatchers() {
-    closeSampleUserServiceStatusWatcher("dedicated")
-    closeSampleUserServiceStatusWatcher("embedded")
-}
-
 private fun MainActivity.sampleUserServiceConnection(label: String): PrivilegeUserServiceConnection {
     val connection = if (label == "embedded") {
         embeddedUserServiceConnection
@@ -1339,22 +1224,6 @@ private fun MainActivity.sampleUserServiceConnection(label: String): PrivilegeUs
     }
     return connection ?: throw PrivilegeUserServiceNotRunningException("$label UserService is not bound")
 }
-
-private fun PrivilegeUserServiceStatus.toSampleUserServiceMessage(): String =
-    buildString {
-        append("state=")
-        append(state)
-        append(", bound=")
-        append(boundCount)
-        if (pid > 0) {
-            append(", pid=")
-            append(pid)
-        }
-        lastError?.let { error ->
-            append(", error=")
-            append(error)
-        }
-    }
 
 private fun MainActivity.describeSampleUserService(label: String): String {
     val connection = sampleUserServiceConnection(label)
@@ -1397,14 +1266,12 @@ private fun MainActivity.setSampleUserService(
 
 private fun MainActivity.clearSampleUserService(label: String) {
     if (label == "embedded") {
-        closeSampleUserServiceStatusWatcher(label)
         embeddedUserService = null
         runCatching {
             embeddedUserServiceConnection?.close()
         }
         embeddedUserServiceConnection = null
     } else {
-        closeSampleUserServiceStatusWatcher(label)
         dedicatedUserService = null
         runCatching {
             dedicatedUserServiceConnection?.close()
@@ -1441,7 +1308,6 @@ internal const val SHIZUKU_USER_SERVICE_MIN_VERSION = 10
 private const val SAMPLE_CONFIG_DIRECTORY = ".priv-kit"
 private const val ADB_DEVICE_NAME_FILE = "adb-device-name.txt"
 private const val DEFAULT_ADB_DEVICE_NAME = "priv-kit"
-private const val SAMPLE_USER_SERVICE_STATUS_WATCH_INTERVAL_MILLIS = 1_000L
 private const val DEFAULT_PAIRING_MESSAGE =
     "Enter the Wireless debugging pairing code, or reply from the pairing notification."
 

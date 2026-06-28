@@ -745,7 +745,7 @@ private fun UserServicePage(
     onStopEmbeddedUserService: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        UserServiceStatusPanel(state)
+        UserServicePanel(state)
         SectionTitle("Dedicated Process")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SampleAction(
@@ -805,7 +805,7 @@ private fun UserServicePage(
 }
 
 @Composable
-private fun UserServiceStatusPanel(state: PrivilegeSampleScreenState) {
+private fun UserServicePanel(state: PrivilegeSampleScreenState) {
     Column(
         modifier = Modifier
             .fillMaxWidth()

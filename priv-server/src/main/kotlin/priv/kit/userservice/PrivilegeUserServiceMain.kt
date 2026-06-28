@@ -2,7 +2,6 @@ package priv.kit.userservice
 
 import android.os.Bundle
 import android.os.Looper
-import android.os.Process
 import android.util.Log
 import java.io.File
 import kotlin.system.exitProcess
@@ -50,7 +49,6 @@ public object PrivilegeUserServiceMain {
             extras = Bundle().apply {
                 putString(PrivilegeUserServiceContract.EXTRA_TOKEN, config.token)
                 putBinder(PrivilegeUserServiceContract.EXTRA_PROCESS_BINDER, processBinder.asBinder())
-                putInt(PrivilegeUserServiceContract.EXTRA_PID, Process.myPid())
             },
             userId = config.userId,
         )

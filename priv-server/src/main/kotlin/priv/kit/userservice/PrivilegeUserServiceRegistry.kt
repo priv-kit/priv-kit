@@ -20,13 +20,13 @@ internal class PrivilegeUserServiceRegistry internal constructor(
     internal fun start(
         spec: PrivilegeUserServiceSpec,
         client: IBinder,
-    ): PrivilegeUserServiceStatus =
+    ) {
         synchronized(lock) {
             val record = ensureRecordLocked(spec)
             linkOwnerLocked(record, client)
             record.start()
-            record.status()
         }
+    }
 
     internal fun bind(
         spec: PrivilegeUserServiceSpec,
@@ -40,34 +40,29 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             BindResult(
                 connectionId = connectionId,
                 binder = binder,
-                status = record.status(),
             )
         }
 
-    internal fun unbind(connectionId: String): PrivilegeUserServiceStatus =
+    internal fun unbind(connectionId: String) {
         synchronized(lock) {
-            unbindLocked(connectionId) ?: throw PrivilegeUserServiceNotRunningException(
-                "UserService connection was not found: $connectionId",
-            )
+            if (!unbindLocked(connectionId)) {
+                throw PrivilegeUserServiceNotRunningException(
+                    "UserService connection was not found: $connectionId",
+                )
+            }
         }
+    }
 
-    internal fun stop(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
+    internal fun stop(spec: PrivilegeUserServiceSpec) {
         synchronized(lock) {
             val id = spec.id()
-            val record = records[id] ?: return@synchronized stoppedStatus(spec)
+            val record = records[id] ?: return@synchronized
             record.started = false
             if (record.boundCount == 0) {
                 destroyRecordLocked(id, record)
-                stoppedStatus(spec)
-            } else {
-                record.status()
             }
         }
-
-    internal fun getStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
-        synchronized(lock) {
-            records[spec.id()]?.status() ?: stoppedStatus(spec)
-        }
+    }
 
     internal fun destroyOnOwnerDeath() {
         synchronized(lock) {
@@ -98,7 +93,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             current.spec.version == spec.version &&
             current.spec.processMode == spec.processMode &&
             current.spec.ownerDeathPolicy == spec.ownerDeathPolicy &&
-            current.state == PrivilegeUserServiceState.RUNNING
+            current.isRunning
         ) {
             current.spec = spec
             return current
@@ -156,7 +151,6 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         return EmbeddedRecord(
             spec = spec,
             binder = binder,
-            pid = host.pid,
         )
     }
 
@@ -202,8 +196,8 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         record.boundCount += 1
     }
 
-    private fun unbindLocked(connectionId: String): PrivilegeUserServiceStatus? {
-        val connection = connections.remove(connectionId) ?: return null
+    private fun unbindLocked(connectionId: String): Boolean {
+        val connection = connections.remove(connectionId) ?: return false
         runCatching {
             connection.client.unlinkToDeath(connection.deathRecipient, 0)
         }
@@ -212,9 +206,8 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         if (!connection.record.started && connection.record.boundCount == 0) {
             val spec = connection.record.spec
             destroyRecordLocked(spec.id(), connection.record)
-            return stoppedStatus(spec)
         }
-        return connection.record.status()
+        return true
     }
 
     private fun destroyRecordLocked(
@@ -229,13 +222,13 @@ internal class PrivilegeUserServiceRegistry internal constructor(
 
     private fun failRecordLocked(
         record: Record,
-        message: String,
     ) {
         val id = record.spec.id()
-        if (records[id] !== record || record.state == PrivilegeUserServiceState.DESTROYED) return
+        if (records[id] !== record || record.state == RecordState.DESTROYED) return
+        records.remove(id, record)
         unlinkConnectionsLocked(record)
         unlinkOwnerLocked(record)
-        record.fail(message)
+        record.fail()
     }
 
     private fun unlinkConnectionsLocked(record: Record) {
@@ -259,33 +252,28 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         record.ownerLinked = false
     }
 
-    private fun stoppedStatus(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceStatus =
-        PrivilegeUserServiceStatus(
-            id = spec.id(),
-            version = spec.version,
-            processMode = spec.processMode,
-            ownerDeathPolicy = spec.ownerDeathPolicy,
-            state = PrivilegeUserServiceState.STOPPED,
-            started = false,
-            boundCount = 0,
-            pid = 0,
-        )
-
     internal class BindResult(
         val connectionId: String,
         val binder: IBinder,
-        val status: PrivilegeUserServiceStatus,
     )
+
+    private enum class RecordState {
+        RUNNING,
+        DESTROYED,
+        FAILED,
+    }
 
     private abstract inner class Record(
         var spec: PrivilegeUserServiceSpec,
     ) {
         var started: Boolean = false
         var boundCount: Int = 0
-        var state: PrivilegeUserServiceState = PrivilegeUserServiceState.RUNNING
-        var lastError: String? = null
+        var state: RecordState = RecordState.RUNNING
         var ownerBinder: IBinder? = null
         var ownerLinked: Boolean = false
+
+        val isRunning: Boolean
+            get() = state == RecordState.RUNNING
 
         val ownerDeathRecipient = IBinder.DeathRecipient {
             synchronized(lock) {
@@ -295,8 +283,6 @@ internal class PrivilegeUserServiceRegistry internal constructor(
                 }
             }
         }
-
-        abstract val pid: Int
 
         abstract fun start()
 
@@ -308,40 +294,25 @@ internal class PrivilegeUserServiceRegistry internal constructor(
 
         open fun onRegisteredLocked() = Unit
 
-        open fun fail(message: String) {
-            if (state == PrivilegeUserServiceState.DESTROYED) return
-            state = PrivilegeUserServiceState.FAILED
+        open fun fail() {
+            if (state == RecordState.DESTROYED) return
+            state = RecordState.FAILED
             started = false
             boundCount = 0
-            lastError = message
         }
 
         fun requireRunning(operation: String) {
-            if (state != PrivilegeUserServiceState.RUNNING) {
+            if (state != RecordState.RUNNING) {
                 throw PrivilegeUserServiceNotRunningException(
                     "$operation failed because UserService is $state: ${spec.serviceClassName}",
                 )
             }
         }
-
-        fun status(): PrivilegeUserServiceStatus =
-            PrivilegeUserServiceStatus(
-                id = spec.id(),
-                version = spec.version,
-                processMode = spec.processMode,
-                ownerDeathPolicy = spec.ownerDeathPolicy,
-                state = state,
-                started = started,
-                boundCount = boundCount,
-                pid = pid,
-                lastError = lastError,
-            )
     }
 
     private inner class EmbeddedRecord(
         spec: PrivilegeUserServiceSpec,
         private val binder: IBinder,
-        override val pid: Int,
     ) : Record(spec) {
         private var gate: PrivilegeUserServiceGateBinder? = null
 
@@ -358,12 +329,10 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         override fun unbind(connectionId: String) = Unit
 
         override fun destroy() {
-            if (state == PrivilegeUserServiceState.DESTROYED) return
-            state = PrivilegeUserServiceState.DESTROYED
+            if (state == RecordState.DESTROYED) return
+            state = RecordState.DESTROYED
             gate?.close()
-            PrivilegeUserServiceDestroyer.destroy(binder)?.let { throwable ->
-                lastError = throwable.message ?: throwable.javaClass.name
-            }
+            PrivilegeUserServiceDestroyer.destroy(binder)
         }
     }
 
@@ -378,20 +347,9 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         private var gate: PrivilegeUserServiceGateBinder? = null
         private val processDeathRecipient = IBinder.DeathRecipient {
             synchronized(lock) {
-                failRecordLocked(
-                    record = this@DedicatedRecord,
-                    message = "Dedicated UserService process died: ${spec.serviceClassName}",
-                )
+                failRecordLocked(record = this@DedicatedRecord)
             }
         }
-
-        override val pid: Int
-            get() =
-                if (state == PrivilegeUserServiceState.RUNNING) {
-                    runCatching { process.pid }.getOrDefault(0)
-                } else {
-                    0
-                }
 
         override fun onRegisteredLocked() {
             try {
@@ -417,7 +375,6 @@ internal class PrivilegeUserServiceRegistry internal constructor(
                 process.start()
                 started = true
             } catch (throwable: Throwable) {
-                lastError = throwable.message ?: throwable.javaClass.name
                 throw PrivilegeUserServiceStartException(
                     "Dedicated UserService start failed: ${spec.serviceClassName}",
                     throwable,
@@ -430,7 +387,6 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             val binder = try {
                 process.bind()
             } catch (throwable: Throwable) {
-                lastError = throwable.message ?: throwable.javaClass.name
                 throw PrivilegeUserServiceBindException(
                     "Dedicated UserService bind failed: ${spec.serviceClassName}",
                     throwable,
@@ -442,17 +398,13 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         }
 
         override fun unbind(connectionId: String) {
-            runCatching {
-                process.unbind(connectionId)
-            }.onFailure {
-                lastError = it.message ?: it.javaClass.name
-            }
+            runCatching { process.unbind(connectionId) }
         }
 
         override fun destroy() {
-            if (state == PrivilegeUserServiceState.DESTROYED) return
-            val shouldDestroyProcess = state != PrivilegeUserServiceState.FAILED
-            state = PrivilegeUserServiceState.DESTROYED
+            if (state == RecordState.DESTROYED) return
+            val shouldDestroyProcess = state != RecordState.FAILED
+            state = RecordState.DESTROYED
             started = false
             boundCount = 0
             gate?.close()
@@ -462,8 +414,8 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             }
         }
 
-        override fun fail(message: String) {
-            super.fail(message)
+        override fun fail() {
+            super.fail()
             gate?.close()
             unlinkProcessDeath()
         }
@@ -473,11 +425,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             val className = spec.serviceClassName
             Thread {
                 Thread {
-                    runCatching {
-                        process.destroy()
-                    }.onFailure {
-                        lastError = it.message ?: it.javaClass.name
-                    }
+                    runCatching { process.destroy() }
                 }.apply {
                     name = "priv-kit-user-service-destroy-call"
                     isDaemon = true
@@ -487,12 +435,8 @@ internal class PrivilegeUserServiceRegistry internal constructor(
                 if (timeoutMillis >= 0L) {
                     val exited = runCatching {
                         host.awaitDedicatedProcessExit(handle, timeoutMillis)
-                    }.getOrElse {
-                        lastError = it.message ?: it.javaClass.name
-                        false
-                    }
+                    }.getOrDefault(false)
                     if (!exited) {
-                        lastError = "Dedicated UserService destroy timed out after ${timeoutMillis}ms: $className"
                         host.killDedicatedProcess(handle)
                     }
                 }

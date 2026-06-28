@@ -8,7 +8,6 @@ import android.os.RemoteException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertThrows
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.FileDescriptor
@@ -62,23 +61,14 @@ class PrivilegeUserServiceRegistryTest {
     }
 
     @Test
-    fun dedicatedProcessDeathMarksStatusFailedAndClearsConnection() {
+    fun dedicatedProcessDeathClearsConnection() {
         val process = FakeDedicatedProcess()
         val registry = PrivilegeUserServiceRegistry(DedicatedFakeHost(process))
         val spec = dedicatedSpec()
 
         val result = registry.bind(spec, FakeBinder())
         process.kill()
-        val status = registry.getStatus(spec)
 
-        assertEquals(PrivilegeUserServiceState.FAILED, status.state)
-        assertEquals(false, status.started)
-        assertEquals(0, status.boundCount)
-        assertEquals(0, status.pid)
-        assertEquals(
-            "Dedicated UserService process died: ${EmbeddedService::class.java.name}",
-            status.lastError,
-        )
         assertThrows(PrivilegeUserServiceNotRunningException::class.java) {
             registry.unbind(result.connectionId)
         }
@@ -91,14 +81,12 @@ class PrivilegeUserServiceRegistryTest {
         val registry = PrivilegeUserServiceRegistry(host)
         val spec = dedicatedSpec()
 
-        registry.bind(spec, FakeBinder())
+        val first = registry.bind(spec, FakeBinder())
         firstProcess.kill()
         host.process = FakeDedicatedProcess()
         val result = registry.bind(spec, FakeBinder())
 
-        assertEquals(PrivilegeUserServiceState.RUNNING, result.status.state)
-        assertEquals(1, result.status.boundCount)
-        assertTrue(result.status.pid > 0)
+        assertNotSame(first.binder, result.binder)
     }
 
     @Test
@@ -112,14 +100,9 @@ class PrivilegeUserServiceRegistryTest {
 
         assertEquals(2, EmbeddedService.created)
         assertNotSame(first.binder, second.binder)
-        assertEquals(1, first.status.boundCount)
-        assertEquals(1, second.status.boundCount)
 
         registry.unbind(first.connectionId)
         registry.unbind(second.connectionId)
-
-        assertEquals(PrivilegeUserServiceState.STOPPED, registry.getStatus(embeddedSpec(tag = "first")).state)
-        assertEquals(PrivilegeUserServiceState.STOPPED, registry.getStatus(embeddedSpec(tag = "second")).state)
     }
 
     @Test
@@ -128,11 +111,11 @@ class PrivilegeUserServiceRegistryTest {
         val registry = PrivilegeUserServiceRegistry(FakeHost())
         val client = FakeBinder()
 
-        registry.bind(embeddedSpec(version = 1), client)
-        registry.bind(embeddedSpec(version = 2), client)
+        val first = registry.bind(embeddedSpec(version = 1), client)
+        val second = registry.bind(embeddedSpec(version = 2), client)
 
         assertEquals(2, EmbeddedService.created)
-        assertEquals(2, registry.getStatus(embeddedSpec(version = 2)).version)
+        assertNotSame(first.binder, second.binder)
     }
 
     @Test
@@ -153,7 +136,7 @@ class PrivilegeUserServiceRegistryTest {
             val result = registry.bind(embeddedSpec(), client)
 
             assertEquals(1, EmbeddedService.created)
-            assertEquals(1, result.status.boundCount)
+            assertEquals(true, result.connectionId.isNotBlank())
         } finally {
             Thread.currentThread().contextClassLoader = originalClassLoader
         }
@@ -355,8 +338,6 @@ class PrivilegeUserServiceRegistryTest {
         private val binder = FakeBinder()
 
         override fun asBinder(): IBinder = binder
-
-        override fun getPid(): Int = 4321
 
         override fun start() = Unit
 

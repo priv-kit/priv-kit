@@ -29,8 +29,6 @@ class MainActivity : ComponentActivity() {
     internal val executor = Executors.newSingleThreadExecutor()
     internal var serverConnectedListener: Closeable? = null
     internal var serverDisconnectedWatcher: Closeable? = null
-    internal var dedicatedUserServiceStatusWatcher: Closeable? = null
-    internal var embeddedUserServiceStatusWatcher: Closeable? = null
     internal var sampleMqsNativeBinder: IBinder? = null
     internal var sampleUserManager: PrivilegeSampleUserManagerProxy? = null
     internal var dedicatedUserServiceConnection: PrivilegeUserServiceConnection? = null

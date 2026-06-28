@@ -9,14 +9,12 @@ public object PrivilegeUserServiceHandshakeRegistry {
     public fun deliverReady(
         token: String?,
         processBinder: IBinder?,
-        pid: Int,
     ): Boolean {
         if (token.isNullOrBlank() || processBinder == null) {
             return false
         }
         readyProcesses[token] = ReadyProcess(
             processBinder = processBinder,
-            pid = pid,
         )
         return true
     }
@@ -30,6 +28,5 @@ public object PrivilegeUserServiceHandshakeRegistry {
 
     public data class ReadyProcess public constructor(
         public val processBinder: IBinder,
-        public val pid: Int,
     )
 }

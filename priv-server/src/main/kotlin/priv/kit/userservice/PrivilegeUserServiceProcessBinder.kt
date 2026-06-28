@@ -1,7 +1,6 @@
 package priv.kit.userservice
 
 import android.os.IBinder
-import android.os.Process
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class PrivilegeUserServiceProcessBinder(
@@ -10,8 +9,6 @@ internal class PrivilegeUserServiceProcessBinder(
 ) : IPrivilegeUserServiceProcess.Stub() {
     private val binder = PrivilegeUserServiceRegistry.binderFrom(instance, serviceClassName)
     private val destroyed = AtomicBoolean(false)
-
-    override fun getPid(): Int = Process.myPid()
 
     override fun start() {
         ensureAlive()

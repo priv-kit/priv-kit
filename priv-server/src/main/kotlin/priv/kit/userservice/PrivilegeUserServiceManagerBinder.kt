@@ -12,12 +12,11 @@ internal class PrivilegeUserServiceManagerBinder internal constructor(
         client: IBinder?,
     ): Bundle =
         call {
-            PrivilegeUserServiceContract.successBundle(
-                registry.start(
-                    spec = PrivilegeUserServiceContract.specFrom(request),
-                    client = client ?: Binder(),
-                ),
+            registry.start(
+                spec = PrivilegeUserServiceContract.specFrom(request),
+                client = client ?: Binder(),
             )
+            PrivilegeUserServiceContract.successBundle()
         }
 
     override fun bindUserService(
@@ -32,27 +31,19 @@ internal class PrivilegeUserServiceManagerBinder internal constructor(
             PrivilegeUserServiceContract.bindSuccessBundle(
                 connectionId = result.connectionId,
                 binder = result.binder,
-                status = result.status,
             )
         }
 
     override fun unbindUserService(connectionId: String): Bundle =
         call {
-            PrivilegeUserServiceContract.successBundle(registry.unbind(connectionId))
+            registry.unbind(connectionId)
+            PrivilegeUserServiceContract.successBundle()
         }
 
     override fun stopUserService(request: Bundle): Bundle =
         call {
-            PrivilegeUserServiceContract.successBundle(
-                registry.stop(PrivilegeUserServiceContract.specFrom(request)),
-            )
-        }
-
-    override fun getUserServiceStatus(request: Bundle): Bundle =
-        call {
-            PrivilegeUserServiceContract.successBundle(
-                registry.getStatus(PrivilegeUserServiceContract.specFrom(request)),
-            )
+            registry.stop(PrivilegeUserServiceContract.specFrom(request))
+            PrivilegeUserServiceContract.successBundle()
         }
 
     fun destroyOnOwnerDeath() {
