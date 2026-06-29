@@ -52,7 +52,7 @@ public data class PrivilegeUiConfig public constructor(
     ),
     public val externalStartProviders: List<PrivilegeUiExternalStartProvider> = emptyList(),
     public val adbDeviceName: String? = null,
-    public val tcpPort: Int = PrivilegeAdbStartOptions.DEFAULT_TCP_PORT,
+    public val tcpPort: Int = PrivilegeAdbStartOptions().tcpPort,
     public val adbTcpPolicy: PrivilegeUiAdbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
     public val wirelessStatusPollIntervalMillis: Long = DEFAULT_WIRELESS_STATUS_POLL_INTERVAL_MILLIS,
     public val wirelessStatusDiscoveryTimeoutMillis: Long = DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS,

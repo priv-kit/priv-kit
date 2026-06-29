@@ -13,7 +13,6 @@ android {
 
 dependencies {
     api(project(":priv-runtime"))
-    implementation(project(":priv-adb"))
     api(libs.androidx.compose.foundation)
     api(libs.androidx.compose.material3)
     api(libs.androidx.compose.runtime)

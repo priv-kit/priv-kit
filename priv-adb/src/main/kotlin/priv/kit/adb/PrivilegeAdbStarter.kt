@@ -1,7 +1,9 @@
 package priv.kit.adb
 
+import android.content.Context
 import android.net.nsd.NsdManager
 import android.os.Build
+import priv.kit.core.PrivilegeServerLaunchCommand
 import priv.kit.core.PrivilegeStartupException
 import priv.kit.core.PrivilegeStartupLogListener
 import java.io.EOFException
@@ -15,7 +17,7 @@ public class PrivilegeAdbStarter private constructor(
 ) {
     @Throws(PrivilegeStartupException::class)
     public fun start(
-        command: PrivilegeAdbCommand,
+        command: PrivilegeServerLaunchCommand,
         options: PrivilegeAdbStartOptions = PrivilegeAdbStartOptions(),
     ): PrivilegeAdbStartResult =
         start(
@@ -26,7 +28,7 @@ public class PrivilegeAdbStarter private constructor(
 
     @Throws(PrivilegeStartupException::class)
     public fun start(
-        command: PrivilegeAdbCommand,
+        command: PrivilegeServerLaunchCommand,
         options: PrivilegeAdbStartOptions,
         startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeAdbStartResult {
@@ -82,10 +84,9 @@ public class PrivilegeAdbStarter private constructor(
             }
 
             PrivilegeAdbStartResult(
-                command = command,
                 host = options.host,
                 port = activePort,
-                output = output,
+                outputText = output.text(),
                 identity = identity,
                 publicKeyFingerprint = key.adbPublicKeyFingerprint,
             )
@@ -109,9 +110,9 @@ public class PrivilegeAdbStarter private constructor(
     @Throws(PrivilegeStartupException::class)
     public fun checkPairing(
         port: Int? = null,
-        host: String = PrivilegeAdbStartOptions.DEFAULT_HOST,
+        host: String = DEFAULT_ADB_HOST,
         discoverPort: Boolean = true,
-        portDiscoveryTimeoutMillis: Long = PrivilegeAdbStartOptions.DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
+        portDiscoveryTimeoutMillis: Long = DEFAULT_ADB_PORT_DISCOVERY_TIMEOUT_MILLIS,
     ): PrivilegeAdbPairingCheckResult {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             throw PrivilegeStartupException("Wireless ADB requires Android 11 or above")
@@ -139,7 +140,7 @@ public class PrivilegeAdbStarter private constructor(
                     host = host,
                     port = null,
                     paired = false,
-                    output = output,
+                    outputText = output.text(),
                     identity = identity,
                     publicKeyFingerprint = key.adbPublicKeyFingerprint,
                     failureMessage = failureMessage,
@@ -151,7 +152,7 @@ public class PrivilegeAdbStarter private constructor(
                 host = host,
                 port = null,
                 paired = false,
-                output = output,
+                outputText = output.text(),
                 identity = identity,
                 publicKeyFingerprint = key.adbPublicKeyFingerprint,
                 failureMessage = "ADB connect port is not available",
@@ -167,7 +168,7 @@ public class PrivilegeAdbStarter private constructor(
                 host = host,
                 port = activePort,
                 paired = true,
-                output = output,
+                outputText = output.text(),
                 identity = identity,
                 publicKeyFingerprint = key.adbPublicKeyFingerprint,
             )
@@ -178,7 +179,7 @@ public class PrivilegeAdbStarter private constructor(
                 host = host,
                 port = activePort,
                 paired = false,
-                output = output,
+                outputText = output.text(),
                 identity = identity,
                 publicKeyFingerprint = key.adbPublicKeyFingerprint,
                 failureMessage = failureMessage,
@@ -189,7 +190,7 @@ public class PrivilegeAdbStarter private constructor(
     public fun readRuntimeDiagnostics(
         host: String,
         port: Int,
-    ): PrivilegeAdbOutput =
+    ): String =
         readRuntimeDiagnostics(
             host = host,
             port = port,
@@ -200,7 +201,7 @@ public class PrivilegeAdbStarter private constructor(
         host: String,
         port: Int,
         startupLogListener: PrivilegeStartupLogListener?,
-    ): PrivilegeAdbOutput {
+    ): String {
         require(host.isNotBlank()) { "host must not be blank" }
         require(port in 1..65535) { "port must be between 1 and 65535" }
 
@@ -211,56 +212,14 @@ public class PrivilegeAdbStarter private constructor(
             key = createKey(),
             output = output,
         )
-        return output
-    }
-
-    public fun readDiagnosticLog(
-        host: String,
-        port: Int,
-        path: String,
-    ): PrivilegeAdbOutput =
-        readDiagnosticLog(
-            host = host,
-            port = port,
-            path = path,
-            startupLogListener = null,
-        )
-
-    public fun readDiagnosticLog(
-        host: String,
-        port: Int,
-        path: String,
-        startupLogListener: PrivilegeStartupLogListener?,
-    ): PrivilegeAdbOutput {
-        require(host.isNotBlank()) { "host must not be blank" }
-        require(port in 1..65535) { "port must be between 1 and 65535" }
-        require(path.startsWith(DIAGNOSTIC_LOG_PREFIX)) { "unsupported diagnostic log path" }
-
-        val output = PrivilegeAdbOutput(startupLogListener)
-        val key = createKey()
-        output.append("diag", "Reading server diagnostic log: $path")
-        runDiagnosticShellCommand(
-            host = host,
-            port = port,
-            key = key,
-            label = "server stdout/stderr",
-            command = "cat ${path.shellQuote()} 2>&1",
-            output = output,
-        )
-        appendRuntimeDiagnostics(
-            host = host,
-            port = port,
-            key = key,
-            output = output,
-        )
-        return output
+        return output.text()
     }
 
     @Throws(PrivilegeStartupException::class)
     public fun pair(
         port: Int,
         pairingCode: String,
-        host: String = PrivilegeAdbStartOptions.DEFAULT_HOST,
+        host: String = DEFAULT_ADB_HOST,
     ): PrivilegeAdbPairingResult = pair(
         pairingCode = pairingCode,
         port = port,
@@ -272,9 +231,9 @@ public class PrivilegeAdbStarter private constructor(
     public fun pair(
         pairingCode: String,
         port: Int? = null,
-        host: String = PrivilegeAdbStartOptions.DEFAULT_HOST,
+        host: String = DEFAULT_ADB_HOST,
         discoverPort: Boolean = true,
-        portDiscoveryTimeoutMillis: Long = PrivilegeAdbStartOptions.DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
+        portDiscoveryTimeoutMillis: Long = DEFAULT_ADB_PORT_DISCOVERY_TIMEOUT_MILLIS,
     ): PrivilegeAdbPairingResult {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             throw PrivilegeStartupException("Wireless ADB pairing requires Android 11 or above")
@@ -310,7 +269,7 @@ public class PrivilegeAdbStarter private constructor(
     }
 
     @Throws(PrivilegeStartupException::class)
-    public fun discoverPairingPort(timeoutMillis: Long = PrivilegeAdbStartOptions.DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS): Int {
+    public fun discoverPairingPort(timeoutMillis: Long = DEFAULT_ADB_PORT_DISCOVERY_TIMEOUT_MILLIS): Int {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             throw PrivilegeStartupException("Wireless ADB pairing requires Android 11 or above")
         }
@@ -323,7 +282,7 @@ public class PrivilegeAdbStarter private constructor(
     }
 
     @Throws(PrivilegeStartupException::class)
-    public fun discoverConnectPort(timeoutMillis: Long = PrivilegeAdbStartOptions.DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS): Int {
+    public fun discoverConnectPort(timeoutMillis: Long = DEFAULT_ADB_PORT_DISCOVERY_TIMEOUT_MILLIS): Int {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             throw PrivilegeStartupException("Wireless ADB requires Android 11 or above")
         }
@@ -338,8 +297,8 @@ public class PrivilegeAdbStarter private constructor(
     @Throws(PrivilegeStartupException::class)
     public fun switchToTcp(
         currentPort: Int,
-        tcpPort: Int = PrivilegeAdbStartOptions.DEFAULT_TCP_PORT,
-        host: String = PrivilegeAdbStartOptions.DEFAULT_HOST,
+        tcpPort: Int = DEFAULT_ADB_TCP_PORT,
+        host: String = DEFAULT_ADB_HOST,
     ): PrivilegeAdbTcpResult {
         require(currentPort in 1..65535) { "currentPort must be between 1 and 65535" }
         require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
@@ -362,7 +321,7 @@ public class PrivilegeAdbStarter private constructor(
             PrivilegeAdbTcpResult(
                 host = host,
                 port = tcpPort,
-                output = output,
+                outputText = output.text(),
                 identity = identity,
                 publicKeyFingerprint = key.adbPublicKeyFingerprint,
             )
@@ -373,8 +332,8 @@ public class PrivilegeAdbStarter private constructor(
 
     @Throws(PrivilegeStartupException::class)
     public fun stopTcp(
-        tcpPort: Int = PrivilegeAdbStartOptions.DEFAULT_TCP_PORT,
-        host: String = PrivilegeAdbStartOptions.DEFAULT_HOST,
+        tcpPort: Int = DEFAULT_ADB_TCP_PORT,
+        host: String = DEFAULT_ADB_HOST,
     ): PrivilegeAdbTcpResult {
         require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
         require(host.isNotBlank()) { "host must not be blank" }
@@ -390,7 +349,7 @@ public class PrivilegeAdbStarter private constructor(
             PrivilegeAdbTcpResult(
                 host = host,
                 port = tcpPort,
-                output = output,
+                outputText = output.text(),
                 identity = identity,
                 publicKeyFingerprint = key.adbPublicKeyFingerprint,
             )
@@ -481,27 +440,27 @@ public class PrivilegeAdbStarter private constructor(
     }
 
     public companion object {
-        public const val DIAGNOSTIC_LOG_PREFIX: String = "/data/local/tmp/priv-kit-server-"
-
         public fun forOwnerToken(
             ownerToken: String,
+            context: Context,
             adbDeviceName: String = PrivilegeAdbIdentity.DEFAULT_DEVICE_NAME,
-            loadKeyBytes: () -> ByteArray,
-            nsdManagerProvider: () -> NsdManager,
         ): PrivilegeAdbStarter =
-            PrivilegeAdbStarter(
-                identity = PrivilegeAdbIdentity.forOwnerToken(
-                    ownerToken = ownerToken,
-                    deviceName = adbDeviceName,
-                ),
-                loadKeyBytes = loadKeyBytes,
-                nsdManagerProvider = nsdManagerProvider,
-            )
+            context.applicationContext.let { applicationContext ->
+                PrivilegeAdbStarter(
+                    identity = PrivilegeAdbIdentity.forOwnerToken(
+                        ownerToken = ownerToken,
+                        deviceName = adbDeviceName,
+                    ),
+                    loadKeyBytes = { PrivilegeAdbKeyStore.readOrCreate(applicationContext) },
+                    nsdManagerProvider = { requireNsdManager(applicationContext) },
+                )
+            }
+
+        private fun requireNsdManager(context: Context): NsdManager =
+            context.getSystemService(NsdManager::class.java)
+                ?: throw PrivilegeStartupException("NSD manager is unavailable")
     }
 }
-
-private fun String.shellQuote(): String =
-    "'" + replace("'", "'\"'\"'") + "'"
 
 internal fun String.toPrivilegeAdbPairingCode(): String =
     filter(Char::isDigit)
@@ -510,4 +469,7 @@ internal fun String.toPrivilegeAdbPairingCode(): String =
 private fun Throwable.toFailureMessage(): String =
     "${javaClass.simpleName}: ${message.orEmpty()}".trim()
 
+private const val DEFAULT_ADB_HOST: String = "127.0.0.1"
+private const val DEFAULT_ADB_TCP_PORT: Int = 5555
+private const val DEFAULT_ADB_PORT_DISCOVERY_TIMEOUT_MILLIS: Long = 15_000L
 private const val ADB_PAIRING_CODE_LENGTH = 6

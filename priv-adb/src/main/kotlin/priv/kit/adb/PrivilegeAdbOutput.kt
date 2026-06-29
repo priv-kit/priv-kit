@@ -5,7 +5,7 @@ import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.core.isPrivKitInternalMetadata
 import java.util.Collections
 
-public class PrivilegeAdbOutput internal constructor(
+internal class PrivilegeAdbOutput internal constructor(
     private val startupLogListener: PrivilegeStartupLogListener? = null,
 ) {
     private val lines = Collections.synchronizedList(mutableListOf<OutputLine>())
@@ -22,7 +22,7 @@ public class PrivilegeAdbOutput internal constructor(
         }
     }
 
-    public fun text(): String =
+    internal fun text(): String =
         synchronized(lines) {
             lines
                 .asSequence()

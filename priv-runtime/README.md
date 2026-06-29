@@ -7,7 +7,8 @@ Namespace and package root: `priv.kit.runtime`.
 Common entry points:
 
 - `PrivilegeRuntime.startRoot()` for the minimal Root runtime loop.
-- `PrivilegeRuntime.startAdb()` for Wireless Debugging / TCP ADB startup, including custom `PrivilegeAdbIdentity`.
+- `PrivilegeRuntime.startAdb()` for Wireless Debugging / TCP ADB startup, configured with `PrivilegeAdbStartOptions`.
+- `PrivilegeRuntime.createAdbStarter()` for Wireless ADB pairing, TCP mode, and identity diagnostics backed by `PrivilegeAdbStarter`.
 - Process-wide current Privileged Server Binder state, exposed through `PrivilegeRuntime` global methods.
 - UserService entry points for app-defined Binder services: start, bind, and stop.
 
@@ -17,7 +18,7 @@ Advanced entry points:
 - `PrivilegeHandshakeProvider`, the app-side Binder handoff endpoint protected by `android.permission.INTERACT_ACROSS_USERS_FULL` and the persisted owner token. Short native starter commands complete one provider handoff that returns the owner token and current in-memory owner-death config.
 - Ready-server connection helpers, owner-death reconnect configuration, and raw Binder bridge types for custom diagnostics or low-level Binder validation.
 
-Runtime owns token generation, shared server launch command construction, the native starter executable, Root `su` execution, Root/ADB pending handshakes, protocol validation, current server Binder installation, and Binder death handling. The ADB module only executes or transports the launch command.
+Runtime owns token generation, shared server launch command construction, the native starter executable, Root `su` execution, Root/ADB pending handshakes, protocol validation, current server Binder installation, and Binder death handling. The ADB module executes or transports the launch command. `priv-runtime` exposes the ADB startup surface through `api(project(":priv-adb"))`, so the public ADB types remain the real `PrivilegeAdb*` types rather than duplicated runtime models.
 
 `PrivilegeHandshakeProvider` initializes the runtime with the app `Context`, so callers use `PrivilegeRuntime` directly without passing `Context` into start, ADB, shell-start, or ready-server APIs. The provider remains exported so shell/root/external privileged starters can reach it, but normal apps are stopped by the provider permission before the owner-token handshake runs.
 

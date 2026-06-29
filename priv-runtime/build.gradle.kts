@@ -22,7 +22,7 @@ android {
 
 dependencies {
     api(project(":priv-core"))
-    implementation(project(":priv-adb"))
+    api(project(":priv-adb"))
     runtimeOnly(project(":priv-server"))
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

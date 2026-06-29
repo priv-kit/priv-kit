@@ -48,6 +48,22 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 所有公开 API 必须使用完整单词 `Privilege*` 命名，例如 `PrivilegeBinderWrapper`、`PrivilegeUserServiceSpec`、`PrivilegeRuntime` 和 `PrivilegeUserServiceConnection`。禁止公开 API 使用 `Priv*` 缩写。
 
+## API 承诺边界
+
+模块发布到 Maven Central 只是构建与依赖分发策略，不等于该模块内所有 public 类型都承诺给接入应用使用。
+
+当前只承诺接入应用引用 `priv-runtime` 或 `priv-ui` 后可见的编译期 API：
+
+- `:priv-runtime` 自身 public API；
+- `:priv-ui` 自身 public API；
+- 以上模块通过 `api(...)` 传递暴露的类型。
+
+`:priv-server` 和 `:priv-adb-crypto` 即使发布，也默认属于运行环境、逻辑隔离或实现复用模块。除非 README 或正式文档明确列为入口，接入应用不应把这些模块的 public 类型视为稳定 API。
+
+`:priv-adb` 的独立 artifact 不是推荐接入入口；但 `:priv-runtime` 通过 `api(project(":priv-adb"))` 传递暴露 ADB 启动相关类型，因此这些 `priv.kit.adb` 类型属于引用 `priv-runtime` 后可见的 ADB 编译期 API。runtime 不再维护 `PrivilegeRuntimeAdb*` 形式的重复模型。
+
+`priv-adb-crypto` 保持独立 Kotlin/JVM 模块，便于维护 ADB pairing/certificate 所需的非 Android 实现；它不属于 Android runtime/UI 接入面。
+
 ## 依赖方向
 
 推荐依赖方向：
@@ -55,7 +71,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 ```text
 :priv-runtime
     -> :priv-core
-    -> :priv-adb
+    -> api(:priv-adb)
     -> runtimeOnly(:priv-server)
 
 :priv-core

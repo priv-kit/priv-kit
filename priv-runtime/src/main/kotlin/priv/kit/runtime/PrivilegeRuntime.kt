@@ -1,11 +1,9 @@
 package priv.kit.runtime
 
 import android.content.Context
-import android.net.nsd.NsdManager
 import android.os.IBinder
 import android.os.RemoteException
 import android.util.Log
-import priv.kit.adb.PrivilegeAdbCommand
 import priv.kit.adb.PrivilegeAdbIdentity
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStartResult
@@ -150,7 +148,7 @@ public object PrivilegeRuntime {
             Log.i(TAG, "Starting through ADB keySignature=<redacted>")
             startupLogListener.emitStartupLog("runtime", "Starting through ADB")
             val adbStartResult = adbStarter.start(
-                buildAdbCommand(),
+                buildServerLaunchCommand(),
                 options,
                 startupLogListener = startupLogListener,
             )
@@ -176,7 +174,7 @@ public object PrivilegeRuntime {
                 )
                 throw PrivilegeStartupException(
                     "ADB start did not complete the Privileged Server handshake on " +
-                        "${adbResult.host}:${adbResult.port}: ${adbResult.output.text()}$serverDiagnostics",
+                        "${adbResult.host}:${adbResult.port}: ${adbResult.outputText}$serverDiagnostics",
                     e,
                 )
             }
@@ -360,16 +358,6 @@ public object PrivilegeRuntime {
     private fun buildRootCommandLine(): String =
         buildShortNativeStarterCommand()
 
-    private fun buildAdbCommand(): PrivilegeAdbCommand {
-        val launchCommand = buildServerLaunchCommand()
-        return PrivilegeAdbCommand(
-            commandLine = launchCommand.commandLine,
-            classpath = launchCommand.classpath,
-            mainClass = launchCommand.mainClass,
-            providerAuthority = launchCommand.providerAuthority,
-        )
-    }
-
     internal fun buildShortNativeStarterCommand(
         starterPath: String = buildNativeStarterPath(),
     ): String =
@@ -385,15 +373,10 @@ public object PrivilegeRuntime {
         val context = PrivilegeRuntimeContext.require()
         return PrivilegeAdbStarter.forOwnerToken(
             ownerToken = ownerToken,
+            context = context,
             adbDeviceName = resolveAdbDeviceName(context, adbDeviceName),
-            loadKeyBytes = { PrivilegeAdbKeyStore.readOrCreate() },
-            nsdManagerProvider = { requireAdbNsdManager(context) },
         )
     }
-
-    private fun requireAdbNsdManager(context: Context): NsdManager =
-        context.applicationContext.getSystemService(NsdManager::class.java)
-            ?: throw PrivilegeStartupException("NSD manager is unavailable")
 
     private fun resolveAdbDeviceName(
         context: Context,
@@ -434,7 +417,6 @@ public object PrivilegeRuntime {
                 port = adbResult.port,
                 startupLogListener = startupLogListener,
             )
-                .text()
         }.getOrElse { throwable ->
             "[diag] Failed to fetch server diagnostics: ${throwable.javaClass.simpleName}: ${throwable.message}"
         }

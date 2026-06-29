@@ -134,6 +134,22 @@ Gradle 模块必须使用 `priv-*` 命名：
 
 除非先修改本宪章，否则这些范围之外的功能都属于非范围。
 
+## 3.1 API 承诺边界
+
+Maven Central 上存在某个 artifact，不等于该 artifact 的所有 public class/interface 都是面向接入应用承诺的 API。
+
+本项目当前只承诺接入应用引用以下入口后可见的编译期 API：
+
+- `io.github.priv-kit:priv-runtime`
+- `io.github.priv-kit:priv-ui`
+- 上述模块通过 Gradle `api(...)` 传递暴露的类型
+
+其他发布 artifact，例如 `priv-server` 和 `priv-adb-crypto`，主要用于运行环境区分、逻辑隔离、复用构建产物和 Maven 传递解析。它们可以发布到 Maven Central，但默认不构成接入应用可依赖的稳定 API，除非 README 或正式文档明确把某个类型列为入口。
+
+`priv-adb` 的独立 artifact 不是推荐接入入口；但 `priv-runtime` 可以通过 Gradle `api(...)` 传递暴露 ADB 启动相关类型。此时这些 `priv.kit.adb` 类型按 `priv-runtime` 的传递编译期 API 管理，不要求在 `priv.kit.runtime` 下维护重复模型。
+
+`priv-adb-crypto` 保持独立 Kotlin/JVM 模块，用于隔离和维护 ADB 所需的最小证书与 pairing crypto 实现；它不是 Android 接入 API，也不扩展成通用密码学库。
+
 ## 4. 明确非范围
 
 本项目不得提供：

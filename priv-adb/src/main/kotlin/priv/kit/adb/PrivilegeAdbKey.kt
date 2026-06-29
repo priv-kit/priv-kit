@@ -31,14 +31,14 @@ import javax.net.ssl.SSLEngine
 import javax.net.ssl.X509ExtendedKeyManager
 import javax.net.ssl.X509ExtendedTrustManager
 
-public object PrivilegeAdbKeyBytes {
-    public fun isReadable(storedBytes: ByteArray): Boolean {
+internal object PrivilegeAdbKeyBytes {
+    internal fun isReadable(storedBytes: ByteArray): Boolean {
         val encryptionKey = getOrCreateEncryptionKey()
             ?: throw PrivilegeAdbException("Failed to generate ADB encryption key")
         return decodePrivateKey(storedBytes, encryptionKey) != null
     }
 
-    public fun create(): ByteArray {
+    internal fun create(): ByteArray {
         val encryptionKey = getOrCreateEncryptionKey()
             ?: throw PrivilegeAdbException("Failed to generate ADB encryption key")
         return createEncryptedPrivateKey(encryptionKey)

@@ -1,13 +1,5 @@
 package priv.kit.adb
 
-public data class PrivilegeAdbCommand public constructor(
-    public val commandLine: String,
-    public val classpath: String,
-    public val mainClass: String,
-    public val providerAuthority: String,
-    public val diagnosticLogPath: String? = null,
-)
-
 public class PrivilegeAdbIdentity private constructor(
     public val deviceName: String,
 ) {
@@ -61,14 +53,14 @@ public data class PrivilegeAdbIdentityInfo public constructor(
 )
 
 public data class PrivilegeAdbStartOptions public constructor(
-    public val host: String = DEFAULT_HOST,
+    public val host: String = DEFAULT_ADB_HOST,
     public val port: Int? = null,
     public val discoverPort: Boolean = true,
     public val tcpMode: Boolean = false,
-    public val tcpPort: Int = DEFAULT_TCP_PORT,
-    public val portDiscoveryTimeoutMillis: Long = DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
-    public val connectRetryCount: Int = DEFAULT_CONNECT_RETRY_COUNT,
-    public val connectRetryDelayMillis: Long = DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
+    public val tcpPort: Int = DEFAULT_ADB_TCP_PORT,
+    public val portDiscoveryTimeoutMillis: Long = DEFAULT_ADB_PORT_DISCOVERY_TIMEOUT_MILLIS,
+    public val connectRetryCount: Int = DEFAULT_ADB_CONNECT_RETRY_COUNT,
+    public val connectRetryDelayMillis: Long = DEFAULT_ADB_CONNECT_RETRY_DELAY_MILLIS,
 ) {
     init {
         require(host.isNotBlank()) { "host must not be blank" }
@@ -78,21 +70,18 @@ public data class PrivilegeAdbStartOptions public constructor(
         require(connectRetryCount > 0) { "connectRetryCount must be positive" }
         require(connectRetryDelayMillis >= 0L) { "connectRetryDelayMillis must not be negative" }
     }
-
-    public companion object {
-        public const val DEFAULT_HOST: String = "127.0.0.1"
-        public const val DEFAULT_TCP_PORT: Int = 5555
-        public const val DEFAULT_CONNECT_RETRY_COUNT: Int = 5
-        public const val DEFAULT_CONNECT_RETRY_DELAY_MILLIS: Long = 1_000L
-        public const val DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS: Long = 15_000L
-    }
 }
 
+private const val DEFAULT_ADB_HOST: String = "127.0.0.1"
+private const val DEFAULT_ADB_TCP_PORT: Int = 5555
+private const val DEFAULT_ADB_CONNECT_RETRY_COUNT: Int = 5
+private const val DEFAULT_ADB_CONNECT_RETRY_DELAY_MILLIS: Long = 1_000L
+private const val DEFAULT_ADB_PORT_DISCOVERY_TIMEOUT_MILLIS: Long = 15_000L
+
 public data class PrivilegeAdbStartResult public constructor(
-    public val command: PrivilegeAdbCommand,
     public val host: String,
     public val port: Int,
-    public val output: PrivilegeAdbOutput,
+    public val outputText: String,
     public val identity: PrivilegeAdbIdentity,
     public val publicKeyFingerprint: String = "",
 )
@@ -108,7 +97,7 @@ public data class PrivilegeAdbPairingCheckResult public constructor(
     public val host: String,
     public val port: Int?,
     public val paired: Boolean,
-    public val output: PrivilegeAdbOutput,
+    public val outputText: String,
     public val identity: PrivilegeAdbIdentity,
     public val publicKeyFingerprint: String = "",
     public val failureMessage: String? = null,
@@ -117,7 +106,7 @@ public data class PrivilegeAdbPairingCheckResult public constructor(
 public data class PrivilegeAdbTcpResult public constructor(
     public val host: String,
     public val port: Int,
-    public val output: PrivilegeAdbOutput,
+    public val outputText: String,
     public val identity: PrivilegeAdbIdentity,
     public val publicKeyFingerprint: String = "",
 )

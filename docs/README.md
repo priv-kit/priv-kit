@@ -14,6 +14,12 @@
 
 项目边界以 [project-constitution.md](project-constitution.md) 为准。后续所有设计和实现都必须遵守该文档。
 
+## API 承诺
+
+发布到 Maven Central 的模块不自动构成接入应用 API。当前只承诺接入应用引用 `priv-runtime` 或 `priv-ui` 后可见的编译期 API，以及这两个模块通过 `api(...)` 传递暴露的类型。
+
+`priv-server` 和 `priv-adb-crypto` 可以作为独立 artifact 发布，但默认只服务于运行环境区分、逻辑隔离和实现复用。`priv-adb` 的 ADB 类型目前由 `priv-runtime` 通过 Gradle `api(...)` 传递暴露，因此属于引用 `priv-runtime` 后可见的 ADB 编译期 API；但 `priv-adb` 的独立坐标仍不是推荐接入入口。
+
 ## 推荐接入路径
 
 普通接入方优先只理解四件事：
