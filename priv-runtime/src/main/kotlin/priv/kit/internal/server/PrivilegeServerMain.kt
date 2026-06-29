@@ -53,6 +53,10 @@ public object PrivilegeServerMain {
             val handshakeResult = PrivilegeServerHandshakeSender.send(config, binder)
             Log.i(TAG, "Handshake result accepted=${handshakeResult.accepted}")
             if (!handshakeResult.accepted) {
+                if (handshakeResult.replacementStarted) {
+                    Log.i(TAG, "Replacement Privileged Server started; exiting stale server")
+                    exitProcess(0)
+                }
                 System.err.println("Privileged Server handshake was rejected")
                 exitProcess(2)
             }
@@ -261,6 +265,10 @@ public object PrivilegeServerMain {
                 return true
             }
             Log.w(TAG, "Owner reconnect attempt $attempt did not return a live owner Binder")
+        }
+        if (result?.replacementStarted == true) {
+            Log.i(TAG, "Replacement Privileged Server started; exiting stale server")
+            exitProcess(0)
         }
         return false
     }

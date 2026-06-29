@@ -10,6 +10,25 @@ internal object PrivilegeServerHandshakeSender {
     fun send(
         config: PrivilegeServerConfig,
         serverBinder: PrivilegeServerBinder,
+    ): Result =
+        send(
+            config = config,
+            serverBinder = serverBinder,
+            providerCall = PrivilegeServerHandshakeSender::callHandshakeProvider,
+            replacementStarter = PrivilegeServerReplacementStarter::start,
+        )
+
+    internal fun send(
+        config: PrivilegeServerConfig,
+        serverBinder: PrivilegeServerBinder,
+        providerCall: (
+            authority: String,
+            method: String,
+            arg: String?,
+            extras: Bundle,
+            userId: Int,
+        ) -> Bundle?,
+        replacementStarter: (String) -> Unit,
     ): Result {
         val extras = Bundle().apply {
             config.token.takeIf { it.isNotBlank() }?.let {
@@ -21,12 +40,12 @@ internal object PrivilegeServerHandshakeSender {
         }
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(config.packageName)
         Log.i(TAG, "Calling handshake provider authority=$providerAuthority")
-        val response = PrivilegeServerProviderCall.call(
-            authority = providerAuthority,
-            method = PrivilegeHandshakeContract.METHOD_SERVER_READY,
-            arg = config.token.takeIf { it.isNotBlank() },
-            extras = extras,
-            userId = config.userId,
+        val response = providerCall(
+            providerAuthority,
+            PrivilegeHandshakeContract.METHOD_SERVER_READY,
+            config.token.takeIf { it.isNotBlank() },
+            extras,
+            config.userId,
         )
         val accepted = response?.getBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, false) == true
         val ownerBinder = response?.getBinder(PrivilegeHandshakeContract.RESULT_OWNER_BINDER)
@@ -53,9 +72,21 @@ internal object PrivilegeServerHandshakeSender {
         } else {
             config
         }
+        val replacementStarted = if (!accepted) {
+            response?.getString(PrivilegeHandshakeContract.RESULT_REPLACEMENT_COMMAND)
+                ?.takeIf { it.isNotBlank() }
+                ?.let { commandLine ->
+                    Log.i(TAG, "Starting replacement Privileged Server from current install")
+                    replacementStarter(commandLine)
+                    true
+                } == true
+        } else {
+            false
+        }
         Log.i(
             TAG,
             "Handshake provider response accepted=$accepted, hasResponse=${response != null}, " +
+                "replacementStarted=$replacementStarted, " +
                 "followDeathDelayMillis=${ownerConfig.followDeathDelayMillis}, " +
                 "activeReconnectOnOwnerDeath=${ownerConfig.activeReconnectOnOwnerDeath}",
         )
@@ -63,6 +94,7 @@ internal object PrivilegeServerHandshakeSender {
             accepted = accepted,
             ownerBinder = ownerBinder,
             ownerConfig = ownerConfig,
+            replacementStarted = replacementStarted,
         )
     }
 
@@ -70,7 +102,23 @@ internal object PrivilegeServerHandshakeSender {
         val accepted: Boolean,
         val ownerBinder: IBinder?,
         val ownerConfig: PrivilegeServerConfig,
+        val replacementStarted: Boolean = false,
     )
+
+    private fun callHandshakeProvider(
+        authority: String,
+        method: String,
+        arg: String?,
+        extras: Bundle,
+        userId: Int,
+    ): Bundle? =
+        PrivilegeServerProviderCall.call(
+            authority = authority,
+            method = method,
+            arg = arg,
+            extras = extras,
+            userId = userId,
+        )
 
     private fun Bundle.requireLong(key: String): Long {
         require(containsKey(key)) { "Accepted initial handshake response is missing $key" }
@@ -91,4 +139,16 @@ internal object PrivilegeServerHandshakeSender {
             }
 
     private const val TAG = "PrivKitServer"
+}
+
+internal object PrivilegeServerReplacementStarter {
+    fun start(commandLine: String) {
+        ProcessBuilder("/system/bin/sh", "-c", commandLine)
+            .redirectInput(NULL_DEVICE)
+            .redirectOutput(NULL_DEVICE)
+            .redirectError(NULL_DEVICE)
+            .start()
+    }
+
+    private val NULL_DEVICE = File("/dev/null")
 }

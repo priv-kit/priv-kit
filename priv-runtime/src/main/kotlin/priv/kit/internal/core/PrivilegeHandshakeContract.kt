@@ -13,6 +13,7 @@ internal object PrivilegeHandshakeContract {
     const val RESULT_ACCEPTED: String = "privilege_accepted"
     const val RESULT_TOKEN: String = "privilege_token"
     const val RESULT_OWNER_BINDER: String = "privilege_owner_binder"
+    const val RESULT_REPLACEMENT_COMMAND: String = "privilege_replacement_command"
 
     fun providerAuthority(packageName: String): String = "$packageName.privilege.handshake"
 }

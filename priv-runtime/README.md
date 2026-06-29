@@ -34,7 +34,7 @@ Like shizuku-api, the runtime treats the Privileged Server Binder as a single pr
 
 `PrivilegeRuntime.getServerInfo()` and `PrivilegeBinderWrapper` both resolve the server Binder through the same global getter. If the server was killed after a caller cached a framework service proxy backed by `PrivilegeBinderWrapper`, the next transaction is normalized to `PrivilegeServerDisconnectedException` instead of leaking raw Binder state.
 
-If a server reports a different protocol or APK classpath identity than the current app runtime, the runtime rejects that handshake. Startup paths are expected to launch code from the current install.
+If a server reports a different protocol or APK classpath identity than the current app runtime, the runtime rejects that Binder handoff. When the caller is a trusted existing server, the app returns the current native starter command so the stale server can replace itself from the current install.
 
 Shell Start only creates a command for the same Binder handoff path. The command can be executed at any time; the app observes the eventual Binder handoff through `addServerConnectedListener()` or `connectReadyServer()`. It does not execute `adb`, implement Wireless Debugging, or add an ADB startup strategy. UI modules or host apps may add an `adb shell` prefix when they want to display a host-side command.
 

@@ -52,9 +52,9 @@ internal class PrivilegeHandshakeProvider public constructor() : ContentProvider
             uid = callingUid,
             pid = callingPid,
         )
-        val matchesCurrentRuntime = extras != null &&
-            serverInfo != null &&
-            serverInfo.matchesCurrentRuntime(extras)
+        val protocolMatches = serverInfo?.matchesCurrentProtocol() == true
+        val classpathIdentityMatches = extras?.classpathIdentityMatches() == true
+        val matchesCurrentRuntime = protocolMatches && classpathIdentityMatches
         val trustedCaller = isTrustedServerStarterCaller(callingUid)
         val acceptedToken = acceptedToken(
             token = token,
@@ -66,7 +66,7 @@ internal class PrivilegeHandshakeProvider public constructor() : ContentProvider
             Log.w(
                 TAG,
                 "Rejecting server mismatch protocol=${serverInfo.protocolVersion}, " +
-                    "classpathIdentityMatches=${extras.classpathIdentityMatches()}",
+                    "classpathIdentityMatches=$classpathIdentityMatches",
             )
         }
         val accepted = if (acceptedToken != null && matchesCurrentRuntime) {
@@ -78,6 +78,13 @@ internal class PrivilegeHandshakeProvider public constructor() : ContentProvider
         } else {
             false
         }
+        val replacementCommand = replacementCommandFor(
+            token = token,
+            acceptedToken = acceptedToken,
+            trustedCaller = trustedCaller,
+            serverInfo = serverInfo,
+            matchesCurrentRuntime = matchesCurrentRuntime,
+        )
         Log.i(TAG, "Handshake call accepted=$accepted")
 
         return Bundle().apply {
@@ -99,6 +106,8 @@ internal class PrivilegeHandshakeProvider public constructor() : ContentProvider
                         runtimeConfig.activeReconnectOnOwnerDeath,
                     )
                 }
+            } else if (replacementCommand != null) {
+                putString(PrivilegeHandshakeContract.RESULT_REPLACEMENT_COMMAND, replacementCommand)
             }
         }
     }
@@ -192,9 +201,30 @@ internal class PrivilegeHandshakeProvider public constructor() : ContentProvider
         }
     }
 
-    private fun PrivilegeServerInfo.matchesCurrentRuntime(extras: Bundle): Boolean =
-        protocolVersion == PrivilegeProtocol.VERSION &&
-            extras.classpathIdentityMatches()
+    private fun PrivilegeServerInfo.matchesCurrentProtocol(): Boolean =
+        protocolVersion == PrivilegeProtocol.VERSION
+
+    private fun replacementCommandFor(
+        token: String?,
+        acceptedToken: String?,
+        trustedCaller: Boolean,
+        serverInfo: PrivilegeServerInfo?,
+        matchesCurrentRuntime: Boolean,
+    ): String? {
+        if (serverInfo == null || matchesCurrentRuntime) {
+            return null
+        }
+        val trustedExistingServer = if (token == null) {
+            trustedCaller
+        } else {
+            acceptedToken != null
+        }
+        if (!trustedExistingServer) {
+            return null
+        }
+        Log.i(TAG, "Returning replacement starter command for stale Privileged Server")
+        return PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand()
+    }
 
     private fun Bundle.classpathIdentityMatches(): Boolean {
         val expected = PrivilegeServerLaunchCommandBuilder.buildClasspathIdentity(
