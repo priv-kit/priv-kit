@@ -15,7 +15,7 @@ public data class PrivilegeUserServiceSpec public constructor(
         require(version >= 0) { "version must not be negative" }
     }
 
-    public fun id(): PrivilegeUserServiceId = PrivilegeUserServiceId.from(this)
+    internal fun id(): PrivilegeUserServiceId = PrivilegeUserServiceId.from(this)
 
     internal companion object {
         internal const val DEFAULT_TAG: String = "default"

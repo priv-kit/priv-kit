@@ -8,7 +8,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import kotlin.system.exitProcess
 
-@Keep
 internal class PrivilegeSampleShizukuStartService @Keep constructor() :
     IPrivilegeSampleShizukuStartService.Stub() {
     private val startRunning = AtomicBoolean(false)

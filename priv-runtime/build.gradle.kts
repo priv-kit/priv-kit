@@ -7,8 +7,6 @@ android {
     namespace = "priv.kit"
 
     defaultConfig {
-        consumerProguardFiles("consumer-rules.pro")
-
         externalNativeBuild {
             cmake {
                 arguments += "-DANDROID_STL=none"

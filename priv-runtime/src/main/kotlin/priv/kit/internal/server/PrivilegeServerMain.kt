@@ -1,5 +1,7 @@
 package priv.kit.internal.server
 
+import androidx.annotation.Keep
+import androidx.annotation.RestrictTo
 import android.os.IBinder
 import android.os.Looper
 import android.os.RemoteException
@@ -9,6 +11,7 @@ import priv.kit.internal.core.PrivilegeHandshakeContract
 import java.io.File
 import kotlin.system.exitProcess
 
+@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 public object PrivilegeServerMain {
     private val lock = Any()
     private var ownerBinder: IBinder? = null
@@ -31,6 +34,7 @@ public object PrivilegeServerMain {
         scheduleOwnerReconnect(config, serverBinder, "Owner process died")
     }
 
+    @Keep
     @JvmStatic
     public fun main(args: Array<String>) {
         try {

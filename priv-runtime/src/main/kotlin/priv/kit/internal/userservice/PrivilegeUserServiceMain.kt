@@ -3,10 +3,14 @@ package priv.kit.internal.userservice
 import android.os.Bundle
 import android.os.Looper
 import android.util.Log
+import androidx.annotation.Keep
+import androidx.annotation.RestrictTo
 import java.io.File
 import kotlin.system.exitProcess
 
+@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 public object PrivilegeUserServiceMain {
+    @Keep
     @JvmStatic
     public fun main(args: Array<String>) {
         try {

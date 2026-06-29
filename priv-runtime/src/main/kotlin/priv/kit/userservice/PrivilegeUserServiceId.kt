@@ -1,8 +1,8 @@
 package priv.kit.userservice
 
-public data class PrivilegeUserServiceId public constructor(
-    public val serviceClassName: String,
-    public val tag: String = PrivilegeUserServiceSpec.DEFAULT_TAG,
+internal data class PrivilegeUserServiceId(
+    val serviceClassName: String,
+    val tag: String = PrivilegeUserServiceSpec.DEFAULT_TAG,
 ) {
     init {
         require(serviceClassName.isNotBlank()) { "serviceClassName must not be blank" }

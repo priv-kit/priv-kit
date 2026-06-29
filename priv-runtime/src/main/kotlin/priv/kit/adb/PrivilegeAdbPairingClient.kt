@@ -163,7 +163,7 @@ internal class PrivilegeAdbPairingClient(
 
         val theirMessage = ByteArray(theirHeader.payload)
         inputStream.readFully(theirMessage)
-        val decrypted = context.decrypt(theirMessage) ?: throw PrivilegeAdbInvalidPairingCodeException()
+        val decrypted = context.decrypt(theirMessage) ?: throw PrivilegeAdbException("Invalid ADB pairing code")
         if (decrypted.size != MAX_PEER_INFO_SIZE) return false
         PeerInfo.readFrom(ByteBuffer.wrap(decrypted))
         return true

@@ -11,7 +11,10 @@ Public entry points:
 - `PrivilegeScaffold`, the root Compose page.
 - `PrivilegeUiViewModel`, an `open` `AndroidViewModel` state manager that callers may subclass.
 - `PrivilegeUiConfig`, used to enable startup modes, polling intervals, and external start providers.
-- `PrivilegeAdbPairingService`, a foreground service that accepts Wireless ADB pairing codes through notification `RemoteInput`.
+
+Internal Android components:
+
+- `PrivilegeAdbPairingService` is manifest-merged for the built-in notification pairing flow and is not a public app-call API.
 
 The UI covers ordinary user-facing authorization only:
 

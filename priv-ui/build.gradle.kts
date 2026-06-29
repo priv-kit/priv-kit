@@ -25,6 +25,7 @@ dependencies {
     api(libs.androidx.compose.ui)
     api(libs.androidx.lifecycle.viewmodel)
     api(libs.androidx.lifecycle.viewmodel.compose)
+    compileOnly(libs.androidx.annotation)
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
 }

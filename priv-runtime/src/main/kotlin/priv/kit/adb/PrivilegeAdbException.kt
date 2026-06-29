@@ -5,9 +5,6 @@ public open class PrivilegeAdbException : Exception {
     public constructor(cause: Throwable) : super(cause)
 }
 
-public class PrivilegeAdbInvalidPairingCodeException public constructor() :
-    PrivilegeAdbException("Invalid ADB pairing code")
-
 public class PrivilegeAdbKeyException public constructor(cause: Throwable) :
     PrivilegeAdbException("Failed to load ADB key", cause)
 

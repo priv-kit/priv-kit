@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import androidx.annotation.RestrictTo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +22,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.concurrent.atomic.AtomicInteger
 
+@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 public class PrivilegeAdbPairingService public constructor() : Service() {
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -30,16 +32,7 @@ public class PrivilegeAdbPairingService public constructor() : Service() {
     override fun onCreate() {
         super.onCreate()
         runningState.value = true
-        notificationManager.createNotificationChannel(
-            NotificationChannel(
-                NOTIFICATION_CHANNEL_ID,
-                getString(R.string.priv_ui_pairing_channel_name),
-                NotificationManager.IMPORTANCE_HIGH,
-            ).apply {
-                setSound(null, null)
-                setShowBadge(false)
-            },
-        )
+        ensureNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -76,10 +69,31 @@ public class PrivilegeAdbPairingService public constructor() : Service() {
         activeTask?.cancel(true)
         executor.shutdownNow()
         runningState.value = false
+        deleteNotificationChannel()
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun ensureNotificationChannel() {
+        if (notificationManager.getNotificationChannel(NOTIFICATION_CHANNEL_ID) != null) {
+            return
+        }
+        notificationManager.createNotificationChannel(
+            NotificationChannel(
+                NOTIFICATION_CHANNEL_ID,
+                getString(R.string.priv_ui_pairing_channel_name),
+                NotificationManager.IMPORTANCE_HIGH,
+            ).apply {
+                setSound(null, null)
+                setShowBadge(false)
+            },
+        )
+    }
+
+    private fun deleteNotificationChannel() {
+        notificationManager.deleteNotificationChannel(NOTIFICATION_CHANNEL_ID)
+    }
 
     private fun startSearch(adbDeviceName: String?): Notification {
         val generation = searchGeneration.incrementAndGet()
