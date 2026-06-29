@@ -16,7 +16,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import priv.kit.PrivilegeRuntime
 import priv.kit.PrivilegeUserServiceConnection
-import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiViewModel
 import rikka.shizuku.Shizuku
 import java.io.Closeable
@@ -25,7 +24,6 @@ import java.util.concurrent.Executors
 class MainActivity : ComponentActivity() {
     private lateinit var sampleViewModel: PrivilegeSampleViewModel
     private lateinit var privilegeUiViewModel: PrivilegeUiViewModel
-    private lateinit var privilegeUiConfig: PrivilegeUiConfig
     internal val executor = Executors.newSingleThreadExecutor()
     internal var serverConnectedListener: Closeable? = null
     internal var serverDisconnectedWatcher: Closeable? = null
@@ -73,8 +71,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         sampleViewModel = ViewModelProvider(this)[PrivilegeSampleViewModel::class.java]
-        privilegeUiViewModel = ViewModelProvider(this)[PrivilegeUiViewModel::class.java]
-        privilegeUiConfig = createPrivilegeSampleUiConfig(this)
+        privilegeUiViewModel = ViewModelProvider(this)[PrivilegeSamplePrivilegeUiViewModel::class.java]
         Shizuku.addBinderReceivedListenerSticky(shizukuBinderReceivedListener)
         Shizuku.addBinderDeadListener(shizukuBinderDeadListener)
         Shizuku.addRequestPermissionResultListener(shizukuPermissionResultListener)
@@ -86,7 +83,6 @@ class MainActivity : ComponentActivity() {
                 state = screenState,
                 backStack = sampleViewModel.backStack,
                 selectedStartupTab = sampleViewModel.selectedStartupTab,
-                privilegeUiConfig = privilegeUiConfig,
                 privilegeUiViewModel = privilegeUiViewModel,
                 notificationPairingRunning = notificationPairingRunning,
                 onDestinationSelected = { sampleViewModel.selectDestination(it) },

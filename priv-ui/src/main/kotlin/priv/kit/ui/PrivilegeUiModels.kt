@@ -79,11 +79,11 @@ public data class PrivilegeUiConfig public constructor(
         }
     }
 
-    public companion object {
-        public const val DEFAULT_START_TIMEOUT_MILLIS: Long = 15_000L
-        public const val DEFAULT_WIRELESS_STATUS_POLL_INTERVAL_MILLIS: Long = 3_000L
-        public const val DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS: Long = 1_500L
-        public const val DEFAULT_EXTERNAL_START_STATUS_POLL_INTERVAL_MILLIS: Long = 3_000L
+    internal companion object {
+        internal const val DEFAULT_START_TIMEOUT_MILLIS: Long = 15_000L
+        internal const val DEFAULT_WIRELESS_STATUS_POLL_INTERVAL_MILLIS: Long = 3_000L
+        internal const val DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS: Long = 1_500L
+        internal const val DEFAULT_EXTERNAL_START_STATUS_POLL_INTERVAL_MILLIS: Long = 3_000L
     }
 }
 

@@ -9,8 +9,8 @@ public data class PrivilegeUserServiceId public constructor(
         require(tag.isNotBlank()) { "tag must not be blank" }
     }
 
-    public companion object {
-        public fun from(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceId =
+    internal companion object {
+        internal fun from(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceId =
             PrivilegeUserServiceId(
                 serviceClassName = spec.serviceClassName,
                 tag = spec.tag,

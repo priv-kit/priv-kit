@@ -13,7 +13,7 @@ namespace {
 
 constexpr size_t MAX_CLASSPATH_LENGTH = 8192;
 constexpr size_t MAX_SPLIT_APK_COUNT = 128;
-constexpr const char* DEFAULT_MAIN_CLASS = "priv.kit.server.PrivilegeServerMain";
+constexpr const char* DEFAULT_MAIN_CLASS = "priv.kit.internal.server.PrivilegeServerMain";
 constexpr const char* DEFAULT_PROCESS_SUFFIX = ":priv-kit-server";
 
 struct StarterConfig {

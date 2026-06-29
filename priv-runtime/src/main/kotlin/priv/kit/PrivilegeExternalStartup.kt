@@ -16,10 +16,10 @@ public data class PrivilegeExternalStartupOptions @JvmOverloads public construct
         require(maxCapturedLines > 0) { "maxCapturedLines must be positive" }
     }
 
-    public companion object {
-        public const val DEFAULT_SHELL_PATH: String = "/system/bin/sh"
-        public const val DEFAULT_TIMEOUT_MILLIS: Long = 2_000L
-        public const val DEFAULT_MAX_CAPTURED_LINES: Int = 80
+    internal companion object {
+        internal const val DEFAULT_SHELL_PATH: String = "/system/bin/sh"
+        internal const val DEFAULT_TIMEOUT_MILLIS: Long = 2_000L
+        internal const val DEFAULT_MAX_CAPTURED_LINES: Int = 80
     }
 }
 

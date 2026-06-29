@@ -439,7 +439,7 @@ public class PrivilegeAdbStarter private constructor(
         }
     }
 
-    public companion object {
+    internal companion object {
         internal fun forOwnerToken(
             ownerToken: String,
             context: Context,

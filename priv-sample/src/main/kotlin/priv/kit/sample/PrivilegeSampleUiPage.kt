@@ -5,12 +5,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import priv.kit.PrivilegeServerInfo
 import priv.kit.ui.PrivilegeScaffold
-import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiViewModel
 
 @Composable
 internal fun PrivilegeUiAuthorizationPage(
-    config: PrivilegeUiConfig,
     viewModel: PrivilegeUiViewModel,
     onBackClick: () -> Unit,
     onHelpClick: () -> Unit,
@@ -19,7 +17,6 @@ internal fun PrivilegeUiAuthorizationPage(
 ) {
     PrivilegeScaffold(
         modifier = Modifier.fillMaxSize(),
-        config = config,
         viewModel = viewModel,
         onBackClick = onBackClick,
         onHelpClick = onHelpClick,

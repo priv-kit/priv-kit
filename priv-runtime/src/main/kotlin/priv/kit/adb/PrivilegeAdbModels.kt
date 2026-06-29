@@ -18,9 +18,9 @@ public class PrivilegeAdbIdentity private constructor(
     internal val adbDeviceName: String
         get() = deviceName.filterNot { it.isWhitespace() }
 
-    public companion object {
-        public const val DEFAULT_DEVICE_NAME: String = "priv-kit"
-        public const val MAX_DEVICE_NAME_LENGTH: Int = 128
+    internal companion object {
+        internal const val DEFAULT_DEVICE_NAME: String = "priv-kit"
+        internal const val MAX_DEVICE_NAME_LENGTH: Int = 128
         private const val MAX_OWNER_TOKEN_LENGTH = 128
 
         internal fun default(deviceName: String = DEFAULT_DEVICE_NAME): PrivilegeAdbIdentity =

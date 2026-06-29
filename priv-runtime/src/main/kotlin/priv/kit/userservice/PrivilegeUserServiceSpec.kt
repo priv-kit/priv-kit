@@ -17,8 +17,8 @@ public data class PrivilegeUserServiceSpec public constructor(
 
     public fun id(): PrivilegeUserServiceId = PrivilegeUserServiceId.from(this)
 
-    public companion object {
-        public const val DEFAULT_TAG: String = "default"
-        public const val DEFAULT_DESTROY_TIMEOUT_MILLIS: Long = 10_000L
+    internal companion object {
+        internal const val DEFAULT_TAG: String = "default"
+        internal const val DEFAULT_DESTROY_TIMEOUT_MILLIS: Long = 10_000L
     }
 }

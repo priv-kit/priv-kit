@@ -79,7 +79,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
             char == ',' ||
             char == '~'
 
-    private const val SERVER_MAIN_CLASS = "priv.kit.internal.server.PrivilegeServerMain"
+    internal const val SERVER_MAIN_CLASS = "priv.kit.internal.server.PrivilegeServerMain"
     private const val NATIVE_STARTER_LIBRARY_NAME = "libprivkitstarter.so"
     private const val PER_USER_RANGE = 100_000
 }

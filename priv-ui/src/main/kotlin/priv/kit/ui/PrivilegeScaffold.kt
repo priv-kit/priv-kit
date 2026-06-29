@@ -27,7 +27,6 @@ import priv.kit.PrivilegeServerInfo
 @Composable
 public fun PrivilegeScaffold(
     modifier: Modifier = Modifier,
-    config: PrivilegeUiConfig = PrivilegeUiConfig(),
     viewModel: PrivilegeUiViewModel = viewModel(),
     onBackClick: () -> Unit = {},
     onHelpClick: () -> Unit = {},
@@ -35,10 +34,6 @@ public fun PrivilegeScaffold(
     onNotificationPermissionRequired: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    LaunchedEffect(viewModel, config, context) {
-        viewModel.attach(context.applicationContext, config)
-    }
-
     val state by viewModel.state.collectAsState()
     val tcpModeEnabled by viewModel.tcpModeEnabled.collectAsState()
     LaunchedEffect(state.connectionSerial) {

@@ -227,8 +227,8 @@ public class PrivilegeBinderWrapper private constructor(
     }
 
     public companion object {
-        public const val DESCRIPTOR: String = "priv.kit.binder.IPrivilegeBinderWrapper"
-        public const val TRANSACTION_TRANSACT_BINDER: Int = 0x00FF0001
+        internal const val DESCRIPTOR: String = "priv.kit.binder.IPrivilegeBinderWrapper"
+        internal const val TRANSACTION_TRANSACT_BINDER: Int = 0x00FF0001
 
         internal const val TARGET_BINDER: Int = 1
         internal const val TARGET_SYSTEM_SERVICE: Int = 2

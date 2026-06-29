@@ -1,35 +1,35 @@
 package priv.kit.ui
 
+import android.app.Application
 import android.content.Context
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-public open class PrivilegeUiViewModel public constructor() : ViewModel() {
-    private val store = PrivilegeUiViewModelStore().also(::addCloseable)
+public open class PrivilegeUiViewModel @JvmOverloads public constructor(
+    application: Application,
+    public val config: PrivilegeUiConfig = PrivilegeUiConfig(),
+) : AndroidViewModel(application) {
+    private val store = PrivilegeUiViewModelStore(application).also(::addCloseable)
     private val runtimeActions = PrivilegeUiRuntimeActions(store).also(::addCloseable)
     private val manualShellActions = PrivilegeUiManualShellActions(store)
     private val adbActions = PrivilegeUiAdbActions(store, runtimeActions).also(::addCloseable)
     private val externalStartActions = PrivilegeUiExternalStartActions(store, runtimeActions).also(::addCloseable)
-
     public val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
     public open val tcpModeEnabled: MutableStateFlow<Boolean> = store.tcpModeEnabled
     public open val adbTcpPolicy: PrivilegeUiAdbTcpPolicy
         get() = store.config.adbTcpPolicy
 
-    public open fun attach(
-        context: Context,
-        config: PrivilegeUiConfig = PrivilegeUiConfig(),
-    ) {
-        val appContext = context.applicationContext
-        if (store.attached && store.applicationContext === appContext && store.config == config) return
-        store.attached = true
-        store.applicationContext = appContext
+    init {
+        configure(config)
+    }
+
+    private fun configure(config: PrivilegeUiConfig) {
         store.config = config
 
         runtimeActions.configureOwnerDeathBehavior()
-        adbActions.registerPairingEventReceiver(appContext)
+        adbActions.registerPairingEventReceiver(store.requireContext())
         runtimeActions.installRuntimeWatchers()
         store.initializeState(config)
 
@@ -106,10 +106,10 @@ public open class PrivilegeUiViewModel public constructor() : ViewModel() {
         syncWirelessAdbStatusPolling()
         syncExternalStartStatusPolling()
         if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB) {
-            refreshWirelessAdbStatus()
+            adbActions.refreshWirelessAdbStatus()
         }
         if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.EXTERNAL) {
-            refreshExternalStartStatus()
+            externalStartActions.refreshExternalStartStatus()
         }
         refreshTcpModeEnabledIfSelected()
     }
@@ -148,17 +148,17 @@ public open class PrivilegeUiViewModel public constructor() : ViewModel() {
 
     private fun syncWirelessAdbStatusPolling() {
         if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB) {
-            startWirelessAdbStatusPolling()
+            adbActions.startWirelessAdbStatusPolling()
         } else {
-            stopWirelessAdbStatusPolling()
+            adbActions.stopWirelessAdbStatusPolling()
         }
     }
 
     private fun syncExternalStartStatusPolling() {
         if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.EXTERNAL) {
-            startExternalStartStatusPolling()
+            externalStartActions.startExternalStartStatusPolling()
         } else {
-            stopExternalStartStatusPolling()
+            externalStartActions.stopExternalStartStatusPolling()
         }
     }
 
@@ -167,7 +167,7 @@ public open class PrivilegeUiViewModel public constructor() : ViewModel() {
             store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB &&
             store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED
         ) {
-            refreshTcpModeEnabled()
+            adbActions.refreshTcpModeEnabled()
         }
     }
 }

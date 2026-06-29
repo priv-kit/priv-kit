@@ -10,7 +10,9 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
-internal class PrivilegeUiViewModelStore : AutoCloseable {
+internal class PrivilegeUiViewModelStore(
+    context: Context? = null,
+) : AutoCloseable {
     val state = MutableStateFlow(PrivilegeUiState())
     val tcpModeEnabled = MutableStateFlow(false)
     val executor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -19,9 +21,8 @@ internal class PrivilegeUiViewModelStore : AutoCloseable {
     }
 
     @Volatile
-    var applicationContext: Context? = null
+    var applicationContext: Context? = context?.applicationContext ?: context
     var config: PrivilegeUiConfig = PrivilegeUiConfig()
-    var attached: Boolean = false
     var serverConnectedListener: Closeable? = null
     var serverDisconnectedWatcher: Closeable? = null
     var pairingEventReceiver: android.content.BroadcastReceiver? = null
@@ -104,7 +105,7 @@ internal class PrivilegeUiViewModelStore : AutoCloseable {
     }
 
     fun requireContext(): Context =
-        applicationContext ?: error("PrivilegeUiViewModel.attach(context, config) must be called first")
+        applicationContext ?: error("PrivilegeUiViewModel requires an application context")
 
     fun text(id: Int, vararg args: Any): String =
         requireContext().getString(id, *args)

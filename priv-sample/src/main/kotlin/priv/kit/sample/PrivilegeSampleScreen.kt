@@ -47,7 +47,6 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.PrivilegeServerInfo
-import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiViewModel
 
 internal sealed interface PrivilegeSampleDestination {
@@ -211,7 +210,6 @@ internal fun PrivilegeSampleScreen(
     state: PrivilegeSampleScreenState,
     backStack: SnapshotStateList<PrivilegeSampleDestination>,
     selectedStartupTab: PrivilegeStartupTab,
-    privilegeUiConfig: PrivilegeUiConfig,
     privilegeUiViewModel: PrivilegeUiViewModel,
     notificationPairingRunning: Boolean,
     onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
@@ -313,7 +311,6 @@ internal fun PrivilegeSampleScreen(
                 }
                 entry<PrivilegeSampleDestination.PrivilegeUi> {
                     PrivilegeUiAuthorizationPage(
-                        config = privilegeUiConfig,
                         viewModel = privilegeUiViewModel,
                         onBackClick = onPrivilegeUiBack,
                         onHelpClick = onPrivilegeUiHelp,

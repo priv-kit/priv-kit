@@ -9,7 +9,7 @@ This module provides a reusable embedded page for runtime authorization status a
 Public entry points:
 
 - `PrivilegeScaffold`, the root Compose page.
-- `PrivilegeUiViewModel`, an `open` default state manager that callers may subclass.
+- `PrivilegeUiViewModel`, an `open` `AndroidViewModel` state manager that callers may subclass.
 - `PrivilegeUiConfig`, used to enable startup modes, polling intervals, and external start providers.
 - `PrivilegeAdbPairingService`, a foreground service that accepts Wireless ADB pairing codes through notification `RemoteInput`.
 
@@ -28,10 +28,17 @@ It does not include built-in Shizuku integration, app-owned service management, 
 Basic usage:
 
 ```kotlin
-PrivilegeScaffold(
-    config = PrivilegeUiConfig(
+class MyPrivilegeUiViewModel(
+    application: Application,
+) : PrivilegeUiViewModel(
+    application,
+    PrivilegeUiConfig(
         externalStartProviders = listOf(myShizukuProvider),
     ),
+)
+
+PrivilegeScaffold(
+    viewModel = viewModel<MyPrivilegeUiViewModel>(),
     onBackClick = {
         // Return to the host app page.
     },

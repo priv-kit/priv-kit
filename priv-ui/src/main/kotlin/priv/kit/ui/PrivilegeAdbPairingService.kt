@@ -419,19 +419,19 @@ public class PrivilegeAdbPairingService public constructor() : Service() {
     private fun Throwable.failureMessage(): String =
         message ?: javaClass.simpleName
 
-    public companion object {
-        public const val EXTRA_EVENT: String = "event"
-        public const val EXTRA_MESSAGE: String = "message"
-        public const val EXTRA_PAIRING_PORT: String = "pairing_port"
-        public const val EXTRA_ADB_DEVICE_NAME: String = "adb_device_name"
-        public const val EXTRA_ADB_KEY_FINGERPRINT: String = "adb_key_fingerprint"
+    internal companion object {
+        internal const val EXTRA_EVENT: String = "event"
+        internal const val EXTRA_MESSAGE: String = "message"
+        internal const val EXTRA_PAIRING_PORT: String = "pairing_port"
+        internal const val EXTRA_ADB_DEVICE_NAME: String = "adb_device_name"
+        internal const val EXTRA_ADB_KEY_FINGERPRINT: String = "adb_key_fingerprint"
 
-        public const val EVENT_SEARCHING: String = "searching"
-        public const val EVENT_FOUND: String = "found"
-        public const val EVENT_PAIRING: String = "pairing"
-        public const val EVENT_PAIRED: String = "paired"
-        public const val EVENT_FAILED: String = "failed"
-        public const val EVENT_STOPPED: String = "stopped"
+        internal const val EVENT_SEARCHING: String = "searching"
+        internal const val EVENT_FOUND: String = "found"
+        internal const val EVENT_PAIRING: String = "pairing"
+        internal const val EVENT_PAIRED: String = "paired"
+        internal const val EVENT_FAILED: String = "failed"
+        internal const val EVENT_STOPPED: String = "stopped"
 
         private const val ACTION_START = "priv.kit.ui.action.START_ADB_PAIRING_NOTIFICATION"
         private const val ACTION_REPLY = "priv.kit.ui.action.REPLY_ADB_PAIRING_NOTIFICATION"
@@ -450,12 +450,12 @@ public class PrivilegeAdbPairingService public constructor() : Service() {
         private const val PAIRING_DISCOVERY_RETRY_DELAY_MILLIS = 500L
 
         private val runningState = MutableStateFlow(false)
-        public val running: StateFlow<Boolean> = runningState.asStateFlow()
+        internal val running: StateFlow<Boolean> = runningState.asStateFlow()
 
-        public fun actionPairingEvent(context: Context): String =
+        internal fun actionPairingEvent(context: Context): String =
             context.packageName + ".priv.kit.ui.action.ADB_PAIRING_EVENT"
 
-        public fun start(context: Context, adbDeviceName: String?) {
+        internal fun start(context: Context, adbDeviceName: String?) {
             val intent = Intent(context, PrivilegeAdbPairingService::class.java)
                 .setAction(ACTION_START)
                 .apply {
@@ -466,7 +466,7 @@ public class PrivilegeAdbPairingService public constructor() : Service() {
             context.startForegroundService(intent)
         }
 
-        public fun stop(context: Context) {
+        internal fun stop(context: Context) {
             context.startService(
                 Intent(context, PrivilegeAdbPairingService::class.java)
                     .setAction(ACTION_STOP),

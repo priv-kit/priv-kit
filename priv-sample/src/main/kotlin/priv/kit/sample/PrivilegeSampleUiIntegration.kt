@@ -1,5 +1,6 @@
 package priv.kit.sample
 
+import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import priv.kit.PrivilegeServerInfo
@@ -8,9 +9,14 @@ import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
 import priv.kit.ui.PrivilegeUiStreamingExternalStartProvider
 import priv.kit.ui.PrivilegeUiStartupMode
+import priv.kit.ui.PrivilegeUiViewModel
 import rikka.shizuku.Shizuku
 
 internal const val SAMPLE_SHIZUKU_EXTERNAL_START_ID = "shizuku"
+
+internal class PrivilegeSamplePrivilegeUiViewModel(
+    application: Application,
+) : PrivilegeUiViewModel(application, createPrivilegeSampleUiConfig(application))
 
 internal fun createPrivilegeSampleUiConfig(context: Context): PrivilegeUiConfig =
     PrivilegeUiConfig(

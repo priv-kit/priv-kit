@@ -56,7 +56,7 @@ internal class PrivilegeUiExternalStartActions(
         }
     }
 
-    private fun refreshExternalStartStatusNow(
+    internal fun refreshExternalStartStatusNow(
         stop: AtomicBoolean?,
         providerId: String?,
     ) {
@@ -73,8 +73,9 @@ internal class PrivilegeUiExternalStartActions(
         stop: AtomicBoolean?,
         providerId: String?,
     ) {
-        val context = store.requireContext()
         val providers = store.config.externalStartProviders.filter { providerId == null || it.id == providerId }
+        if (providers.isEmpty()) return
+        val context = store.applicationContext ?: return
         providers.forEach { provider ->
             if (stop?.get() == true) return
             val snapshot = runCatching { provider.snapshot(context) }
