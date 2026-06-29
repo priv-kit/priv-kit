@@ -46,7 +46,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import priv.kit.adb.PrivilegeAdbStartOptions
-import priv.kit.core.PrivilegeServerInfo
+import priv.kit.PrivilegeServerInfo
 import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiViewModel
 

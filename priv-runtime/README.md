@@ -2,7 +2,7 @@
 
 Client-side runtime orchestration module for Priv Kit.
 
-Namespace and package root: `priv.kit.runtime`.
+Namespace and public package root: `priv.kit`.
 
 Common entry points:
 
@@ -18,11 +18,11 @@ Advanced entry points:
 - `PrivilegeHandshakeProvider`, the app-side Binder handoff endpoint protected by `android.permission.INTERACT_ACROSS_USERS_FULL` and the persisted owner token. Short native starter commands complete one provider handoff that returns the owner token and current in-memory owner-death config.
 - Ready-server connection helpers, owner-death reconnect configuration, and raw Binder bridge types for custom diagnostics or low-level Binder validation.
 
-Runtime owns token generation, shared server launch command construction, the native starter executable, Root `su` execution, Root/ADB pending handshakes, protocol validation, current server Binder installation, and Binder death handling. The ADB module executes or transports the launch command. `priv-runtime` exposes the ADB startup surface through `api(project(":priv-adb"))`, so the public ADB types remain the real `PrivilegeAdb*` types rather than duplicated runtime models.
+Runtime owns token generation, shared server launch command construction, the native starter executable, Root `su` execution, ADB pairing/connect/startup, pending handshakes, protocol validation, current server Binder installation, Privileged Server entry points, and Binder death handling. Public ADB configuration and pairing types live in `priv.kit.adb`; raw startup transport SPI and wire protocol live under `priv.kit.internal.*`.
 
 `PrivilegeHandshakeProvider` initializes the runtime with the app `Context`, so callers use `PrivilegeRuntime` directly without passing `Context` into start, ADB, shell-start, or ready-server APIs. The provider remains exported so shell/root/external privileged starters can reach it, but normal apps are stopped by the provider permission before the owner-token handshake runs.
 
-The runtime module carries `priv-server` as a runtime-only dependency so apps do not need to declare the server module separately. The server module contributes the R8 consumer rule that keeps its `app_process` entry point.
+The runtime module carries its own `app_process` server and UserService entry points, and contributes the R8 consumer rule that keeps those `main(String[])` methods.
 
 Configure owner-death behavior through the process-wide `PrivilegeRuntimeConfig` object. When the app-side owner process dies, the Privileged Server waits for `followDeathDelayMillis` before exiting. The default is 10 minutes. Use `0` to exit immediately.
 

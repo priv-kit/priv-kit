@@ -2,10 +2,10 @@ package priv.kit.ui
 
 import android.content.Context
 import priv.kit.adb.PrivilegeAdbStartOptions
-import priv.kit.core.PrivilegeServerInfo
-import priv.kit.core.PrivilegeStartupException
-import priv.kit.core.PrivilegeStartupLogListener
-import priv.kit.runtime.PrivilegeRuntimeConfig
+import priv.kit.PrivilegeServerInfo
+import priv.kit.PrivilegeStartupException
+import priv.kit.PrivilegeStartupLogListener
+import priv.kit.PrivilegeRuntimeConfig
 
 public enum class PrivilegeUiRuntimeStatus {
     DISCONNECTED,

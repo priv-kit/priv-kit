@@ -2,21 +2,10 @@
 
 本文档定义 `Priv Kit`（仓库名 `priv-kit`）的当前模块边界。所有模块都必须遵守 [project-constitution.md](project-constitution.md)。
 
-当前源码按三类职责组织：
-
-- 共享端：`:priv-core`
-- 客户端：`:priv-runtime`
-- 服务端：`:priv-server`
-
-Binder 和 UserService 仍保留 `priv.kit.binder.*` / `priv.kit.userservice.*` package 分区，但不再对应独立 Gradle 模块。
-
 ## 模块列表
 
-- `:priv-core`
 - `:priv-runtime`
-- `:priv-server`
 - `:priv-adb-crypto`
-- `:priv-adb`
 - `:priv-ui`
 - `:priv-sample`
 - `:hidden-api`
@@ -35,34 +24,25 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 | Gradle 模块 | Maven artifactId | Kotlin package 分区 |
 | --- | --- | --- |
-| `:priv-core` | `priv-core` | `priv.kit.core`, `priv.kit.binder`, `priv.kit.userservice` |
-| `:priv-runtime` | `priv-runtime` | `priv.kit.runtime` |
-| `:priv-server` | `priv-server` | `priv.kit.server`, 服务端侧 `priv.kit.userservice` 实现 |
+| `:priv-runtime` | `priv-runtime` | `priv.kit`, `priv.kit.binder`, `priv.kit.userservice`, `priv.kit.adb`, `priv.kit.internal.*` |
 | `:priv-adb-crypto` | `priv-adb-crypto` | `priv.kit.adb.crypto.certificate`, `priv.kit.adb.crypto.pairing` |
-| `:priv-adb` | `priv-adb` | `priv.kit.adb` |
 | `:priv-ui` | `priv-ui` | `priv.kit.ui` |
 | `:priv-sample` | 不作为发布 artifact | `priv.kit.sample` |
 | `:hidden-api` | 不作为发布 artifact | framework mirror/stub package |
 
-除 `:hidden-api` 中的 framework mirror/stub 外，所有源码 package 必须位于 `priv.kit.*`。禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*`。
-
-所有公开 API 必须使用完整单词 `Privilege*` 命名，例如 `PrivilegeBinderWrapper`、`PrivilegeUserServiceSpec`、`PrivilegeRuntime` 和 `PrivilegeUserServiceConnection`。禁止公开 API 使用 `Priv*` 缩写。
+除 `:hidden-api` 中的 framework mirror/stub 外，所有源码 package 必须位于 `priv.kit.*`。公开 API 必须使用完整单词 `Privilege*` 命名，禁止公开 API 使用 `Priv*` 缩写。
 
 ## API 承诺边界
-
-模块发布到 Maven Central 只是构建与依赖分发策略，不等于该模块内所有 public 类型都承诺给接入应用使用。
 
 当前只承诺接入应用引用 `priv-runtime` 或 `priv-ui` 后可见的编译期 API：
 
 - `:priv-runtime` 自身 public API；
 - `:priv-ui` 自身 public API；
-- 以上模块通过 `api(...)` 传递暴露的类型。
+- `:priv-ui` 通过 `api(project(":priv-runtime"))` 传递暴露的 runtime API。
 
-`:priv-server` 和 `:priv-adb-crypto` 即使发布，也默认属于运行环境、逻辑隔离或实现复用模块。除非 README 或正式文档明确列为入口，接入应用不应把这些模块的 public 类型视为稳定 API。
+`priv-adb-crypto` 即使发布，也默认属于非 Android 的 ADB crypto 实现模块。它不属于 Android runtime/UI 接入面。
 
-`:priv-adb` 的独立 artifact 不是推荐接入入口；但 `:priv-runtime` 通过 `api(project(":priv-adb"))` 传递暴露 ADB 启动相关类型，因此这些 `priv.kit.adb` 类型属于引用 `priv-runtime` 后可见的 ADB 编译期 API。runtime 不再维护 `PrivilegeRuntimeAdb*` 形式的重复模型。
-
-`priv-adb-crypto` 保持独立 Kotlin/JVM 模块，便于维护 ADB pairing/certificate 所需的非 Android 实现；它不属于 Android runtime/UI 接入面。
+`priv.kit.internal.*` 下的类型属于实现细节。少数 `app_process` main class、ContentProvider 或 AIDL 生成类型可能因 Android/JVM 反射要求在字节码层可见，但它们不构成公开 API。
 
 ## 依赖方向
 
@@ -70,72 +50,24 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 ```text
 :priv-runtime
-    -> :priv-core
-    -> api(:priv-adb)
-    -> runtimeOnly(:priv-server)
-
-:priv-core
-    -> compileOnly(:hidden-api)
-
-:priv-server
-    -> :priv-core
-    -> compileOnly(:hidden-api)
-
-:priv-adb
-    -> :priv-core
-    -> :priv-adb-crypto
+    -> implementation(:priv-adb-crypto)
     -> compileOnly(:hidden-api)
 
 :priv-ui
-    -> :priv-runtime
+    -> api(:priv-runtime)
 
 :priv-sample
-    -> :priv-runtime
-    -> :priv-ui
-    -> 启动或演示所需模块
+    -> implementation(:priv-runtime)
+    -> implementation(:priv-ui)
+    -> 示例所需第三方入口
 ```
 
 所有权方向必须稳定：
 
-- 共享协议、AIDL、模型和原语来自 `:priv-core`；
-- 客户端生命周期编排属于 `:priv-runtime`；
-- 特权进程行为和服务端侧 UserService 实现属于 `:priv-server`；
-- 启动实现留在各自模块；
+- 运行时生命周期、Root、ADB、手动 shell、外部启动、server entry、Binder/UserService 原语和内部协议都归属 `:priv-runtime`；
+- ADB pairing/certificate crypto 的非 Android 实现归属 `:priv-adb-crypto`；
 - UI 依赖运行时，运行时不反向依赖 UI；
 - 示例依赖公开模块，不应变成内部测试工具。
-
-## `:priv-core`
-
-职责：
-
-- 共享协议和值类型；
-- `priv.kit.core.*` 运行时模型、启动模型、协议版本和 handshake registry；
-- `priv.kit.binder.*` AIDL、共享异常、raw Binder wrapper；
-- `priv.kit.userservice.*` AIDL、UserService spec/id/process-mode/owner-death 模型、共享异常、wire contract、handshake registry；
-- 运行时、服务端、示例和启动实现都需要理解的底层契约。
-
-允许：
-
-- 原语化运行时、Binder 和 UserService 模型；
-- 项目自有 AIDL 协议；
-- 显式目标 Binder、当前进程系统服务 Binder 或显式服务端系统服务名的 raw Binder transaction 桥；
-- 在方法体内部通过 `compileOnly(:hidden-api)` 调用 `ServiceManager.getService(name)`，但不得把 hidden framework 类型暴露到 public API 签名；
-- 错误和诊断值类型；
-- 用于解耦模块的共享接口或常量。
-
-禁止：
-
-- Android 系统服务类型化封装；
-- 启动命令构造逻辑；
-- Root 或 ADB transport 实现；
-- UserService registry、manager、loader、process 或 destroy 实现；
-- UI 依赖；
-- 只服务于示例的 helper；
-- 面向输入、包、设置、app-ops 或 activity 管理的领域 API。
-
-调用方要求：
-
-- Android P+ 上接入应用使用 `PrivilegeBinderWrapper.fromSystemService(...)` 默认当前进程入口前，必须先配置 hidden API exemption，例如在 `Application.attachBaseContext` 中调用 `HiddenApiBypass.addHiddenApiExemptions("L")`。
 
 ## `:priv-runtime`
 
@@ -144,11 +76,14 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 客户端 app 进程侧编排；
 - `PrivilegeRuntime` 公开入口；
 - 运行时状态、启动策略选择、服务端连接和重连；
-- `PrivilegeRuntimeUserServiceClient`、`PrivilegeUserServiceConnection`；
 - Root 启动的 `su` 可用性检查、命令执行和启动诊断；
+- ADB pairing/connect、ADB 启动配置、ADB 启动诊断和 TCP 复用；
 - Shell Start Command、owner token store、运行时内存配置和 handshake provider；
 - 通用 native starter 可执行文件；
-- 通过 `runtimeOnly(:priv-server)` 携带服务端入口，让接入应用优先只依赖 `:priv-runtime`。
+- Privileged Server `app_process` 入口；
+- 服务端 Binder 端点和 raw Binder transaction 转发；
+- UserService start/bind/stop 管线、服务端 registry/loader/host/destroyer 和独立 UserService 子进程入口；
+- 内部 AIDL、wire contract、handshake registry、protocol 和 launch command。
 
 允许：
 
@@ -158,57 +93,31 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 创建显式系统服务名的 raw Binder transaction 桥；
 - 构造项目自有 Privileged Server 的 `app_process` 启动命令；
 - 打包供 shell/manual/ADB 通道复用的 native starter 可执行文件；
-- 通过 `su` 执行共享服务端启动命令；
-- root 启动诊断和 root 特有启动失败建模；
-- 为用户手动执行或具备代码执行能力的外部启动入口提供启动命令、外部特权进程内执行 helper 和主进程日志接收 helper；
-- token、Root/ADB pending handshake、ready-server handoff、当前全局 server-binder 安装和 Binder death handling。
+- 通过 root 或 ADB 执行共享服务端启动命令；
+- 为用户手动执行或具备代码执行能力的外部启动入口提供启动命令、外部特权进程内执行 helper 和主进程日志接收 helper。
 
 禁止：
 
-- 直接实现 ADB pairing、socket、mDNS 或 ADB 命令执行通道；
-- 公开 root 命令库、特权操作 helper、package/input/settings/app-ops/activity API；
-- 服务端侧 UserService registry/loader/manager 实现；
+- 公开 root 命令库、ADB 命令库、shell helper 库或特权操作 helper；
+- 公开 package/input/settings/app-ops/activity API；
 - 高级 Android 操作 API；
 - 类型化 Android 系统服务 API；
-- UI toolkit 依赖。
+- UI toolkit 依赖；
+- 把 `priv.kit.internal.*` 类型作为公开签名暴露。
 
-## `:priv-server`
+## `:priv-adb-crypto`
 
 职责：
 
-- Privileged Server 进程入口；
-- 特权侧 Binder 端点；
-- 服务端生命周期；
-- raw Binder transaction 的服务端转发；
-- 服务端侧 UserService 生命周期管线。
+- 项目内部 ADB 启动客户端证书所需的最小 X.509 / DER 生成能力；
+- 项目内部 ADB Wireless Debugging pairing 所需的最小 BoringSSL 兼容 SPAKE2 / HKDF / AES-GCM 能力。
 
-`priv.kit.userservice` 中以下服务端实现归属于本模块：
+package 分区：
 
-- `PrivilegeUserServiceRegistry`
-- `PrivilegeUserServiceManagerBinder`
-- `PrivilegeUserServiceHost`
-- `PrivilegeUserServiceLoader`
-- `PrivilegeUserServiceDestroyer`
-- `PrivilegeUserServiceGateBinder`
-- `PrivilegeUserServiceProcessBinder`
-- `PrivilegeUserServiceMain`
-- `PrivilegeUserServiceProviderCall`
+- `priv.kit.adb.crypto.certificate` 只承载 ADB 客户端证书生成；
+- `priv.kit.adb.crypto.pairing` 只承载 Wireless Debugging pairing 加密上下文。
 
-允许：
-
-- 服务端 bootstrap；
-- 发布项目 Binder 端点；
-- 在可行时检查客户端身份；
-- 启动、claim、绑定、销毁 UserService 子进程；
-- 嵌入式 UserService 实例生命周期；
-- 为 raw 系统服务 Binder 桥执行显式服务名解析和 transaction 转发。
-
-禁止：
-
-- 可复用的高级特权操作；
-- framework service facade API；
-- 应用定义的业务逻辑；
-- UI 代码。
+禁止通用 SSL/TLS 协议栈、通用密码学工具箱、通用证书管理、通用 PKI API、Android API 依赖，以及 ADB socket、mDNS 或启动命令执行逻辑。
 
 ## `:hidden-api`
 
@@ -228,47 +137,6 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 项目公开 API；
 - 发布 artifact；
 - 系统服务能力封装。
-
-## `:priv-adb`
-
-职责：
-
-- 基于 ADB 的服务端启动。
-
-允许：
-
-- ADB 启动配置；
-- Wireless Debugging pairing/connect；
-- 通过 ADB shell 执行 `:priv-runtime` 生成的共享服务端启动命令；
-- ADB 启动诊断；
-- ADB 特有启动失败建模；
-- 使用 hidden-api 编译期 stub 调用 ADB pairing 所需的 framework hidden API；
-- 转换为共享启动结果。
-
-调用方要求：
-
-- Android P+ 上接入应用必须在使用 `:priv-adb` 前配置 hidden API exemption，例如在 `Application.attachBaseContext` 中调用 `HiddenApiBypass.addHiddenApiExemptions("L")`。
-
-禁止：
-
-- 公开 ADB 命令库；
-- 持有或构建通用 native starter 可执行文件；
-- shell 便利 API；
-- 面向无关系统操作的 ADB helper。
-
-## `:priv-adb-crypto`
-
-职责：
-
-- 项目内部 ADB 启动客户端证书所需的最小 X.509 / DER 生成能力；
-- 项目内部 ADB Wireless Debugging pairing 所需的最小 BoringSSL 兼容 SPAKE2 / HKDF / AES-GCM 能力。
-
-package 分区：
-
-- `priv.kit.adb.crypto.certificate` 只承载 ADB 客户端证书生成；
-- `priv.kit.adb.crypto.pairing` 只承载 Wireless Debugging pairing 加密上下文。
-
-禁止通用 SSL/TLS 协议栈、通用密码学工具箱、通用证书管理、通用 PKI API、Android API 依赖，以及 ADB socket、mDNS 或启动命令执行逻辑。
 
 ## `:priv-ui`
 
@@ -306,16 +174,6 @@ package 分区：
 - app-ops 修改；
 - activity manager 操作；
 - 任何让禁止的高级能力看起来像项目提供能力的示例。
-
-## 各模块源码语言策略
-
-所有模块默认规则：
-
-- 手写源码使用 Kotlin；
-- Gradle 构建脚本使用 Kotlin DSL；
-- 普通业务模块不得包含 Java 源码。
-
-Java 例外仅限于 hidden-api stub、framework mirror class、AIDL 兼容桥接。
 
 ## 公开 API 评审清单
 

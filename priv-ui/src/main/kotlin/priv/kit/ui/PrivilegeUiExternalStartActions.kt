@@ -1,6 +1,6 @@
 package priv.kit.ui
 
-import priv.kit.runtime.PrivilegeRuntime
+import priv.kit.PrivilegeRuntime
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class PrivilegeUiExternalStartActions(

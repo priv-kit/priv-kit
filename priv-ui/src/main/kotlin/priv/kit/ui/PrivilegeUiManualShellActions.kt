@@ -1,7 +1,7 @@
 package priv.kit.ui
 
 import android.content.Context
-import priv.kit.runtime.PrivilegeRuntime
+import priv.kit.PrivilegeRuntime
 
 internal class PrivilegeUiManualShellActions(
     private val store: PrivilegeUiViewModelStore,

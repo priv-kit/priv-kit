@@ -27,9 +27,9 @@
 - GitHub Organization 和 Repository 都固定为 `priv-kit`。
 - 项目对外名称固定为 `Priv Kit`。
 - Maven `groupId` 固定为 `io.github.priv-kit`。
-- 发布模块的 Maven `artifactId` 使用 `priv-*`：`priv-core`、`priv-runtime`、`priv-server`、`priv-adb-crypto`、`priv-adb`、`priv-ui`。
-- Gradle 模块使用 `:priv-core`、`:priv-runtime`、`:priv-server`、`:priv-adb-crypto`、`:priv-adb`、`:priv-ui`、`:priv-sample`，以及内部编译期 stub 模块 `:hidden-api`。
-- 除 `:hidden-api` 中的 framework mirror/stub 外，Kotlin package 统一使用 `priv.kit.*`，例如 `priv.kit.runtime`、`priv.kit.server`、`priv.kit.binder`、`priv.kit.userservice`。
+- 发布模块的 Maven `artifactId` 使用 `priv-*`：`priv-runtime`、`priv-adb-crypto`、`priv-ui`。
+- Gradle 模块使用 `:priv-runtime`、`:priv-adb-crypto`、`:priv-ui`、`:priv-sample`，以及内部编译期 stub 模块 `:hidden-api`。
+- 除 `:hidden-api` 中的 framework mirror/stub 外，Kotlin package 统一使用 `priv.kit.*`，例如 `priv.kit`、`priv.kit.binder`、`priv.kit.userservice`、`priv.kit.adb`、`priv.kit.internal.*`。
 - 禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*` 作为源码 package。
 - 公开 API 使用完整单词 `Privilege*`，例如 `PrivilegeKit`、`PrivilegeRuntime`、`PrivilegeConnection`。
 - 公开 API 禁止使用 `Priv*` 缩写，例如 `PrivKit`、`PrivSession`、`PrivRuntime`、`PrivConnection`。
@@ -63,17 +63,15 @@ Application
     +-------------------+--------------------+----------------------+
     |                   |                    |                      |
     v                   v                    v                      v
-root su executor    :priv-adb     external/manual command      :priv-ui
-    |                   |                    |
-    +-------------------+--------------------+
+root executor       adb transport     external/manual command   binder/userservice
+    |                   |                    |                      |
+    +-------------------+--------------------+----------------------+
                         |
                         v
-                  :priv-server
-                        |
-                   :priv-core
+              internal privileged server
 ```
 
-`:priv-core` 是共享契约基础。其他模块通过它共享运行时值类型、Binder/UserService AIDL、状态模型、wire contract、raw Binder primitive 和错误分类。
+`:priv-runtime` 是 Android 接入和内部运行时闭环。公开原语位于 `priv.kit`、`priv.kit.binder`、`priv.kit.userservice` 和 `priv.kit.adb`；handshake、protocol、AIDL、server entry、ADB raw transport 和服务端 UserService 实现位于 `priv.kit.internal.*`。
 
 ## 运行时生命周期
 
@@ -121,13 +119,13 @@ Privileged Server 是以特权运行的运行时端点。
 项目支持四类启动入口：
 
 - `:priv-runtime` 内部的 Root 启动；
-- `:priv-adb` 中的 ADB 启动；
+- `:priv-runtime` 内部的 ADB 启动；
 - 用户手动执行的 shell 启动命令；
 - Shizuku UserService 或其他能够在 shell/root 等兼容身份中托管应用代码并执行启动命令的外部启动入口。
 
 Root 和 ADB 策略把应用配置转换成服务端启动或连接尝试。手动 shell 和外部启动入口执行的是同一个 Shell Start Command，只是命令执行者不同；两者都复用同一条 Binder handoff。
 
-共享的 `app_process` 服务端启动命令由运行时根据核心启动值模型构造。供 shell/ADB 通道复用的 native starter 可执行文件也由 `:priv-runtime` 打包。Root 执行器留在运行时内部，只负责 `su` 执行通道和失败诊断；ADB 模块只负责 ADB 命令执行通道和失败诊断。运行时负责 token、Root/ADB pending handshake、ready-server handoff、全局 server-binder 安装、Shell Start Command 和 death handling。
+共享的 `app_process` 服务端启动命令由运行时根据内部启动值模型构造。供 shell/ADB 通道复用的 native starter 可执行文件也由 `:priv-runtime` 打包。Root 执行器只负责 `su` 执行通道和失败诊断；ADB 实现只负责 pairing/connect、ADB 命令执行通道和失败诊断。运行时负责 token、Root/ADB pending handshake、ready-server handoff、全局 server-binder 安装、Shell Start Command 和 death handling。
 
 app 侧 handshake provider 必须保持 exported，以便 shell、root 或外部启动入口启动的 server 回传 Binder；同时 provider 使用 `android.permission.INTERACT_ACROSS_USERS_FULL` 阻止普通应用直接调用，并继续用 owner token 校验真正的 server handoff。
 
@@ -150,9 +148,9 @@ Binder 支持应覆盖：
 - 显式系统服务名的 raw remote transact 转发；
 - 项目自有契约的协议和版本检查。
 
-当前 Binder 原语由 `:priv-core` 的 `priv.kit.binder` package 分区承载，服务端侧 transaction 执行归属于 `:priv-server`：
+当前 Binder 原语由 `:priv-runtime` 的 `priv.kit.binder` package 分区承载，内部 AIDL 和服务端侧 transaction 执行归属于 `priv.kit.internal.*`：
 
-- `IPrivilegeServer` 定义项目自有 Privileged Server Binder 协议；
+- 内部 `IPrivilegeServer` 定义项目自有 Privileged Server Binder 协议；
 - `PrivilegeBinderWrapper.fromBinder(...)` 将调用方已持有的显式目标 `IBinder` 的 `transact` 通过当前 Privileged Server 执行，并通过 `PrivilegeRuntime` 的全局 server-binder getter 在每次 transaction 前统一拦截 server 断连；
 - `PrivilegeBinderWrapper.fromSystemService(...)` 默认在当前进程通过 hidden `ServiceManager.getService(name)` 获取目标 Binder，再复用 `fromBinder(...)` 的 raw transaction 桥；
 - `PrivilegeBinderWrapper.fromSystemService(..., source = PrivilegeSystemServiceSource.SERVER_PROCESS)` 先确认当前 Privileged Server 进程能按显式系统服务名解析目标，再返回按服务名延迟解析和转发 transaction 的 raw Binder 桥，不向 app 暴露 server 进程内的真实 Binder；
@@ -180,7 +178,7 @@ UserService 是应用自定义特权逻辑的扩展机制。
 - unbind 或 stop；
 - 暴露生命周期错误。
 
-当前 UserService 共享协议由 `:priv-core` 的 `priv.kit.userservice` package 分区承载，服务端实现由 `:priv-server` 承载：
+当前 UserService 公开原语由 `:priv-runtime` 的 `priv.kit.userservice` package 分区承载，内部 wire contract、AIDL、registry、manager、loader、host、destroyer 和独立 UserService 进程入口由 `priv.kit.internal.userservice` 承载：
 
 - `PrivilegeUserServiceSpec` 使用 `serviceClassName + tag` 标识一个应用自定义 UserService 实例；
 - `version` 不是实例身份的一部分，只控制同一 `serviceClassName + tag` 是否复用现有实例；

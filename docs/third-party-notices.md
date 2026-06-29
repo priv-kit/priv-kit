@@ -2,7 +2,7 @@
 
 ## Shizuku-Fixed ADB startup logic
 
-The `:priv-adb` wireless ADB implementation is derived from the ADB pairing,
+The `:priv-runtime` wireless ADB implementation is derived from the ADB pairing,
 connection, key encoding, mDNS discovery, and TCP mode logic in
 `C:\Users\lisonge\Documents\Project\Shizuku-Fixed`.
 

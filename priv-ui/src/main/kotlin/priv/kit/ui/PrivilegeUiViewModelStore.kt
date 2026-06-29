@@ -3,8 +3,8 @@ package priv.kit.ui
 import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
-import priv.kit.core.PrivilegeStartupLogLine
-import priv.kit.core.PrivilegeStartupLogListener
+import priv.kit.PrivilegeStartupLogLine
+import priv.kit.PrivilegeStartupLogListener
 import java.io.Closeable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors

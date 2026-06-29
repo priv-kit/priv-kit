@@ -14,8 +14,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
-import priv.kit.runtime.PrivilegeRuntime
-import priv.kit.runtime.PrivilegeUserServiceConnection
+import priv.kit.PrivilegeRuntime
+import priv.kit.PrivilegeUserServiceConnection
 import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiViewModel
 import rikka.shizuku.Shizuku

@@ -1,8 +1,8 @@
 package priv.kit.ui
 
-import priv.kit.core.PrivilegeServerInfo
-import priv.kit.runtime.PrivilegeRuntime
-import priv.kit.runtime.PrivilegeRuntimeConfig
+import priv.kit.PrivilegeServerInfo
+import priv.kit.PrivilegeRuntime
+import priv.kit.PrivilegeRuntimeConfig
 
 internal class PrivilegeUiRuntimeActions(
     private val store: PrivilegeUiViewModelStore,

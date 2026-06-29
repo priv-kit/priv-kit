@@ -2,8 +2,8 @@ package priv.kit.sample
 
 import android.content.Context
 import androidx.annotation.Keep
-import priv.kit.core.PrivilegeStartupLogListener
-import priv.kit.runtime.external.PrivilegeExternalStartup
+import priv.kit.PrivilegeStartupLogListener
+import priv.kit.PrivilegeExternalStartup
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import kotlin.system.exitProcess

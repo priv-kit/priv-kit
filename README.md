@@ -17,7 +17,7 @@ dependencies {
 }
 ```
 
-当前只承诺接入应用引用 `priv-runtime` / `priv-ui` 后可见的编译期 API，以及它们通过 `api(...)` 传递暴露的类型。其他 artifact 即使发布到 Maven Central，也默认只是运行环境区分、逻辑隔离或实现复用模块。`priv-adb` 的 ADB 类型目前作为 `priv-runtime` 的传递编译期 API 暴露，推荐仍通过 `priv-runtime` 接入，而不是单独把 `priv-adb` 当成文档入口。
+当前只承诺接入应用引用 `priv-runtime` / `priv-ui` 后可见的编译期 API。`priv-runtime` 已经包含 Binder、UserService、Root、ADB、手动 shell 和外部启动入口所需代码；`priv-adb-crypto` 只是独立 JVM 实现模块，不属于 Android 接入 API。
 
 必须配置 [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass)
 

@@ -22,7 +22,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import priv.kit.core.PrivilegeServerInfo
+import priv.kit.PrivilegeServerInfo
 
 @Composable
 public fun PrivilegeScaffold(

@@ -7,9 +7,9 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.IBinder
 import android.os.RemoteException
-import priv.kit.core.PrivilegeStartupException
-import priv.kit.core.PrivilegeStartupLogListener
-import priv.kit.runtime.external.PrivilegeExternalStartup
+import priv.kit.PrivilegeStartupException
+import priv.kit.PrivilegeStartupLogListener
+import priv.kit.PrivilegeExternalStartup
 import rikka.shizuku.Shizuku
 import java.io.Closeable
 import java.util.concurrent.CountDownLatch

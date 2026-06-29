@@ -9,7 +9,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStarter
-import priv.kit.runtime.PrivilegeRuntime
+import priv.kit.PrivilegeRuntime
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class PrivilegeUiAdbActions(

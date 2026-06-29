@@ -10,9 +10,9 @@ import android.os.Build
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStarter
 import priv.kit.binder.PrivilegeServerDisconnectedException
-import priv.kit.core.PrivilegeServerInfo
-import priv.kit.runtime.PrivilegeRuntime
-import priv.kit.runtime.PrivilegeUserServiceConnection
+import priv.kit.PrivilegeServerInfo
+import priv.kit.PrivilegeRuntime
+import priv.kit.PrivilegeUserServiceConnection
 import priv.kit.userservice.PrivilegeUserServiceNotRunningException
 import priv.kit.userservice.PrivilegeUserServiceProcessMode
 import priv.kit.userservice.PrivilegeUserServiceSpec
