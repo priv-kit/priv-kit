@@ -6,6 +6,7 @@ import android.os.Build
 import priv.kit.internal.core.PrivilegeServerLaunchCommand
 import priv.kit.PrivilegeStartupException
 import priv.kit.PrivilegeStartupLogListener
+import priv.kit.internal.runtime.PrivilegeRuntimeContext
 import java.io.EOFException
 import java.net.SocketException
 import java.net.SocketTimeoutException
@@ -442,16 +443,15 @@ public class PrivilegeAdbStarter private constructor(
     internal companion object {
         internal fun forOwnerToken(
             ownerToken: String,
-            context: Context,
             adbDeviceName: String = PrivilegeAdbIdentity.DEFAULT_DEVICE_NAME,
         ): PrivilegeAdbStarter =
-            context.applicationContext.let { applicationContext ->
+            PrivilegeRuntimeContext.require().let { applicationContext ->
                 PrivilegeAdbStarter(
                     identity = PrivilegeAdbIdentity.forOwnerToken(
                         ownerToken = ownerToken,
                         deviceName = adbDeviceName,
                     ),
-                    loadKeyBytes = { PrivilegeAdbKeyStore.readOrCreate(applicationContext) },
+                    loadKeyBytes = { PrivilegeAdbKeyStore.readOrCreate() },
                     nsdManagerProvider = { requireNsdManager(applicationContext) },
                 )
             }

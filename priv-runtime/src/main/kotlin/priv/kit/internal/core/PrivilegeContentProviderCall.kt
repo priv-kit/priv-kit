@@ -1,4 +1,4 @@
-package priv.kit.internal.userservice
+package priv.kit.internal.core
 
 import android.app.IActivityManager
 import android.content.AttributionSource
@@ -12,16 +12,18 @@ import android.os.ServiceManager
 import android.util.Log
 import java.lang.reflect.InvocationTargetException
 
-internal object PrivilegeUserServiceProviderCall {
+internal object PrivilegeContentProviderCall {
     fun call(
         authority: String,
         method: String,
         arg: String?,
         extras: Bundle,
         userId: Int = USER_SYSTEM,
+        logTag: String? = null,
     ): Bundle? {
         val activityManager = activityManager()
         val providerToken = Binder()
+        logTag?.let { Log.i(it, "Requesting content provider authority=$authority") }
         val holder = getContentProviderExternal(
             activityManager = activityManager,
             authority = authority,
@@ -31,6 +33,7 @@ internal object PrivilegeUserServiceProviderCall {
 
         return try {
             val provider = providerFrom(holder)
+            logTag?.let { Log.i(it, "Content provider acquired providerClass=${provider.javaClass.name}") }
             invokeProviderCall(
                 provider = provider,
                 callingPackage = callingPackageName(),
@@ -38,13 +41,16 @@ internal object PrivilegeUserServiceProviderCall {
                 method = method,
                 arg = arg,
                 extras = extras,
+                logTag = logTag,
             )
         } finally {
-            removeContentProviderExternal(
+            logTag?.let { Log.i(it, "Releasing content provider authority=$authority") }
+            releaseContentProviderExternal(
                 activityManager = activityManager,
                 authority = authority,
                 userId = userId,
                 token = providerToken,
+                logTag = logTag,
             )
         }
     }
@@ -99,6 +105,7 @@ internal object PrivilegeUserServiceProviderCall {
         method: String,
         arg: String?,
         extras: Bundle,
+        logTag: String?,
     ): Bundle? {
         val candidates = providerCallCandidates(
             callingPackage = callingPackage,
@@ -114,6 +121,7 @@ internal object PrivilegeUserServiceProviderCall {
             }.getOrNull() ?: continue
 
             try {
+                logTag?.let { Log.i(it, "Invoking provider.call signatureArgs=${candidate.parameterTypes.size}") }
                 return callMethod.invoke(provider, *candidate.arguments) as Bundle?
             } catch (exception: InvocationTargetException) {
                 val cause = exception.targetException
@@ -197,11 +205,12 @@ internal object PrivilegeUserServiceProviderCall {
             .build()
     }
 
-    private fun removeContentProviderExternal(
+    private fun releaseContentProviderExternal(
         activityManager: Any,
         authority: String,
         userId: Int,
         token: IBinder,
+        logTag: String?,
     ) {
         val candidates = listOf(
             ReflectCall(
@@ -222,8 +231,8 @@ internal object PrivilegeUserServiceProviderCall {
         )
         runCatching {
             invokeFirstExisting(activityManager, candidates)
-        }.onFailure {
-            Log.w(TAG, "Failed to release content provider authority=$authority", it)
+        }.onFailure { throwable ->
+            logTag?.let { Log.w(it, "Failed to release content provider authority=$authority", throwable) }
         }
     }
 
@@ -258,5 +267,4 @@ internal object PrivilegeUserServiceProviderCall {
     private const val USER_SYSTEM = 0
     private const val SHELL_UID = 2000
     private const val SHELL_PACKAGE_NAME = "com.android.shell"
-    private const val TAG = "PrivKitUserService"
 }

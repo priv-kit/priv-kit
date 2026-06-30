@@ -16,6 +16,7 @@ import priv.kit.PrivilegeUserServiceConnection
 import priv.kit.userservice.PrivilegeUserServiceNotRunningException
 import priv.kit.userservice.PrivilegeUserServiceProcessMode
 import priv.kit.userservice.PrivilegeUserServiceSpec
+import priv.kit.ui.PrivilegeAdbPairingService
 import rikka.shizuku.Shizuku
 import java.io.Closeable
 import java.io.File
@@ -478,7 +479,7 @@ internal fun MainActivity.startNotificationPairing() {
         message = message,
     )
     appendLog(message)
-    PrivilegeSampleAdbPairingService.start(
+    PrivilegeAdbPairingService.start(
         context = this,
         adbDeviceName = currentAdbDeviceNameOverride(),
     )
@@ -492,33 +493,33 @@ internal fun MainActivity.stopNotificationPairing() {
         message = message,
     )
     appendLog(message)
-    PrivilegeSampleAdbPairingService.stop(this)
+    PrivilegeAdbPairingService.stop(this)
 }
 
 internal fun MainActivity.handleNotificationPairingEvent(intent: Intent) {
-    if (intent.action != PrivilegeSampleAdbPairingService.ACTION_PAIRING_EVENT) return
+    if (intent.action != PrivilegeAdbPairingService.actionPairingEvent(this)) return
 
-    val event = intent.getStringExtra(PrivilegeSampleAdbPairingService.EXTRA_EVENT) ?: return
-    val eventMessage = intent.getStringExtra(PrivilegeSampleAdbPairingService.EXTRA_MESSAGE)
+    val event = intent.getStringExtra(PrivilegeAdbPairingService.EXTRA_EVENT) ?: return
+    val eventMessage = intent.getStringExtra(PrivilegeAdbPairingService.EXTRA_MESSAGE)
         ?: "Wireless ADB notification pairing event: $event"
-    val port = intent.getIntExtra(PrivilegeSampleAdbPairingService.EXTRA_PAIRING_PORT, -1)
+    val port = intent.getIntExtra(PrivilegeAdbPairingService.EXTRA_PAIRING_PORT, -1)
         .takeIf { it in 1..65535 }
-    val adbDeviceName = intent.getStringExtra(PrivilegeSampleAdbPairingService.EXTRA_ADB_DEVICE_NAME)
-    val fingerprint = intent.getStringExtra(PrivilegeSampleAdbPairingService.EXTRA_ADB_KEY_FINGERPRINT)
+    val adbDeviceName = intent.getStringExtra(PrivilegeAdbPairingService.EXTRA_ADB_DEVICE_NAME)
+    val fingerprint = intent.getStringExtra(PrivilegeAdbPairingService.EXTRA_ADB_KEY_FINGERPRINT)
     val pairingStatus = when (event) {
-        PrivilegeSampleAdbPairingService.EVENT_SEARCHING -> PrivilegeAdbPairingStatus.SEARCHING
-        PrivilegeSampleAdbPairingService.EVENT_FOUND -> PrivilegeAdbPairingStatus.FOUND
-        PrivilegeSampleAdbPairingService.EVENT_PAIRING -> PrivilegeAdbPairingStatus.PAIRING
-        PrivilegeSampleAdbPairingService.EVENT_PAIRED -> PrivilegeAdbPairingStatus.PAIRED
-        PrivilegeSampleAdbPairingService.EVENT_FAILED -> PrivilegeAdbPairingStatus.FAILED
-        PrivilegeSampleAdbPairingService.EVENT_STOPPED -> PrivilegeAdbPairingStatus.NOT_PAIRED
+        PrivilegeAdbPairingService.EVENT_SEARCHING -> PrivilegeAdbPairingStatus.SEARCHING
+        PrivilegeAdbPairingService.EVENT_FOUND -> PrivilegeAdbPairingStatus.FOUND
+        PrivilegeAdbPairingService.EVENT_PAIRING -> PrivilegeAdbPairingStatus.PAIRING
+        PrivilegeAdbPairingService.EVENT_PAIRED -> PrivilegeAdbPairingStatus.PAIRED
+        PrivilegeAdbPairingService.EVENT_FAILED -> PrivilegeAdbPairingStatus.FAILED
+        PrivilegeAdbPairingService.EVENT_STOPPED -> PrivilegeAdbPairingStatus.NOT_PAIRED
         else -> screenState.pairingStatus
     }
 
     val globalMessage = if (
-        event == PrivilegeSampleAdbPairingService.EVENT_SEARCHING ||
-        event == PrivilegeSampleAdbPairingService.EVENT_FOUND ||
-        event == PrivilegeSampleAdbPairingService.EVENT_PAIRING
+        event == PrivilegeAdbPairingService.EVENT_SEARCHING ||
+        event == PrivilegeAdbPairingService.EVENT_FOUND ||
+        event == PrivilegeAdbPairingService.EVENT_PAIRING
     ) {
         eventMessage
     } else {

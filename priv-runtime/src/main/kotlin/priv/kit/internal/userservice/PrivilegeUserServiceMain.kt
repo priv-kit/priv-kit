@@ -5,6 +5,7 @@ import android.os.Looper
 import android.util.Log
 import androidx.annotation.Keep
 import androidx.annotation.RestrictTo
+import priv.kit.internal.core.PrivilegeContentProviderCall
 import java.io.File
 import kotlin.system.exitProcess
 
@@ -46,7 +47,7 @@ public object PrivilegeUserServiceMain {
         config: Arguments,
         processBinder: PrivilegeUserServiceProcessBinder,
     ): Boolean {
-        val response = PrivilegeUserServiceProviderCall.call(
+        val response = PrivilegeContentProviderCall.call(
             authority = config.providerAuthority,
             method = PrivilegeUserServiceContract.METHOD_USER_SERVICE_READY,
             arg = config.token,
@@ -55,6 +56,7 @@ public object PrivilegeUserServiceMain {
                 putBinder(PrivilegeUserServiceContract.EXTRA_PROCESS_BINDER, processBinder.asBinder())
             },
             userId = config.userId,
+            logTag = TAG,
         )
         return response?.getBoolean(PrivilegeUserServiceContract.KEY_SUCCESS, false) == true
     }

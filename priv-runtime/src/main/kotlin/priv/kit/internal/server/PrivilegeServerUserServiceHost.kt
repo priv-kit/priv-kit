@@ -2,6 +2,7 @@ package priv.kit.internal.server
 
 import android.os.Bundle
 import android.os.SystemClock
+import priv.kit.internal.core.PrivilegeContentProviderCall
 import priv.kit.internal.core.PrivilegeHandshakeContract
 import android.os.Process as AndroidProcess
 import priv.kit.internal.userservice.IPrivilegeUserServiceProcess
@@ -178,12 +179,13 @@ internal class PrivilegeServerUserServiceProcessClaimer(
 
     private companion object {
         const val CLAIM_RETRY_DELAY_MILLIS = 50L
+        const val TAG = "PrivKitServer"
 
         fun claimProcess(
             config: PrivilegeServerConfig,
             token: String,
         ): Bundle? =
-            PrivilegeServerProviderCall.call(
+            PrivilegeContentProviderCall.call(
                 authority = PrivilegeHandshakeContract.providerAuthority(config.packageName),
                 method = PrivilegeUserServiceContract.METHOD_USER_SERVICE_CLAIM,
                 arg = token,
@@ -191,6 +193,7 @@ internal class PrivilegeServerUserServiceProcessClaimer(
                     putString(PrivilegeUserServiceContract.EXTRA_TOKEN, token)
                 },
                 userId = config.userId,
+                logTag = TAG,
             )
     }
 }

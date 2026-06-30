@@ -21,11 +21,6 @@
             </intent-filter>
         </activity>
 
-        <service
-            android:name=".PrivilegeSampleAdbPairingService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"

@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import priv.kit.PrivilegeRuntime
 import priv.kit.PrivilegeUserServiceConnection
+import priv.kit.ui.PrivilegeAdbPairingService
 import priv.kit.ui.PrivilegeUiViewModel
 import rikka.shizuku.Shizuku
 import java.io.Closeable
@@ -78,7 +79,7 @@ class MainActivity : ComponentActivity() {
         initializePrivilegeSample()
         setContent {
             val notificationPairingRunning =
-                PrivilegeSampleAdbPairingService.running.collectAsState().value
+                PrivilegeAdbPairingService.running.collectAsState().value
             PrivilegeSampleScreen(
                 state = screenState,
                 backStack = sampleViewModel.backStack,
@@ -125,7 +126,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        val filter = IntentFilter(PrivilegeSampleAdbPairingService.ACTION_PAIRING_EVENT)
+        val filter = IntentFilter(PrivilegeAdbPairingService.actionPairingEvent(this))
         ContextCompat.registerReceiver(
             this,
             pairingEventReceiver,

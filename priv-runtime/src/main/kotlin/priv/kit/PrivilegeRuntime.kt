@@ -1,6 +1,5 @@
 package priv.kit
 
-import android.content.Context
 import android.os.IBinder
 import android.os.RemoteException
 import android.util.Log
@@ -372,22 +371,17 @@ public object PrivilegeRuntime {
         ownerToken: String,
         adbDeviceName: String?,
     ): PrivilegeAdbStarter {
-        val context = PrivilegeRuntimeContext.require()
         return PrivilegeAdbStarter.forOwnerToken(
             ownerToken = ownerToken,
-            context = context,
-            adbDeviceName = resolveAdbDeviceName(context, adbDeviceName),
+            adbDeviceName = resolveAdbDeviceName(adbDeviceName),
         )
     }
 
-    private fun resolveAdbDeviceName(
-        context: Context,
-        adbDeviceName: String?,
-    ): String {
+    private fun resolveAdbDeviceName(adbDeviceName: String?): String {
         val requestedName = adbDeviceName?.trim()
         if (!requestedName.isNullOrEmpty()) return requestedName
 
-        val applicationContext = context.applicationContext
+        val applicationContext = PrivilegeRuntimeContext.require()
         val appLabel = runCatching {
             applicationContext.applicationInfo
                 .loadLabel(applicationContext.packageManager)

@@ -3,6 +3,7 @@ package priv.kit.internal.server
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
+import priv.kit.internal.core.PrivilegeContentProviderCall
 import priv.kit.internal.core.PrivilegeHandshakeContract
 import java.io.File
 
@@ -112,12 +113,13 @@ internal object PrivilegeServerHandshakeSender {
         extras: Bundle,
         userId: Int,
     ): Bundle? =
-        PrivilegeServerProviderCall.call(
+        PrivilegeContentProviderCall.call(
             authority = authority,
             method = method,
             arg = arg,
             extras = extras,
             userId = userId,
+            logTag = TAG,
         )
 
     private fun Bundle.requireLong(key: String): Long {

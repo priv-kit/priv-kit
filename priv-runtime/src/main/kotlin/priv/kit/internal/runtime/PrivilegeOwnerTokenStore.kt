@@ -56,11 +56,9 @@ internal object PrivilegeOwnerTokenStore {
     }
 
     private fun ownerTokenFile(): File {
-        val context = PrivilegeRuntimeContext.require()
-        return File(File(context.filesDir, OWNER_TOKEN_DIRECTORY), OWNER_TOKEN_FILE)
+        return PrivilegeRuntimeStorage.file(OWNER_TOKEN_FILE)
     }
 
-    private const val OWNER_TOKEN_DIRECTORY = ".priv-kit"
     private const val OWNER_TOKEN_FILE = "token.txt"
     private const val TOKEN_BYTE_LENGTH = 12
     private val lock = Any()
