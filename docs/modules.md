@@ -146,7 +146,9 @@ package 分区：
 
 允许 Compose 状态展示、运行时生命周期控件，以及围绕 `:priv-runtime` 状态模型的 UI 包装。
 
-禁止传统 Android View UI 逻辑、特权操作控制台、高级系统操作 composable，以及核心运行时模块反向依赖 Compose。
+允许为 Android `Notification` 自定义内容新增仅供 `RemoteViews` 使用的 XML layout，例如通知配对码控制面板。
+
+禁止传统 Android View 页面 UI 逻辑、特权操作控制台、高级系统操作 composable，以及核心运行时模块反向依赖 Compose。通知 `RemoteViews` XML 不得被 Activity、Fragment、Dialog、页面 composable 或示例界面 inflate。
 
 ## `:priv-sample`
 

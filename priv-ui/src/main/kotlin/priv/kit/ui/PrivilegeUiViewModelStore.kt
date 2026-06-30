@@ -25,7 +25,6 @@ internal class PrivilegeUiViewModelStore(
     var config: PrivilegeUiConfig = PrivilegeUiConfig()
     var serverConnectedListener: Closeable? = null
     var serverDisconnectedWatcher: Closeable? = null
-    var pairingEventReceiver: android.content.BroadcastReceiver? = null
     var startNotificationPairingAfterPermission: Boolean = false
     var wirelessStatusPollingStop: AtomicBoolean? = null
     var wirelessStatusPollingThread: Thread? = null
@@ -47,7 +46,7 @@ internal class PrivilegeUiViewModelStore(
                 pairingMessage = current.pairingMessage.ifBlank {
                     context.getString(R.string.priv_ui_pairing_default_message)
                 },
-                notificationPairingRunning = PrivilegeAdbPairingService.running.value,
+                notificationPairingRunning = PrivilegeAdbPairingService.running,
                 externalStartItems = config.externalStartProviders.map { provider ->
                     PrivilegeUiExternalStartItemState(
                         id = provider.id,

@@ -29,7 +29,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         store.config = config
 
         runtimeActions.configureOwnerDeathBehavior()
-        adbActions.registerPairingEventReceiver(store.requireContext())
+        adbActions.observePairingEvents()
         runtimeActions.installRuntimeWatchers()
         store.initializeState(config)
 

@@ -1,57 +1,76 @@
 package priv.kit.ui
 
+import android.annotation.SuppressLint
 import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.RemoteInput
-import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.os.Build
-import android.os.Handler
-import android.os.IBinder
-import android.os.Looper
 import androidx.annotation.RestrictTo
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.LifecycleService
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import priv.kit.PrivilegeRuntime
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.Future
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.milliseconds
 
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
-public class PrivilegeAdbPairingService public constructor() : Service() {
-    private val executor: ExecutorService = Executors.newSingleThreadExecutor()
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val searchGeneration = AtomicInteger()
-    private var activeTask: Future<*>? = null
+public class PrivilegeAdbPairingService public constructor() : LifecycleService() {
+    private val sessionSerial = AtomicInteger()
+    private var activeJob: Job? = null
+    private var pairingPort: Int? = null
+    private var requestedAdbDeviceName: String? = null
+    private var pairingInputState: PrivilegeAdbPairingInputState? = null
+    private lateinit var notificationFactory: PrivilegeAdbPairingNotificationFactory
 
     override fun onCreate() {
         super.onCreate()
-        runningState.value = true
-        ensureNotificationChannel()
+        notificationFactory = PrivilegeAdbPairingNotificationFactory(this)
+        notificationFactory.ensureNotificationChannel()
+        activeService = this
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
         val notification = when (intent?.action) {
-            ACTION_START -> startSearch(intent.requestedAdbDeviceName)
-            ACTION_REPLY -> {
+            PrivilegeAdbPairingIntentContract.ACTION_START -> startSearch(intent.privilegeAdbRequestedDeviceName)
+            PrivilegeAdbPairingIntentContract.ACTION_REPLY -> {
                 val code = RemoteInput.getResultsFromIntent(intent)
-                    ?.getCharSequence(REMOTE_INPUT_PAIRING_CODE)
+                    ?.getCharSequence(PrivilegeAdbPairingIntentContract.REMOTE_INPUT_PAIRING_CODE)
                     ?.toString()
                     .orEmpty()
-                val port = intent.getIntExtra(EXTRA_PAIRING_PORT, -1)
+                val inputState = PrivilegeAdbPairingInputState.fromPairingCode(
+                    code = code,
+                    selectedIndex = 0,
+                )
                 startPairing(
                     pairingCode = code,
-                    port = port,
-                    adbDeviceName = intent.requestedAdbDeviceName,
+                    inputState = inputState,
                 )
             }
-            ACTION_RETRY -> startSearch(intent.requestedAdbDeviceName)
-            ACTION_STOP -> {
+            PrivilegeAdbPairingIntentContract.ACTION_INPUT_LEFT -> updatePairingInput {
+                it.moveLeft()
+            }
+            PrivilegeAdbPairingIntentContract.ACTION_INPUT_UP -> updatePairingInput {
+                it.incrementDigit()
+            }
+            PrivilegeAdbPairingIntentContract.ACTION_INPUT_DOWN -> updatePairingInput {
+                it.decrementDigit()
+            }
+            PrivilegeAdbPairingIntentContract.ACTION_INPUT_RIGHT -> updatePairingInput {
+                it.moveRight()
+            }
+            PrivilegeAdbPairingIntentContract.ACTION_INPUT_SUBMIT -> submitPairingInput()
+            PrivilegeAdbPairingIntentContract.ACTION_STOP -> {
                 stopPairing(getString(R.string.priv_ui_pairing_stopped))
                 null
             }
@@ -65,440 +84,345 @@ public class PrivilegeAdbPairingService public constructor() : Service() {
     }
 
     override fun onDestroy() {
-        searchGeneration.incrementAndGet()
-        activeTask?.cancel(true)
-        executor.shutdownNow()
-        runningState.value = false
-        deleteNotificationChannel()
+        sessionSerial.incrementAndGet()
+        activeJob?.cancel()
+        activeJob = null
+        clearPairingSession()
+        cancelInputNotification()
+        clearActiveService()
+        notificationFactory.deleteNotificationChannel()
         super.onDestroy()
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
-
-    private fun ensureNotificationChannel() {
-        if (notificationManager.getNotificationChannel(NOTIFICATION_CHANNEL_ID) != null) {
-            return
-        }
-        notificationManager.createNotificationChannel(
-            NotificationChannel(
-                NOTIFICATION_CHANNEL_ID,
-                getString(R.string.priv_ui_pairing_channel_name),
-                NotificationManager.IMPORTANCE_HIGH,
-            ).apply {
-                setSound(null, null)
-                setShowBadge(false)
-            },
-        )
-    }
-
-    private fun deleteNotificationChannel() {
-        notificationManager.deleteNotificationChannel(NOTIFICATION_CHANNEL_ID)
-    }
-
     private fun startSearch(adbDeviceName: String?): Notification {
-        val generation = searchGeneration.incrementAndGet()
-        activeTask?.cancel(true)
+        val requestedDeviceName = adbDeviceName.normalizedAdbDeviceName()
+        val session = startNewSession()
+        pairingPort = null
+        requestedAdbDeviceName = requestedDeviceName
+        if (pairingInputState == null) {
+            pairingInputState = PrivilegeAdbPairingInputState()
+        }
+        showInputNotification()
+        val searchMessage = getString(R.string.priv_ui_checking_wireless_adb)
         sendPairingEvent(
-            event = EVENT_SEARCHING,
-            message = getString(R.string.priv_ui_checking_wireless_adb),
+            type = PrivilegeAdbPairingEventType.SEARCHING,
+            message = searchMessage,
         )
-        activeTask = executor.submit {
-            val starter = PrivilegeRuntime.createAdbStarter(adbDeviceName = adbDeviceName)
-            while (generation == searchGeneration.get()) {
-                try {
-                    val port = starter.discoverPairingPort(PAIRING_DISCOVERY_ATTEMPT_TIMEOUT_MILLIS)
-                    val identityInfo = runCatching { starter.getIdentityInfo() }.getOrNull()
+        activeJob = lifecycleScope.launch {
+            val starter = PrivilegeRuntime.createAdbStarter(adbDeviceName = requestedDeviceName)
+            while (isActive && isCurrentSession(session)) {
+                val retryMessage = try {
+                    val (port, identityInfo) = withContext(Dispatchers.IO) {
+                        val port = starter.discoverPairingPort(PAIRING_DISCOVERY_ATTEMPT_TIMEOUT_MILLIS)
+                        val identityInfo = runCatching { starter.getIdentityInfo() }.getOrNull()
+                        port to identityInfo
+                    }
+                    if (!isCurrentSession(session)) return@launch
+
                     val message = getString(R.string.priv_ui_pairing_service_found_text)
                     sendPairingEvent(
-                        event = EVENT_FOUND,
+                        type = PrivilegeAdbPairingEventType.FOUND,
                         message = message,
                         port = port,
                         adbDeviceName = identityInfo?.identity?.deviceName,
                         fingerprint = identityInfo?.publicKeyFingerprint,
                     )
-                    updateForegroundNotification(
-                        inputNotification(
-                            port = port,
-                            adbDeviceName = adbDeviceName,
-                            text = message,
-                        ),
+                    val state = pairingInputState ?: PrivilegeAdbPairingInputState()
+                    pairingPort = port
+                    requestedAdbDeviceName = requestedDeviceName
+                    pairingInputState = state
+                    startForegroundSafely(
+                        notificationFactory.statusNotification(text = message),
                     )
-                    return@submit
-                } catch (_: Throwable) {
-                    if (generation != searchGeneration.get()) return@submit
-
-                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-                        val message = getString(R.string.priv_ui_pairing_requires_android_11)
-                        sendPairingEvent(event = EVENT_FAILED, message = message)
-                        finishWithNotification(
-                            notification = resultNotification(
-                                title = getString(R.string.priv_ui_pairing_failed_title),
-                                text = message,
-                                success = false,
-                                adbDeviceName = adbDeviceName,
-                            ),
-                        )
-                        return@submit
+                    showInputNotification()
+                    return@launch
+                } catch (throwable: Throwable) {
+                    if (throwable is CancellationException || !isCurrentSession(session)) {
+                        return@launch
                     }
-
-                    val message = getString(R.string.priv_ui_pairing_search_attempt)
-                    sendPairingEvent(event = EVENT_SEARCHING, message = message)
-                    updateForegroundNotification(searchingNotification(text = message))
-                    runCatching { Thread.sleep(PAIRING_DISCOVERY_RETRY_DELAY_MILLIS) }
-                        .onFailure { return@submit }
+                    getString(R.string.priv_ui_pairing_search_attempt)
                 }
+                sendPairingEvent(type = PrivilegeAdbPairingEventType.SEARCHING, message = retryMessage)
+                startForegroundSafely(notificationFactory.statusNotification(text = retryMessage))
+                delay(PAIRING_DISCOVERY_RETRY_DELAY_MILLIS.milliseconds)
             }
         }
-        return searchingNotification()
+        return notificationFactory.statusNotification(text = searchMessage)
+    }
+
+    private fun updatePairingInput(
+        transform: (PrivilegeAdbPairingInputState) -> PrivilegeAdbPairingInputState,
+    ): Notification? {
+        val state = transform(pairingInputState ?: PrivilegeAdbPairingInputState())
+        pairingInputState = state
+        showInputNotification(state)
+        return null
+    }
+
+    private fun submitPairingInput(): Notification {
+        val state = pairingInputState ?: PrivilegeAdbPairingInputState()
+        pairingInputState = state
+        return startPairing(
+            pairingCode = state.code,
+            inputState = state,
+        )
+    }
+
+    private fun restartSearchForUnavailablePairingPort(): Notification {
+        val message = getString(R.string.priv_ui_pairing_port_unavailable)
+        sendPairingEvent(
+            type = PrivilegeAdbPairingEventType.FAILED,
+            message = message,
+            running = true,
+        )
+        return startSearch(requestedAdbDeviceName)
     }
 
     private fun startPairing(
         pairingCode: String,
-        port: Int,
-        adbDeviceName: String?,
+        inputState: PrivilegeAdbPairingInputState,
     ): Notification {
-        val code = pairingCode.toPairingCodeDigits()
-        if (port !in 1..65535) {
-            val message = getString(R.string.priv_ui_pairing_port_unavailable)
-            sendPairingEvent(event = EVENT_FAILED, message = message)
-            runningState.value = false
-            stopSelf()
-            return resultNotification(
-                title = getString(R.string.priv_ui_pairing_failed_title),
-                text = message,
-                success = false,
-                adbDeviceName = adbDeviceName,
-            )
-        }
+        val code = pairingCode.toPrivilegeAdbPairingCodeDigits()
+        val port = pairingPort?.takeIf { it in 1..65535 } ?: return restartSearchForUnavailablePairingPort()
+        val adbDeviceName = requestedAdbDeviceName
         if (code.isBlank()) {
             val message = getString(R.string.priv_ui_pairing_code_required)
-            sendPairingEvent(event = EVENT_FAILED, message = message, port = port)
-            runningState.value = false
-            stopSelf()
-            return resultNotification(
-                title = getString(R.string.priv_ui_pairing_failed_title),
-                text = message,
-                success = false,
+            return restorePairingInputAfterFailure(
+                port = port,
                 adbDeviceName = adbDeviceName,
+                state = inputState,
+                message = message,
             )
         }
 
-        activeTask?.cancel(true)
-        searchGeneration.incrementAndGet()
+        val session = startNewSession()
+        pairingInputState = inputState
+        showInputNotification(inputState)
         sendPairingEvent(
-            event = EVENT_PAIRING,
+            type = PrivilegeAdbPairingEventType.PAIRING,
             message = getString(R.string.priv_ui_pairing_with_port),
             port = port,
         )
-        activeTask = executor.submit {
+        activeJob = lifecycleScope.launch {
             try {
-                val result = PrivilegeRuntime.createAdbStarter(adbDeviceName = adbDeviceName)
-                    .pair(port = port, pairingCode = code)
+                val result = withContext(Dispatchers.IO) {
+                    PrivilegeRuntime.createAdbStarter(adbDeviceName = adbDeviceName)
+                        .pair(pairingCode = code)
+                }
+                if (!isCurrentSession(session)) return@launch
+
                 val message = getString(R.string.priv_ui_pairing_success_text)
                 sendPairingEvent(
-                    event = EVENT_PAIRED,
+                    type = PrivilegeAdbPairingEventType.PAIRED,
                     message = message,
                     port = result.port,
                     adbDeviceName = result.identity.deviceName,
                     fingerprint = result.publicKeyFingerprint,
                 )
-                finishWithNotification(
-                    notification = resultNotification(
-                        title = getString(R.string.priv_ui_pairing_success_title),
-                        text = message,
-                        success = true,
-                        adbDeviceName = adbDeviceName,
-                    ),
-                )
+                stopPairingService(cancelActiveJob = false)
             } catch (throwable: Throwable) {
+                if (throwable is CancellationException || !isCurrentSession(session)) {
+                    return@launch
+                }
                 val message = getString(R.string.priv_ui_pairing_failed_text, throwable.failureMessage())
-                sendPairingEvent(event = EVENT_FAILED, message = message, port = port)
-                finishWithNotification(
-                    notification = resultNotification(
-                        title = getString(R.string.priv_ui_pairing_failed_title),
-                        text = message,
-                        success = false,
+                startForegroundSafely(
+                    restorePairingInputAfterFailure(
+                        port = port,
                         adbDeviceName = adbDeviceName,
+                        state = inputState,
+                        message = message,
                     ),
                 )
             }
         }
-        return workingNotification()
+        return notificationFactory.workingNotification()
+    }
+
+    private fun restorePairingInputAfterFailure(
+        port: Int,
+        adbDeviceName: String?,
+        state: PrivilegeAdbPairingInputState,
+        message: String,
+    ): Notification {
+        activeJob = null
+        pairingPort = port
+        requestedAdbDeviceName = adbDeviceName
+        pairingInputState = state
+        sendPairingEvent(
+            type = PrivilegeAdbPairingEventType.FAILED,
+            message = message,
+            running = true,
+            port = port,
+        )
+        showInputNotification(state)
+        return notificationFactory.statusNotification(text = message)
     }
 
     private fun stopPairing(message: String) {
-        searchGeneration.incrementAndGet()
-        activeTask?.cancel(true)
-        runningState.value = false
-        sendPairingEvent(event = EVENT_STOPPED, message = message)
+        sendPairingEvent(type = PrivilegeAdbPairingEventType.STOPPED, message = message)
+        stopPairingService()
+    }
+
+    private fun stopPairingService(cancelActiveJob: Boolean = true) {
+        sessionSerial.incrementAndGet()
+        if (cancelActiveJob) {
+            activeJob?.cancel()
+        }
+        activeJob = null
+        clearPairingSession()
+        cancelInputNotification()
+        clearActiveService()
         stopForeground(STOP_FOREGROUND_REMOVE)
+        cancelStatusNotification()
         stopSelf()
     }
 
-    private fun finishWithNotification(notification: Notification) {
-        runningState.value = false
-        stopForeground(STOP_FOREGROUND_DETACH)
-        notificationManager.notify(NOTIFICATION_ID, notification)
-        stopSelf()
+    private fun startNewSession(): Int {
+        activeJob?.cancel()
+        activeJob = null
+        return sessionSerial.incrementAndGet()
     }
 
-    private fun searchingNotification(
-        text: String = getString(R.string.priv_ui_pairing_search_text),
-    ): Notification =
-        baseNotification(
-            title = getString(R.string.priv_ui_pairing_search_title),
-            text = text,
-            ongoing = true,
-        )
-            .addAction(stopAction())
-            .buildPersistent()
+    private fun isCurrentSession(session: Int): Boolean =
+        session == sessionSerial.get()
 
-    private fun inputNotification(
-        port: Int,
-        adbDeviceName: String?,
-        text: String,
-    ): Notification =
-        baseNotification(
-            title = getString(R.string.priv_ui_pairing_service_found_title),
-            text = text,
-            ongoing = true,
-        )
-            .addAction(replyAction(port, adbDeviceName))
-            .buildPersistent()
-
-    private fun workingNotification(): Notification =
-        baseNotification(
-            title = getString(R.string.priv_ui_pairing_working_title),
-            text = getString(R.string.priv_ui_pairing_working_text),
-            ongoing = true,
-        ).buildPersistent()
-
-    private fun resultNotification(
-        title: String,
-        text: String,
-        success: Boolean,
-        adbDeviceName: String?,
-    ): Notification {
-        val builder = baseNotification(
-            title = title,
-            text = text,
-            ongoing = false,
-        ).setAutoCancel(success)
-        if (!success) {
-            builder.addAction(retryAction(adbDeviceName))
-        }
-        return builder.build()
-    }
-
-    private fun baseNotification(
-        title: String,
-        text: String,
-        ongoing: Boolean,
-    ): Notification.Builder =
-        Notification.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(notificationSmallIcon())
-            .setContentTitle(title)
-            .setContentText(text)
-            .setStyle(Notification.BigTextStyle().bigText(text))
-            .setOngoing(ongoing)
-            .setOnlyAlertOnce(true)
-            .setLocalOnly(true)
-            .setShowWhen(false)
-            .setCategory(Notification.CATEGORY_STATUS)
-            .apply {
-                openAppPendingIntent()?.let(::setContentIntent)
-            }
-
-    private fun notificationSmallIcon(): Int =
-        applicationInfo.icon.takeIf { it != 0 } ?: android.R.drawable.sym_def_app_icon
-
-    private fun replyAction(port: Int, adbDeviceName: String?): Notification.Action {
-        val remoteInput = RemoteInput.Builder(REMOTE_INPUT_PAIRING_CODE)
-            .setLabel(getString(R.string.priv_ui_pairing_reply_label))
-            .setAllowFreeFormInput(true)
-            .build()
-        val pendingIntent = PendingIntent.getForegroundService(
-            this,
-            REQUEST_REPLY,
-            serviceIntent(ACTION_REPLY, adbDeviceName).putExtra(EXTRA_PAIRING_PORT, port),
-            mutablePendingIntentFlags(),
-        )
-        val actionBuilder = Notification.Action.Builder(
-            null,
-            getString(R.string.priv_ui_pairing_reply_action),
-            pendingIntent,
-        )
-            .addRemoteInput(remoteInput)
-            .setAllowGeneratedReplies(false)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            actionBuilder.setSemanticAction(Notification.Action.SEMANTIC_ACTION_REPLY)
-        }
-        return actionBuilder.build()
-    }
-
-    private fun retryAction(adbDeviceName: String?): Notification.Action {
-        val pendingIntent = PendingIntent.getForegroundService(
-            this,
-            REQUEST_RETRY,
-            serviceIntent(ACTION_RETRY, adbDeviceName),
-            immutablePendingIntentFlags(),
-        )
-        return Notification.Action.Builder(
-            null,
-            getString(R.string.priv_ui_pairing_retry_action),
-            pendingIntent,
-        ).build()
-    }
-
-    private fun stopAction(): Notification.Action {
-        val pendingIntent = PendingIntent.getForegroundService(
-            this,
-            REQUEST_STOP,
-            serviceIntent(ACTION_STOP, adbDeviceName = null),
-            immutablePendingIntentFlags(),
-        )
-        return Notification.Action.Builder(
-            null,
-            getString(R.string.priv_ui_pairing_stop_action),
-            pendingIntent,
-        ).build()
-    }
-
-    private fun openAppPendingIntent(): PendingIntent? {
-        val launchIntent = packageManager.getLaunchIntentForPackage(packageName) ?: return null
-        launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        return PendingIntent.getActivity(
-            this,
-            REQUEST_OPEN_APP,
-            launchIntent,
-            immutablePendingIntentFlags(),
+    private fun showInputNotification(
+        state: PrivilegeAdbPairingInputState = pairingInputState ?: PrivilegeAdbPairingInputState(),
+    ) {
+        notifySafely(
+            PrivilegeAdbPairingIntentContract.INPUT_NOTIFICATION_ID,
+            notificationFactory.inputNotification(state),
         )
     }
 
-    private fun serviceIntent(action: String, adbDeviceName: String?): Intent =
-        Intent(this, PrivilegeAdbPairingService::class.java)
-            .setAction(action)
-            .apply {
-                if (!adbDeviceName.isNullOrBlank()) {
-                    putExtra(EXTRA_REQUESTED_ADB_DEVICE_NAME, adbDeviceName)
-                }
-            }
+    private fun cancelInputNotification() {
+        notificationManager.cancel(PrivilegeAdbPairingIntentContract.INPUT_NOTIFICATION_ID)
+    }
 
-    private fun Notification.Builder.buildPersistent(): Notification =
-        build().apply {
-            flags = flags or Notification.FLAG_ONGOING_EVENT or Notification.FLAG_NO_CLEAR
-        }
-
-    private fun updateForegroundNotification(notification: Notification) {
-        mainHandler.post {
-            startForegroundSafely(notification)
-        }
+    private fun cancelStatusNotification() {
+        notificationManager.cancel(PrivilegeAdbPairingIntentContract.NOTIFICATION_ID)
     }
 
     private fun startForegroundSafely(notification: Notification) {
         try {
-            startForeground(NOTIFICATION_ID, notification)
+            startForeground(PrivilegeAdbPairingIntentContract.NOTIFICATION_ID, notification)
         } catch (throwable: Throwable) {
-            notificationManager.notify(NOTIFICATION_ID, notification)
+            notifySafely(PrivilegeAdbPairingIntentContract.NOTIFICATION_ID, notification)
             sendPairingEvent(
-                event = EVENT_FAILED,
+                type = PrivilegeAdbPairingEventType.FAILED,
                 message = getString(R.string.priv_ui_pairing_foreground_failed, throwable.failureMessage()),
             )
         }
     }
 
+    @SuppressLint("MissingPermission")
+    private fun notifySafely(id: Int, notification: Notification) {
+        if (!notificationManager.areNotificationsEnabled()) return
+        try {
+            notificationManager.notify(id, notification)
+        } catch (_: SecurityException) {
+            // Notification permission can be revoked while the foreground service is running.
+        }
+    }
+
+    private val notificationManager: NotificationManagerCompat
+        get() = NotificationManagerCompat.from(this)
+
     private fun sendPairingEvent(
-        event: String,
+        type: PrivilegeAdbPairingEventType,
         message: String,
         port: Int? = null,
         adbDeviceName: String? = null,
         fingerprint: String? = null,
+        running: Boolean = type.isRunningByDefault(),
     ) {
-        val intent = Intent(actionPairingEvent(this))
-            .setPackage(packageName)
-            .putExtra(EXTRA_EVENT, event)
-            .putExtra(EXTRA_MESSAGE, message)
-        if (port != null) intent.putExtra(EXTRA_PAIRING_PORT, port)
-        if (adbDeviceName != null) intent.putExtra(EXTRA_ADB_DEVICE_NAME, adbDeviceName)
-        if (fingerprint != null) intent.putExtra(EXTRA_ADB_KEY_FINGERPRINT, fingerprint)
-        sendBroadcast(intent)
+        pairingEventState.tryEmit(
+            PrivilegeAdbPairingEvent(
+                type = type,
+                message = message,
+                running = running,
+                port = port,
+                adbDeviceName = adbDeviceName,
+                fingerprint = fingerprint,
+            ),
+        )
     }
 
-    private val Intent.requestedAdbDeviceName: String?
-        get() = getStringExtra(EXTRA_REQUESTED_ADB_DEVICE_NAME)
+    private fun restartSearch(adbDeviceName: String?) {
+        startForegroundSafely(startSearch(adbDeviceName))
+    }
 
-    private val notificationManager: NotificationManager
-        get() = getSystemService(NotificationManager::class.java)
+    private fun stopPairingFromCaller() {
+        stopPairing(getString(R.string.priv_ui_pairing_stopped))
+    }
+
+    private fun clearPairingSession() {
+        pairingPort = null
+        requestedAdbDeviceName = null
+        pairingInputState = null
+    }
+
+    private fun clearActiveService() {
+        if (activeService === this) {
+            activeService = null
+        }
+    }
 
     private fun Throwable.failureMessage(): String =
         message ?: javaClass.simpleName
 
+    private fun PrivilegeAdbPairingEventType.isRunningByDefault(): Boolean =
+        this == PrivilegeAdbPairingEventType.SEARCHING ||
+            this == PrivilegeAdbPairingEventType.FOUND ||
+            this == PrivilegeAdbPairingEventType.PAIRING
+
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
     public companion object {
-        public const val EXTRA_EVENT: String = "event"
-        public const val EXTRA_MESSAGE: String = "message"
-        public const val EXTRA_PAIRING_PORT: String = "pairing_port"
-        public const val EXTRA_ADB_DEVICE_NAME: String = "adb_device_name"
-        public const val EXTRA_ADB_KEY_FINGERPRINT: String = "adb_key_fingerprint"
-
-        public const val EVENT_SEARCHING: String = "searching"
-        public const val EVENT_FOUND: String = "found"
-        public const val EVENT_PAIRING: String = "pairing"
-        public const val EVENT_PAIRED: String = "paired"
-        public const val EVENT_FAILED: String = "failed"
-        public const val EVENT_STOPPED: String = "stopped"
-
-        private const val ACTION_START = "priv.kit.ui.action.START_ADB_PAIRING_NOTIFICATION"
-        private const val ACTION_REPLY = "priv.kit.ui.action.REPLY_ADB_PAIRING_NOTIFICATION"
-        private const val ACTION_RETRY = "priv.kit.ui.action.RETRY_ADB_PAIRING_NOTIFICATION"
-        private const val ACTION_STOP = "priv.kit.ui.action.STOP_ADB_PAIRING_NOTIFICATION"
-
-        private const val EXTRA_REQUESTED_ADB_DEVICE_NAME = "requested_adb_device_name"
-        private const val REMOTE_INPUT_PAIRING_CODE = "pairing_code"
-        private const val NOTIFICATION_CHANNEL_ID = "priv_ui_adb_pairing"
-        private const val NOTIFICATION_ID = 201
-        private const val REQUEST_REPLY = 1
-        private const val REQUEST_RETRY = 2
-        private const val REQUEST_STOP = 3
-        private const val REQUEST_OPEN_APP = 4
         private const val PAIRING_DISCOVERY_ATTEMPT_TIMEOUT_MILLIS = 6_000L
         private const val PAIRING_DISCOVERY_RETRY_DELAY_MILLIS = 500L
 
-        private val runningState = MutableStateFlow(false)
-        public val running: StateFlow<Boolean> = runningState.asStateFlow()
+        @Volatile
+        private var activeService: PrivilegeAdbPairingService? = null
 
-        public fun actionPairingEvent(context: Context): String =
-            context.packageName + ".priv.kit.ui.action.ADB_PAIRING_EVENT"
+        private val pairingEventState = MutableSharedFlow<PrivilegeAdbPairingEvent>(
+            extraBufferCapacity = 64,
+        )
+        internal val pairingEvents: SharedFlow<PrivilegeAdbPairingEvent> = pairingEventState.asSharedFlow()
 
-        public fun start(context: Context, adbDeviceName: String?): Unit {
+        internal val running: Boolean
+            get() = activeService != null
+
+        public fun start(context: Context, adbDeviceName: String?) {
+            activeService?.let { service ->
+                service.lifecycleScope.launch {
+                    service.restartSearch(adbDeviceName)
+                }
+                return
+            }
             val intent = Intent(context, PrivilegeAdbPairingService::class.java)
-                .setAction(ACTION_START)
+                .setAction(PrivilegeAdbPairingIntentContract.ACTION_START)
                 .apply {
-                    if (!adbDeviceName.isNullOrBlank()) {
-                        putExtra(EXTRA_REQUESTED_ADB_DEVICE_NAME, adbDeviceName)
+                    adbDeviceName.normalizedAdbDeviceName()?.let { requestedDeviceName ->
+                        putExtra(PrivilegeAdbPairingIntentContract.EXTRA_REQUESTED_ADB_DEVICE_NAME, requestedDeviceName)
                     }
                 }
             context.startForegroundService(intent)
         }
 
-        public fun stop(context: Context): Unit {
+        public fun stop(context: Context) {
+            activeService?.let { service ->
+                service.lifecycleScope.launch {
+                    service.stopPairingFromCaller()
+                }
+                return
+            }
             context.startService(
                 Intent(context, PrivilegeAdbPairingService::class.java)
-                    .setAction(ACTION_STOP),
+                    .setAction(PrivilegeAdbPairingIntentContract.ACTION_STOP),
             )
         }
 
-        private fun mutablePendingIntentFlags(): Int =
-            PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                PendingIntent.FLAG_MUTABLE
-            } else {
-                0
-            }
-
-        private fun immutablePendingIntentFlags(): Int =
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        private fun String?.normalizedAdbDeviceName(): String? =
+            this?.takeUnless { it.isBlank() }
     }
 }
-
-private fun String.toPairingCodeDigits(): String =
-    filter(Char::isDigit).take(6)

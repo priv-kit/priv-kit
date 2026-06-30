@@ -15,6 +15,7 @@ Public entry points:
 Internal Android components:
 
 - `PrivilegeAdbPairingService` is manifest-merged for the built-in notification pairing flow and is not a public app-call API.
+- Notification pairing may use Android `RemoteViews` XML layouts for notification-only controls. These layouts are not page UI and must not be inflated by app screens.
 
 The UI covers ordinary user-facing authorization only:
 

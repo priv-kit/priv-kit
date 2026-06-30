@@ -1,10 +1,6 @@
 package priv.kit.sample
 
 import android.Manifest
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
@@ -12,11 +8,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import priv.kit.PrivilegeRuntime
 import priv.kit.PrivilegeUserServiceConnection
-import priv.kit.ui.PrivilegeAdbPairingService
 import priv.kit.ui.PrivilegeUiViewModel
 import rikka.shizuku.Shizuku
 import java.io.Closeable
@@ -38,11 +32,6 @@ class MainActivity : ComponentActivity() {
     internal var shizukuExternalStarter: PrivilegeSampleShizukuExternalStarter? = null
     internal var startNotificationPairingAfterPermission = false
     internal var startShizukuExternalAfterPermission = false
-    private val pairingEventReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            handleNotificationPairingEvent(intent)
-        }
-    }
     private val shizukuBinderReceivedListener = Shizuku.OnBinderReceivedListener {
         refreshShizukuStatus(append = false)
     }
@@ -78,14 +67,14 @@ class MainActivity : ComponentActivity() {
         Shizuku.addRequestPermissionResultListener(shizukuPermissionResultListener)
         initializePrivilegeSample()
         setContent {
-            val notificationPairingRunning =
-                PrivilegeAdbPairingService.running.collectAsState().value
+            val privilegeUiState = privilegeUiViewModel.state.collectAsState().value
+            val renderedState = screenState.withPrivilegeUiNotificationPairing(privilegeUiState)
             PrivilegeSampleScreen(
-                state = screenState,
+                state = renderedState,
                 backStack = sampleViewModel.backStack,
                 selectedStartupTab = sampleViewModel.selectedStartupTab,
                 privilegeUiViewModel = privilegeUiViewModel,
-                notificationPairingRunning = notificationPairingRunning,
+                notificationPairingRunning = privilegeUiState.notificationPairingRunning,
                 onDestinationSelected = { sampleViewModel.selectDestination(it) },
                 onStartupTabSelected = { sampleViewModel.selectStartupTab(it) },
                 onOpenPrivilegeUi = { sampleViewModel.openPrivilegeUi() },
@@ -122,22 +111,6 @@ class MainActivity : ComponentActivity() {
                 onCopyLog = { copySessionLog() },
             )
         }
-    }
-
-    override fun onStart() {
-        super.onStart()
-        val filter = IntentFilter(PrivilegeAdbPairingService.actionPairingEvent(this))
-        ContextCompat.registerReceiver(
-            this,
-            pairingEventReceiver,
-            filter,
-            ContextCompat.RECEIVER_NOT_EXPORTED,
-        )
-    }
-
-    override fun onStop() {
-        unregisterReceiver(pairingEventReceiver)
-        super.onStop()
     }
 
     private fun handleNotificationPermissionResult(granted: Boolean) {

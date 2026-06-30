@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import priv.kit.adb.PrivilegeAdbStartOptions
@@ -494,47 +493,6 @@ internal fun MainActivity.stopNotificationPairing() {
     )
     appendLog(message)
     PrivilegeAdbPairingService.stop(this)
-}
-
-internal fun MainActivity.handleNotificationPairingEvent(intent: Intent) {
-    if (intent.action != PrivilegeAdbPairingService.actionPairingEvent(this)) return
-
-    val event = intent.getStringExtra(PrivilegeAdbPairingService.EXTRA_EVENT) ?: return
-    val eventMessage = intent.getStringExtra(PrivilegeAdbPairingService.EXTRA_MESSAGE)
-        ?: "Wireless ADB notification pairing event: $event"
-    val port = intent.getIntExtra(PrivilegeAdbPairingService.EXTRA_PAIRING_PORT, -1)
-        .takeIf { it in 1..65535 }
-    val adbDeviceName = intent.getStringExtra(PrivilegeAdbPairingService.EXTRA_ADB_DEVICE_NAME)
-    val fingerprint = intent.getStringExtra(PrivilegeAdbPairingService.EXTRA_ADB_KEY_FINGERPRINT)
-    val pairingStatus = when (event) {
-        PrivilegeAdbPairingService.EVENT_SEARCHING -> PrivilegeAdbPairingStatus.SEARCHING
-        PrivilegeAdbPairingService.EVENT_FOUND -> PrivilegeAdbPairingStatus.FOUND
-        PrivilegeAdbPairingService.EVENT_PAIRING -> PrivilegeAdbPairingStatus.PAIRING
-        PrivilegeAdbPairingService.EVENT_PAIRED -> PrivilegeAdbPairingStatus.PAIRED
-        PrivilegeAdbPairingService.EVENT_FAILED -> PrivilegeAdbPairingStatus.FAILED
-        PrivilegeAdbPairingService.EVENT_STOPPED -> PrivilegeAdbPairingStatus.NOT_PAIRED
-        else -> screenState.pairingStatus
-    }
-
-    val globalMessage = if (
-        event == PrivilegeAdbPairingService.EVENT_SEARCHING ||
-        event == PrivilegeAdbPairingService.EVENT_FOUND ||
-        event == PrivilegeAdbPairingService.EVENT_PAIRING
-    ) {
-        eventMessage
-    } else {
-        screenState.idleServiceMessage()
-    }
-    screenState = screenState.copy(
-        pairingStatus = pairingStatus,
-        pairingMessage = eventMessage,
-        pairingPortText = port?.toString() ?: screenState.pairingPortText,
-        adbDeviceName = adbDeviceName ?: screenState.adbDeviceName,
-        adbKeyFingerprint = fingerprint ?: screenState.adbKeyFingerprint,
-        adbKeyFingerprintLoading = false,
-        message = globalMessage,
-    )
-    appendLog("Notification pairing: $eventMessage")
 }
 
 internal fun MainActivity.startWirelessAdb() {

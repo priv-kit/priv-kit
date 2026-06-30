@@ -1,12 +1,15 @@
 package priv.kit.ui
 
 import android.Manifest
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStarter
 import priv.kit.PrivilegeRuntime
@@ -16,6 +19,18 @@ internal class PrivilegeUiAdbActions(
     private val store: PrivilegeUiViewModelStore,
     private val runtimeActions: PrivilegeUiRuntimeActions,
 ) : AutoCloseable {
+    private val pairingEventScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var pairingEventsJob: Job? = null
+
+    fun observePairingEvents() {
+        pairingEventsJob?.cancel()
+        pairingEventsJob = pairingEventScope.launch {
+            PrivilegeAdbPairingService.pairingEvents.collect { event ->
+                handlePairingEvent(event)
+            }
+        }
+    }
+
     fun updatePairingCode(value: String) {
         store.updateState { current ->
             current.copy(
@@ -279,7 +294,7 @@ internal class PrivilegeUiAdbActions(
                     wirelessDebuggingStatus = it.wirelessDebuggingStatus.checkingIfUnknown(),
                     wirelessPairingServiceStatus = it.wirelessPairingServiceStatus.checkingIfUnknown(),
                     wirelessPairingCheckStatus = it.wirelessPairingCheckStatus.checkingIfUnknown(),
-                    notificationPairingRunning = PrivilegeAdbPairingService.running.value,
+                    notificationPairingRunning = PrivilegeAdbPairingService.running,
                 )
             }
             thread.start()
@@ -311,37 +326,16 @@ internal class PrivilegeUiAdbActions(
         store.updateState {
             it.copy(
                 wirelessStatusPollingActive = false,
-                notificationPairingRunning = PrivilegeAdbPairingService.running.value,
+                notificationPairingRunning = PrivilegeAdbPairingService.running,
             )
-        }
-    }
-
-    fun registerPairingEventReceiver(context: Context) {
-        store.pairingEventReceiver?.let {
-            runCatching { context.unregisterReceiver(it) }
-        }
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                handlePairingEvent(intent)
-            }
-        }
-        store.pairingEventReceiver = receiver
-        val filter = IntentFilter(PrivilegeAdbPairingService.actionPairingEvent(context))
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            context.registerReceiver(receiver, filter)
         }
     }
 
     override fun close() {
         stopWirelessAdbStatusPolling()
-        store.pairingEventReceiver?.let { receiver ->
-            store.applicationContext?.let { context ->
-                runCatching { context.unregisterReceiver(receiver) }
-            }
-        }
-        store.pairingEventReceiver = null
+        pairingEventsJob?.cancel()
+        pairingEventsJob = null
+        pairingEventScope.cancel()
     }
 
     private fun pollWirelessAdbStatus(stop: AtomicBoolean) {
@@ -397,7 +391,7 @@ internal class PrivilegeUiAdbActions(
                         wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
                         wirelessPairingServiceStatus = PrivilegeUiWirelessAdbStatus.OFF,
                         wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
-                        notificationPairingRunning = PrivilegeAdbPairingService.running.value,
+                        notificationPairingRunning = PrivilegeAdbPairingService.running,
                     )
                 }
                 store.appendLog(throwable.toPrivilegeUiDiagnosticString())
@@ -413,7 +407,7 @@ internal class PrivilegeUiAdbActions(
                 wirelessDebuggingStatus = it.wirelessDebuggingStatus.checkingUnlessOn(),
                 wirelessPairingServiceStatus = it.wirelessPairingServiceStatus.checkingUnlessOn(),
                 wirelessPairingCheckStatus = it.wirelessPairingCheckStatus.checkingUnlessOn(),
-                notificationPairingRunning = PrivilegeAdbPairingService.running.value,
+                notificationPairingRunning = PrivilegeAdbPairingService.running,
             )
         }
     }
@@ -449,7 +443,7 @@ internal class PrivilegeUiAdbActions(
                     wirelessDebuggingOn = wirelessDebuggingOn,
                     currentStatus = it.wirelessPairingCheckStatus,
                 ),
-                notificationPairingRunning = PrivilegeAdbPairingService.running.value,
+                notificationPairingRunning = PrivilegeAdbPairingService.running,
             )
         }
     }
@@ -468,44 +462,36 @@ internal class PrivilegeUiAdbActions(
     private fun PrivilegeUiWirelessAdbStatus.checkingIfUnknown(): PrivilegeUiWirelessAdbStatus =
         if (this == PrivilegeUiWirelessAdbStatus.UNKNOWN) PrivilegeUiWirelessAdbStatus.CHECKING else this
 
-    private fun handlePairingEvent(intent: Intent) {
-        if (intent.action != PrivilegeAdbPairingService.actionPairingEvent(store.requireContext())) return
-        val event = intent.getStringExtra(PrivilegeAdbPairingService.EXTRA_EVENT) ?: return
-        val eventMessage = intent.getStringExtra(PrivilegeAdbPairingService.EXTRA_MESSAGE) ?: event
-        val fingerprint = intent.getStringExtra(PrivilegeAdbPairingService.EXTRA_ADB_KEY_FINGERPRINT)
-        val pairingStatus = when (event) {
-            PrivilegeAdbPairingService.EVENT_SEARCHING -> PrivilegeUiAdbPairingStatus.SEARCHING
-            PrivilegeAdbPairingService.EVENT_FOUND -> PrivilegeUiAdbPairingStatus.FOUND
-            PrivilegeAdbPairingService.EVENT_PAIRING -> PrivilegeUiAdbPairingStatus.PAIRING
-            PrivilegeAdbPairingService.EVENT_PAIRED -> PrivilegeUiAdbPairingStatus.PAIRED
-            PrivilegeAdbPairingService.EVENT_FAILED -> PrivilegeUiAdbPairingStatus.FAILED
-            PrivilegeAdbPairingService.EVENT_STOPPED -> PrivilegeUiAdbPairingStatus.NOT_PAIRED
-            else -> store.state.value.pairingStatus
+    private fun handlePairingEvent(event: PrivilegeAdbPairingEvent) {
+        val pairingStatus = when (event.type) {
+            PrivilegeAdbPairingEventType.SEARCHING -> PrivilegeUiAdbPairingStatus.SEARCHING
+            PrivilegeAdbPairingEventType.FOUND -> PrivilegeUiAdbPairingStatus.FOUND
+            PrivilegeAdbPairingEventType.PAIRING -> PrivilegeUiAdbPairingStatus.PAIRING
+            PrivilegeAdbPairingEventType.PAIRED -> PrivilegeUiAdbPairingStatus.PAIRED
+            PrivilegeAdbPairingEventType.FAILED -> PrivilegeUiAdbPairingStatus.FAILED
+            PrivilegeAdbPairingEventType.STOPPED -> PrivilegeUiAdbPairingStatus.NOT_PAIRED
         }
-        val running = event == PrivilegeAdbPairingService.EVENT_SEARCHING ||
-            event == PrivilegeAdbPairingService.EVENT_FOUND ||
-            event == PrivilegeAdbPairingService.EVENT_PAIRING
         store.updateState {
             it.copy(
-                notificationPairingRunning = running,
+                notificationPairingRunning = event.running,
                 pairingStatus = pairingStatus,
-                pairingMessage = eventMessage,
-                adbKeyFingerprint = fingerprint ?: it.adbKeyFingerprint,
-                wirelessPairingCheckStatus = if (event == PrivilegeAdbPairingService.EVENT_PAIRED) {
+                pairingMessage = event.message,
+                adbKeyFingerprint = event.fingerprint ?: it.adbKeyFingerprint,
+                wirelessPairingCheckStatus = if (event.type == PrivilegeAdbPairingEventType.PAIRED) {
                     PrivilegeUiWirelessAdbStatus.ON
                 } else {
                     it.wirelessPairingCheckStatus
                 },
-                pairingCode = if (event == PrivilegeAdbPairingService.EVENT_PAIRED) "" else it.pairingCode,
-                message = if (running || event == PrivilegeAdbPairingService.EVENT_FAILED) {
-                    eventMessage
+                pairingCode = if (event.type == PrivilegeAdbPairingEventType.PAIRED) "" else it.pairingCode,
+                message = if (event.running || event.type == PrivilegeAdbPairingEventType.FAILED) {
+                    event.message
                 } else {
                     store.idleMessage(it)
                 },
             )
         }
-        store.appendLog(eventMessage)
-        if (event == PrivilegeAdbPairingService.EVENT_PAIRED) {
+        store.appendLog(event.message)
+        if (event.type == PrivilegeAdbPairingEventType.PAIRED) {
             enableTcpModeAfterNotificationPairing()
         }
     }
