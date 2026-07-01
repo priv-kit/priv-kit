@@ -17,6 +17,8 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      - run: yes | sdkmanager --licenses
+
       - name: Write Secrets Info
         run: |
           echo mavenCentralUsername='${{ secrets.OSSRH_USERNAME }}' >> gradle.properties

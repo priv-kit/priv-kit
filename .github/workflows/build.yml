@@ -23,6 +23,8 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      - run: yes | sdkmanager --licenses
+
       - run: chmod 777 ./gradlew
 
       - run: ./gradlew publishToMavenLocal
