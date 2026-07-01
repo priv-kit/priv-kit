@@ -9,7 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.ViewModelProvider
-import priv.kit.PrivilegeRuntime
+import priv.kit.Privilege
 import priv.kit.PrivilegeUserServiceConnection
 import priv.kit.ui.PrivilegeUiViewModel
 import rikka.shizuku.Shizuku
@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
             handleNotificationPermissionResult(granted)
     }
     internal val manualShellCommandLine: String by lazy(LazyThreadSafetyMode.NONE) {
-        PrivilegeRuntime.createShellStartCommand().toSampleHostAdbShellCommand()
+        Privilege.createShellStartCommand().toSampleHostAdbShellCommand()
     }
     internal var screenState: PrivilegeSampleScreenState
         get() = sampleViewModel.screenState

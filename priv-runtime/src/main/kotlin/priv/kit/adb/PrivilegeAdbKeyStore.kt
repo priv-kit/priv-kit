@@ -2,7 +2,7 @@ package priv.kit.adb
 
 import java.io.File
 import priv.kit.internal.runtime.PrivilegeBinaryFileStore
-import priv.kit.internal.runtime.PrivilegeRuntimeStorage
+import priv.kit.internal.runtime.PrivilegeStorage
 
 internal object PrivilegeAdbKeyStore {
     private const val KEY_FILE_NAME = "adbkey"
@@ -62,5 +62,5 @@ internal object PrivilegeAdbKeyStore {
     }
 
     private fun adbKeyFile(): File =
-        PrivilegeRuntimeStorage.file(KEY_FILE_NAME)
+        PrivilegeStorage.file(KEY_FILE_NAME)
 }

@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStarter
-import priv.kit.PrivilegeRuntime
+import priv.kit.Privilege
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class PrivilegeUiAdbActions(
@@ -80,7 +80,7 @@ internal class PrivilegeUiAdbActions(
                 }
             },
             action = {
-                val starter = PrivilegeRuntime.createAdbStarter(adbDeviceName = adbDeviceName)
+                val starter = Privilege.createAdbStarter(adbDeviceName = adbDeviceName)
                 val pairingResult = starter.pair(pairingCode = code)
                 maybeEnableTcpModeAfterPairing(starter)
                 pairingResult
@@ -172,7 +172,7 @@ internal class PrivilegeUiAdbActions(
             message = store.text(R.string.priv_ui_wireless_adb_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
         ) {
-            PrivilegeRuntime.startAdb(
+            Privilege.startAdb(
                 options = PrivilegeAdbStartOptions(),
                 timeoutMillis = store.config.startTimeoutMillis,
                 adbDeviceName = store.currentAdbDeviceNameOverride(),
@@ -201,7 +201,7 @@ internal class PrivilegeUiAdbActions(
                 store.tcpModeEnabled.value = false
             },
             action = {
-                val starter = PrivilegeRuntime.createAdbStarter(
+                val starter = Privilege.createAdbStarter(
                     adbDeviceName = store.currentAdbDeviceNameOverride(),
                 )
                 starter.switchToTcp(
@@ -222,7 +222,7 @@ internal class PrivilegeUiAdbActions(
             message = store.text(R.string.priv_ui_tcp_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
         ) {
-            val serverInfo = PrivilegeRuntime.startAdb(
+            val serverInfo = Privilege.startAdb(
                 options = PrivilegeAdbStartOptions(
                     tcpMode = true,
                     tcpPort = tcpPort,
@@ -259,7 +259,7 @@ internal class PrivilegeUiAdbActions(
     fun refreshAdbIdentityInfo() {
         Thread {
             runCatching {
-                PrivilegeRuntime.createAdbStarter(
+                Privilege.createAdbStarter(
                     adbDeviceName = store.currentAdbDeviceNameOverride(),
                 ).getIdentityInfo()
             }.onSuccess { info ->
@@ -346,7 +346,7 @@ internal class PrivilegeUiAdbActions(
     }
 
     private fun checkTcpModeEnabled(): Boolean {
-        val starter = PrivilegeRuntime.createAdbStarter(
+        val starter = Privilege.createAdbStarter(
             adbDeviceName = store.currentAdbDeviceNameOverride(),
         )
         return runCatching {
@@ -413,7 +413,7 @@ internal class PrivilegeUiAdbActions(
     }
 
     private fun pollWirelessAdbStatusOnce(stop: AtomicBoolean) {
-        val starter = PrivilegeRuntime.createAdbStarter(
+        val starter = Privilege.createAdbStarter(
             adbDeviceName = store.currentAdbDeviceNameOverride(),
         )
         val timeoutMillis = store.config.wirelessStatusDiscoveryTimeoutMillis

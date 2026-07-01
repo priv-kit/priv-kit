@@ -32,19 +32,19 @@ HiddenApiBypass.addHiddenApiExemptions("L")
 Start directly on a Root device:
 
 ```kotlin
-val serverInfo = PrivilegeRuntime.startRoot()
+val serverInfo = Privilege.startRoot()
 ```
 
 Start through ADB Wireless Debugging or ADB TCP:
 
 ```kotlin
-val serverInfo = PrivilegeRuntime.startAdb()
+val serverInfo = Privilege.startAdb()
 ```
 
 Have the user copy and run a command manually:
 
 ```kotlin
-val commandLine = PrivilegeRuntime.createShellStartCommand()
+val commandLine = Privilege.createShellStartCommand()
 YourApp.showCommandToUser(commandLine)
 ```
 
@@ -53,7 +53,7 @@ Pass the startup command to Shizuku UserService or another external startup entr
 The library provides common APIs for both sides: call `PrivilegeExternalStartup.runInCurrentProcess(...)` inside the privileged process, and use `PrivilegeExternalStartup.createReceiver(...)` in the main process to receive real-time logs. Shizuku UserService binding and AIDL forwarding are handled by the integrating app.
 
 ```kotlin
-val commandLine = PrivilegeRuntime.createShellStartCommand()
+val commandLine = Privilege.createShellStartCommand()
 YourApp.bindUserServiceAndRun(commandLine)
 ```
 
@@ -119,12 +119,12 @@ val spec = PrivilegeUserServiceSpec(
     tag = "main",
     processMode = PrivilegeUserServiceProcessMode.DEDICATED_PROCESS,
 )
-PrivilegeRuntime.startUserService(spec)
-PrivilegeRuntime.bindUserService(spec).use { connection ->
+Privilege.startUserService(spec)
+Privilege.bindUserService(spec).use { connection ->
     val service = IMyPrivilegeService.Stub.asInterface(connection.binder)
     service.getUid()
 }
-PrivilegeRuntime.stopUserService(spec)
+Privilege.stopUserService(spec)
 ```
 
 Embedded UserService: the service runs directly inside the Privileged Server process. It does not create a new process and is suitable for lightweight logic.

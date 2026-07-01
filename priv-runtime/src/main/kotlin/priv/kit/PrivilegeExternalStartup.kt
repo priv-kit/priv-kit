@@ -78,11 +78,9 @@ public class PrivilegeExternalStartupReceiver @JvmOverloads public constructor(
     }
 
     public fun receive(line: PrivilegeStartupLogLine) {
-        if (!line.isPrivKitInternalMetadata) {
-            startupLogListener.onLog(
-                line.copy(source = applyPrefix(line.source)),
-            )
-        }
+        startupLogListener.onLog(
+            line.copy(source = applyPrefix(line.source)),
+        )
     }
 
     public fun asStartupLogListener(): PrivilegeStartupLogListener = adapter
@@ -217,14 +215,12 @@ private class StartupTranscript(
     ) {
         val line = PrivilegeStartupLogLine(source = source, message = message)
         synchronized(output) {
-            if (output.size < maxCapturedLines && !line.isPrivKitInternalMetadata) {
+            if (output.size < maxCapturedLines) {
                 output += "[${line.source}] ${line.message}"
             }
         }
-        if (!line.isPrivKitInternalMetadata) {
-            runCatching {
-                startupLogListener?.onLog(line)
-            }
+        runCatching {
+            startupLogListener?.onLog(line)
         }
     }
 

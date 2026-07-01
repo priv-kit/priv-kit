@@ -6,7 +6,7 @@ import android.os.IInterface
 import android.os.Parcel
 import android.os.RemoteException
 import android.os.ServiceManager
-import priv.kit.internal.binder.PrivilegeBinderRuntime
+import priv.kit.Privilege
 import java.io.FileDescriptor
 
 public enum class PrivilegeSystemServiceSource {
@@ -14,20 +14,18 @@ public enum class PrivilegeSystemServiceSource {
     SERVER_PROCESS,
 }
 
-public class PrivilegeBinderWrapper private constructor(
-    private val target: Target,
-) : IBinder {
+public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
     override fun transact(
         code: Int,
         data: Parcel,
         reply: Parcel?,
         flags: Int,
     ): Boolean {
-        val serverBinder = PrivilegeBinderRuntime.requireServerBinder()
+        val serverBinder = Privilege.requireServerInterface().asBinder()
         val remoteData = Parcel.obtain()
         try {
             remoteData.writeInterfaceToken(DESCRIPTOR)
-            target.writeToRemoteData(remoteData)
+            writeTargetToRemoteData(remoteData)
             remoteData.writeInt(code)
             remoteData.writeInt(flags)
             remoteData.appendFrom(data, 0, data.dataSize())
@@ -49,40 +47,11 @@ public class PrivilegeBinderWrapper private constructor(
         }
     }
 
-    override fun getInterfaceDescriptor(): String? =
-        target.getInterfaceDescriptor(this)
-
-    override fun pingBinder(): Boolean =
-        target.pingBinder(this)
-
-    override fun isBinderAlive(): Boolean =
-        target.isBinderAlive(this)
-
     override fun queryLocalInterface(descriptor: String): IInterface? = null
 
-    override fun dump(fd: FileDescriptor, args: Array<out String>?) {
-        target.dump(fd, args)
-    }
+    protected abstract fun writeTargetToRemoteData(data: Parcel)
 
-    override fun dumpAsync(fd: FileDescriptor, args: Array<out String>?) {
-        target.dumpAsync(fd, args)
-    }
-
-    @Throws(RemoteException::class)
-    override fun linkToDeath(
-        recipient: IBinder.DeathRecipient,
-        flags: Int,
-    ) {
-        target.linkToDeath(this, recipient, flags)
-    }
-
-    override fun unlinkToDeath(
-        recipient: IBinder.DeathRecipient,
-        flags: Int,
-    ): Boolean =
-        target.unlinkToDeath(this, recipient, flags)
-
-    private fun readRemoteInterfaceDescriptor(): String? {
+    protected fun readRemoteInterfaceDescriptor(): String? {
         val data = Parcel.obtain()
         val reply = Parcel.obtain()
         return try {
@@ -99,133 +68,6 @@ public class PrivilegeBinderWrapper private constructor(
         }
     }
 
-    private sealed interface Target {
-        fun writeToRemoteData(data: Parcel)
-
-        fun getInterfaceDescriptor(owner: PrivilegeBinderWrapper): String?
-
-        fun pingBinder(owner: PrivilegeBinderWrapper): Boolean
-
-        fun isBinderAlive(owner: PrivilegeBinderWrapper): Boolean
-
-        fun dump(fd: FileDescriptor, args: Array<out String>?)
-
-        fun dumpAsync(fd: FileDescriptor, args: Array<out String>?)
-
-        @Throws(RemoteException::class)
-        fun linkToDeath(
-            owner: PrivilegeBinderWrapper,
-            recipient: IBinder.DeathRecipient,
-            flags: Int,
-        )
-
-        fun unlinkToDeath(
-            owner: PrivilegeBinderWrapper,
-            recipient: IBinder.DeathRecipient,
-            flags: Int,
-        ): Boolean
-
-        data class Binder(
-            val binder: IBinder,
-        ) : Target {
-            override fun writeToRemoteData(data: Parcel) {
-                data.writeInt(TARGET_BINDER)
-                data.writeStrongBinder(binder)
-            }
-
-            override fun getInterfaceDescriptor(owner: PrivilegeBinderWrapper): String? =
-                binder.interfaceDescriptor
-
-            override fun pingBinder(owner: PrivilegeBinderWrapper): Boolean =
-                binder.pingBinder()
-
-            override fun isBinderAlive(owner: PrivilegeBinderWrapper): Boolean =
-                binder.isBinderAlive
-
-            override fun dump(fd: FileDescriptor, args: Array<out String>?) {
-                binder.dump(fd, args)
-            }
-
-            override fun dumpAsync(fd: FileDescriptor, args: Array<out String>?) {
-                binder.dumpAsync(fd, args)
-            }
-
-            override fun linkToDeath(
-                owner: PrivilegeBinderWrapper,
-                recipient: IBinder.DeathRecipient,
-                flags: Int,
-            ) {
-                binder.linkToDeath(recipient, flags)
-            }
-
-            override fun unlinkToDeath(
-                owner: PrivilegeBinderWrapper,
-                recipient: IBinder.DeathRecipient,
-                flags: Int,
-            ): Boolean =
-                binder.unlinkToDeath(recipient, flags)
-        }
-
-        data class SystemService(
-            val serviceName: String,
-        ) : Target {
-            override fun writeToRemoteData(data: Parcel) {
-                data.writeInt(TARGET_SYSTEM_SERVICE)
-                data.writeString(serviceName)
-            }
-
-            override fun getInterfaceDescriptor(owner: PrivilegeBinderWrapper): String? =
-                owner.readRemoteInterfaceDescriptor()
-
-            override fun pingBinder(owner: PrivilegeBinderWrapper): Boolean =
-                runCatching {
-                    hasSystemService(
-                        serviceName = serviceName,
-                        source = PrivilegeSystemServiceSource.SERVER_PROCESS,
-                    )
-                }.getOrDefault(false)
-
-            override fun isBinderAlive(owner: PrivilegeBinderWrapper): Boolean =
-                pingBinder(owner)
-
-            override fun dump(fd: FileDescriptor, args: Array<out String>?) {
-                throw RemoteException(
-                    "Server-process system service dump is not supported: $serviceName",
-                )
-            }
-
-            override fun dumpAsync(fd: FileDescriptor, args: Array<out String>?) {
-                throw RemoteException(
-                    "Server-process system service dump is not supported: $serviceName",
-                )
-            }
-
-            override fun linkToDeath(
-                owner: PrivilegeBinderWrapper,
-                recipient: IBinder.DeathRecipient,
-                flags: Int,
-            ) {
-                try {
-                    PrivilegeBinderRuntime.requireServerBinder().linkToDeath(recipient, flags)
-                } catch (exception: RemoteException) {
-                    throw PrivilegeServerDisconnectedException(
-                        "Privilege server Binder died while trying to link system service death: $serviceName",
-                        exception,
-                    )
-                }
-            }
-
-            override fun unlinkToDeath(
-                owner: PrivilegeBinderWrapper,
-                recipient: IBinder.DeathRecipient,
-                flags: Int,
-            ): Boolean =
-                runCatching {
-                    PrivilegeBinderRuntime.requireServerBinder().unlinkToDeath(recipient, flags)
-                }.getOrDefault(false)
-        }
-    }
-
     public companion object {
         internal const val DESCRIPTOR: String = "priv.kit.binder.IPrivilegeBinderWrapper"
         internal const val TRANSACTION_TRANSACT_BINDER: Int = 0x00FF0001
@@ -234,7 +76,7 @@ public class PrivilegeBinderWrapper private constructor(
         internal const val TARGET_SYSTEM_SERVICE: Int = 2
 
         public fun fromBinder(targetBinder: IBinder): PrivilegeBinderWrapper =
-            PrivilegeBinderWrapper(Target.Binder(targetBinder))
+            TargetBinderWrapper(targetBinder)
 
         public fun fromSystemService(
             serviceName: String,
@@ -251,7 +93,7 @@ public class PrivilegeBinderWrapper private constructor(
                             source = PrivilegeSystemServiceSource.SERVER_PROCESS,
                         )
                     ) {
-                        PrivilegeBinderWrapper(Target.SystemService(serviceName))
+                        ServerProcessSystemServiceWrapper(serviceName)
                     } else {
                         null
                     }
@@ -268,7 +110,7 @@ public class PrivilegeBinderWrapper private constructor(
                     ServiceManager.getService(serviceName) != null
 
                 PrivilegeSystemServiceSource.SERVER_PROCESS -> {
-                    val server = PrivilegeBinderRuntime.requireServer()
+                    val server = Privilege.requireServerInterface()
                     try {
                         server.hasSystemService(serviceName)
                     } catch (exception: DeadObjectException) {
@@ -285,6 +127,101 @@ public class PrivilegeBinderWrapper private constructor(
                 }
             }
         }
-
     }
+}
+
+private class TargetBinderWrapper(
+    private val binder: IBinder,
+) : PrivilegeBinderWrapper() {
+    override fun writeTargetToRemoteData(data: Parcel) {
+        data.writeInt(TARGET_BINDER)
+        data.writeStrongBinder(binder)
+    }
+
+    override fun getInterfaceDescriptor(): String? =
+        binder.interfaceDescriptor
+
+    override fun pingBinder(): Boolean =
+        binder.pingBinder()
+
+    override fun isBinderAlive(): Boolean =
+        binder.isBinderAlive
+
+    override fun dump(fd: FileDescriptor, args: Array<out String>?) {
+        binder.dump(fd, args)
+    }
+
+    override fun dumpAsync(fd: FileDescriptor, args: Array<out String>?) {
+        binder.dumpAsync(fd, args)
+    }
+
+    override fun linkToDeath(
+        recipient: IBinder.DeathRecipient,
+        flags: Int,
+    ) {
+        binder.linkToDeath(recipient, flags)
+    }
+
+    override fun unlinkToDeath(
+        recipient: IBinder.DeathRecipient,
+        flags: Int,
+    ): Boolean =
+        binder.unlinkToDeath(recipient, flags)
+}
+
+private class ServerProcessSystemServiceWrapper(
+    private val serviceName: String,
+) : PrivilegeBinderWrapper() {
+    override fun writeTargetToRemoteData(data: Parcel) {
+        data.writeInt(TARGET_SYSTEM_SERVICE)
+        data.writeString(serviceName)
+    }
+
+    override fun getInterfaceDescriptor(): String? =
+        readRemoteInterfaceDescriptor()
+
+    override fun pingBinder(): Boolean =
+        runCatching {
+            hasSystemService(
+                serviceName = serviceName,
+                source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+            )
+        }.getOrDefault(false)
+
+    override fun isBinderAlive(): Boolean =
+        pingBinder()
+
+    override fun dump(fd: FileDescriptor, args: Array<out String>?) {
+        throw RemoteException(
+            "Server-process system service dump is not supported: $serviceName",
+        )
+    }
+
+    override fun dumpAsync(fd: FileDescriptor, args: Array<out String>?) {
+        throw RemoteException(
+            "Server-process system service dump is not supported: $serviceName",
+        )
+    }
+
+    override fun linkToDeath(
+        recipient: IBinder.DeathRecipient,
+        flags: Int,
+    ) {
+        try {
+            Privilege.requireServerInterface().asBinder().linkToDeath(recipient, flags)
+        } catch (exception: RemoteException) {
+            throw PrivilegeServerDisconnectedException(
+                "Privilege server Binder died while trying to link system service death: $serviceName",
+                exception,
+            )
+        }
+    }
+
+    override fun unlinkToDeath(
+        recipient: IBinder.DeathRecipient,
+        flags: Int,
+    ): Boolean =
+        runCatching {
+            Privilege.requireServerInterface().asBinder().unlinkToDeath(recipient, flags)
+        }.getOrDefault(false)
 }

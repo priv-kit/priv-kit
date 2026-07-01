@@ -1,14 +1,14 @@
 package priv.kit.ui
 
 import android.content.Context
-import priv.kit.PrivilegeRuntime
+import priv.kit.Privilege
 
 internal class PrivilegeUiManualShellActions(
     private val store: PrivilegeUiViewModelStore,
 ) {
     fun loadCommand() {
         val commandLine = runCatching {
-            PrivilegeRuntime.createShellStartCommand().toPrivilegeUiHostAdbShellCommand()
+            Privilege.createShellStartCommand().toPrivilegeUiHostAdbShellCommand()
         }.getOrElse { throwable ->
             store.appendLog(throwable.toPrivilegeUiDiagnosticString())
             null

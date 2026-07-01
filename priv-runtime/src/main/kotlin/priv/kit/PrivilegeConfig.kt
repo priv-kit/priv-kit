@@ -2,9 +2,9 @@ package priv.kit
 
 import priv.kit.internal.core.PrivilegeProtocol
 
-public object PrivilegeRuntimeConfig {
+public object PrivilegeConfig {
     private val lock = Any()
-    private var current = PrivilegeRuntimeConfigSnapshot()
+    private var current = PrivilegeConfigSnapshot()
 
     public var followDeathDelayMillis: Long
         get() = snapshot().followDeathDelayMillis
@@ -30,7 +30,7 @@ public object PrivilegeRuntimeConfig {
         followDeathDelayMillis: Long,
         activeReconnectOnOwnerDeath: Boolean,
     ) {
-        val next = PrivilegeRuntimeConfigSnapshot(
+        val next = PrivilegeConfigSnapshot(
             followDeathDelayMillis = followDeathDelayMillis,
             activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
         )
@@ -39,13 +39,13 @@ public object PrivilegeRuntimeConfig {
         }
     }
 
-    internal fun snapshot(): PrivilegeRuntimeConfigSnapshot =
+    internal fun snapshot(): PrivilegeConfigSnapshot =
         synchronized(lock) {
             current
         }
 }
 
-internal data class PrivilegeRuntimeConfigSnapshot(
+internal data class PrivilegeConfigSnapshot(
     val followDeathDelayMillis: Long = PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
     val activeReconnectOnOwnerDeath: Boolean = PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
 ) {

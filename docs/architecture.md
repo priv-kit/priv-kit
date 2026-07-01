@@ -31,7 +31,7 @@
 - Gradle 模块使用 `:priv-runtime`、`:priv-adb-crypto`、`:priv-ui`、`:priv-sample`，以及内部编译期 stub 模块 `:hidden-api`。
 - 除 `:hidden-api` 中的 framework mirror/stub 外，Kotlin package 统一使用 `priv.kit.*`，例如 `priv.kit`、`priv.kit.binder`、`priv.kit.userservice`、`priv.kit.adb`、`priv.kit.internal.*`。
 - 禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*` 作为源码 package。
-- 公开 API 使用完整单词 `Privilege*`，例如 `PrivilegeKit`、`PrivilegeRuntime`、`PrivilegeConnection`。
+- 公开 API 使用完整单词 `Privilege` 或 `Privilege*`，例如 `Privilege`、`PrivilegeKit`、`PrivilegeConnection`。
 - 公开 API 禁止使用 `Priv*` 缩写，例如 `PrivKit`、`PrivSession`、`PrivRuntime`、`PrivConnection`。
 
 示例依赖坐标：
@@ -133,7 +133,7 @@ app 侧 handshake provider 必须保持 exported，以便 shell、root 或外部
 
 外部启动入口必须具备执行启动命令或托管应用启动代码的能力；仅提供授权 Binder 或权限 API、但不能执行代码的工具不属于 Priv Kit 启动策略。`priv-kit` 提供可随时执行的启动命令、可在外部特权进程内调用的 `PrivilegeExternalStartup.runInCurrentProcess(...)`、以及主进程接收实时启动日志的 `PrivilegeExternalStartup.createReceiver(...)`；Shizuku UserService 等第三方能力只负责把这两端通过应用自有 Binder/AIDL 接起来，并停留在应用侧 provider、可选集成模块或示例代码中，不成为核心运行时策略模块。
 
-启动策略不得变成操作库。`PrivilegeRuntime.startRoot()` 可以通过 root 启动服务端，但不得提供用于包安装、输入事件、设置写入、app-ops 修改或其他系统操作的公开 root helper。
+启动策略不得变成操作库。`Privilege.startRoot()` 可以通过 root 启动服务端，但不得提供用于包安装、输入事件、设置写入、app-ops 修改或其他系统操作的公开 root helper。
 
 ## Binder 架构
 
@@ -151,7 +151,7 @@ Binder 支持应覆盖：
 当前 Binder 原语由 `:priv-runtime` 的 `priv.kit.binder` package 分区承载，内部 AIDL 和服务端侧 transaction 执行归属于 `priv.kit.internal.*`：
 
 - 内部 `IPrivilegeServer` 定义项目自有 Privileged Server Binder 协议；
-- `PrivilegeBinderWrapper.fromBinder(...)` 将调用方已持有的显式目标 `IBinder` 的 `transact` 通过当前 Privileged Server 执行，并通过 `PrivilegeRuntime` 的全局 server-binder getter 在每次 transaction 前统一拦截 server 断连；
+- `PrivilegeBinderWrapper.fromBinder(...)` 将调用方已持有的显式目标 `IBinder` 的 `transact` 通过当前 Privileged Server 执行，并通过 `Privilege` 的全局 server-binder getter 在每次 transaction 前统一拦截 server 断连；
 - `PrivilegeBinderWrapper.fromSystemService(...)` 默认在当前进程通过 hidden `ServiceManager.getService(name)` 获取目标 Binder，再复用 `fromBinder(...)` 的 raw transaction 桥；
 - `PrivilegeBinderWrapper.fromSystemService(..., source = PrivilegeSystemServiceSource.SERVER_PROCESS)` 先确认当前 Privileged Server 进程能按显式系统服务名解析目标，再返回按服务名延迟解析和转发 transaction 的 raw Binder 桥，不向 app 暴露 server 进程内的真实 Binder；
 - `PrivilegeBinderException` 是 Binder 原语异常密封基类，`PrivilegeServerDisconnectedException` 和 `PrivilegeBinderRemoteCallException` 提供可按类型捕获的失败语义。

@@ -14,7 +14,7 @@ class PrivilegeAdbOutputTest {
             },
         )
 
-        output.append("adb", "first\npriv-kit-starter-pid=123\npriv-kit-server-log=/data/local/tmp/log\nsecond\r\n")
+        output.append("adb", "first\nsecond\r\n")
 
         assertEquals(
             listOf("[adb] first", "[adb] second"),

@@ -35,7 +35,7 @@ class PrivilegeUiViewModelTest {
     )
 
     private fun installRuntimeContext(context: Context) {
-        val runtimeContext = Class.forName("priv.kit.internal.runtime.PrivilegeRuntimeContext")
+        val runtimeContext = Class.forName("priv.kit.internal.runtime.PrivilegeContext")
         val instance = runtimeContext.getField("INSTANCE").get(null)
         runtimeContext.getDeclaredMethod("install", Context::class.java).invoke(instance, context)
     }

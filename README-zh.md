@@ -32,19 +32,19 @@ HiddenApiBypass.addHiddenApiExemptions("L")
 Root 设备直接启动：
 
 ```kotlin
-val serverInfo = PrivilegeRuntime.startRoot()
+val serverInfo = Privilege.startRoot()
 ```
 
 通过 ADB Wireless Debugging 或 ADB TCP 启动：
 
 ```kotlin
-val serverInfo = PrivilegeRuntime.startAdb()
+val serverInfo = Privilege.startAdb()
 ```
 
 用户复制命令手动执行：
 
 ```kotlin
-val commandLine = PrivilegeRuntime.createShellStartCommand()
+val commandLine = Privilege.createShellStartCommand()
 YourApp.showCommandToUser(commandLine)
 ```
 
@@ -53,7 +53,7 @@ YourApp.showCommandToUser(commandLine)
 库侧提供通用的两端 API：特权进程内调用 `PrivilegeExternalStartup.runInCurrentProcess(...)`，主进程用 `PrivilegeExternalStartup.createReceiver(...)` 接收实时日志；Shizuku 的 UserService 绑定和 AIDL 转发由接入应用自己完成。
 
 ```kotlin
-val commandLine = PrivilegeRuntime.createShellStartCommand()
+val commandLine = Privilege.createShellStartCommand()
 YourApp.bindUserServiceAndRun(commandLine)
 ```
 
@@ -119,12 +119,12 @@ val spec = PrivilegeUserServiceSpec(
     tag = "main",
     processMode = PrivilegeUserServiceProcessMode.DEDICATED_PROCESS,
 )
-PrivilegeRuntime.startUserService(spec)
-PrivilegeRuntime.bindUserService(spec).use { connection ->
+Privilege.startUserService(spec)
+Privilege.bindUserService(spec).use { connection ->
     val service = IMyPrivilegeService.Stub.asInterface(connection.binder)
     service.getUid()
 }
-PrivilegeRuntime.stopUserService(spec)
+Privilege.stopUserService(spec)
 ```
 
 嵌入式 UserService：服务直接跑在 Privileged Server 进程里，不会创建新进程，适合轻量逻辑。

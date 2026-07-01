@@ -5,7 +5,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 internal class PrivilegePendingHandshake internal constructor(
-    public val token: String,
+    val token: String,
 ) {
     private val latch = CountDownLatch(1)
 
@@ -18,11 +18,12 @@ internal class PrivilegePendingHandshake internal constructor(
     }
 
     @Throws(PrivilegeStartupException::class)
-    public fun await(timeoutMillis: Long): PrivilegeServerHandshakeResult {
+    fun await(timeoutMillis: Long): PrivilegeServerHandshakeResult {
         val completed = latch.await(timeoutMillis, TimeUnit.MILLISECONDS)
         if (!completed) {
             throw PrivilegeStartupException("Timed out waiting for Privileged Server Binder")
         }
-        return result ?: throw PrivilegeStartupException("Privileged Server handshake completed without a Binder")
+        return result
+            ?: throw PrivilegeStartupException("Privileged Server handshake completed without a Binder")
     }
 }

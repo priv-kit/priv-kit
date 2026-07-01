@@ -219,7 +219,6 @@ internal class PrivilegeAdbClient private constructor(
     }
 
     companion object {
-        private const val TAG = "PrivKitAdb"
         private const val CONNECT_TIMEOUT_MILLIS = 5_000
         private const val DEFAULT_READ_TIMEOUT_MILLIS = 5_000
     }

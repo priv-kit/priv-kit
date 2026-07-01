@@ -17,7 +17,7 @@ class PrivilegeExternalStartupTest {
     fun runInCurrentProcessStreamsAndCapturesOutput() {
         val received = CopyOnWriteArrayList<String>()
         val process = FakeProcess(
-            stdout = "ready\npriv-kit-starter-pid=123\npriv-kit-server-log=/data/local/tmp/log\n",
+            stdout = "ready\nmore\n",
             stderr = "warn\n",
             exitCode = 0,
         )
@@ -41,15 +41,13 @@ class PrivilegeExternalStartupTest {
         assertEquals("/custom/sh|start-command", startedCommand)
         assertEquals(0, result.exitCode)
         assertTrue(result.output.contains("[stdout] ready"))
-        assertTrue(!result.output.contains("priv-kit-starter-pid="))
-        assertTrue(!result.output.contains("priv-kit-server-log="))
+        assertTrue(result.output.contains("[stdout] more"))
         assertTrue(result.output.contains("[stderr] warn"))
         assertTrue(result.output.contains("[diag] Shell start command exited code=0"))
         assertTrue(received.any { it.startsWith("[diag] Starting Priv Kit shell start command") })
         assertTrue(received.contains("[stdout] ready"))
+        assertTrue(received.contains("[stdout] more"))
         assertTrue(received.contains("[stderr] warn"))
-        assertTrue(received.none { it.contains("priv-kit-starter-pid=") })
-        assertTrue(received.none { it.contains("priv-kit-server-log=") })
     }
 
     @Test
@@ -84,8 +82,6 @@ class PrivilegeExternalStartupTest {
 
         receiver.receive("stdout", "ready")
         receiver.receive("bad\nsource", "still ready")
-        receiver.receive("stdout", "priv-kit-starter-pid=123")
-        receiver.receive("stdout", "priv-kit-server-log=/data/local/tmp/log")
         receiver.receive(
             PrivilegeStartupLogLine(
                 source = "stderr",

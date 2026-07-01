@@ -56,7 +56,7 @@ internal object PrivilegeOwnerTokenStore {
     }
 
     private fun ownerTokenFile(): File {
-        return PrivilegeRuntimeStorage.file(OWNER_TOKEN_FILE)
+        return PrivilegeStorage.file(OWNER_TOKEN_FILE)
     }
 
     private const val OWNER_TOKEN_FILE = "token.txt"

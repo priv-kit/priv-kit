@@ -430,7 +430,6 @@ internal class PrivilegeUserServiceRegistry internal constructor(
 
         private fun superviseDedicatedDestroy() {
             val timeoutMillis = spec.destroyTimeoutMillis
-            val className = spec.serviceClassName
             Thread {
                 Thread {
                     runCatching { process.destroy() }

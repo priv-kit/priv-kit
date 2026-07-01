@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import priv.kit.PrivilegeRuntime
+import priv.kit.Privilege
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -109,7 +109,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
             message = searchMessage,
         )
         activeJob = lifecycleScope.launch {
-            val starter = PrivilegeRuntime.createAdbStarter(adbDeviceName = requestedDeviceName)
+            val starter = Privilege.createAdbStarter(adbDeviceName = requestedDeviceName)
             while (isActive && isCurrentSession(session)) {
                 val retryMessage = try {
                     val (port, identityInfo) = withContext(Dispatchers.IO) {
@@ -206,7 +206,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         activeJob = lifecycleScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) {
-                    PrivilegeRuntime.createAdbStarter(adbDeviceName = adbDeviceName)
+                    Privilege.createAdbStarter(adbDeviceName = adbDeviceName)
                         .pair(pairingCode = code)
                 }
                 if (!isCurrentSession(session)) return@launch

@@ -4,21 +4,29 @@ import android.os.IBinder
 import android.os.IInterface
 import android.os.Parcel
 import android.os.RemoteException
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import priv.kit.Privilege
+import priv.kit.PrivilegeServerInfo
+import priv.kit.internal.core.PrivilegeProtocol
+import priv.kit.internal.core.PrivilegeServerHandshakeResult
 import priv.kit.internal.binder.IPrivilegeServer
-import priv.kit.internal.binder.PrivilegeBinderRuntime
 import java.io.FileDescriptor
 import java.util.concurrent.CopyOnWriteArrayList
 
 class PrivilegeBinderWrapperTest {
+    @After
+    fun clearServer() {
+        runCatching { Privilege.shutdownServer() }
+    }
+
     @Test
     fun serverProcessSystemServiceLinkToDeathUsesLiveServerBinder() {
-        val serverBinder = FakeBinder()
-        withServerProvider({ FakePrivilegeServer(serverBinder, hasSystemService = true) }) {
+        withServer(FakePrivilegeServer(hasSystemService = true)) { server ->
             val wrapper = PrivilegeBinderWrapper.fromSystemService(
                 serviceName = "activity",
                 source = PrivilegeSystemServiceSource.SERVER_PROCESS,
@@ -27,20 +35,19 @@ class PrivilegeBinderWrapperTest {
 
             wrapper.linkToDeath(recipient, 0)
 
-            assertEquals(1, serverBinder.deathRecipientCount)
+            assertEquals(2, server.binder.deathRecipientCount)
         }
     }
 
     @Test
     fun serverProcessSystemServiceLinkToDeathThrowsTypedExceptionWhenServerBinderIsDead() {
-        val serverBinder = FakeBinder()
-        withServerProvider({ FakePrivilegeServer(serverBinder, hasSystemService = true) }) {
+        withServer(FakePrivilegeServer(hasSystemService = true)) { server ->
             val wrapper = PrivilegeBinderWrapper.fromSystemService(
                 serviceName = "activity",
                 source = PrivilegeSystemServiceSource.SERVER_PROCESS,
             )!!
             val recipient = IBinder.DeathRecipient { }
-            serverBinder.kill()
+            server.binder.kill()
 
             assertThrows(PrivilegeServerDisconnectedException::class.java) {
                 wrapper.linkToDeath(recipient, 0)
@@ -50,34 +57,43 @@ class PrivilegeBinderWrapperTest {
 
     @Test
     fun pingBinderAndIsBinderAliveOnlyReportTargetBinderState() {
-        withServerProvider({ throw PrivilegeServerDisconnectedException() }) {
-            val liveWrapper = PrivilegeBinderWrapper.fromBinder(FakeBinder())
-            val deadWrapper = PrivilegeBinderWrapper.fromBinder(FakeBinder(alive = false))
+        val liveWrapper = PrivilegeBinderWrapper.fromBinder(FakeBinder())
+        val deadWrapper = PrivilegeBinderWrapper.fromBinder(FakeBinder(alive = false))
 
-            assertTrue(liveWrapper.pingBinder())
-            assertTrue(liveWrapper.isBinderAlive)
-            assertFalse(deadWrapper.pingBinder())
-            assertFalse(deadWrapper.isBinderAlive)
-        }
+        assertTrue(liveWrapper.pingBinder())
+        assertTrue(liveWrapper.isBinderAlive)
+        assertFalse(deadWrapper.pingBinder())
+        assertFalse(deadWrapper.isBinderAlive)
     }
 
-    private fun withServerProvider(
-        provider: () -> IPrivilegeServer,
-        block: () -> Unit,
+    private fun withServer(
+        server: FakePrivilegeServer,
+        block: (FakePrivilegeServer) -> Unit,
     ) {
-        PrivilegeBinderRuntime.installServerProvider(provider)
+        Privilege.connectHandshake(
+            PrivilegeServerHandshakeResult(
+                token = "token",
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                serverBinder = server.asBinder(),
+            ),
+        )
         try {
-            block()
+            block(server)
         } finally {
-            PrivilegeBinderRuntime.clearServerProvider()
+            runCatching { Privilege.shutdownServer() }
         }
     }
 
     private class FakePrivilegeServer(
-        private val serverBinder: IBinder,
         private val hasSystemService: Boolean = false,
     ) : IPrivilegeServer {
-        override fun asBinder(): IBinder = serverBinder
+        val binder = FakeBinder(localInterface = this)
+
+        override fun asBinder(): IBinder = binder
 
         override fun shutdown() = Unit
 
@@ -87,6 +103,7 @@ class PrivilegeBinderWrapperTest {
     }
 
     private class FakeBinder(
+        private val localInterface: IInterface? = null,
         @Volatile
         private var alive: Boolean = true,
     ) : IBinder {
@@ -104,7 +121,7 @@ class PrivilegeBinderWrapperTest {
 
         override fun isBinderAlive(): Boolean = alive
 
-        override fun queryLocalInterface(descriptor: String): IInterface? = null
+        override fun queryLocalInterface(descriptor: String): IInterface? = localInterface
 
         override fun dump(
             fd: FileDescriptor,

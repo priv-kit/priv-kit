@@ -16,7 +16,7 @@ import priv.kit.userservice.PrivilegeUserServiceRemoteCallException
 import priv.kit.userservice.PrivilegeUserServiceSpec
 import priv.kit.userservice.PrivilegeUserServiceStartException
 
-internal class PrivilegeRuntimeUserServiceClient(
+internal class PrivilegeUserServiceClient(
     private val managerProvider: () -> IBinder?,
 ) {
     private val ownerBinder = Binder()

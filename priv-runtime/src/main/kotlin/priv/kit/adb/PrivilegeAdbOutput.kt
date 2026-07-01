@@ -2,7 +2,6 @@ package priv.kit.adb
 
 import priv.kit.PrivilegeStartupLogLine
 import priv.kit.PrivilegeStartupLogListener
-import priv.kit.isPrivKitInternalMetadata
 import java.util.Collections
 
 internal class PrivilegeAdbOutput internal constructor(
@@ -18,15 +17,13 @@ internal class PrivilegeAdbOutput internal constructor(
             PrivilegeStartupLogLine(
                 source = source,
                 message = line,
-            ).emitIfDisplayable()
+            ).emit()
         }
     }
 
     internal fun text(): String =
         synchronized(lines) {
             lines
-                .asSequence()
-                .filterNot { it.startupLogLine.isPrivKitInternalMetadata }
                 .joinToString("\n") { it.formatted }
                 .ifBlank { "<no output>" }
         }
@@ -41,18 +38,10 @@ internal class PrivilegeAdbOutput internal constructor(
     ) {
         val formatted: String
             get() = "[$source] $message"
-
-        val startupLogLine: PrivilegeStartupLogLine
-            get() = PrivilegeStartupLogLine(
-                source = source,
-                message = message,
-            )
     }
 
-    private fun PrivilegeStartupLogLine.emitIfDisplayable() {
-        if (!isPrivKitInternalMetadata) {
-            startupLogListener?.onLog(this)
-        }
+    private fun PrivilegeStartupLogLine.emit() {
+        startupLogListener?.onLog(this)
     }
 }
 

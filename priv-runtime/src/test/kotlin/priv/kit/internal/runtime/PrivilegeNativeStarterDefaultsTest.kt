@@ -4,7 +4,7 @@ import java.io.File
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class PrivilegeRuntimeNativeStarterDefaultsTest {
+class PrivilegeNativeStarterDefaultsTest {
     @Test
     fun nativeStarterDoesNotAcceptServerLaunchArguments() {
         val source = nativeStarterSource().readText()

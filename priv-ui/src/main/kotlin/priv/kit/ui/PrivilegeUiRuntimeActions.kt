@@ -1,14 +1,14 @@
 package priv.kit.ui
 
 import priv.kit.PrivilegeServerInfo
-import priv.kit.PrivilegeRuntime
-import priv.kit.PrivilegeRuntimeConfig
+import priv.kit.Privilege
+import priv.kit.PrivilegeConfig
 
 internal class PrivilegeUiRuntimeActions(
     private val store: PrivilegeUiViewModelStore,
 ) : AutoCloseable {
     fun configureOwnerDeathBehavior() {
-        PrivilegeRuntimeConfig.configure(
+        PrivilegeConfig.configure(
             followDeathDelayMillis = store.config.followDeathDelayMillis,
             activeReconnectOnOwnerDeath = store.config.activeReconnectOnOwnerDeath,
         )
@@ -19,7 +19,7 @@ internal class PrivilegeUiRuntimeActions(
             message = store.text(R.string.priv_ui_starting_root),
             startupSource = store.text(R.string.priv_ui_auth_method_root),
         ) {
-            PrivilegeRuntime.startRoot(
+            Privilege.startRoot(
                 timeoutMillis = store.config.startTimeoutMillis,
                 startupLogListener = store.startupLogListener,
             )
@@ -28,8 +28,8 @@ internal class PrivilegeUiRuntimeActions(
 
     fun refreshRuntimeStatus() {
         try {
-            if (PrivilegeRuntime.pingServer()) {
-                connectServer(PrivilegeRuntime.getServerInfo())
+            if (Privilege.pingServer()) {
+                connectServer(Privilege.getServerInfo())
             } else {
                 store.updateState {
                     it.copy(
@@ -54,9 +54,9 @@ internal class PrivilegeUiRuntimeActions(
 
     fun installRuntimeWatchers() {
         store.serverConnectedListener?.close()
-        store.serverConnectedListener = PrivilegeRuntime.addServerConnectedListener(::connectServer)
+        store.serverConnectedListener = Privilege.addServerConnectedListener(::connectServer)
         store.serverDisconnectedWatcher?.close()
-        store.serverDisconnectedWatcher = PrivilegeRuntime.addServerDisconnectedListener {
+        store.serverDisconnectedWatcher = Privilege.addServerDisconnectedListener {
             handleServerDisconnected()
         }
     }

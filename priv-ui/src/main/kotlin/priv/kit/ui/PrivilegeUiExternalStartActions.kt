@@ -1,6 +1,6 @@
 package priv.kit.ui
 
-import priv.kit.PrivilegeRuntime
+import priv.kit.Privilege
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class PrivilegeUiExternalStartActions(
@@ -125,7 +125,7 @@ internal class PrivilegeUiExternalStartActions(
             startedMessage = store.text(R.string.priv_ui_external_start_requested),
             startupSource = provider.label.toString(),
         ) {
-            val commandLine = PrivilegeRuntime.createShellStartCommand()
+            val commandLine = Privilege.createShellStartCommand()
             if (provider is PrivilegeUiStreamingExternalStartProvider) {
                 provider.start(
                     context = context,

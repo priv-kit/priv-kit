@@ -29,18 +29,18 @@
 3. 通过 raw Binder 原语或 UserService 承载应用自定义能力。
 4. 在不需要时停止或断开运行时。
 
-推荐入口集中在 `PrivilegeRuntime`：
+推荐入口集中在 `Privilege`：
 
 ```kotlin
-PrivilegeRuntime.startAdb()
-PrivilegeRuntime.startRoot()
-val stopListenConnected = PrivilegeRuntime.addServerConnectedListener { serverInfo -> ... }
-val shellCommand = PrivilegeRuntime.createShellStartCommand()
+Privilege.startAdb()
+Privilege.startRoot()
+val stopListenConnected = Privilege.addServerConnectedListener { serverInfo -> ... }
+val shellCommand = Privilege.createShellStartCommand()
 
-val connection = PrivilegeRuntime.bindUserService(spec)
+val connection = Privilege.bindUserService(spec)
 val binder = PrivilegeBinderWrapper.fromBinder(targetBinder)
 
-PrivilegeRuntime.shutdownServer()
+Privilege.shutdownServer()
 ```
 
 手动 shell、外部启动入口、ADB pairing/TCP 细节、raw Binder transact、owner-death reconnect 和 handshake/launch command 协议都属于高级或内部路径。接入应用不应该在第一步就依赖这些对象，除非正在实现自定义启动、诊断或底层 Binder 验证。
@@ -88,7 +88,7 @@ Gradle 模块必须使用 `priv-*` 命名：
 
 禁止使用 `io.github.xxx.*`、`io.github.priv.*`、`io.github.priv.kit.*` 或 `privkit.*` 作为源码 package。
 
-公开 API 必须使用完整单词 `Privilege*` 命名，例如 `PrivilegeKit`、`PrivilegeServer`、`PrivilegeBinder`、`PrivilegeUserService`、`PrivilegeRuntime` 和 `PrivilegeConnection`。
+公开 API 必须使用完整单词 `Privilege` 或 `Privilege*` 命名，例如 `Privilege`、`PrivilegeKit`、`PrivilegeServer`、`PrivilegeBinder`、`PrivilegeUserService` 和 `PrivilegeConnection`。
 
 禁止公开 API 使用 `Priv*` 缩写，例如 `PrivKit`、`PrivSession`、`PrivMode`、`PrivServer`、`PrivBinder` 和 `PrivUserService`。
 
@@ -118,10 +118,10 @@ Gradle 模块必须使用 `priv-*` 命名：
 
 以下风格的 API 明确不属于本项目范围：
 
-- `PrivilegeRuntime.input.tap(...)`
-- `PrivilegeRuntime.package.install(...)`
-- `PrivilegeRuntime.settings.put(...)`
-- `PrivilegeRuntime.appops.setMode(...)`
+- `Privilege.input.tap(...)`
+- `Privilege.package.install(...)`
+- `Privilege.settings.put(...)`
+- `Privilege.appops.setMode(...)`
 
 需要这些能力的接入方，应基于本项目提供的 Binder 或 UserService 原语自行实现。
 

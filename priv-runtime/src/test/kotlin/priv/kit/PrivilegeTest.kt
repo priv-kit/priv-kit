@@ -19,16 +19,16 @@ import java.io.File
 import java.io.FileDescriptor
 import java.util.concurrent.CopyOnWriteArrayList
 
-class PrivilegeRuntimeTest {
+class PrivilegeTest {
     @After
     fun clearServer() {
-        runCatching { PrivilegeRuntime.shutdownServer() }
+        runCatching { Privilege.shutdownServer() }
     }
 
     @Test
     fun getServerInfoWithoutServerThrowsDisconnectedException() {
         assertThrows(PrivilegeServerDisconnectedException::class.java) {
-            PrivilegeRuntime.getServerInfo()
+            Privilege.getServerInfo()
         }
     }
 
@@ -53,7 +53,7 @@ class PrivilegeRuntimeTest {
 
     @Test
     fun shortNativeStarterCommandUsesStarterPathOnly() {
-        val commandLine = PrivilegeRuntime.buildShortNativeStarterCommand(
+        val commandLine = Privilege.buildShortNativeStarterCommand(
             starterPath = "/data/app/example/lib/arm64/libprivkitstarter.so",
         )
 
@@ -73,7 +73,7 @@ class PrivilegeRuntimeTest {
             pid = 1234,
             protocolVersion = PrivilegeProtocol.VERSION,
         )
-        PrivilegeRuntime.connectHandshake(
+        Privilege.connectHandshake(
             PrivilegeServerHandshakeResult(
                 token = "token",
                 serverInfo = serverInfo,
@@ -82,10 +82,10 @@ class PrivilegeRuntimeTest {
         )
         server.killBinder()
 
-        assertEquals(serverInfo, PrivilegeRuntime.getServerInfo())
-        assertFalse(PrivilegeRuntime.pingServer())
+        assertEquals(serverInfo, Privilege.getServerInfo())
+        assertFalse(Privilege.pingServer())
         assertThrows(PrivilegeServerDisconnectedException::class.java) {
-            PrivilegeRuntime.getServerInfo()
+            Privilege.getServerInfo()
         }
     }
 

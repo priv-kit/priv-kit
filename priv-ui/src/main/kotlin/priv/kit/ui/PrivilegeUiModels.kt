@@ -5,7 +5,7 @@ import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeStartupException
 import priv.kit.PrivilegeStartupLogListener
-import priv.kit.PrivilegeRuntimeConfig
+import priv.kit.PrivilegeConfig
 
 public enum class PrivilegeUiRuntimeStatus {
     DISCONNECTED,
@@ -58,8 +58,8 @@ public data class PrivilegeUiConfig public constructor(
     public val wirelessStatusDiscoveryTimeoutMillis: Long = DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS,
     public val externalStartStatusPollIntervalMillis: Long = DEFAULT_EXTERNAL_START_STATUS_POLL_INTERVAL_MILLIS,
     public val startTimeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
-    public val followDeathDelayMillis: Long = PrivilegeRuntimeConfig.followDeathDelayMillis,
-    public val activeReconnectOnOwnerDeath: Boolean = PrivilegeRuntimeConfig.activeReconnectOnOwnerDeath,
+    public val followDeathDelayMillis: Long = PrivilegeConfig.followDeathDelayMillis,
+    public val activeReconnectOnOwnerDeath: Boolean = PrivilegeConfig.activeReconnectOnOwnerDeath,
 ) {
     init {
         require(startTimeoutMillis > 0L) { "startTimeoutMillis must be positive" }

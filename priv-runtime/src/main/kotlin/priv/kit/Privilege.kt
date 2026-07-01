@@ -8,7 +8,6 @@ import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStartResult
 import priv.kit.adb.PrivilegeAdbStarter
 import priv.kit.internal.binder.IPrivilegeServer
-import priv.kit.internal.binder.PrivilegeBinderRuntime
 import priv.kit.binder.PrivilegeServerDisconnectedException
 import priv.kit.internal.core.PrivilegeProtocol
 import priv.kit.internal.core.PrivilegeServerHandshakeRegistry
@@ -17,26 +16,22 @@ import priv.kit.internal.core.PrivilegeServerLaunchCommand
 import priv.kit.internal.runtime.PrivilegeOwnerTokenStore
 import priv.kit.internal.runtime.PrivilegeRootProcess
 import priv.kit.internal.runtime.PrivilegeRootStarter
-import priv.kit.internal.runtime.PrivilegeRuntimeContext
-import priv.kit.internal.runtime.PrivilegeRuntimeUserServiceClient
+import priv.kit.internal.runtime.PrivilegeContext
+import priv.kit.internal.runtime.PrivilegeUserServiceClient
 import priv.kit.internal.runtime.PrivilegeServerLaunchCommandBuilder
 import priv.kit.userservice.PrivilegeUserServiceManagerUnavailableException
 import priv.kit.userservice.PrivilegeUserServiceSpec
 import java.io.Closeable
 import java.util.concurrent.CopyOnWriteArraySet
 
-public object PrivilegeRuntime {
+public object Privilege {
     private const val DEFAULT_START_TIMEOUT_MILLIS = 15_000L
-    private const val TAG = "PrivKitRuntime"
+    private const val TAG = "PrivKit"
 
     private val serverLock = Any()
     private var currentServer: ServerConnection? = null
     private val disconnectedListeners = CopyOnWriteArraySet<() -> Unit>()
-    private val userServiceClient = PrivilegeRuntimeUserServiceClient(::getUserServiceManagerBinder)
-
-    init {
-        PrivilegeBinderRuntime.installServerProvider(::requireServerInterface)
-    }
+    private val userServiceClient = PrivilegeUserServiceClient(::getUserServiceManagerBinder)
 
     @Throws(PrivilegeStartupException::class)
     public fun startRoot(
@@ -305,7 +300,8 @@ public object PrivilegeRuntime {
         } ?: throw PrivilegeServerDisconnectedException()
     }
 
-    private fun requireServerInterface(): IPrivilegeServer =
+    @JvmSynthetic
+    internal fun requireServerInterface(): IPrivilegeServer =
         requireServerConnection().server
 
     private fun getUserServiceManagerBinder(): IBinder? =
@@ -315,8 +311,8 @@ public object PrivilegeRuntime {
             throw PrivilegeUserServiceManagerUnavailableException(exception)
         }
 
-    internal fun runtimeConfig(): PrivilegeRuntimeConfigSnapshot =
-        PrivilegeRuntimeConfig.snapshot()
+    internal fun runtimeConfig(): PrivilegeConfigSnapshot =
+        PrivilegeConfig.snapshot()
 
     private fun markServerDisconnected(connection: ServerConnection) {
         val notify = synchronized(serverLock) {
@@ -381,7 +377,7 @@ public object PrivilegeRuntime {
         val requestedName = adbDeviceName?.trim()
         if (!requestedName.isNullOrEmpty()) return requestedName
 
-        val applicationContext = PrivilegeRuntimeContext.require()
+        val applicationContext = PrivilegeContext.require()
         val appLabel = runCatching {
             applicationContext.applicationInfo
                 .loadLabel(applicationContext.packageManager)

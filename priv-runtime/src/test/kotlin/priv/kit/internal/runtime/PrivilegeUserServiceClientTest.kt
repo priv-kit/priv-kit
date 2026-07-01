@@ -27,7 +27,7 @@ import java.io.FileDescriptor
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
-class PrivilegeRuntimeUserServiceClientTest {
+class PrivilegeUserServiceClientTest {
     @Test
     fun startBindUnbindAndStopUseManagerProtocol() {
         val spec = spec()
@@ -48,7 +48,7 @@ class PrivilegeRuntimeUserServiceClientTest {
         manager.stopResult = {
             PrivilegeUserServiceContract.successBundle()
         }
-        val client = PrivilegeRuntimeUserServiceClient { manager.binder }
+        val client = PrivilegeUserServiceClient { manager.binder }
 
         client.start(spec)
         val connection = client.bind(spec)
@@ -88,7 +88,7 @@ class PrivilegeRuntimeUserServiceClientTest {
                     message = "broken $type",
                 )
             }
-            val client = PrivilegeRuntimeUserServiceClient { manager.binder }
+            val client = PrivilegeUserServiceClient { manager.binder }
 
             val throwable = assertThrows(expected) {
                 client.start(spec())
@@ -102,19 +102,19 @@ class PrivilegeRuntimeUserServiceClientTest {
     @Test
     fun managerProviderFailuresSurfaceUnavailable() {
         assertThrows(PrivilegeUserServiceManagerUnavailableException::class.java) {
-            PrivilegeRuntimeUserServiceClient { null }.start(spec())
+            PrivilegeUserServiceClient { null }.start(spec())
         }
 
         val providerFailure = IllegalStateException("provider exploded")
         val providerException = assertThrows(PrivilegeUserServiceManagerUnavailableException::class.java) {
-            PrivilegeRuntimeUserServiceClient { throw providerFailure }.start(spec())
+            PrivilegeUserServiceClient { throw providerFailure }.start(spec())
         }
         assertSame(providerFailure, providerException.cause)
 
         val deadManager = RecordingManager(spec())
         val deadBinder = FakeBinder(localInterface = deadManager, alive = false)
         assertThrows(PrivilegeUserServiceManagerUnavailableException::class.java) {
-            PrivilegeRuntimeUserServiceClient { deadBinder }.start(spec())
+            PrivilegeUserServiceClient { deadBinder }.start(spec())
         }
     }
 
@@ -124,7 +124,7 @@ class PrivilegeRuntimeUserServiceClientTest {
         manager.startResult = {
             throw DeadObjectException()
         }
-        val client = PrivilegeRuntimeUserServiceClient { manager.binder }
+        val client = PrivilegeUserServiceClient { manager.binder }
 
         val throwable = assertThrows(PrivilegeUserServiceManagerUnavailableException::class.java) {
             client.start(spec())
@@ -140,7 +140,7 @@ class PrivilegeRuntimeUserServiceClientTest {
         manager.startResult = {
             throw remoteException
         }
-        val client = PrivilegeRuntimeUserServiceClient { manager.binder }
+        val client = PrivilegeUserServiceClient { manager.binder }
 
         val throwable = assertThrows(PrivilegeUserServiceRemoteCallException::class.java) {
             client.start(spec())
@@ -157,7 +157,7 @@ class PrivilegeRuntimeUserServiceClientTest {
             PrivilegeUserServiceContract.successBundle()
         }
         assertThrows(PrivilegeUserServiceBindException::class.java) {
-            PrivilegeRuntimeUserServiceClient { firstManager.binder }.bind(spec())
+            PrivilegeUserServiceClient { firstManager.binder }.bind(spec())
         }
 
         val secondManager = RecordingManager(spec())
@@ -167,7 +167,7 @@ class PrivilegeRuntimeUserServiceClientTest {
             }
         }
         assertThrows(PrivilegeUserServiceBindException::class.java) {
-            PrivilegeRuntimeUserServiceClient { secondManager.binder }.bind(spec())
+            PrivilegeUserServiceClient { secondManager.binder }.bind(spec())
         }
     }
 

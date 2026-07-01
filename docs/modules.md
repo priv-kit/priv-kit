@@ -30,7 +30,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 | `:priv-sample` | 不作为发布 artifact | `priv.kit.sample` |
 | `:hidden-api` | 不作为发布 artifact | framework mirror/stub package |
 
-除 `:hidden-api` 中的 framework mirror/stub 外，所有源码 package 必须位于 `priv.kit.*`。公开 API 必须使用完整单词 `Privilege*` 命名，禁止公开 API 使用 `Priv*` 缩写。
+除 `:hidden-api` 中的 framework mirror/stub 外，所有源码 package 必须位于 `priv.kit.*`。公开 API 必须使用完整单词 `Privilege` 或 `Privilege*` 命名，禁止公开 API 使用 `Priv*` 缩写。
 
 ## API 承诺边界
 
@@ -74,7 +74,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 职责：
 
 - 客户端 app 进程侧编排；
-- `PrivilegeRuntime` 公开入口；
+- `Privilege` 公开入口；
 - 运行时状态、启动策略选择、服务端连接和重连；
 - Root 启动的 `su` 可用性检查、命令执行和启动诊断；
 - ADB pairing/connect、ADB 启动配置、ADB 启动诊断和 TCP 复用；

@@ -6,7 +6,7 @@ import android.os.Build
 import priv.kit.internal.core.PrivilegeServerLaunchCommand
 import priv.kit.PrivilegeStartupException
 import priv.kit.PrivilegeStartupLogListener
-import priv.kit.internal.runtime.PrivilegeRuntimeContext
+import priv.kit.internal.runtime.PrivilegeContext
 import java.io.EOFException
 import java.net.SocketException
 import java.net.SocketTimeoutException
@@ -187,16 +187,6 @@ public class PrivilegeAdbStarter private constructor(
             )
         }
     }
-
-    internal fun readRuntimeDiagnostics(
-        host: String,
-        port: Int,
-    ): String =
-        readRuntimeDiagnostics(
-            host = host,
-            port = port,
-            startupLogListener = null,
-        )
 
     internal fun readRuntimeDiagnostics(
         host: String,
@@ -411,7 +401,7 @@ public class PrivilegeAdbStarter private constructor(
             port = port,
             key = key,
             label = "PrivKit logcat",
-            command = "logcat -d -t 160 -s PrivKitServer:D PrivKitRuntime:D AndroidRuntime:E '*:S' 2>&1",
+            command = "logcat -d -t 160 -s PrivKitServer:D PrivKit:D AndroidRuntime:E '*:S' 2>&1",
             output = output,
         )
     }
@@ -445,7 +435,7 @@ public class PrivilegeAdbStarter private constructor(
             ownerToken: String,
             adbDeviceName: String = PrivilegeAdbIdentity.DEFAULT_DEVICE_NAME,
         ): PrivilegeAdbStarter =
-            PrivilegeRuntimeContext.require().let { applicationContext ->
+            PrivilegeContext.require().let { applicationContext ->
                 PrivilegeAdbStarter(
                     identity = PrivilegeAdbIdentity.forOwnerToken(
                         ownerToken = ownerToken,

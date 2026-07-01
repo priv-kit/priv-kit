@@ -10,7 +10,7 @@ import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStarter
 import priv.kit.binder.PrivilegeServerDisconnectedException
 import priv.kit.PrivilegeServerInfo
-import priv.kit.PrivilegeRuntime
+import priv.kit.Privilege
 import priv.kit.PrivilegeUserServiceConnection
 import priv.kit.userservice.PrivilegeUserServiceNotRunningException
 import priv.kit.userservice.PrivilegeUserServiceProcessMode
@@ -80,7 +80,7 @@ internal fun MainActivity.releasePrivilegeSample() {
 
 internal fun MainActivity.watchServerConnected() {
     serverConnectedListener?.close()
-    serverConnectedListener = PrivilegeRuntime.addServerConnectedListener { serverInfo ->
+    serverConnectedListener = Privilege.addServerConnectedListener { serverInfo ->
         runOnUiThread {
             connectServer(serverInfo, commandLine = null)
             appendLog(
@@ -93,7 +93,7 @@ internal fun MainActivity.watchServerConnected() {
 
 internal fun MainActivity.watchServerDisconnected() {
     serverDisconnectedWatcher?.close()
-    serverDisconnectedWatcher = PrivilegeRuntime.addServerDisconnectedListener {
+    serverDisconnectedWatcher = Privilege.addServerDisconnectedListener {
         runOnUiThread {
             handleServerDisconnected()
         }
@@ -214,7 +214,7 @@ private fun MainActivity.currentAdbDeviceNameOverride(): String? =
     screenState.adbDeviceNameText.trim().ifBlank { null }
 
 private fun MainActivity.createAdbStarter(adbDeviceName: String? = currentAdbDeviceNameOverride()): PrivilegeAdbStarter =
-    PrivilegeRuntime.createAdbStarter(adbDeviceName = adbDeviceName)
+    Privilege.createAdbStarter(adbDeviceName = adbDeviceName)
 
 private fun MainActivity.loadAdbDeviceNameOverride(): String =
     runCatching {
@@ -253,7 +253,7 @@ internal fun MainActivity.startRootRuntime() {
         message = "Starting Root Runtime...",
         startupSource = "Root",
     ) {
-        PrivilegeRuntime.startRoot()
+        Privilege.startRoot()
     }
 }
 
@@ -322,7 +322,7 @@ internal fun MainActivity.startShizukuExternal() {
         startedMessage = "Shizuku command sent. Waiting for server handshake...",
         startupSource = "Shizuku",
     ) {
-        val commandLine = PrivilegeRuntime.createShellStartCommand()
+        val commandLine = Privilege.createShellStartCommand()
         try {
             externalStarter.start(commandLine)
         } finally {
@@ -501,7 +501,7 @@ internal fun MainActivity.startWirelessAdb() {
         message = "Discovering ADB connect port and starting Wireless ADB...",
         startupSource = "ADB",
     ) {
-        PrivilegeRuntime.startAdb(
+        Privilege.startAdb(
             options = PrivilegeAdbStartOptions(),
             adbDeviceName = adbDeviceName,
         )
@@ -531,7 +531,7 @@ internal fun MainActivity.restartTcp() {
         message = "Restarting through ADB TCP port $tcpPort...",
         startupSource = "ADB",
     ) {
-        PrivilegeRuntime.startAdb(
+        Privilege.startAdb(
             options = PrivilegeAdbStartOptions(
                 tcpMode = true,
                 tcpPort = tcpPort,
@@ -557,7 +557,7 @@ internal fun MainActivity.stopTcp() {
 
 internal fun MainActivity.stopServer() {
     if (screenState.busy) return
-    if (!PrivilegeRuntime.pingServer()) {
+    if (!Privilege.pingServer()) {
         screenState = screenState.copy(message = "No server connected")
         appendLog("No server connected")
         return
@@ -571,7 +571,7 @@ internal fun MainActivity.stopServer() {
 
     executor.execute {
         try {
-            PrivilegeRuntime.shutdownServer()
+            Privilege.shutdownServer()
             runOnUiThread {
                 val serviceBinderCached = screenState.systemServiceBinderCached || sampleMqsNativeBinder != null
                 val userManagerCached = screenState.userManagerCached || sampleUserManager != null
@@ -690,8 +690,8 @@ private fun MainActivity.bindSampleUserService(
     ) {
         clearSampleUserService(label)
         val spec = sampleUserServiceSpec(label, processMode)
-        PrivilegeRuntime.startUserService(spec)
-        val connection = PrivilegeRuntime.bindUserService(spec)
+        Privilege.startUserService(spec)
+        val connection = Privilege.bindUserService(spec)
         val serviceMessage = setSampleUserService(label, connection)
         UserServiceActionResult(
             message = "$label UserService bound",
@@ -725,7 +725,7 @@ private fun MainActivity.stopSampleUserService(label: String) {
         requireConnected = false,
     ) {
         val spec = sampleUserServiceSpec(label, sampleUserServiceProcessMode(label))
-        PrivilegeRuntime.stopUserService(spec)
+        Privilege.stopUserService(spec)
         clearSampleUserService(label)
         UserServiceActionResult(
             message = "$label UserService stopped",
@@ -745,7 +745,7 @@ private fun MainActivity.runUserServiceAction(
     action: () -> UserServiceActionResult,
 ) {
     if (screenState.busy) return
-    if (requireConnected && !PrivilegeRuntime.pingServer()) {
+    if (requireConnected && !Privilege.pingServer()) {
         screenState = screenState.copy(
             userServiceMessage = "No server connected",
             userServiceLastException = "",
@@ -827,7 +827,7 @@ private fun MainActivity.runBinderAction(
     action: () -> BinderActionResult,
 ) {
     if (screenState.busy) return
-    if (requireConnected && !PrivilegeRuntime.pingServer()) {
+    if (requireConnected && !Privilege.pingServer()) {
         screenState = screenState.copy(
             binderMessage = "No server connected",
             binderLastException = "",

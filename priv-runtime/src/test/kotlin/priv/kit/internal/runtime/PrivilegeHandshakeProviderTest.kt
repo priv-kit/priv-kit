@@ -22,7 +22,7 @@ class PrivilegeHandshakeProviderTest {
         application.applicationInfo.sourceDir = "/data/app/priv.kit.sample-current/base.apk"
         application.applicationInfo.nativeLibraryDir = "/data/app/priv.kit.sample-current/lib/arm64"
         application.applicationInfo.splitSourceDirs = null
-        PrivilegeRuntimeContext.install(application)
+        PrivilegeContext.install(application)
         val token = PrivilegeOwnerTokenStore.readOrCreate()
 
         val response = PrivilegeHandshakeProvider().call(

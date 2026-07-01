@@ -3,7 +3,6 @@ package priv.kit.internal.runtime
 import priv.kit.PrivilegeStartupException
 import priv.kit.PrivilegeStartupLogLine
 import priv.kit.PrivilegeStartupLogListener
-import priv.kit.isPrivKitInternalMetadata
 import java.io.InputStream
 import java.util.Collections
 import java.util.concurrent.TimeUnit
@@ -94,19 +93,13 @@ internal class PrivilegeRootProcess internal constructor(
                 source = source,
                 message = line,
             )
-            if (lines.size < MAX_CAPTURED_LINES && !startupLogLine.isPrivKitInternalMetadata) {
+            if (lines.size < MAX_CAPTURED_LINES) {
                 lines += "[$source] $line"
             }
-            startupLogLine.emitIfDisplayable()
+            startupLogListener?.onLog(startupLogLine)
         }
 
         internal fun text(): String = lines.joinToString("\n").ifBlank { "<no output>" }
-
-        private fun PrivilegeStartupLogLine.emitIfDisplayable() {
-            if (!isPrivKitInternalMetadata) {
-                startupLogListener?.onLog(this)
-            }
-        }
     }
 
     private companion object {

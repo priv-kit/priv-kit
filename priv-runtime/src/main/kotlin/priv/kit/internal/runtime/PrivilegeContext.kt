@@ -3,7 +3,7 @@ package priv.kit.internal.runtime
 import android.content.Context
 import priv.kit.PrivilegeStartupException
 
-internal object PrivilegeRuntimeContext {
+internal object PrivilegeContext {
     @Volatile
     private var applicationContext: Context? = null
 

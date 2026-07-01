@@ -7,7 +7,7 @@ import java.io.File
 
 internal object PrivilegeServerLaunchCommandBuilder {
     fun build(): PrivilegeServerLaunchCommand {
-        val context = PrivilegeRuntimeContext.require()
+        val context = PrivilegeContext.require()
         val packageName = context.packageName
         val userId = userIdFromUid(context.applicationInfo.uid)
         val classpath = buildClasspath()
@@ -31,7 +31,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
         shellArg(buildNativeStarterPath())
 
     internal fun buildNativeStarterPath(): String {
-        val nativeLibraryDir = PrivilegeRuntimeContext.require().applicationInfo.nativeLibraryDir.trimEnd('/')
+        val nativeLibraryDir = PrivilegeContext.require().applicationInfo.nativeLibraryDir.trimEnd('/')
         return "$nativeLibraryDir/$NATIVE_STARTER_LIBRARY_NAME"
     }
 
@@ -43,7 +43,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
         }
 
     internal fun buildClasspath(): String {
-        val context = PrivilegeRuntimeContext.require()
+        val context = PrivilegeContext.require()
         val applicationInfo = context.applicationInfo
         val apkPaths = buildList {
             add(applicationInfo.sourceDir)
