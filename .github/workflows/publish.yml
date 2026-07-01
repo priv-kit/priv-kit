@@ -1,8 +1,6 @@
 name: publish
 
 on:
-  workflow_dispatch:
-
   push:
     tags:
       - v*
@@ -30,12 +28,9 @@ jobs:
 
       - run: chmod 777 ./gradlew
 
-      - name: Publish to Maven Central
-        run: ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache
+      - run: ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache
 
-      - name: Create GitHub Release
-        if: ${{ github.ref_type == 'tag' }}
-        uses: actions/create-release@v1
+      - uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
