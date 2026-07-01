@@ -1,5 +1,7 @@
 # Priv Kit
 
+[README.md](./README.md) | [中文文档](./README-zh.md)
+
 零依赖轻量 Android 库，让 Android 应用自身直接借助 Root/ADB 启动特权进程，并通过 Binder/UserService 调用系统层级 API
 
 本项目旨在解决过于依赖外部授权应用，让开发者的应用内部实现自我提权

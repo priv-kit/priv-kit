@@ -1,5 +1,7 @@
 # Priv Kit
 
+[README.md](./README.md) | [中文文档](./README-zh.md)
+
 A lightweight Android library with no dependencies. It lets an Android app start its own privileged process through Root or ADB, then call system-level APIs through Binder or UserService.
 
 This project aims to reduce reliance on external authorization apps, so developers can implement self privilege escalation inside their own apps.
