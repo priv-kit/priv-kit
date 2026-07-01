@@ -12,6 +12,8 @@ Public entry points:
 - `PrivilegeUiViewModel`, an `open` `AndroidViewModel` state manager that callers may subclass.
 - `PrivilegeUiConfig`, used to enable startup modes, polling intervals, and external start providers.
 
+`PrivilegeScaffold` consumes the caller's Compose `MaterialTheme` colors. Apps that need light, dark, dynamic, or branded authorization UI should wrap it in their own Material 3 theme instead of configuring colors through `PrivilegeUiConfig`.
+
 Internal Android components:
 
 - `PrivilegeAdbPairingService` is manifest-merged for the built-in notification pairing flow and is not a public app-call API.

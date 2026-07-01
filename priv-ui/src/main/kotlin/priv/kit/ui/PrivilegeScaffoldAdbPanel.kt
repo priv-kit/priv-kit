@@ -197,7 +197,7 @@ private fun StableAdbStatusRow(enabled: Boolean) {
                 },
             ),
             style = MaterialTheme.typography.labelLarge,
-            color = if (enabled) Color(0xFF176B36) else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (enabled) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.SemiBold,
         )
     }
@@ -247,7 +247,7 @@ private fun PrivilegeUiWirelessAdbStatus.displayText(
 @Composable
 private fun PrivilegeUiWirelessAdbStatus.displayColor(): Color =
     when (this) {
-        PrivilegeUiWirelessAdbStatus.ON -> Color(0xFF176B36)
+        PrivilegeUiWirelessAdbStatus.ON -> MaterialTheme.colorScheme.tertiary
         PrivilegeUiWirelessAdbStatus.CHECKING -> MaterialTheme.colorScheme.primary
         PrivilegeUiWirelessAdbStatus.OFF,
         PrivilegeUiWirelessAdbStatus.UNKNOWN,

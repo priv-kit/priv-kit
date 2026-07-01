@@ -60,44 +60,42 @@ public fun PrivilegeScaffold(
         }
     }
 
-    MaterialTheme {
-        Scaffold(
-            modifier = modifier,
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-            topBar = {
-                PrivilegeTopBar(
-                    onBackClick = onBackClick,
-                    onHelpClick = onHelpClick,
-                )
-            },
-        ) { innerPadding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                ServiceStatusPanel(state)
-                AuthorizationModeTabs(
-                    modes = state.startupModes,
-                    selectedMode = state.selectedStartupMode,
-                    enabled = !state.busy,
-                    onSelected = viewModel::selectStartupMode,
-                )
-                AuthorizationModePanel(
-                    mode = state.selectedStartupMode.takeIf { it in state.startupModes }
-                        ?: state.startupModes.first(),
-                    state = state,
-                    tcpModeEnabled = tcpModeEnabled,
-                    viewModel = viewModel,
-                    onCopyManualCommand = { viewModel.copyManualCommand(context) },
-                    onNotificationPermissionRequired = onNotificationPermissionRequired,
-                )
-                if (state.startupLogLines.isNotEmpty()) {
-                    StartupLogPanel(state.startupLogLines)
-                }
+    Scaffold(
+        modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        topBar = {
+            PrivilegeTopBar(
+                onBackClick = onBackClick,
+                onHelpClick = onHelpClick,
+            )
+        },
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            ServiceStatusPanel(state)
+            AuthorizationModeTabs(
+                modes = state.startupModes,
+                selectedMode = state.selectedStartupMode,
+                enabled = !state.busy,
+                onSelected = viewModel::selectStartupMode,
+            )
+            AuthorizationModePanel(
+                mode = state.selectedStartupMode.takeIf { it in state.startupModes }
+                    ?: state.startupModes.first(),
+                state = state,
+                tcpModeEnabled = tcpModeEnabled,
+                viewModel = viewModel,
+                onCopyManualCommand = { viewModel.copyManualCommand(context) },
+                onNotificationPermissionRequired = onNotificationPermissionRequired,
+            )
+            if (state.startupLogLines.isNotEmpty()) {
+                StartupLogPanel(state.startupLogLines)
             }
         }
     }

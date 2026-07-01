@@ -58,8 +58,8 @@ internal fun ServiceStatusPanel(state: PrivilegeUiState) {
     val (title, background, foreground) = if (running) {
         StatusUi(
             title = stringResource(R.string.priv_ui_service_started),
-            background = Color(0xFFDFF5E7),
-            foreground = Color(0xFF176B36),
+            background = MaterialTheme.colorScheme.tertiaryContainer,
+            foreground = MaterialTheme.colorScheme.onTertiaryContainer,
         )
     } else {
         StatusUi(

@@ -7,6 +7,7 @@ Namespace and application id: `priv.kit.sample`.
 Phase 1 contents:
 
 - A Compose-only sample surface backed by `PrivilegeSampleViewModel` and Navigation 3.
+- A Material 3 theme that follows the system light or dark mode, including the embedded `priv-ui` authorization page.
 - Three top-level pages: `Test Authorization`, `Test Binder`, and `Test UserService`.
 - Each page uses a Material 3 `Scaffold` container with a vertically scrolling `Column` content area.
 - Authorization tests are split into independent Root, manual shell, Shizuku-backed shell start, Wireless ADB, TCP mode, and session-log tabs.
