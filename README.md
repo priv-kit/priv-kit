@@ -1,73 +1,73 @@
 # Priv Kit
 
-零依赖轻量 Android 库，让 Android 应用自身直接借助 Root/ADB 启动特权进程，并通过 Binder/UserService 调用系统层级 API
+A lightweight Android library with no dependencies. It lets an Android app start its own privileged process through Root or ADB, then call system-level APIs through Binder or UserService.
 
-本项目旨在解决过于依赖外部授权应用，让开发者的应用内部实现自我提权
+This project aims to reduce reliance on external authorization apps, so developers can implement self privilege escalation inside their own apps.
 
-激活方式：Root、无线 ADB、手动 shell、外部授权
+Activation methods: Root, wireless ADB, manual shell, external authorization
 
-使用方式：Binder（本地 / 远程）和 UserService（嵌入式 / 独立进程）
+Usage modes: Binder (local / remote) and UserService (embedded / dedicated process)
 
-## 接入依赖
+## Dependency Setup
 
 ```kotlin
 dependencies {
     implementation("io.github.priv-kit:priv-runtime:<version>")
-    implementation("io.github.priv-kit:priv-ui:<version>") // 可选 compose 授权界面
+    implementation("io.github.priv-kit:priv-ui:<version>") // Optional Compose authorization UI
 }
 ```
 
-当前只承诺接入应用引用 `priv-runtime` / `priv-ui` 后可见的编译期 API。`priv-runtime` 已经包含 Binder、UserService、Root、ADB、手动 shell 和外部启动入口所需代码；`priv-adb-crypto` 只是独立 JVM 实现模块，不属于 Android 接入 API。
+Only the compile-time APIs visible after an integrating app references `priv-runtime` / `priv-ui` are currently guaranteed. `priv-runtime` already includes the code needed for Binder, UserService, Root, ADB, manual shell, and external startup entry points. `priv-adb-crypto` is only an independent JVM implementation module and is not part of the Android integration API.
 
-必须配置 [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass)
+You must configure [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass).
 
 ```kotlin
 HiddenApiBypass.addHiddenApiExemptions("L")
 ```
 
-## 激活
+## Activation
 
-Root 设备直接启动：
+Start directly on a Root device:
 
 ```kotlin
 val serverInfo = PrivilegeRuntime.startRoot()
 ```
 
-通过 ADB Wireless Debugging 或 ADB TCP 启动：
+Start through ADB Wireless Debugging or ADB TCP:
 
 ```kotlin
 val serverInfo = PrivilegeRuntime.startAdb()
 ```
 
-用户复制命令手动执行：
+Have the user copy and run a command manually:
 
 ```kotlin
 val commandLine = PrivilegeRuntime.createShellStartCommand()
 YourApp.showCommandToUser(commandLine)
 ```
 
-把启动命令交给 Shizuku UserService 或其他能够在兼容特权身份中执行代码的外部启动入口。
+Pass the startup command to Shizuku UserService or another external startup entry point that can execute code under a compatible privileged identity.
 
-库侧提供通用的两端 API：特权进程内调用 `PrivilegeExternalStartup.runInCurrentProcess(...)`，主进程用 `PrivilegeExternalStartup.createReceiver(...)` 接收实时日志；Shizuku 的 UserService 绑定和 AIDL 转发由接入应用自己完成。
+The library provides common APIs for both sides: call `PrivilegeExternalStartup.runInCurrentProcess(...)` inside the privileged process, and use `PrivilegeExternalStartup.createReceiver(...)` in the main process to receive real-time logs. Shizuku UserService binding and AIDL forwarding are handled by the integrating app.
 
 ```kotlin
 val commandLine = PrivilegeRuntime.createShellStartCommand()
 YourApp.bindUserServiceAndRun(commandLine)
 ```
 
-服务连接后，可使用 Binder/UserService。
+After the service connects, you can use Binder/UserService.
 
 ## Binder
 
-当前进程 binder
+Current process binder:
 
 ```kotlin
 val activityBinder = PrivilegeBinderWrapper.fromSystemService("activity")
 val activityManager = IActivityManager.Stub.asInterface(activityBinder)
-Log.d("activity", activityManager.getTasks(1).toString()) // 获取设备前台应用界面
+Log.d("activity", activityManager.getTasks(1).toString()) // Gets the foreground app UI on the device
 ```
 
-某些服务只能在 shell 进程下获取
+Some services can only be obtained from the shell process:
 
 ```kotlin
 val binder = PrivilegeBinderWrapper.fromSystemService(
@@ -78,7 +78,7 @@ val binder = PrivilegeBinderWrapper.fromSystemService(
 
 ## UserService
 
-自定义 AIDL，使用 `16777114` 标记销毁方法，外部停止用户服务时，此方法会被调用
+Define a custom AIDL interface and use `16777114` to mark the destroy method. This method is called when the user service is stopped externally.
 
 ```aidl
 interface IMyPrivilegeService {
@@ -87,7 +87,7 @@ interface IMyPrivilegeService {
 }
 ```
 
-实现服务：
+Implement the service:
 
 ```kotlin
 class MyPrivilegeService private constructor(
@@ -109,7 +109,7 @@ class MyPrivilegeService private constructor(
 }
 ```
 
-独立进程 UserService：默认模式，服务跑在单独的 `app_process` 子进程里。
+Dedicated process UserService: the default mode. The service runs in a separate `app_process` child process.
 
 ```kotlin
 val spec = PrivilegeUserServiceSpec(
@@ -125,7 +125,7 @@ PrivilegeRuntime.bindUserService(spec).use { connection ->
 PrivilegeRuntime.stopUserService(spec)
 ```
 
-嵌入式 UserService：服务直接跑在 Privileged Server 进程里，不会创建新进程，适合轻量逻辑。
+Embedded UserService: the service runs directly inside the Privileged Server process. It does not create a new process and is suitable for lightweight logic.
 
 ```kotlin
 val spec = PrivilegeUserServiceSpec(
@@ -135,12 +135,12 @@ val spec = PrivilegeUserServiceSpec(
 )
 ```
 
-注意：停止嵌入式 UserService 时，`destroy` 方法仍然会调用，但内部不应该调用 `exitProcess(0)` ，否则整个 server 进程会因此销毁
+Note: when stopping an embedded UserService, the `destroy` method is still called, but it should not call `exitProcess(0)` internally. Otherwise, the entire server process will be destroyed.
 
-## 更多文档
+## More Documentation
 
-- [详细项目说明](docs/README.md)
-- [项目宪章](docs/project-constitution.md)
-- [架构设计](docs/architecture.md)
-- [模块说明](docs/modules.md)
-- [第三方声明](docs/third-party-notices.md)
+- [Detailed project guide](docs/README.md)
+- [Project constitution](docs/project-constitution.md)
+- [Architecture design](docs/architecture.md)
+- [Module guide](docs/modules.md)
+- [Third-party notices](docs/third-party-notices.md)
