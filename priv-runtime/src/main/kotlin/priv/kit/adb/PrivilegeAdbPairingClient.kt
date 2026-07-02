@@ -94,7 +94,6 @@ internal class PrivilegeAdbPairingContext private constructor(
 }
 
 internal class PrivilegeAdbPairingClient(
-    private val host: String,
     private val port: Int,
     private val pairCode: String,
     private val key: PrivilegeAdbKey,
@@ -112,11 +111,12 @@ internal class PrivilegeAdbPairingClient(
 
     private fun setupTlsConnection() {
         val plainSocket = Socket()
-        plainSocket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MILLIS)
+        plainSocket.connect(InetSocketAddress(PRIVILEGE_ADB_LOCAL_HOST, port), CONNECT_TIMEOUT_MILLIS)
         plainSocket.soTimeout = READ_TIMEOUT_MILLIS
         socket = plainSocket
         socket.tcpNoDelay = true
-        val sslSocket = key.sslContext.socketFactory.createSocket(socket, host, port, true) as SSLSocket
+        val sslSocket = key.sslContext.socketFactory
+            .createSocket(socket, PRIVILEGE_ADB_LOCAL_HOST, port, true) as SSLSocket
         sslSocket.soTimeout = READ_TIMEOUT_MILLIS
         sslSocket.startHandshake()
 

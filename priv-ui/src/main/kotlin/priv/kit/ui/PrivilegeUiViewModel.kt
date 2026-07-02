@@ -103,6 +103,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     public open fun onHostResume() {
+        adbActions.finishPendingTcpAuthorizationOnHostResume()
         syncWirelessAdbStatusPolling()
         syncExternalStartStatusPolling()
         if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB) {

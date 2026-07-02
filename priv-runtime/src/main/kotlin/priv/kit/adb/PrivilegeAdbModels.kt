@@ -53,17 +53,15 @@ public data class PrivilegeAdbIdentityInfo public constructor(
 )
 
 public data class PrivilegeAdbStartOptions public constructor(
-    public val host: String = DEFAULT_ADB_HOST,
     public val port: Int? = null,
     public val discoverPort: Boolean = true,
     public val tcpMode: Boolean = false,
-    public val tcpPort: Int = DEFAULT_ADB_TCP_PORT,
-    public val portDiscoveryTimeoutMillis: Long = DEFAULT_ADB_PORT_DISCOVERY_TIMEOUT_MILLIS,
-    public val connectRetryCount: Int = DEFAULT_ADB_CONNECT_RETRY_COUNT,
-    public val connectRetryDelayMillis: Long = DEFAULT_ADB_CONNECT_RETRY_DELAY_MILLIS,
+    public val tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
+    public val portDiscoveryTimeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
+    public val connectRetryCount: Int = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_COUNT,
+    public val connectRetryDelayMillis: Long = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
 ) {
     init {
-        require(host.isNotBlank()) { "host must not be blank" }
         require(port == null || port in 1..65535) { "port must be between 1 and 65535" }
         require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
         require(portDiscoveryTimeoutMillis > 0L) { "portDiscoveryTimeoutMillis must be positive" }
@@ -72,14 +70,14 @@ public data class PrivilegeAdbStartOptions public constructor(
     }
 }
 
-private const val DEFAULT_ADB_HOST: String = "127.0.0.1"
-private const val DEFAULT_ADB_TCP_PORT: Int = 5555
-private const val DEFAULT_ADB_CONNECT_RETRY_COUNT: Int = 5
-private const val DEFAULT_ADB_CONNECT_RETRY_DELAY_MILLIS: Long = 1_000L
-private const val DEFAULT_ADB_PORT_DISCOVERY_TIMEOUT_MILLIS: Long = 15_000L
+internal const val PRIVILEGE_ADB_LOCAL_HOST: String = "127.0.0.1"
+public const val PRIVILEGE_ADB_DEFAULT_TCP_PORT: Int = 5555
+public const val PRIVILEGE_ADB_DEFAULT_AUTHORIZATION_TIMEOUT_MILLIS: Long = 60_000L
+internal const val PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_COUNT: Int = 5
+internal const val PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS: Long = 1_000L
+internal const val PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS: Long = 15_000L
 
 internal data class PrivilegeAdbStartResult(
-    val host: String,
     val port: Int,
     val outputText: String,
     val identity: PrivilegeAdbIdentity,
@@ -87,14 +85,12 @@ internal data class PrivilegeAdbStartResult(
 )
 
 public data class PrivilegeAdbPairingResult public constructor(
-    public val host: String,
     public val port: Int,
     public val identity: PrivilegeAdbIdentity,
     public val publicKeyFingerprint: String = "",
 )
 
 public data class PrivilegeAdbPairingCheckResult public constructor(
-    public val host: String,
     public val port: Int?,
     public val paired: Boolean,
     public val outputText: String,
@@ -104,12 +100,43 @@ public data class PrivilegeAdbPairingCheckResult public constructor(
 )
 
 public data class PrivilegeAdbTcpResult public constructor(
-    public val host: String,
     public val port: Int,
     public val outputText: String,
     public val identity: PrivilegeAdbIdentity,
     public val publicKeyFingerprint: String = "",
 )
+
+public enum class PrivilegeAdbAuthorizationStatus {
+    AUTHORIZED,
+    UNAUTHORIZED,
+    UNAVAILABLE,
+    ERROR,
+}
+
+public data class PrivilegeAdbAuthorizationCheckResult public constructor(
+    public val status: PrivilegeAdbAuthorizationStatus,
+    public val outputText: String,
+    public val identity: PrivilegeAdbIdentity,
+    public val publicKeyFingerprint: String = "",
+    public val failureMessage: String? = null,
+)
+
+public enum class PrivilegeAdbAuthorizationEndReason {
+    AUTOMATIC_TIMEOUT,
+    MANUAL_CANCELLED,
+    FAILED,
+}
+
+public data class PrivilegeAdbAuthorizationRequestResult public constructor(
+    public val authorized: Boolean,
+    public val endReason: PrivilegeAdbAuthorizationEndReason? = null,
+    public val outputText: String = "",
+    public val failureMessage: String? = null,
+)
+
+public fun interface PrivilegeAdbAuthorizationRequestCallback {
+    public fun onResult(result: PrivilegeAdbAuthorizationRequestResult)
+}
 
 internal object PrivilegeAdbPortSelector {
     fun chooseStartPort(

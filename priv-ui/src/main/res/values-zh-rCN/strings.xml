@@ -28,10 +28,12 @@
     <string name="priv_ui_notification_pairing_waiting">停止配对服务</string>
     <string name="priv_ui_adb_authorization_title">ADB 授权</string>
     <string name="priv_ui_adb_authorization_action">使用 ADB 授权</string>
+    <string name="priv_ui_adb_key_authorization_action">允许 ADB 密钥</string>
     <string name="priv_ui_adb_stable_status">稳定 ADB 连接</string>
     <string name="priv_ui_adb_stable_ready">就绪</string>
     <string name="priv_ui_adb_stable_unavailable">未就绪</string>
     <string name="priv_ui_adb_prepare_stable_action">准备稳定连接</string>
+    <string name="priv_ui_adb_key_authorization_status">ADB 密钥授权</string>
     <string name="priv_ui_adb_key_fingerprint">RSA 密钥指纹</string>
     <string name="priv_ui_adb_key_fingerprint_unavailable">未加载</string>
     <string name="priv_ui_wireless_realtime_status_title">无线调试状态</string>
@@ -53,6 +55,14 @@
     <string name="priv_ui_tcp_enabling">正在准备稳定 ADB 连接...</string>
     <string name="priv_ui_tcp_enabled">稳定 ADB 连接已就绪。</string>
     <string name="priv_ui_tcp_starting">正在启动 ADB 授权...</string>
+    <string name="priv_ui_tcp_authorization_requesting">正在等待 ADB 密钥授权...</string>
+    <string name="priv_ui_tcp_authorization_waiting_action">等待授权中</string>
+    <string name="priv_ui_tcp_authorization_allowed">ADB 密钥已授权。</string>
+    <string name="priv_ui_tcp_authorization_not_completed">ADB 密钥授权未完成。</string>
+    <string name="priv_ui_tcp_authorization_waiting">等待中</string>
+    <string name="priv_ui_tcp_authorization_authorized">已允许</string>
+    <string name="priv_ui_tcp_authorization_unauthorized">未允许</string>
+    <string name="priv_ui_tcp_authorization_failed">失败</string>
     <string name="priv_ui_notification_permission_required">需要通知权限</string>
     <string name="priv_ui_notification_permission_missing">允许通知，然后使用配对通知输入配对码，无需离开设置。</string>
     <string name="priv_ui_notification_pairing_started">已启动通知配对。</string>

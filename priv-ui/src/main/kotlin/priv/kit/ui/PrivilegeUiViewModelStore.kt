@@ -9,6 +9,7 @@ import java.io.Closeable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 internal class PrivilegeUiViewModelStore(
     context: Context? = null,
@@ -26,6 +27,9 @@ internal class PrivilegeUiViewModelStore(
     var serverConnectedListener: Closeable? = null
     var serverDisconnectedWatcher: Closeable? = null
     var startNotificationPairingAfterPermission: Boolean = false
+    @Volatile
+    var tcpAuthorizationRequest: Closeable? = null
+    val tcpAuthorizationRequestGeneration = AtomicLong(0L)
     var wirelessStatusPollingStop: AtomicBoolean? = null
     var wirelessStatusPollingThread: Thread? = null
     var externalStartStatusPollingStop: AtomicBoolean? = null
@@ -115,6 +119,10 @@ internal class PrivilegeUiViewModelStore(
             ?.ifBlank { null }
 
     override fun close() {
+        val request = tcpAuthorizationRequest
+        tcpAuthorizationRequestGeneration.incrementAndGet()
+        tcpAuthorizationRequest = null
+        request?.close()
         executor.shutdownNow()
     }
 

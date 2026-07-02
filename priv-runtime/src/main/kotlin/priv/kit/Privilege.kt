@@ -4,6 +4,7 @@ import android.os.IBinder
 import android.os.RemoteException
 import android.util.Log
 import priv.kit.adb.PrivilegeAdbIdentity
+import priv.kit.adb.PRIVILEGE_ADB_LOCAL_HOST
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStartResult
 import priv.kit.adb.PrivilegeAdbStarter
@@ -151,7 +152,7 @@ public object Privilege {
             startResult = adbStartResult
             Log.i(
                 TAG,
-                "ADB command completed on ${adbStartResult.host}:${adbStartResult.port}; waiting for Binder handshake",
+                "ADB command completed on $PRIVILEGE_ADB_LOCAL_HOST:${adbStartResult.port}; waiting for Binder handshake",
             )
             startupLogListener.emitStartupLog("runtime", "Waiting for Privileged Server handshake")
             val handshakeResult = pendingHandshake.await(timeoutMillis)
@@ -170,7 +171,7 @@ public object Privilege {
                 )
                 throw PrivilegeStartupException(
                     "ADB start did not complete the Privileged Server handshake on " +
-                        "${adbResult.host}:${adbResult.port}: ${adbResult.outputText}$serverDiagnostics",
+                        "$PRIVILEGE_ADB_LOCAL_HOST:${adbResult.port}: ${adbResult.outputText}$serverDiagnostics",
                     e,
                 )
             }
@@ -405,7 +406,6 @@ public object Privilege {
     ): String {
         val output = runCatching {
             adbStarter.readRuntimeDiagnostics(
-                host = adbResult.host,
                 port = adbResult.port,
                 startupLogListener = startupLogListener,
             )

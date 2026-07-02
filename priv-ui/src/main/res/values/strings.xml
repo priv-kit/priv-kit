@@ -28,10 +28,12 @@
     <string name="priv_ui_notification_pairing_waiting">Stop pairing service</string>
     <string name="priv_ui_adb_authorization_title">ADB authorization</string>
     <string name="priv_ui_adb_authorization_action">Authorize with ADB</string>
+    <string name="priv_ui_adb_key_authorization_action">Allow ADB Key</string>
     <string name="priv_ui_adb_stable_status">Stable ADB connection</string>
     <string name="priv_ui_adb_stable_ready">Ready</string>
     <string name="priv_ui_adb_stable_unavailable">Not ready</string>
     <string name="priv_ui_adb_prepare_stable_action">Prepare stable connection</string>
+    <string name="priv_ui_adb_key_authorization_status">ADB key authorization</string>
     <string name="priv_ui_adb_key_fingerprint">RSA key fingerprint</string>
     <string name="priv_ui_adb_key_fingerprint_unavailable">Not loaded</string>
     <string name="priv_ui_wireless_realtime_status_title">Wireless debugging status</string>
@@ -53,6 +55,14 @@
     <string name="priv_ui_tcp_enabling">Preparing stable ADB connection...</string>
     <string name="priv_ui_tcp_enabled">Stable ADB connection ready.</string>
     <string name="priv_ui_tcp_starting">Starting ADB authorization...</string>
+    <string name="priv_ui_tcp_authorization_requesting">Waiting for ADB key authorization...</string>
+    <string name="priv_ui_tcp_authorization_waiting_action">Waiting for Authorization</string>
+    <string name="priv_ui_tcp_authorization_allowed">ADB key authorized.</string>
+    <string name="priv_ui_tcp_authorization_not_completed">ADB key authorization was not completed.</string>
+    <string name="priv_ui_tcp_authorization_waiting">Waiting</string>
+    <string name="priv_ui_tcp_authorization_authorized">Allowed</string>
+    <string name="priv_ui_tcp_authorization_unauthorized">Not allowed</string>
+    <string name="priv_ui_tcp_authorization_failed">Failed</string>
     <string name="priv_ui_notification_permission_required">Notification permission required</string>
     <string name="priv_ui_notification_permission_missing">Allow notifications, then use the pairing notification to enter the code without leaving Settings.</string>
     <string name="priv_ui_notification_pairing_started">Notification pairing started.</string>

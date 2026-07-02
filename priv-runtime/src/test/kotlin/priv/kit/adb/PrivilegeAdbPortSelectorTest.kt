@@ -8,9 +8,9 @@ class PrivilegeAdbPortSelectorTest {
     fun explicitPortWins() {
         val port = PrivilegeAdbPortSelector.chooseStartPort(
             explicitPort = 37099,
-            activeTcpPort = 5555,
+            activeTcpPort = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
             tcpMode = true,
-            targetTcpPort = 5555,
+            targetTcpPort = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
             discoveredPort = 37100,
         )
 
@@ -21,22 +21,22 @@ class PrivilegeAdbPortSelectorTest {
     fun activeTcpPortWinsWhenTcpModeIsEnabled() {
         val port = PrivilegeAdbPortSelector.chooseStartPort(
             explicitPort = null,
-            activeTcpPort = 5555,
+            activeTcpPort = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
             tcpMode = true,
-            targetTcpPort = 5555,
+            targetTcpPort = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
             discoveredPort = 37100,
         )
 
-        assertEquals(5555, port)
+        assertEquals(PRIVILEGE_ADB_DEFAULT_TCP_PORT, port)
     }
 
     @Test
     fun discoveredPortIsUsedWithoutTcpMode() {
         val port = PrivilegeAdbPortSelector.chooseStartPort(
             explicitPort = null,
-            activeTcpPort = 5555,
+            activeTcpPort = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
             tcpMode = false,
-            targetTcpPort = 5555,
+            targetTcpPort = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
             discoveredPort = 37100,
         )
 
@@ -49,11 +49,11 @@ class PrivilegeAdbPortSelectorTest {
             explicitPort = null,
             activeTcpPort = -1,
             tcpMode = true,
-            targetTcpPort = 5555,
+            targetTcpPort = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
             discoveredPort = null,
         )
 
-        assertEquals(5555, port)
+        assertEquals(PRIVILEGE_ADB_DEFAULT_TCP_PORT, port)
     }
 
     @Test(expected = PrivilegeAdbException::class)
@@ -62,7 +62,7 @@ class PrivilegeAdbPortSelectorTest {
             explicitPort = null,
             activeTcpPort = -1,
             tcpMode = false,
-            targetTcpPort = 5555,
+            targetTcpPort = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
             discoveredPort = null,
         )
     }

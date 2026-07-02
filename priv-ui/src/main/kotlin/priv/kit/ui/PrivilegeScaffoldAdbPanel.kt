@@ -37,8 +37,17 @@ internal fun AdbPanel(
     Panel {
         val paired = state.wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON
         val tcpAvailable = tcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED && tcpModeEnabled
-        val adbEndpointAvailable = state.wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.ON || tcpAvailable
-        val canStart = paired || adbEndpointAvailable
+        val tcpAuthorized = tcpAvailable &&
+            state.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED
+        val tcpAuthorizationActionAvailable = tcpAvailable &&
+            state.tcpAuthorizationStatus in setOf(
+                PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
+                PrivilegeUiAdbTcpAuthorizationStatus.FAILED,
+            )
+        val tcpAuthorizationWaiting = tcpAvailable &&
+            state.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING
+        val adbEndpointAvailable = state.wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.ON || tcpAuthorized
+        val canStart = paired || adbEndpointAvailable || tcpAuthorizationActionAvailable || tcpAuthorizationWaiting
         Text(
             text = stringResource(R.string.priv_ui_adb_authorization_title),
             style = MaterialTheme.typography.titleMedium,
@@ -101,7 +110,17 @@ internal fun AdbPanel(
             enabled = !state.busy && canStart,
             onClick = onStartAdb,
         ) {
-            Text(stringResource(R.string.priv_ui_adb_authorization_action))
+            Text(
+                stringResource(
+                    if (tcpAuthorizationActionAvailable) {
+                        R.string.priv_ui_adb_key_authorization_action
+                    } else if (tcpAuthorizationWaiting) {
+                        R.string.priv_ui_tcp_authorization_waiting_action
+                    } else {
+                        R.string.priv_ui_adb_authorization_action
+                    },
+                ),
+            )
         }
     }
 }
@@ -150,6 +169,7 @@ private fun AdbRealtimeStatusPanel(
             )
             if (tcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED) {
                 StableAdbStatusRow(enabled = tcpModeEnabled)
+                TcpAuthorizationStatusRow(status = state.tcpAuthorizationStatus)
             }
         }
     }
@@ -204,6 +224,27 @@ private fun StableAdbStatusRow(enabled: Boolean) {
 }
 
 @Composable
+private fun TcpAuthorizationStatusRow(status: PrivilegeUiAdbTcpAuthorizationStatus) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.priv_ui_adb_key_authorization_status),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = status.displayText(),
+            style = MaterialTheme.typography.labelLarge,
+            color = status.displayColor(),
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
 private fun RealtimeStatusRow(
     label: String,
     status: PrivilegeUiWirelessAdbStatus,
@@ -251,5 +292,31 @@ private fun PrivilegeUiWirelessAdbStatus.displayColor(): Color =
         PrivilegeUiWirelessAdbStatus.CHECKING -> MaterialTheme.colorScheme.primary
         PrivilegeUiWirelessAdbStatus.OFF,
         PrivilegeUiWirelessAdbStatus.UNKNOWN,
+        -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+@Composable
+private fun PrivilegeUiAdbTcpAuthorizationStatus.displayText(): String =
+    when (this) {
+        PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN -> stringResource(R.string.priv_ui_wireless_status_unknown)
+        PrivilegeUiAdbTcpAuthorizationStatus.CHECKING -> stringResource(R.string.priv_ui_wireless_status_checking)
+        PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING -> stringResource(R.string.priv_ui_tcp_authorization_waiting)
+        PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED -> stringResource(R.string.priv_ui_tcp_authorization_authorized)
+        PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED -> stringResource(R.string.priv_ui_tcp_authorization_unauthorized)
+        PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE -> stringResource(R.string.priv_ui_adb_stable_unavailable)
+        PrivilegeUiAdbTcpAuthorizationStatus.FAILED -> stringResource(R.string.priv_ui_tcp_authorization_failed)
+    }
+
+@Composable
+private fun PrivilegeUiAdbTcpAuthorizationStatus.displayColor(): Color =
+    when (this) {
+        PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED -> MaterialTheme.colorScheme.tertiary
+        PrivilegeUiAdbTcpAuthorizationStatus.CHECKING,
+        PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
+        -> MaterialTheme.colorScheme.primary
+        PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
+        PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
+        PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+        PrivilegeUiAdbTcpAuthorizationStatus.FAILED,
         -> MaterialTheme.colorScheme.onSurfaceVariant
     }

@@ -1,7 +1,7 @@
 package priv.kit.sample
 
 import priv.kit.PrivilegeServerInfo
-import priv.kit.adb.PrivilegeAdbStartOptions
+import priv.kit.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 
 internal sealed interface PrivilegeSampleDestination {
     val title: String
@@ -96,7 +96,7 @@ internal data class PrivilegeSampleScreenState(
     val pairingCode: String = "",
     val pairingStatus: PrivilegeAdbPairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
     val pairingMessage: String = "Enter the Wireless debugging pairing code, or reply from the pairing notification.",
-    val tcpPortText: String = PrivilegeAdbStartOptions().tcpPort.toString(),
+    val tcpPortText: String = PRIVILEGE_ADB_DEFAULT_TCP_PORT.toString(),
     val systemServiceBinderCached: Boolean = false,
     val userManagerCached: Boolean = false,
     val mqsNativeLocalDescriptor: String? = null,

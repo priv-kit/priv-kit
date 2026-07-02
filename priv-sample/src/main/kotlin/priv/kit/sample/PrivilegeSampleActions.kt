@@ -6,18 +6,18 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import priv.kit.Privilege
+import priv.kit.PrivilegeServerInfo
+import priv.kit.PrivilegeUserServiceConnection
+import priv.kit.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStarter
 import priv.kit.binder.PrivilegeServerDisconnectedException
-import priv.kit.PrivilegeServerInfo
-import priv.kit.Privilege
-import priv.kit.PrivilegeUserServiceConnection
 import priv.kit.userservice.PrivilegeUserServiceNotRunningException
 import priv.kit.userservice.PrivilegeUserServiceProcessMode
 import priv.kit.userservice.PrivilegeUserServiceSpec
 import priv.kit.ui.PrivilegeAdbPairingService
 import rikka.shizuku.Shizuku
-import java.io.Closeable
 import java.io.File
 import java.nio.charset.StandardCharsets
 
@@ -172,7 +172,7 @@ internal fun MainActivity.checkWirelessAdbPairing(showBusy: Boolean) {
             val result = createAdbStarter(adbDeviceName).checkPairing()
             runOnUiThread {
                 val resultMessage = if (result.paired) {
-                    "Current owner-token key is paired on ${result.host}:${result.port}."
+                    "Current owner-token key is paired on port ${result.port}."
                 } else {
                     "Current owner-token key is not paired" +
                         (result.failureMessage?.let { ": $it" } ?: ".")
@@ -509,7 +509,7 @@ internal fun MainActivity.startWirelessAdb() {
 }
 
 internal fun MainActivity.switchToTcp() {
-    val tcpPort = screenState.tcpPortText.toIntOrNull() ?: PrivilegeAdbStartOptions().tcpPort
+    val tcpPort = screenState.tcpPortText.toIntOrNull() ?: PRIVILEGE_ADB_DEFAULT_TCP_PORT
     val adbDeviceName = currentAdbDeviceNameOverride()
     runBusy(
         message = "Discovering current ADB connect port and switching to TCP port $tcpPort...",
@@ -525,7 +525,7 @@ internal fun MainActivity.switchToTcp() {
 }
 
 internal fun MainActivity.restartTcp() {
-    val tcpPort = screenState.tcpPortText.toIntOrNull() ?: PrivilegeAdbStartOptions().tcpPort
+    val tcpPort = screenState.tcpPortText.toIntOrNull() ?: PRIVILEGE_ADB_DEFAULT_TCP_PORT
     val adbDeviceName = currentAdbDeviceNameOverride()
     runServerStart(
         message = "Restarting through ADB TCP port $tcpPort...",
@@ -543,7 +543,7 @@ internal fun MainActivity.restartTcp() {
 }
 
 internal fun MainActivity.stopTcp() {
-    val tcpPort = screenState.tcpPortText.toIntOrNull() ?: PrivilegeAdbStartOptions().tcpPort
+    val tcpPort = screenState.tcpPortText.toIntOrNull() ?: PRIVILEGE_ADB_DEFAULT_TCP_PORT
     val adbDeviceName = currentAdbDeviceNameOverride()
     runBusy(
         message = "Stopping ADB TCP mode...",

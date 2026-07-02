@@ -13,7 +13,6 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
 
 internal class PrivilegeAdbClient private constructor(
-    private val host: String,
     private val port: Int,
     private val signAuthToken: (ByteArray?) -> ByteArray,
     private val adbPublicKey: ByteArray,
@@ -21,26 +20,23 @@ internal class PrivilegeAdbClient private constructor(
     private val socketReadTimeoutMillis: Int,
 ) : Closeable {
     constructor(
-        host: String,
         port: Int,
         key: PrivilegeAdbKey,
+        socketReadTimeoutMillis: Int = DEFAULT_READ_TIMEOUT_MILLIS,
     ) : this(
-        host = host,
         port = port,
         signAuthToken = key::sign,
         adbPublicKey = key.adbPublicKey,
         sslContextProvider = { key.sslContext },
-        socketReadTimeoutMillis = DEFAULT_READ_TIMEOUT_MILLIS,
+        socketReadTimeoutMillis = socketReadTimeoutMillis,
     )
 
     internal constructor(
-        host: String,
         port: Int,
         signAuthToken: (ByteArray?) -> ByteArray,
         adbPublicKey: ByteArray,
         socketReadTimeoutMillis: Int,
     ) : this(
-        host = host,
         port = port,
         signAuthToken = signAuthToken,
         adbPublicKey = adbPublicKey,
@@ -67,27 +63,63 @@ internal class PrivilegeAdbClient private constructor(
         get() = if (useTls) tlsOutputStream else plainOutputStream
 
     fun connect(output: PrivilegeAdbOutput? = null) {
-        output.diagnostic("Connecting to $host:$port")
+        connectSocket(output)
+        val status = authenticate(
+            output = output,
+            submitPublicKey = false,
+        )
+        if (status != PrivilegeAdbAuthorizationStatus.AUTHORIZED) {
+            privilegeAdbError("ADB key is not authorized")
+        }
+        output.diagnostic("ADB connection ready on $PRIVILEGE_ADB_LOCAL_HOST:$port, tls=$useTls")
+    }
+
+    fun checkAuthorization(output: PrivilegeAdbOutput? = null): PrivilegeAdbAuthorizationStatus {
+        connectSocket(output)
+        return authenticate(
+            output = output,
+            submitPublicKey = false,
+        )
+    }
+
+    fun requestAuthorization(output: PrivilegeAdbOutput? = null): PrivilegeAdbAuthorizationStatus {
+        connectSocket(output)
+        return authenticate(
+            output = output,
+            submitPublicKey = true,
+        )
+    }
+
+    private fun connectSocket(output: PrivilegeAdbOutput? = null) {
+        output.diagnostic("Connecting to $PRIVILEGE_ADB_LOCAL_HOST:$port")
         val newSocket = Socket()
-        newSocket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MILLIS)
+        newSocket.connect(InetSocketAddress(PRIVILEGE_ADB_LOCAL_HOST, port), CONNECT_TIMEOUT_MILLIS)
         newSocket.tcpNoDelay = true
         newSocket.soTimeout = socketReadTimeoutMillis
         socket = newSocket
         plainInputStream = DataInputStream(newSocket.getInputStream())
         plainOutputStream = DataOutputStream(newSocket.getOutputStream())
-        output.diagnostic("Socket connected to $host:$port")
+        output.diagnostic("Socket connected to $PRIVILEGE_ADB_LOCAL_HOST:$port")
+    }
 
+    private fun authenticate(
+        output: PrivilegeAdbOutput?,
+        submitPublicKey: Boolean,
+    ): PrivilegeAdbAuthorizationStatus {
         write(PrivilegeAdbProtocol.A_CNXN, PrivilegeAdbProtocol.A_VERSION, PrivilegeAdbProtocol.A_MAXDATA, "host::")
         var message = read()
         output.diagnostic("Initial ADB response: ${message.toStringShort()}")
         when (message.command) {
+            PrivilegeAdbProtocol.A_CNXN -> return PrivilegeAdbAuthorizationStatus.AUTHORIZED
             PrivilegeAdbProtocol.A_STLS -> {
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
                     privilegeAdbError("ADB TLS is not supported before Android 10")
                 }
                 output.diagnostic("ADB requested TLS upgrade")
                 write(PrivilegeAdbProtocol.A_STLS, PrivilegeAdbProtocol.A_STLS_VERSION, 0)
-                tlsSocket = sslContextProvider().socketFactory.createSocket(newSocket, host, port, true) as SSLSocket
+                tlsSocket = sslContextProvider()
+                    .socketFactory
+                    .createSocket(socket, PRIVILEGE_ADB_LOCAL_HOST, port, true) as SSLSocket
                 tlsSocket.soTimeout = socketReadTimeoutMillis
                 tlsSocket.startHandshake()
                 output.diagnostic("ADB TLS handshake succeeded")
@@ -96,6 +128,9 @@ internal class PrivilegeAdbClient private constructor(
                 useTls = true
                 message = read()
                 output.diagnostic("Post-TLS ADB response: ${message.toStringShort()}")
+                if (message.command == PrivilegeAdbProtocol.A_CNXN) {
+                    return PrivilegeAdbAuthorizationStatus.AUTHORIZED
+                }
             }
             PrivilegeAdbProtocol.A_AUTH -> {
                 if (message.arg0 != PrivilegeAdbProtocol.ADB_AUTH_TOKEN) {
@@ -110,7 +145,16 @@ internal class PrivilegeAdbClient private constructor(
                 )
                 message = read()
                 output.diagnostic("ADB auth response after signature: ${message.toStringShort()}")
-                if (message.command != PrivilegeAdbProtocol.A_CNXN) {
+                if (message.command == PrivilegeAdbProtocol.A_CNXN) {
+                    return PrivilegeAdbAuthorizationStatus.AUTHORIZED
+                }
+                if (message.command == PrivilegeAdbProtocol.A_AUTH &&
+                    message.arg0 == PrivilegeAdbProtocol.ADB_AUTH_TOKEN
+                ) {
+                    if (!submitPublicKey) {
+                        output.diagnostic("ADB key is not authorized")
+                        return PrivilegeAdbAuthorizationStatus.UNAUTHORIZED
+                    }
                     output.diagnostic("ADB requested public key; device may need authorization")
                     write(
                         PrivilegeAdbProtocol.A_AUTH,
@@ -120,14 +164,19 @@ internal class PrivilegeAdbClient private constructor(
                     )
                     message = read()
                     output.diagnostic("ADB auth response after public key: ${message.toStringShort()}")
+                    if (message.command == PrivilegeAdbProtocol.A_CNXN) {
+                        return PrivilegeAdbAuthorizationStatus.AUTHORIZED
+                    }
+                    if (message.command == PrivilegeAdbProtocol.A_AUTH &&
+                        message.arg0 == PrivilegeAdbProtocol.ADB_AUTH_TOKEN
+                    ) {
+                        return PrivilegeAdbAuthorizationStatus.UNAUTHORIZED
+                    }
                 }
             }
         }
 
-        if (message.command != PrivilegeAdbProtocol.A_CNXN) {
-            privilegeAdbError("ADB connection did not finish with CNXN")
-        }
-        output.diagnostic("ADB connection ready on $host:$port, tls=$useTls")
+        privilegeAdbError("ADB connection did not finish with CNXN")
     }
 
     fun command(

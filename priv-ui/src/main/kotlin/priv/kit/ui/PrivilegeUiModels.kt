@@ -1,7 +1,8 @@
 package priv.kit.ui
 
 import android.content.Context
-import priv.kit.adb.PrivilegeAdbStartOptions
+import priv.kit.adb.PRIVILEGE_ADB_DEFAULT_AUTHORIZATION_TIMEOUT_MILLIS
+import priv.kit.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeStartupException
 import priv.kit.PrivilegeStartupLogListener
@@ -44,6 +45,16 @@ public enum class PrivilegeUiWirelessAdbStatus {
     OFF,
 }
 
+public enum class PrivilegeUiAdbTcpAuthorizationStatus {
+    UNKNOWN,
+    CHECKING,
+    AUTHORIZING,
+    AUTHORIZED,
+    UNAUTHORIZED,
+    UNAVAILABLE,
+    FAILED,
+}
+
 public data class PrivilegeUiConfig public constructor(
     public val startupModes: Set<PrivilegeUiStartupMode> = setOf(
         PrivilegeUiStartupMode.ADB,
@@ -52,8 +63,9 @@ public data class PrivilegeUiConfig public constructor(
     ),
     public val externalStartProviders: List<PrivilegeUiExternalStartProvider> = emptyList(),
     public val adbDeviceName: String? = null,
-    public val tcpPort: Int = PrivilegeAdbStartOptions().tcpPort,
+    public val tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     public val adbTcpPolicy: PrivilegeUiAdbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
+    public val adbAuthorizationTimeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_AUTHORIZATION_TIMEOUT_MILLIS,
     public val wirelessStatusPollIntervalMillis: Long = DEFAULT_WIRELESS_STATUS_POLL_INTERVAL_MILLIS,
     public val wirelessStatusDiscoveryTimeoutMillis: Long = DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS,
     public val externalStartStatusPollIntervalMillis: Long = DEFAULT_EXTERNAL_START_STATUS_POLL_INTERVAL_MILLIS,
@@ -65,6 +77,7 @@ public data class PrivilegeUiConfig public constructor(
         require(startTimeoutMillis > 0L) { "startTimeoutMillis must be positive" }
         require(followDeathDelayMillis >= 0L) { "followDeathDelayMillis must not be negative" }
         require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
+        require(adbAuthorizationTimeoutMillis > 0L) { "adbAuthorizationTimeoutMillis must be positive" }
         require(wirelessStatusPollIntervalMillis > 0L) {
             "wirelessStatusPollIntervalMillis must be positive"
         }
@@ -151,6 +164,8 @@ public data class PrivilegeUiState public constructor(
     public val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+    public val tcpAuthorizationStatus: PrivilegeUiAdbTcpAuthorizationStatus =
+        PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
     public val wirelessStatusPollingActive: Boolean = false,
     public val adbKeyFingerprint: String? = null,
     public val notificationPairingRunning: Boolean = false,
