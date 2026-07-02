@@ -262,6 +262,21 @@ internal fun MainActivity.refreshShizukuStatus(append: Boolean = true) {
     if (append) {
         appendLog(readiness.message)
     }
+    continuePendingShizukuExternalStart(readiness)
+}
+
+internal fun MainActivity.handleShizukuHostVisible() {
+    refreshShizukuStatus(append = false)
+}
+
+private fun MainActivity.continuePendingShizukuExternalStart(readiness: ShizukuReadiness) {
+    if (!startShizukuExternalAfterPermission) return
+    if (readiness.ready) {
+        startShizukuExternalAfterPermission = false
+        startShizukuExternal()
+    } else if (readiness.pendingStartTerminal) {
+        startShizukuExternalAfterPermission = false
+    }
 }
 
 internal fun MainActivity.handleShizukuBinderDead() {
@@ -278,33 +293,6 @@ internal fun MainActivity.handleShizukuBinderDead() {
         message = message,
     )
     appendLog(message)
-}
-
-internal fun MainActivity.handleShizukuPermissionResult(
-    requestCode: Int,
-    grantResult: Int,
-) {
-    if (requestCode != SHIZUKU_PERMISSION_REQUEST_CODE) return
-    val granted = grantResult == PackageManager.PERMISSION_GRANTED
-    if (!granted) {
-        startShizukuExternalAfterPermission = false
-        val message = "Shizuku permission denied"
-        screenState = screenState.copy(
-            shizukuReady = false,
-            shizukuPermissionGranted = false,
-            shizukuMessage = message,
-            message = message,
-        )
-        appendLog(message)
-        return
-    }
-
-    val shouldStart = startShizukuExternalAfterPermission
-    startShizukuExternalAfterPermission = false
-    refreshShizukuStatus()
-    if (shouldStart) {
-        startShizukuExternal()
-    }
 }
 
 internal fun MainActivity.startShizukuExternal() {
@@ -336,10 +324,16 @@ internal fun MainActivity.startShizukuExternal() {
 private fun MainActivity.checkShizukuReadiness(requestPermission: Boolean): ShizukuReadiness {
     return try {
         if (!Shizuku.pingBinder()) {
-            return ShizukuReadiness(message = "Shizuku is not running")
+            return ShizukuReadiness(
+                message = "Shizuku is not running",
+                pendingStartTerminal = true,
+            )
         }
         if (Shizuku.isPreV11()) {
-            return ShizukuReadiness(message = "Shizuku pre-v11 is not supported")
+            return ShizukuReadiness(
+                message = "Shizuku pre-v11 is not supported",
+                pendingStartTerminal = true,
+            )
         }
 
         val version = Shizuku.getVersion()
@@ -350,6 +344,7 @@ private fun MainActivity.checkShizukuReadiness(requestPermission: Boolean): Shiz
                 message = "Shizuku UserService requires API $minVersion, current=$version",
                 uid = uid,
                 version = version,
+                pendingStartTerminal = true,
             )
         }
 
@@ -368,6 +363,7 @@ private fun MainActivity.checkShizukuReadiness(requestPermission: Boolean): Shiz
                 uid = uid,
                 version = version,
                 message = "Shizuku permission denied permanently",
+                pendingStartTerminal = true,
             )
         }
 
@@ -390,6 +386,7 @@ private fun MainActivity.checkShizukuReadiness(requestPermission: Boolean): Shiz
         ShizukuReadiness(
             message = "Shizuku error: ${throwable.message ?: throwable.javaClass.name}",
             exceptionText = throwable.toDiagnosticString(),
+            pendingStartTerminal = true,
         )
     }
 }
@@ -924,6 +921,7 @@ private data class ShizukuReadiness(
     val version: Int? = null,
     val message: String,
     val exceptionText: String = "",
+    val pendingStartTerminal: Boolean = false,
 )
 
 private fun ShizukuReadiness.toGlobalMessage(): String =

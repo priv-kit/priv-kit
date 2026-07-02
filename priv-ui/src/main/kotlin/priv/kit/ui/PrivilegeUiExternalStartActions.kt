@@ -1,11 +1,13 @@
 package priv.kit.ui
 
+import android.content.Context
 import priv.kit.Privilege
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class PrivilegeUiExternalStartActions(
     private val store: PrivilegeUiViewModelStore,
     private val runtimeActions: PrivilegeUiRuntimeActions,
+    private val createShellStartCommand: () -> String = Privilege::createShellStartCommand,
 ) : AutoCloseable {
     fun refreshExternalStartStatus(providerId: String? = null) {
         Thread {
@@ -46,6 +48,7 @@ internal class PrivilegeUiExternalStartActions(
     }
 
     override fun close() {
+        store.pendingExternalStartProviderId = null
         stopExternalStartStatusPolling()
     }
 
@@ -90,6 +93,11 @@ internal class PrivilegeUiExternalStartActions(
                 it.copy(snapshot = snapshot, busy = false)
             }
             if (snapshot.exceptionText.isNotBlank()) store.appendLog(snapshot.exceptionText)
+            continuePendingExternalStart(
+                provider = provider,
+                snapshot = snapshot,
+                context = context,
+            )
         }
     }
 
@@ -105,8 +113,10 @@ internal class PrivilegeUiExternalStartActions(
                 )
             }
         if (!snapshot.canStart) {
+            store.pendingExternalStartProviderId = provider.id
             val requested = runCatching { provider.requestAuthorization(context) }
                 .getOrElse { throwable ->
+                    store.pendingExternalStartProviderId = null
                     PrivilegeUiExternalStartSnapshot(
                         message = throwable.failureMessage(),
                         exceptionText = throwable.toPrivilegeUiDiagnosticString(),
@@ -120,12 +130,35 @@ internal class PrivilegeUiExternalStartActions(
             }
         }
 
+        store.pendingExternalStartProviderId = null
+        startExternal(provider, context)
+    }
+
+    private fun continuePendingExternalStart(
+        provider: PrivilegeUiExternalStartProvider,
+        snapshot: PrivilegeUiExternalStartSnapshot,
+        context: Context,
+    ) {
+        if (
+            store.pendingExternalStartProviderId == provider.id &&
+            snapshot.canStart &&
+            !store.state.value.busy
+        ) {
+            store.pendingExternalStartProviderId = null
+            startExternal(provider, context)
+        }
+    }
+
+    private fun startExternal(
+        provider: PrivilegeUiExternalStartProvider,
+        context: Context,
+    ) {
         runtimeActions.runServerStartRequest(
             message = store.text(R.string.priv_ui_external_starting),
             startedMessage = store.text(R.string.priv_ui_external_start_requested),
             startupSource = provider.label.toString(),
         ) {
-            val commandLine = Privilege.createShellStartCommand()
+            val commandLine = createShellStartCommand()
             if (provider is PrivilegeUiStreamingExternalStartProvider) {
                 provider.start(
                     context = context,

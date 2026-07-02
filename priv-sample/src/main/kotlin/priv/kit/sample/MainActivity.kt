@@ -38,13 +38,6 @@ class MainActivity : ComponentActivity() {
     private val shizukuBinderDeadListener = Shizuku.OnBinderDeadListener {
         handleShizukuBinderDead()
     }
-    private val shizukuPermissionResultListener =
-        Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
-            handleShizukuPermissionResult(requestCode, grantResult)
-            if (requestCode == SHIZUKU_PERMISSION_REQUEST_CODE) {
-                privilegeUiViewModel.refreshExternalStartStatus(SAMPLE_SHIZUKU_EXTERNAL_START_ID)
-            }
-        }
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             handleNotificationPermissionResult(granted)
@@ -64,7 +57,6 @@ class MainActivity : ComponentActivity() {
         privilegeUiViewModel = ViewModelProvider(this)[PrivilegeSamplePrivilegeUiViewModel::class.java]
         Shizuku.addBinderReceivedListenerSticky(shizukuBinderReceivedListener)
         Shizuku.addBinderDeadListener(shizukuBinderDeadListener)
-        Shizuku.addRequestPermissionResultListener(shizukuPermissionResultListener)
         initializePrivilegeSample()
         setContent {
             val privilegeUiState = privilegeUiViewModel.state.collectAsState().value
@@ -115,6 +107,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        handleShizukuHostVisible()
+    }
+
     private fun handleNotificationPermissionResult(granted: Boolean) {
         val shouldStartSamplePairing = startNotificationPairingAfterPermission
         startNotificationPairingAfterPermission = false
@@ -142,7 +139,6 @@ class MainActivity : ComponentActivity() {
         releasePrivilegeSample()
         Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
         Shizuku.removeBinderDeadListener(shizukuBinderDeadListener)
-        Shizuku.removeRequestPermissionResultListener(shizukuPermissionResultListener)
         super.onDestroy()
     }
 
