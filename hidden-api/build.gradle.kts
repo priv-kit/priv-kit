@@ -7,6 +7,7 @@ android {
 }
 
 dependencies {
+    compileOnly(libs.androidx.annotation)
     compileOnly(libs.remap.annotation)
     annotationProcessor(libs.remap.processor)
 }
