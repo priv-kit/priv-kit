@@ -1,6 +1,7 @@
 package priv.kit.internal.server
 
 import android.os.Process
+import priv.kit.internal.core.PrivilegeAndroidUsers
 import priv.kit.internal.core.PrivilegeProtocol
 import java.io.File
 
@@ -16,7 +17,7 @@ internal object PrivilegeServerArguments {
         val packageName = inferPackageName(normalizedClasspath)
         return PrivilegeServerConfig(
             packageName = packageName,
-            userId = userIdFromUid(uid),
+            userId = PrivilegeAndroidUsers.userIdFromUid(uid),
             classpath = normalizedClasspath,
             protocolVersion = PrivilegeProtocol.VERSION,
         )
@@ -33,8 +34,4 @@ internal object PrivilegeServerArguments {
         return packageName
     }
 
-    private fun userIdFromUid(uid: Int): Int =
-        if (uid >= PER_USER_RANGE) uid / PER_USER_RANGE else 0
-
-    private const val PER_USER_RANGE = 100_000
 }

@@ -345,9 +345,10 @@ private fun MainActivity.checkShizukuReadiness(requestPermission: Boolean): Shiz
 
         val version = Shizuku.getVersion()
         val uid = Shizuku.getUid().takeIf { it >= 0 }
-        if (version < SHIZUKU_USER_SERVICE_MIN_VERSION) {
+        val minVersion = PrivilegeSampleShizukuExternalStarter.SHIZUKU_USER_SERVICE_MIN_VERSION
+        if (version < minVersion) {
             return ShizukuReadiness(
-                message = "Shizuku UserService requires API $SHIZUKU_USER_SERVICE_MIN_VERSION, current=$version",
+                message = "Shizuku UserService requires API $minVersion, current=$version",
                 uid = uid,
                 version = version,
             )
@@ -1263,7 +1264,6 @@ internal fun MainActivity.copySessionLog() {
 
 private const val MAX_LOG_CHARS = 32_000
 internal const val SHIZUKU_PERMISSION_REQUEST_CODE = 42
-internal const val SHIZUKU_USER_SERVICE_MIN_VERSION = 10
 private const val SAMPLE_CONFIG_DIRECTORY = ".priv-kit"
 private const val ADB_DEVICE_NAME_FILE = "adb-device-name.txt"
 private const val DEFAULT_ADB_DEVICE_NAME = "priv-kit"

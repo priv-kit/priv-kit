@@ -71,8 +71,8 @@ internal class PrivilegeServerBinder(
         reply: Parcel?,
     ) {
         val targetBinder = when (val targetKind = data.readInt()) {
-            TARGET_BINDER -> data.readStrongBinder()
-            TARGET_SYSTEM_SERVICE -> resolveSystemService(data.readString(), reply) ?: return
+            PrivilegeBinderWrapper.TARGET_BINDER -> data.readStrongBinder()
+            PrivilegeBinderWrapper.TARGET_SYSTEM_SERVICE -> resolveSystemService(data.readString(), reply) ?: return
             else -> error("Unknown remote Binder target kind: $targetKind")
         }
         val targetCode = data.readInt()
@@ -144,7 +144,5 @@ internal class PrivilegeServerBinder(
     companion object {
         private const val TAG = "PrivKitServer"
         private const val SHUTDOWN_DELAY_MILLIS = 50L
-        private const val TARGET_BINDER = 1
-        private const val TARGET_SYSTEM_SERVICE = 2
     }
 }

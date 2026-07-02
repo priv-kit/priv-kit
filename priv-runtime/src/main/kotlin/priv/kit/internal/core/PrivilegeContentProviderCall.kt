@@ -18,7 +18,7 @@ internal object PrivilegeContentProviderCall {
         method: String,
         arg: String?,
         extras: Bundle,
-        userId: Int = USER_SYSTEM,
+        userId: Int = PrivilegeAndroidUsers.USER_SYSTEM,
         logTag: String? = null,
     ): Bundle? {
         val activityManager = activityManager()
@@ -256,7 +256,7 @@ internal object PrivilegeContentProviderCall {
     }
 
     private fun callingPackageName(): String? =
-        if (Process.myUid() == SHELL_UID) SHELL_PACKAGE_NAME else null
+        if (Process.myUid() == PrivilegeAndroidUsers.SHELL_UID) SHELL_PACKAGE_NAME else null
 
     private class ReflectCall(
         val methodName: String,
@@ -264,7 +264,5 @@ internal object PrivilegeContentProviderCall {
         val arguments: Array<Any?>,
     )
 
-    private const val USER_SYSTEM = 0
-    private const val SHELL_UID = 2000
     private const val SHELL_PACKAGE_NAME = "com.android.shell"
 }

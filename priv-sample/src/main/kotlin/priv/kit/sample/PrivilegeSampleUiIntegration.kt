@@ -135,7 +135,7 @@ private class PrivilegeSampleShizukuExternalStartProvider(
 
         val version = Shizuku.getVersion()
         val uid = Shizuku.getUid().takeIf { it >= 0 }
-        if (version < SHIZUKU_USER_SERVICE_MIN_VERSION) {
+        if (version < PrivilegeSampleShizukuExternalStarter.SHIZUKU_USER_SERVICE_MIN_VERSION) {
             return PrivilegeUiExternalStartSnapshot(
                 available = false,
                 uid = uid,

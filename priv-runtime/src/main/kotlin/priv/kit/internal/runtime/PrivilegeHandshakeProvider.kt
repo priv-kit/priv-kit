@@ -8,11 +8,12 @@ import android.os.Binder
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
+import priv.kit.Privilege
+import priv.kit.PrivilegeServerInfo
+import priv.kit.internal.core.PrivilegeAndroidUsers
 import priv.kit.internal.core.PrivilegeHandshakeContract
 import priv.kit.internal.core.PrivilegeProtocol
 import priv.kit.internal.core.PrivilegeServerHandshakeRegistry
-import priv.kit.Privilege
-import priv.kit.PrivilegeServerInfo
 import priv.kit.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.internal.userservice.PrivilegeUserServiceHandshakeRegistry
 import java.util.concurrent.ConcurrentHashMap
@@ -235,9 +236,9 @@ internal class PrivilegeHandshakeProvider public constructor() : ContentProvider
 
     private fun isTrustedServerStarterCaller(callingUid: Int): Boolean {
         val ownerUid = PrivilegeContext.require().applicationInfo.uid
-        return callingUid == ROOT_UID ||
-            callingUid == SYSTEM_UID ||
-            callingUid == SHELL_UID ||
+        return callingUid == PrivilegeAndroidUsers.ROOT_UID ||
+            callingUid == PrivilegeAndroidUsers.SYSTEM_UID ||
+            callingUid == PrivilegeAndroidUsers.SHELL_UID ||
             ownerUid == callingUid
     }
 
@@ -258,9 +259,6 @@ internal class PrivilegeHandshakeProvider public constructor() : ContentProvider
 
     private companion object {
         private const val TAG = "PrivKit"
-        private const val ROOT_UID = 0
-        private const val SYSTEM_UID = 1000
-        private const val SHELL_UID = 2000
         private val ownerBinders = ConcurrentHashMap<String, IBinder>()
     }
 }

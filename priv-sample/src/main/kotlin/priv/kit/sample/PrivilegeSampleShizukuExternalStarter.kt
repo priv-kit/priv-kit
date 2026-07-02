@@ -210,12 +210,12 @@ internal class PrivilegeSampleShizukuExternalStarter(
     private fun Context.isDebuggable(): Boolean =
         applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
 
-    private companion object {
-        const val SHIZUKU_USER_SERVICE_MIN_VERSION = 10
-        const val SHIZUKU_BIND_TIMEOUT_MILLIS = 10_000L
-        const val SHIZUKU_START_RESULT_TIMEOUT_MILLIS = 10_000L
-        const val SHIZUKU_START_TAG = "priv-kit-external-start"
-        const val SHIZUKU_START_PROCESS_SUFFIX = "priv-kit-shizuku-start"
-        const val SHIZUKU_START_SERVICE_VERSION = 2
+    companion object {
+        internal const val SHIZUKU_USER_SERVICE_MIN_VERSION = 10
+        private const val SHIZUKU_BIND_TIMEOUT_MILLIS = 10_000L
+        private const val SHIZUKU_START_RESULT_TIMEOUT_MILLIS = 10_000L
+        private const val SHIZUKU_START_TAG = "priv-kit-external-start"
+        private const val SHIZUKU_START_PROCESS_SUFFIX = "priv-kit-shizuku-start"
+        private const val SHIZUKU_START_SERVICE_VERSION = 2
     }
 }

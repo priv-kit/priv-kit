@@ -3,6 +3,7 @@ package priv.kit.internal.server
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import priv.kit.internal.core.PrivilegeAndroidUsers
 import priv.kit.internal.core.PrivilegeProtocol
 import java.io.File
 
@@ -14,7 +15,7 @@ class PrivilegeServerArgumentsTest {
         val config = PrivilegeServerArguments.parse(
             args = emptyArray(),
             classpath = apk.path,
-            uid = SHELL_UID,
+            uid = PrivilegeAndroidUsers.SHELL_UID,
         )
 
         assertEquals("", config.token)
@@ -46,7 +47,7 @@ class PrivilegeServerArgumentsTest {
             PrivilegeServerArguments.parse(
                 args = arrayOf("--token", "token"),
                 classpath = testApk("example.args-hash").path,
-                uid = SHELL_UID,
+                uid = PrivilegeAndroidUsers.SHELL_UID,
             )
         }
     }
@@ -57,7 +58,7 @@ class PrivilegeServerArgumentsTest {
             PrivilegeServerArguments.parse(
                 args = emptyArray(),
                 classpath = " ",
-                uid = SHELL_UID,
+                uid = PrivilegeAndroidUsers.SHELL_UID,
             )
         }
     }
@@ -67,9 +68,5 @@ class PrivilegeServerArgumentsTest {
         return File(directory, "base.apk").also {
             it.writeText("apk")
         }
-    }
-
-    private companion object {
-        private const val SHELL_UID = 2000
     }
 }

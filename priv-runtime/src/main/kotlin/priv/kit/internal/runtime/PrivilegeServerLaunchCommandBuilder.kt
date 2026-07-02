@@ -1,5 +1,6 @@
 package priv.kit.internal.runtime
 
+import priv.kit.internal.core.PrivilegeAndroidUsers
 import priv.kit.internal.core.PrivilegeHandshakeContract
 import priv.kit.internal.core.PrivilegeProtocol
 import priv.kit.internal.core.PrivilegeServerLaunchCommand
@@ -9,7 +10,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
     fun build(): PrivilegeServerLaunchCommand {
         val context = PrivilegeContext.require()
         val packageName = context.packageName
-        val userId = userIdFromUid(context.applicationInfo.uid)
+        val userId = PrivilegeAndroidUsers.userIdFromUid(context.applicationInfo.uid)
         val classpath = buildClasspath()
         val classpathIdentity = buildClasspathIdentity(classpath)
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(packageName)
@@ -60,9 +61,6 @@ internal object PrivilegeServerLaunchCommandBuilder {
                 "$path@${file.length()}@${file.lastModified() / 1000L}"
             }
 
-    internal fun userIdFromUid(uid: Int): Int =
-        uid / PER_USER_RANGE
-
     private fun isShellBareChar(char: Char): Boolean =
         char in 'A'..'Z' ||
             char in 'a'..'z' ||
@@ -81,5 +79,4 @@ internal object PrivilegeServerLaunchCommandBuilder {
 
     internal const val SERVER_MAIN_CLASS = "priv.kit.internal.server.PrivilegeServerMain"
     private const val NATIVE_STARTER_LIBRARY_NAME = "libprivkitstarter.so"
-    private const val PER_USER_RANGE = 100_000
 }

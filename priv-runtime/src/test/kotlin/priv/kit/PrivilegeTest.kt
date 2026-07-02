@@ -12,6 +12,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 import priv.kit.internal.binder.IPrivilegeServer
 import priv.kit.binder.PrivilegeServerDisconnectedException
+import priv.kit.internal.core.PrivilegeAndroidUsers
 import priv.kit.internal.core.PrivilegeProtocol
 import priv.kit.internal.core.PrivilegeServerHandshakeResult
 import priv.kit.internal.runtime.PrivilegeServerLaunchCommandBuilder
@@ -47,8 +48,8 @@ class PrivilegeTest {
 
     @Test
     fun userIdIsDerivedFromAndroidUidRange() {
-        assertEquals(0, PrivilegeServerLaunchCommandBuilder.userIdFromUid(10_123))
-        assertEquals(10, PrivilegeServerLaunchCommandBuilder.userIdFromUid(1_012_345))
+        assertEquals(0, PrivilegeAndroidUsers.userIdFromUid(10_123))
+        assertEquals(10, PrivilegeAndroidUsers.userIdFromUid(1_012_345))
     }
 
     @Test
