@@ -8,8 +8,8 @@ import priv.kit.adb.PRIVILEGE_ADB_LOCAL_HOST
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStartResult
 import priv.kit.adb.PrivilegeAdbStarter
-import priv.kit.internal.binder.IPrivilegeServer
 import priv.kit.binder.PrivilegeServerDisconnectedException
+import priv.kit.internal.binder.IPrivilegeServer
 import priv.kit.internal.core.PrivilegeProtocol
 import priv.kit.internal.core.PrivilegeServerHandshakeRegistry
 import priv.kit.internal.core.PrivilegeServerHandshakeResult
@@ -183,6 +183,11 @@ public object Privilege {
 
     public fun getServerInfo(): PrivilegeServerInfo =
         requireServerConnection().serverInfo
+
+    public fun checkPermission(permission: String): Int {
+        require(permission.isNotBlank()) { "permission must not be blank" }
+        return requireServerInterface().checkPermission(permission)
+    }
 
     public fun pingServer(): Boolean {
         val connection = synchronized(serverLock) {

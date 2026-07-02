@@ -99,7 +99,9 @@ class PrivilegeBinderWrapperTest {
 
         override fun getUserServiceManager(): IBinder? = null
 
-        override fun hasSystemService(serviceName: String?): Boolean = hasSystemService
+        override fun hasSystemService(serviceName: String): Boolean = hasSystemService
+
+        override fun checkPermission(permission: String): Int = android.content.pm.PackageManager.PERMISSION_DENIED
     }
 
     private class FakeBinder(

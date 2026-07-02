@@ -2,10 +2,12 @@ package priv.kit.internal.server
 
 import android.os.IBinder
 import android.os.Parcel
+import android.os.Process as AndroidProcess
 import android.os.ServiceManager
 import android.util.Log
-import priv.kit.internal.binder.IPrivilegeServer
 import priv.kit.binder.PrivilegeBinderWrapper
+import priv.kit.internal.binder.IPrivilegeServer
+import priv.kit.internal.userservice.PrivilegeUserServiceLoader
 import priv.kit.internal.userservice.PrivilegeUserServiceManagerBinder
 import priv.kit.internal.userservice.PrivilegeUserServiceRegistry
 import java.util.concurrent.ConcurrentHashMap
@@ -20,6 +22,12 @@ internal class PrivilegeServerBinder(
         ),
     )
     private val systemServiceCache = ConcurrentHashMap<String, IBinder>()
+    private val packageContext by lazy {
+        PrivilegeUserServiceLoader.createPackageContext(
+            packageName = config.packageName,
+            userId = config.userId,
+        )
+    }
 
     override fun getUserServiceManager(): IBinder =
         userServiceManager.asBinder()
@@ -38,19 +46,16 @@ internal class PrivilegeServerBinder(
         return super.onTransact(code, data, reply, flags)
     }
 
-    override fun hasSystemService(serviceName: String?): Boolean {
-        if (serviceName.isNullOrBlank()) {
-            throw IllegalArgumentException("System service name must not be blank")
-        }
+    override fun hasSystemService(serviceName: String): Boolean {
+        return getSystemService(serviceName) != null
+    }
 
-        return try {
-            getSystemService(serviceName) != null
-        } catch (throwable: Throwable) {
-            throw IllegalStateException(
-                "Failed to get system service: $serviceName",
-                throwable,
-            )
-        }
+    override fun checkPermission(permission: String): Int {
+        return packageContext.checkPermission(
+            permission,
+            AndroidProcess.myPid(),
+            AndroidProcess.myUid(),
+        )
     }
 
     override fun shutdown() {
@@ -105,13 +110,10 @@ internal class PrivilegeServerBinder(
 
         val targetBinder = try {
             getSystemService(serviceName)
-        } catch (throwable: Throwable) {
+        } catch (exception: RuntimeException) {
             writeRemoteBinderException(
                 reply = reply,
-                exception = IllegalStateException(
-                    "Failed to get system service: $serviceName",
-                    throwable,
-                ),
+                exception = exception,
             )
             return null
         }

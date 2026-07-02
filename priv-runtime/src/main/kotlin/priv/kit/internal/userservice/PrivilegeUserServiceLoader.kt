@@ -24,6 +24,17 @@ internal object PrivilegeUserServiceLoader {
         }
     }
 
+    internal fun createPackageContext(
+        packageName: String,
+        userId: Int,
+    ): Context {
+        return createPackageContext(
+            activityThread = activityThread(),
+            packageName = packageName,
+            userId = userId,
+        )
+    }
+
     fun instantiate(
         serviceClassName: String,
         contextConfig: ContextConfig? = null,

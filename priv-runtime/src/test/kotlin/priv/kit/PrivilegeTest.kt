@@ -1,5 +1,6 @@
 package priv.kit
 
+import android.content.pm.PackageManager
 import android.os.IBinder
 import android.os.IInterface
 import android.os.Parcel
@@ -90,7 +91,32 @@ class PrivilegeTest {
         }
     }
 
-    private class FakePrivilegeServer : IPrivilegeServer {
+    @Test
+    fun checkPermissionReturnsServerResult() {
+        val server = FakePrivilegeServer(
+            permissionResult = PackageManager.PERMISSION_GRANTED,
+        )
+        Privilege.connectHandshake(
+            PrivilegeServerHandshakeResult(
+                token = "token",
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                serverBinder = server.asBinder(),
+            ),
+        )
+
+        assertEquals(
+            PackageManager.PERMISSION_GRANTED,
+            Privilege.checkPermission("android.permission.GRANT_RUNTIME_PERMISSIONS"),
+        )
+    }
+
+    private class FakePrivilegeServer(
+        private val permissionResult: Int = PackageManager.PERMISSION_DENIED,
+    ) : IPrivilegeServer {
         private val binder = FakeBinder(localInterface = this)
 
         fun killBinder() {
@@ -103,7 +129,9 @@ class PrivilegeTest {
 
         override fun getUserServiceManager(): IBinder? = null
 
-        override fun hasSystemService(serviceName: String?): Boolean = false
+        override fun hasSystemService(serviceName: String): Boolean = false
+
+        override fun checkPermission(permission: String): Int = permissionResult
     }
 
     private class FakeBinder(

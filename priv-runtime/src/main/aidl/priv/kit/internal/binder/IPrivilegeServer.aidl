@@ -4,4 +4,5 @@ interface IPrivilegeServer {
     void shutdown();
     IBinder getUserServiceManager();
     boolean hasSystemService(String serviceName);
+    int checkPermission(String permission);
 }
