@@ -3,14 +3,9 @@ package priv.kit.internal.userservice
 import android.os.IBinder
 import android.os.IInterface
 import android.os.RemoteException
-import priv.kit.userservice.PrivilegeUserServiceBindException
-import priv.kit.userservice.PrivilegeUserServiceDeclarationException
+import priv.kit.userservice.PrivilegeUserServiceException
 import priv.kit.userservice.PrivilegeUserServiceId
-import priv.kit.userservice.PrivilegeUserServiceNotRunningException
-import priv.kit.userservice.PrivilegeUserServiceOwnerDeathPolicy
-import priv.kit.userservice.PrivilegeUserServiceProcessMode
 import priv.kit.userservice.PrivilegeUserServiceSpec
-import priv.kit.userservice.PrivilegeUserServiceStartException
 import java.util.UUID
 
 internal class PrivilegeUserServiceRegistry internal constructor(
@@ -44,6 +39,9 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             val record = ensureRecordLocked(spec)
             val connectionId = UUID.randomUUID().toString()
             val binder = record.bind(connectionId)
+            if (record.spec.daemon) {
+                record.started = true
+            }
             linkConnectionLocked(record, connectionId, client)
             BindResult(
                 connectionId = connectionId,
@@ -54,7 +52,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
     internal fun unbind(connectionId: String) {
         synchronized(lock) {
             if (!unbindLocked(connectionId)) {
-                throw PrivilegeUserServiceNotRunningException(
+                throw PrivilegeUserServiceException(
                     "UserService connection was not found: $connectionId",
                 )
             }
@@ -75,7 +73,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
     internal fun destroyOnOwnerDeath() {
         synchronized(lock) {
             records.entries
-                .filter { it.value.spec.ownerDeathPolicy == PrivilegeUserServiceOwnerDeathPolicy.DESTROY_ON_OWNER_DEATH }
+                .filter { !it.value.spec.daemon }
                 .map { it.key to it.value }
                 .forEach { (id, record) ->
                     destroyRecordLocked(id, record)
@@ -99,8 +97,8 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         if (
             current != null &&
             current.spec.version == spec.version &&
-            current.spec.processMode == spec.processMode &&
-            current.spec.ownerDeathPolicy == spec.ownerDeathPolicy &&
+            current.spec.embedded == spec.embedded &&
+            current.spec.daemon == spec.daemon &&
             current.isRunning
         ) {
             current.spec = spec
@@ -111,10 +109,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             destroyRecordLocked(id, current)
         }
 
-        val record = when (spec.processMode) {
-            PrivilegeUserServiceProcessMode.DEDICATED_PROCESS -> createDedicatedRecord(spec)
-            PrivilegeUserServiceProcessMode.IN_SERVER_PROCESS -> createEmbeddedRecord(spec)
-        }
+        val record = if (spec.embedded) createEmbeddedRecord(spec) else createDedicatedRecord(spec)
         records[id] = record
         try {
             record.onRegisteredLocked()
@@ -128,20 +123,25 @@ internal class PrivilegeUserServiceRegistry internal constructor(
 
     private fun createDedicatedRecord(spec: PrivilegeUserServiceSpec): Record {
         val token = UUID.randomUUID().toString()
-        val handle = host.startDedicatedProcess(spec, token)
+        val handle = try {
+            host.startDedicatedProcess(spec, token)
+        } catch (throwable: Throwable) {
+            throw PrivilegeUserServiceException(
+                "Dedicated UserService start failed: ${spec.serviceClassName}",
+                throwable,
+            )
+        }
         val process = try {
             host.awaitDedicatedProcess(token, dedicatedStartTimeoutMillis)
         } catch (throwable: Throwable) {
             host.killDedicatedProcess(handle)
-            throw PrivilegeUserServiceStartException(
+            throw PrivilegeUserServiceException(
                 "Dedicated UserService did not report ready: ${spec.serviceClassName}",
                 throwable,
             )
         }
         return DedicatedRecord(
             spec = spec,
-            host = host,
-            handle = handle,
             process = process,
         )
     }
@@ -286,7 +286,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         val ownerDeathRecipient = IBinder.DeathRecipient {
             synchronized(lock) {
                 val current = records[spec.id()]
-                if (current === this && spec.ownerDeathPolicy == PrivilegeUserServiceOwnerDeathPolicy.DESTROY_ON_OWNER_DEATH) {
+                if (current === this && !spec.daemon) {
                     destroyRecordLocked(spec.id(), this)
                 }
             }
@@ -311,7 +311,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
 
         fun requireRunning(operation: String) {
             if (state != RecordState.RUNNING) {
-                throw PrivilegeUserServiceNotRunningException(
+                throw PrivilegeUserServiceException(
                     "$operation failed because UserService is $state: ${spec.serviceClassName}",
                 )
             }
@@ -346,8 +346,6 @@ internal class PrivilegeUserServiceRegistry internal constructor(
 
     private inner class DedicatedRecord(
         spec: PrivilegeUserServiceSpec,
-        private val host: PrivilegeUserServiceHost,
-        private val handle: Process,
         private val process: IPrivilegeUserServiceProcess,
     ) : Record(spec) {
         private val processBinder = process.asBinder()
@@ -364,14 +362,14 @@ internal class PrivilegeUserServiceRegistry internal constructor(
                 processBinder.linkToDeath(processDeathRecipient, 0)
                 processLinked = true
             } catch (exception: RemoteException) {
-                throw PrivilegeUserServiceStartException(
+                throw PrivilegeUserServiceException(
                     "Dedicated UserService process died while connecting: ${spec.serviceClassName}",
                     exception,
                 )
             }
             if (!processBinder.pingBinder()) {
                 unlinkProcessDeath()
-                throw PrivilegeUserServiceStartException(
+                throw PrivilegeUserServiceException(
                     "Dedicated UserService process died while connecting: ${spec.serviceClassName}",
                 )
             }
@@ -383,7 +381,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
                 process.start()
                 started = true
             } catch (throwable: Throwable) {
-                throw PrivilegeUserServiceStartException(
+                throw PrivilegeUserServiceException(
                     "Dedicated UserService start failed: ${spec.serviceClassName}",
                     throwable,
                 )
@@ -395,7 +393,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             val binder = try {
                 process.bind()
             } catch (throwable: Throwable) {
-                throw PrivilegeUserServiceBindException(
+                throw PrivilegeUserServiceException(
                     "Dedicated UserService bind failed: ${spec.serviceClassName}",
                     throwable,
                 )
@@ -418,7 +416,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             gate?.close()
             unlinkProcessDeath()
             if (shouldDestroyProcess) {
-                superviseDedicatedDestroy()
+                requestDedicatedDestroy()
             }
         }
 
@@ -428,27 +426,11 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             unlinkProcessDeath()
         }
 
-        private fun superviseDedicatedDestroy() {
-            val timeoutMillis = spec.destroyTimeoutMillis
+        private fun requestDedicatedDestroy() {
             Thread {
-                Thread {
-                    runCatching { process.destroy() }
-                }.apply {
-                    name = "priv-kit-user-service-destroy-call"
-                    isDaemon = true
-                    start()
-                }
-
-                if (timeoutMillis >= 0L) {
-                    val exited = runCatching {
-                        host.awaitDedicatedProcessExit(handle, timeoutMillis)
-                    }.getOrDefault(false)
-                    if (!exited) {
-                        host.killDedicatedProcess(handle)
-                    }
-                }
+                runCatching { process.destroy() }
             }.apply {
-                name = "priv-kit-user-service-destroy-watch"
+                name = "priv-kit-user-service-destroy-call"
                 isDaemon = true
                 start()
             }
@@ -480,7 +462,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             when (instance) {
                 is IBinder -> instance
                 is IInterface -> instance.asBinder()
-                else -> throw PrivilegeUserServiceDeclarationException(
+                else -> throw PrivilegeUserServiceException(
                     "UserService must implement IBinder or IInterface: $serviceClassName",
                 )
             }

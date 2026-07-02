@@ -9,8 +9,7 @@ import priv.kit.internal.userservice.IPrivilegeUserServiceProcess
 import priv.kit.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.internal.userservice.PrivilegeUserServiceHost
 import priv.kit.userservice.PrivilegeUserServiceSpec
-import priv.kit.userservice.PrivilegeUserServiceStartException
-import java.util.concurrent.TimeUnit
+import priv.kit.userservice.PrivilegeUserServiceException
 
 internal class PrivilegeServerUserServiceHost(
     private val config: PrivilegeServerConfig,
@@ -58,19 +57,6 @@ internal class PrivilegeServerUserServiceHost(
         PrivilegeServerUserServiceProcessKiller.kill(process)
     }
 
-    override fun awaitDedicatedProcessExit(
-        process: Process,
-        timeoutMillis: Long,
-    ): Boolean {
-        if (timeoutMillis <= 0L) return !process.isAlive
-        return try {
-            process.waitFor(timeoutMillis, TimeUnit.MILLISECONDS)
-        } catch (_: InterruptedException) {
-            Thread.currentThread().interrupt()
-            !process.isAlive
-        }
-    }
-
     private companion object {
         fun startProcess(command: PrivilegeServerUserServiceProcessStartCommand): java.lang.Process =
             ProcessBuilder(command.arguments).apply {
@@ -94,7 +80,7 @@ internal object PrivilegeServerUserServiceProcessCommand {
         serverPid: Int,
     ): PrivilegeServerUserServiceProcessStartCommand {
         val classpath = config.classpath.ifBlank {
-            throw PrivilegeUserServiceStartException("Server classpath is unavailable")
+            throw PrivilegeUserServiceException("Server classpath is unavailable")
         }
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(config.packageName)
         val processName = buildProcessName(config.packageName, spec)
@@ -167,11 +153,11 @@ internal class PrivilegeServerUserServiceProcessClaimer(
                 ?.getBinder(PrivilegeUserServiceContract.EXTRA_PROCESS_BINDER)
             if (processBinder != null) {
                 return IPrivilegeUserServiceProcess.Stub.asInterface(processBinder)
-                    ?: throw PrivilegeUserServiceStartException("UserService process returned an invalid Binder")
+                    ?: throw PrivilegeUserServiceException("UserService process returned an invalid Binder")
             }
             sleep(CLAIM_RETRY_DELAY_MILLIS)
         }
-        throw PrivilegeUserServiceStartException(
+        throw PrivilegeUserServiceException(
             "Timed out waiting for dedicated UserService process",
             lastFailure,
         )

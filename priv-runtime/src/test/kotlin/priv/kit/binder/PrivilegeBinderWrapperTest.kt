@@ -10,14 +10,19 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
 import priv.kit.Privilege
 import priv.kit.PrivilegeServerInfo
 import priv.kit.internal.core.PrivilegeProtocol
 import priv.kit.internal.core.PrivilegeServerHandshakeResult
 import priv.kit.internal.binder.IPrivilegeServer
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.FileDescriptor
 import java.util.concurrent.CopyOnWriteArrayList
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28])
 class PrivilegeBinderWrapperTest {
     @After
     fun clearServer() {
@@ -49,9 +54,28 @@ class PrivilegeBinderWrapperTest {
             val recipient = IBinder.DeathRecipient { }
             server.binder.kill()
 
-            assertThrows(PrivilegeServerDisconnectedException::class.java) {
+            assertThrows(PrivilegeServerUnavailableException::class.java) {
                 wrapper.linkToDeath(recipient, 0)
             }
+        }
+    }
+
+    @Test
+    fun rawTransactPropagatesRemoteException() {
+        val remoteException = RemoteException("target exploded")
+        withServer(FakePrivilegeServer(transactException = remoteException)) {
+            val wrapper = PrivilegeBinderWrapper.fromBinder(FakeBinder())
+            val data = Parcel.obtain()
+
+            val thrown = try {
+                assertThrows(RemoteException::class.java) {
+                    wrapper.transact(1, data, null, 0)
+                }
+            } finally {
+                data.recycle()
+            }
+
+            assertEquals(remoteException, thrown)
         }
     }
 
@@ -90,8 +114,12 @@ class PrivilegeBinderWrapperTest {
 
     private class FakePrivilegeServer(
         private val hasSystemService: Boolean = false,
+        private val transactException: RemoteException? = null,
     ) : IPrivilegeServer {
-        val binder = FakeBinder(localInterface = this)
+        val binder = FakeBinder(
+            localInterface = this,
+            transactException = transactException,
+        )
 
         override fun asBinder(): IBinder = binder
 
@@ -106,6 +134,7 @@ class PrivilegeBinderWrapperTest {
 
     private class FakeBinder(
         private val localInterface: IInterface? = null,
+        private val transactException: RemoteException? = null,
         @Volatile
         private var alive: Boolean = true,
     ) : IBinder {
@@ -140,7 +169,10 @@ class PrivilegeBinderWrapperTest {
             data: Parcel,
             reply: Parcel?,
             flags: Int,
-        ): Boolean = alive
+        ): Boolean {
+            transactException?.let { throw it }
+            return alive
+        }
 
         override fun linkToDeath(
             recipient: IBinder.DeathRecipient,

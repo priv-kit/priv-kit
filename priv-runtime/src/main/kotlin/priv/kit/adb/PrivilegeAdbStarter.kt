@@ -100,13 +100,18 @@ public class PrivilegeAdbStarter private constructor(
         }
     }
 
-    public fun getIdentityInfo(): PrivilegeAdbIdentityInfo {
-        val key = createKey()
-        return PrivilegeAdbIdentityInfo(
-            identity = identity,
-            publicKeyFingerprint = key.adbPublicKeyFingerprint,
-        )
-    }
+    @Throws(PrivilegeStartupException::class)
+    public fun getIdentityInfo(): PrivilegeAdbIdentityInfo =
+        try {
+            val key = createKey()
+            PrivilegeAdbIdentityInfo(
+                identity = identity,
+                publicKeyFingerprint = key.adbPublicKeyFingerprint,
+            )
+        } catch (throwable: Throwable) {
+            if (throwable is PrivilegeStartupException) throw throwable
+            throw PrivilegeStartupException("Failed to load ADB identity", throwable)
+        }
 
     public fun getActiveTcpPort(): Int? =
         PrivilegeAdbEnvironment.getAdbTcpPort().takeIf { it > 0 }
@@ -124,7 +129,12 @@ public class PrivilegeAdbStarter private constructor(
         require(portDiscoveryTimeoutMillis > 0L) { "portDiscoveryTimeoutMillis must be positive" }
 
         val output = PrivilegeAdbOutput()
-        val key = createKey()
+        val key = try {
+            createKey()
+        } catch (throwable: Throwable) {
+            if (throwable is PrivilegeStartupException) throw throwable
+            throw PrivilegeStartupException("Failed to check wireless ADB pairing", throwable)
+        }
         output.append("diag", "ADB identity name=${identity.adbDeviceName}, keySignature=<redacted>")
         output.append("diag", "ADB public key fingerprint=${key.adbPublicKeyFingerprint}")
         output.append(
@@ -337,7 +347,16 @@ public class PrivilegeAdbStarter private constructor(
     ): PrivilegeAdbAuthorizationCheckResult {
         require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
         val output = PrivilegeAdbOutput()
-        val key = createKey()
+        val key = runCatching { createKey() }.getOrElse { throwable ->
+            val failureMessage = throwable.toFailureMessage()
+            output.append("diag", "ADB TCP authorization check failed: $failureMessage")
+            return PrivilegeAdbAuthorizationCheckResult(
+                status = PrivilegeAdbAuthorizationStatus.ERROR,
+                outputText = output.text(),
+                identity = identity,
+                failureMessage = failureMessage,
+            )
+        }
         output.append("diag", "ADB identity name=${identity.adbDeviceName}, keySignature=<redacted>")
         output.append("diag", "ADB public key fingerprint=${key.adbPublicKeyFingerprint}")
         return try {
@@ -378,7 +397,19 @@ public class PrivilegeAdbStarter private constructor(
         require(timeoutMillis <= Int.MAX_VALUE) { "timeoutMillis must be at most ${Int.MAX_VALUE}" }
 
         val output = PrivilegeAdbOutput()
-        val key = createKey()
+        val key = runCatching { createKey() }.getOrElse { throwable ->
+            val failureMessage = throwable.toFailureMessage()
+            output.append("diag", "ADB TCP authorization request failed: $failureMessage")
+            callback.onResult(
+                PrivilegeAdbAuthorizationRequestResult(
+                    authorized = false,
+                    endReason = PrivilegeAdbAuthorizationEndReason.FAILED,
+                    outputText = output.text(),
+                    failureMessage = failureMessage,
+                ),
+            )
+            return Closeable {}
+        }
         val completed = AtomicBoolean(false)
         val cancelled = AtomicBoolean(false)
         val clientRef = AtomicReference<PrivilegeAdbClient?>()
@@ -467,7 +498,7 @@ public class PrivilegeAdbStarter private constructor(
                 name = identity.adbDeviceName,
             )
         } catch (throwable: Throwable) {
-            throw PrivilegeAdbKeyException(throwable)
+            throw PrivilegeAdbException("Failed to load ADB key", throwable)
         }
 
     private fun runDiagnosticShellCommand(

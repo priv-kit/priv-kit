@@ -12,9 +12,8 @@ import priv.kit.PrivilegeUserServiceConnection
 import priv.kit.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStarter
-import priv.kit.binder.PrivilegeServerDisconnectedException
-import priv.kit.userservice.PrivilegeUserServiceNotRunningException
-import priv.kit.userservice.PrivilegeUserServiceProcessMode
+import priv.kit.binder.PrivilegeServerUnavailableException
+import priv.kit.userservice.PrivilegeUserServiceException
 import priv.kit.userservice.PrivilegeUserServiceSpec
 import priv.kit.ui.PrivilegeAdbPairingService
 import rikka.shizuku.Shizuku
@@ -654,7 +653,7 @@ internal fun MainActivity.runImqsNative() {
 internal fun MainActivity.bindDedicatedUserService() {
     bindSampleUserService(
         label = "dedicated",
-        processMode = PrivilegeUserServiceProcessMode.DEDICATED_PROCESS,
+        embedded = false,
     )
 }
 
@@ -669,7 +668,7 @@ internal fun MainActivity.stopDedicatedUserService() {
 internal fun MainActivity.bindEmbeddedUserService() {
     bindSampleUserService(
         label = "embedded",
-        processMode = PrivilegeUserServiceProcessMode.IN_SERVER_PROCESS,
+        embedded = true,
     )
 }
 
@@ -683,14 +682,14 @@ internal fun MainActivity.stopEmbeddedUserService() {
 
 private fun MainActivity.bindSampleUserService(
     label: String,
-    processMode: PrivilegeUserServiceProcessMode,
+    embedded: Boolean,
 ) {
     runUserServiceAction(
         message = "Binding $label UserService...",
         requireConnected = true,
     ) {
         clearSampleUserService(label)
-        val spec = sampleUserServiceSpec(label, processMode)
+        val spec = sampleUserServiceSpec(label, embedded)
         Privilege.startUserService(spec)
         val connection = Privilege.bindUserService(spec)
         val serviceMessage = setSampleUserService(label, connection)
@@ -725,7 +724,7 @@ private fun MainActivity.stopSampleUserService(label: String) {
         message = "Stopping $label UserService...",
         requireConnected = false,
     ) {
-        val spec = sampleUserServiceSpec(label, sampleUserServiceProcessMode(label))
+        val spec = sampleUserServiceSpec(label, sampleUserServiceEmbedded(label))
         Privilege.stopUserService(spec)
         clearSampleUserService(label)
         UserServiceActionResult(
@@ -794,7 +793,7 @@ private fun MainActivity.runUserServiceAction(
 
 private fun MainActivity.setUserServiceFailure(throwable: Throwable) {
     val message = throwable.message ?: throwable.javaClass.name
-    val disconnected = throwable is PrivilegeServerDisconnectedException
+    val disconnected = throwable is PrivilegeServerUnavailableException
     screenState = screenState.copy(
         busy = false,
         status = if (disconnected) PrivilegeSampleStatus.DISCONNECTED else screenState.status,
@@ -891,7 +890,7 @@ private fun MainActivity.runBinderAction(
 
 private fun MainActivity.setBinderFailure(throwable: Throwable) {
     val message = throwable.message ?: throwable.javaClass.name
-    val disconnected = throwable is PrivilegeServerDisconnectedException
+    val disconnected = throwable is PrivilegeServerUnavailableException
     screenState = screenState.copy(
         busy = false,
         status = if (disconnected) PrivilegeSampleStatus.DISCONNECTED else screenState.status,
@@ -1153,21 +1152,16 @@ private fun PrivilegeSampleScreenState.idleServiceMessage(): String =
 
 private fun sampleUserServiceSpec(
     label: String,
-    processMode: PrivilegeUserServiceProcessMode,
+    embedded: Boolean,
 ): PrivilegeUserServiceSpec =
     PrivilegeUserServiceSpec(
         serviceClassName = sampleUserServiceClassName(label),
         tag = label,
         version = 1,
-        processMode = processMode,
+        embedded = embedded,
     )
 
-private fun sampleUserServiceProcessMode(label: String): PrivilegeUserServiceProcessMode =
-    if (label == "embedded") {
-        PrivilegeUserServiceProcessMode.IN_SERVER_PROCESS
-    } else {
-        PrivilegeUserServiceProcessMode.DEDICATED_PROCESS
-    }
+private fun sampleUserServiceEmbedded(label: String): Boolean = label == "embedded"
 
 private fun sampleUserServiceClassName(label: String): String =
     if (label == "embedded") {
@@ -1182,19 +1176,19 @@ private fun MainActivity.sampleUserServiceConnection(label: String): PrivilegeUs
     } else {
         dedicatedUserServiceConnection
     }
-    return connection ?: throw PrivilegeUserServiceNotRunningException("$label UserService is not bound")
+    return connection ?: throw PrivilegeUserServiceException("$label UserService is not bound")
 }
 
 private fun MainActivity.describeSampleUserService(label: String): String {
     val connection = sampleUserServiceConnection(label)
-    return connection.call("$label UserService call") { binder ->
+    return connection.call { binder ->
         if (label == "embedded") {
             val service = IPrivilegeSampleEmbeddedUserService.Stub.asInterface(binder)
-                ?: throw PrivilegeUserServiceNotRunningException("$label UserService returned an invalid Binder")
+                ?: throw PrivilegeUserServiceException("$label UserService returned an invalid Binder")
             service.describe("$label call")
         } else {
             val service = IPrivilegeSampleDedicatedUserService.Stub.asInterface(binder)
-                ?: throw PrivilegeUserServiceNotRunningException("$label UserService returned an invalid Binder")
+                ?: throw PrivilegeUserServiceException("$label UserService returned an invalid Binder")
             service.describe("$label call")
         }
     }
@@ -1206,8 +1200,8 @@ private fun MainActivity.setSampleUserService(
 ): String =
     if (label == "embedded") {
         val service = IPrivilegeSampleEmbeddedUserService.Stub.asInterface(connection.binder)
-            ?: throw PrivilegeUserServiceNotRunningException("$label UserService bind returned an invalid Binder")
-        val message = connection.call("$label UserService bind") {
+            ?: throw PrivilegeUserServiceException("$label UserService bind returned an invalid Binder")
+        val message = connection.call {
             service.describe("$label bind")
         }
         embeddedUserServiceConnection = connection
@@ -1215,8 +1209,8 @@ private fun MainActivity.setSampleUserService(
         message
     } else {
         val service = IPrivilegeSampleDedicatedUserService.Stub.asInterface(connection.binder)
-            ?: throw PrivilegeUserServiceNotRunningException("$label UserService bind returned an invalid Binder")
-        val message = connection.call("$label UserService bind") {
+            ?: throw PrivilegeUserServiceException("$label UserService bind returned an invalid Binder")
+        val message = connection.call {
             service.describe("$label bind")
         }
         dedicatedUserServiceConnection = connection

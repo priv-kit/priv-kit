@@ -27,13 +27,13 @@ class PrivilegeUserServiceManagerBinderTest {
         val request = PrivilegeUserServiceContract.requestBundle(
             PrivilegeUserServiceSpec(
                 serviceClassName = "missing.UserService",
-                processMode = PrivilegeUserServiceProcessMode.IN_SERVER_PROCESS,
+                embedded = true,
             ),
         )
 
         val response = manager.startUserService(request, FakeBinder())
 
-        assertError(response, PrivilegeUserServiceContract.ERROR_DECLARATION)
+        assertError(response)
         assertTrue(
             response.getString(PrivilegeUserServiceContract.KEY_ERROR_MESSAGE)
                 .orEmpty()
@@ -45,7 +45,7 @@ class PrivilegeUserServiceManagerBinderTest {
     fun malformedRequestMapsToDeclarationErrorBundle() {
         val response = manager(EmbeddedHost()).startUserService(android.os.Bundle(), FakeBinder())
 
-        assertError(response, PrivilegeUserServiceContract.ERROR_DECLARATION)
+        assertError(response)
         assertTrue(
             response.getString(PrivilegeUserServiceContract.KEY_ERROR_MESSAGE)
                 .orEmpty()
@@ -64,7 +64,7 @@ class PrivilegeUserServiceManagerBinderTest {
         )
         val response = manager(host).startUserService(dedicatedRequest(), FakeBinder())
 
-        assertError(response, PrivilegeUserServiceContract.ERROR_START)
+        assertError(response)
         assertTrue(
             response.getString(PrivilegeUserServiceContract.KEY_ERROR_MESSAGE)
                 .orEmpty()
@@ -83,7 +83,7 @@ class PrivilegeUserServiceManagerBinderTest {
         )
         val response = manager(host).bindUserService(dedicatedRequest(), FakeBinder())
 
-        assertError(response, PrivilegeUserServiceContract.ERROR_BIND)
+        assertError(response)
         assertTrue(
             response.getString(PrivilegeUserServiceContract.KEY_ERROR_MESSAGE)
                 .orEmpty()
@@ -95,7 +95,7 @@ class PrivilegeUserServiceManagerBinderTest {
     fun notRunningExceptionMapsToErrorBundle() {
         val response = manager(EmbeddedHost()).unbindUserService("missing-connection")
 
-        assertError(response, PrivilegeUserServiceContract.ERROR_NOT_RUNNING)
+        assertError(response)
         assertTrue(
             response.getString(PrivilegeUserServiceContract.KEY_ERROR_MESSAGE)
                 .orEmpty()
@@ -104,7 +104,7 @@ class PrivilegeUserServiceManagerBinderTest {
     }
 
     @Test
-    fun unexpectedThrowableMapsToUnavailableErrorBundle() {
+    fun startProcessFailureMapsToStartErrorBundle() {
         val host = object : DedicatedHost(FakeUserServiceProcess()) {
             override fun startDedicatedProcess(
                 spec: PrivilegeUserServiceSpec,
@@ -116,8 +116,12 @@ class PrivilegeUserServiceManagerBinderTest {
 
         val response = manager(host).startUserService(dedicatedRequest(), FakeBinder())
 
-        assertError(response, PrivilegeUserServiceContract.ERROR_UNAVAILABLE)
-        assertEquals("host exploded", response.getString(PrivilegeUserServiceContract.KEY_ERROR_MESSAGE))
+        assertError(response)
+        assertTrue(
+            response.getString(PrivilegeUserServiceContract.KEY_ERROR_MESSAGE)
+                .orEmpty()
+                .contains("Dedicated UserService start failed"),
+        )
     }
 
     private fun manager(host: PrivilegeUserServiceHost): PrivilegeUserServiceManagerBinder =
@@ -132,16 +136,11 @@ class PrivilegeUserServiceManagerBinderTest {
         PrivilegeUserServiceContract.requestBundle(
             PrivilegeUserServiceSpec(
                 serviceClassName = "test.UserService",
-                processMode = PrivilegeUserServiceProcessMode.DEDICATED_PROCESS,
             ),
         )
 
-    private fun assertError(
-        response: android.os.Bundle,
-        type: String,
-    ) {
+    private fun assertError(response: android.os.Bundle) {
         assertFalse(response.getBoolean(PrivilegeUserServiceContract.KEY_SUCCESS, true))
-        assertEquals(type, response.getString(PrivilegeUserServiceContract.KEY_ERROR_TYPE))
         assertNotNull(response.getString(PrivilegeUserServiceContract.KEY_ERROR_MESSAGE))
     }
 
@@ -165,11 +164,6 @@ class PrivilegeUserServiceManagerBinderTest {
             error("Dedicated process is not used by this test")
         }
 
-        override fun awaitDedicatedProcessExit(
-            process: Process,
-            timeoutMillis: Long,
-        ): Boolean = true
-
         override fun killDedicatedProcess(process: Process) = Unit
     }
 
@@ -191,11 +185,6 @@ class PrivilegeUserServiceManagerBinderTest {
             token: String,
             timeoutMillis: Long,
         ): IPrivilegeUserServiceProcess = process
-
-        override fun awaitDedicatedProcessExit(
-            process: Process,
-            timeoutMillis: Long,
-        ): Boolean = true
 
         override fun killDedicatedProcess(process: Process) = Unit
     }

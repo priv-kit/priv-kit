@@ -18,10 +18,5 @@ internal interface PrivilegeUserServiceHost {
         timeoutMillis: Long,
     ): IPrivilegeUserServiceProcess
 
-    fun awaitDedicatedProcessExit(
-        process: Process,
-        timeoutMillis: Long,
-    ): Boolean
-
     fun killDedicatedProcess(process: Process)
 }

@@ -3,10 +3,7 @@ package priv.kit.internal.userservice
 import android.os.Binder
 import android.os.Bundle
 import android.os.IBinder
-import priv.kit.userservice.PrivilegeUserServiceBindException
-import priv.kit.userservice.PrivilegeUserServiceDeclarationException
-import priv.kit.userservice.PrivilegeUserServiceNotRunningException
-import priv.kit.userservice.PrivilegeUserServiceStartException
+import priv.kit.userservice.PrivilegeUserServiceException
 
 internal class PrivilegeUserServiceManagerBinder internal constructor(
     private val registry: PrivilegeUserServiceRegistry,
@@ -61,30 +58,9 @@ internal class PrivilegeUserServiceManagerBinder internal constructor(
     private inline fun call(block: () -> Bundle): Bundle =
         try {
             block()
-        } catch (exception: PrivilegeUserServiceDeclarationException) {
+        } catch (exception: PrivilegeUserServiceException) {
             PrivilegeUserServiceContract.errorBundle(
-                type = PrivilegeUserServiceContract.ERROR_DECLARATION,
-                message = exception.message ?: "Invalid UserService declaration",
-            )
-        } catch (exception: PrivilegeUserServiceStartException) {
-            PrivilegeUserServiceContract.errorBundle(
-                type = PrivilegeUserServiceContract.ERROR_START,
-                message = exception.message ?: "UserService start failed",
-            )
-        } catch (exception: PrivilegeUserServiceBindException) {
-            PrivilegeUserServiceContract.errorBundle(
-                type = PrivilegeUserServiceContract.ERROR_BIND,
-                message = exception.message ?: "UserService bind failed",
-            )
-        } catch (exception: PrivilegeUserServiceNotRunningException) {
-            PrivilegeUserServiceContract.errorBundle(
-                type = PrivilegeUserServiceContract.ERROR_NOT_RUNNING,
-                message = exception.message ?: "UserService is not running",
-            )
-        } catch (throwable: Throwable) {
-            PrivilegeUserServiceContract.errorBundle(
-                type = PrivilegeUserServiceContract.ERROR_UNAVAILABLE,
-                message = throwable.message ?: throwable.javaClass.name,
+                message = exception.message ?: "UserService operation failed",
             )
         }
 }

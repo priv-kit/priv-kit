@@ -117,7 +117,6 @@ Dedicated process UserService: the default mode. The service runs in a separate 
 val spec = PrivilegeUserServiceSpec(
     serviceClassName = MyPrivilegeService::class.java.name,
     tag = "main",
-    processMode = PrivilegeUserServiceProcessMode.DEDICATED_PROCESS,
 )
 Privilege.startUserService(spec)
 Privilege.bindUserService(spec).use { connection ->
@@ -133,7 +132,7 @@ Embedded UserService: the service runs directly inside the Privileged Server pro
 val spec = PrivilegeUserServiceSpec(
     serviceClassName = MyPrivilegeService::class.java.name,
     tag = "embedded",
-    processMode = PrivilegeUserServiceProcessMode.IN_SERVER_PROCESS,
+    embedded = true,
 )
 ```
 

@@ -8,7 +8,8 @@ import priv.kit.adb.PRIVILEGE_ADB_LOCAL_HOST
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStartResult
 import priv.kit.adb.PrivilegeAdbStarter
-import priv.kit.binder.PrivilegeServerDisconnectedException
+import priv.kit.binder.serverControlCall
+import priv.kit.binder.serverUnavailable
 import priv.kit.internal.binder.IPrivilegeServer
 import priv.kit.internal.core.PrivilegeProtocol
 import priv.kit.internal.core.PrivilegeServerHandshakeRegistry
@@ -20,7 +21,6 @@ import priv.kit.internal.runtime.PrivilegeRootStarter
 import priv.kit.internal.runtime.PrivilegeContext
 import priv.kit.internal.runtime.PrivilegeUserServiceClient
 import priv.kit.internal.runtime.PrivilegeServerLaunchCommandBuilder
-import priv.kit.userservice.PrivilegeUserServiceManagerUnavailableException
 import priv.kit.userservice.PrivilegeUserServiceSpec
 import java.io.Closeable
 import java.util.concurrent.CopyOnWriteArraySet
@@ -186,7 +186,9 @@ public object Privilege {
 
     public fun checkPermission(permission: String): Int {
         require(permission.isNotBlank()) { "permission must not be blank" }
-        return requireServerInterface().checkPermission(permission)
+        return serverControlCall {
+            requireServerInterface().checkPermission(permission)
+        }
     }
 
     public fun pingServer(): Boolean {
@@ -207,10 +209,11 @@ public object Privilege {
         }
     }
 
-    @Throws(RemoteException::class)
     public fun shutdownServer() {
         try {
-            requireServerInterface().shutdown()
+            serverControlCall {
+                requireServerInterface().shutdown()
+            }
         } finally {
             clearCurrentServer()
         }
@@ -266,7 +269,7 @@ public object Privilege {
                     return@synchronized current
                 }
                 currentServer = null
-                throw PrivilegeServerDisconnectedException()
+                serverUnavailable()
             }
 
             var next: ServerConnection? = null
@@ -276,10 +279,7 @@ public object Privilege {
             try {
                 binder.linkToDeath(deathRecipient, 0)
             } catch (e: RemoteException) {
-                throw PrivilegeServerDisconnectedException(
-                    "Privilege server Binder died while connecting",
-                    e,
-                )
+                serverUnavailable(e)
             }
 
             val newConnection = ServerConnection(
@@ -289,7 +289,7 @@ public object Privilege {
             )
             if (!binder.pingBinder()) {
                 newConnection.unlink()
-                throw PrivilegeServerDisconnectedException()
+                serverUnavailable()
             }
             next = newConnection
             previous = current
@@ -303,19 +303,17 @@ public object Privilege {
     private fun requireServerConnection(): ServerConnection {
         return synchronized(serverLock) {
             currentServer
-        } ?: throw PrivilegeServerDisconnectedException()
+        } ?: serverUnavailable()
     }
 
     @JvmSynthetic
     internal fun requireServerInterface(): IPrivilegeServer =
         requireServerConnection().server
 
-    private fun getUserServiceManagerBinder(): IBinder? =
-        try {
+    private fun getUserServiceManagerBinder(): IBinder =
+        serverControlCall {
             requireServerInterface().getUserServiceManager()
-        } catch (exception: RemoteException) {
-            throw PrivilegeUserServiceManagerUnavailableException(exception)
-        }
+        } ?: serverUnavailable()
 
     internal fun runtimeConfig(): PrivilegeConfigSnapshot =
         PrivilegeConfig.snapshot()

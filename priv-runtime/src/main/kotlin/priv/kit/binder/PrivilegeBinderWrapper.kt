@@ -1,6 +1,5 @@
 package priv.kit.binder
 
-import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.IInterface
 import android.os.Parcel
@@ -29,19 +28,7 @@ public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
             remoteData.writeInt(code)
             remoteData.writeInt(flags)
             remoteData.appendFrom(data, 0, data.dataSize())
-            return try {
-                serverBinder.transact(TRANSACTION_TRANSACT_BINDER, remoteData, reply, 0)
-            } catch (exception: DeadObjectException) {
-                throw PrivilegeServerDisconnectedException(
-                    "Privilege server Binder died while trying to transact Binder",
-                    exception,
-                )
-            } catch (exception: RemoteException) {
-                throw PrivilegeBinderRemoteCallException(
-                    "Failed to transact Binder through Privileged Server",
-                    exception,
-                )
-            }
+            return serverBinder.transact(TRANSACTION_TRANSACT_BINDER, remoteData, reply, 0)
         } finally {
             remoteData.recycle()
         }
@@ -110,19 +97,8 @@ public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
                     ServiceManager.getService(serviceName) != null
 
                 PrivilegeSystemServiceSource.SERVER_PROCESS -> {
-                    val server = Privilege.requireServerInterface()
-                    try {
-                        server.hasSystemService(serviceName)
-                    } catch (exception: DeadObjectException) {
-                        throw PrivilegeServerDisconnectedException(
-                            "Privilege server Binder died while trying to resolve system service: $serviceName",
-                            exception,
-                        )
-                    } catch (exception: RemoteException) {
-                        throw PrivilegeBinderRemoteCallException(
-                            "Failed to resolve system service through Privileged Server: $serviceName",
-                            exception,
-                        )
+                    serverControlCall {
+                        Privilege.requireServerInterface().hasSystemService(serviceName)
                     }
                 }
             }
@@ -207,13 +183,8 @@ private class ServerProcessSystemServiceWrapper(
         recipient: IBinder.DeathRecipient,
         flags: Int,
     ) {
-        try {
+        serverControlCall {
             Privilege.requireServerInterface().asBinder().linkToDeath(recipient, flags)
-        } catch (exception: RemoteException) {
-            throw PrivilegeServerDisconnectedException(
-                "Privilege server Binder died while trying to link system service death: $serviceName",
-                exception,
-            )
         }
     }
 

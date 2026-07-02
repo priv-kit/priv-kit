@@ -14,10 +14,7 @@ import java.io.ByteArrayInputStream
 import java.io.FileDescriptor
 import java.io.InputStream
 import java.io.OutputStream
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertNull
 
 class PrivilegeUserServiceRegistryTest {
@@ -25,40 +22,54 @@ class PrivilegeUserServiceRegistryTest {
     fun specDefaultsToDedicatedProcess() {
         val spec = PrivilegeUserServiceSpec(serviceClassName = EmbeddedService::class.java.name)
 
-        assertEquals(PrivilegeUserServiceProcessMode.DEDICATED_PROCESS, spec.processMode)
-        assertEquals(PrivilegeUserServiceOwnerDeathPolicy.DESTROY_ON_OWNER_DEATH, spec.ownerDeathPolicy)
-        assertEquals(10_000L, spec.destroyTimeoutMillis)
+        assertEquals(false, spec.embedded)
+        assertEquals(false, spec.daemon)
     }
 
     @Test
-    fun specAllowsNegativeDestroyTimeoutToDisableDedicatedFallback() {
-        val spec = PrivilegeUserServiceSpec(
-            serviceClassName = EmbeddedService::class.java.name,
-            destroyTimeoutMillis = -1L,
-        )
+    fun nonDaemonServiceIsDestroyedWhenOwnerDies() {
+        EmbeddedService.reset()
+        val registry = PrivilegeUserServiceRegistry(FakeHost())
+        val owner = FakeBinder()
+        val spec = embeddedSpec()
 
-        assertEquals(-1L, spec.destroyTimeoutMillis)
+        registry.start(spec, owner)
+        owner.killBinder()
+        val result = registry.bind(spec, FakeBinder())
+
+        assertEquals(2, EmbeddedService.created)
+        registry.unbind(result.connectionId)
     }
 
     @Test
-    fun negativeDestroyTimeoutSkipsDedicatedExitFallback() {
-        val process = FakeDedicatedProcess()
-        val host = DedicatedFakeHost(process)
-        val registry = PrivilegeUserServiceRegistry(host)
-        val spec = PrivilegeUserServiceSpec(
-            serviceClassName = EmbeddedService::class.java.name,
-            processMode = PrivilegeUserServiceProcessMode.DEDICATED_PROCESS,
-            destroyTimeoutMillis = -1L,
-        )
+    fun daemonServiceSurvivesOwnerDeath() {
+        EmbeddedService.reset()
+        val registry = PrivilegeUserServiceRegistry(FakeHost())
+        val owner = FakeBinder()
+        val spec = embeddedSpec(daemon = true)
 
-        registry.start(spec, FakeBinder())
+        registry.start(spec, owner)
+        owner.killBinder()
+        val result = registry.bind(spec, FakeBinder())
+
+        assertEquals(1, EmbeddedService.created)
+        registry.unbind(result.connectionId)
         registry.stop(spec)
+    }
 
-        assertEquals(true, process.destroyed.await(1, TimeUnit.SECONDS))
-        Thread.sleep(50L)
-        assertEquals(1, process.destroyCalls.get())
-        assertEquals(0, host.awaitExitCalls.get())
-        assertEquals(0, host.killCalls.get())
+    @Test
+    fun daemonBindKeepsServiceAfterUnbindUntilStop() {
+        EmbeddedService.reset()
+        val registry = PrivilegeUserServiceRegistry(FakeHost())
+        val spec = embeddedSpec(daemon = true)
+
+        val first = registry.bind(spec, FakeBinder())
+        registry.unbind(first.connectionId)
+        val second = registry.bind(spec, FakeBinder())
+
+        assertEquals(1, EmbeddedService.created)
+        registry.unbind(second.connectionId)
+        registry.stop(spec)
     }
 
     @Test
@@ -70,7 +81,7 @@ class PrivilegeUserServiceRegistryTest {
         val result = registry.bind(spec, FakeBinder())
         process.kill()
 
-        assertThrows(PrivilegeUserServiceNotRunningException::class.java) {
+        assertThrows(PrivilegeUserServiceException::class.java) {
             registry.unbind(result.connectionId)
         }
     }
@@ -147,11 +158,11 @@ class PrivilegeUserServiceRegistryTest {
     fun missingEmbeddedClassThrowsDeclarationException() {
         val registry = PrivilegeUserServiceRegistry(FakeHost())
 
-        assertThrows(PrivilegeUserServiceDeclarationException::class.java) {
+        assertThrows(PrivilegeUserServiceException::class.java) {
             registry.bind(
                 PrivilegeUserServiceSpec(
                     serviceClassName = "missing.Service",
-                    processMode = PrivilegeUserServiceProcessMode.IN_SERVER_PROCESS,
+                    embedded = true,
                 ),
                 FakeBinder(),
             )
@@ -160,7 +171,7 @@ class PrivilegeUserServiceRegistryTest {
 
     @Test
     fun contextConstructorRequiresContextConfig() {
-        assertThrows(PrivilegeUserServiceDeclarationException::class.java) {
+        assertThrows(PrivilegeUserServiceException::class.java) {
             PrivilegeUserServiceLoader.instantiate(ContextOnlyService::class.java.name)
         }
     }
@@ -181,7 +192,7 @@ class PrivilegeUserServiceRegistryTest {
 
     @Test
     fun dedicatedContextCreationFailureDoesNotFallbackToNoArg() {
-        assertThrows(PrivilegeUserServiceDeclarationException::class.java) {
+        assertThrows(PrivilegeUserServiceException::class.java) {
             PrivilegeUserServiceLoader.instantiate(
                 serviceClassName = BothConstructorsService::class.java.name,
                 contextConfig = PrivilegeUserServiceLoader.ContextConfig(
@@ -221,18 +232,19 @@ class PrivilegeUserServiceRegistryTest {
     private fun embeddedSpec(
         tag: String = PrivilegeUserServiceSpec.DEFAULT_TAG,
         version: Int = 1,
+        daemon: Boolean = false,
     ): PrivilegeUserServiceSpec =
         PrivilegeUserServiceSpec(
             serviceClassName = EmbeddedService::class.java.name,
             tag = tag,
             version = version,
-            processMode = PrivilegeUserServiceProcessMode.IN_SERVER_PROCESS,
+            embedded = true,
+            daemon = daemon,
         )
 
     private fun dedicatedSpec(): PrivilegeUserServiceSpec =
         PrivilegeUserServiceSpec(
             serviceClassName = EmbeddedService::class.java.name,
-            processMode = PrivilegeUserServiceProcessMode.DEDICATED_PROCESS,
         )
 
     class EmbeddedService :
@@ -290,20 +302,12 @@ class PrivilegeUserServiceRegistryTest {
             error("Dedicated process is not used by this test")
         }
 
-        override fun awaitDedicatedProcessExit(
-            process: Process,
-            timeoutMillis: Long,
-        ): Boolean = true
-
         override fun killDedicatedProcess(process: Process) = Unit
     }
 
     private class DedicatedFakeHost(
         var process: FakeDedicatedProcess,
     ) : PrivilegeUserServiceHost {
-        val awaitExitCalls = AtomicInteger(0)
-        val killCalls = AtomicInteger(0)
-
         override val uid: Int = 0
         override val pid: Int = 1234
         override val packageName: String = "priv.kit.test"
@@ -320,22 +324,10 @@ class PrivilegeUserServiceRegistryTest {
             timeoutMillis: Long,
         ): IPrivilegeUserServiceProcess = process
 
-        override fun awaitDedicatedProcessExit(
-            process: Process,
-            timeoutMillis: Long,
-        ): Boolean {
-            awaitExitCalls.incrementAndGet()
-            return false
-        }
-
-        override fun killDedicatedProcess(process: Process) {
-            killCalls.incrementAndGet()
-        }
+        override fun killDedicatedProcess(process: Process) = Unit
     }
 
     private class FakeDedicatedProcess : IPrivilegeUserServiceProcess {
-        val destroyed = CountDownLatch(1)
-        val destroyCalls = AtomicInteger(0)
         private val binder = FakeBinder()
 
         override fun asBinder(): IBinder = binder
@@ -346,10 +338,7 @@ class PrivilegeUserServiceRegistryTest {
 
         override fun unbind(connectionId: String) = Unit
 
-        override fun destroy() {
-            destroyCalls.incrementAndGet()
-            destroyed.countDown()
-        }
+        override fun destroy() = Unit
 
         fun kill() {
             binder.killBinder()

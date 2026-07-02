@@ -9,7 +9,7 @@ import android.os.UserHandle
 import android.os.UserHandleHidden
 import android.util.Log
 import priv.kit.internal.hidden.castedHidden
-import priv.kit.userservice.PrivilegeUserServiceDeclarationException
+import priv.kit.userservice.PrivilegeUserServiceException
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.InvocationTargetException
@@ -57,7 +57,7 @@ internal object PrivilegeUserServiceLoader {
         serviceClassName: String,
         contextConfig: ContextConfig?,
     ): Any {
-        val config = contextConfig ?: throw PrivilegeUserServiceDeclarationException(
+        val config = contextConfig ?: throw PrivilegeUserServiceException(
             "UserService declares a Context constructor, but no Context config is available: $serviceClassName",
         )
 
@@ -75,7 +75,7 @@ internal object PrivilegeUserServiceLoader {
             serviceClassName = serviceClassName,
             preferredClassLoaders = listOf(context.classLoader),
         )
-        val constructor = contextConstructor(clazz) ?: throw PrivilegeUserServiceDeclarationException(
+        val constructor = contextConstructor(clazz) ?: throw PrivilegeUserServiceException(
             "UserService must have an accessible Context constructor: $serviceClassName",
         )
 
@@ -83,7 +83,7 @@ internal object PrivilegeUserServiceLoader {
             try {
                 constructor.newInstance(context)
             } catch (throwable: Throwable) {
-                throw PrivilegeUserServiceDeclarationException(
+                throw PrivilegeUserServiceException(
                     "UserService Context constructor failed: $serviceClassName",
                     throwable,
                 )
@@ -95,7 +95,7 @@ internal object PrivilegeUserServiceLoader {
         clazz: Class<*>,
         serviceClassName: String,
     ): Any {
-        val constructor = noArgConstructor(clazz) ?: throw PrivilegeUserServiceDeclarationException(
+        val constructor = noArgConstructor(clazz) ?: throw PrivilegeUserServiceException(
             "UserService must have an accessible no-arg constructor: $serviceClassName",
         )
         return instantiateWithNoArgConstructor(constructor, serviceClassName)
@@ -108,7 +108,7 @@ internal object PrivilegeUserServiceLoader {
         try {
             constructor.newInstance()
         } catch (throwable: Throwable) {
-            throw PrivilegeUserServiceDeclarationException(
+            throw PrivilegeUserServiceException(
                 "UserService must have an accessible no-arg constructor: $serviceClassName",
                 throwable,
             )
@@ -134,7 +134,7 @@ internal object PrivilegeUserServiceLoader {
             return instantiateWithNoArgConstructor(noArgConstructor, serviceClassName)
         }
 
-        throw PrivilegeUserServiceDeclarationException(
+        throw PrivilegeUserServiceException(
             "UserService Context could not be created: $serviceClassName",
             throwable,
         )
@@ -276,7 +276,7 @@ internal object PrivilegeUserServiceLoader {
             }
         }
 
-        throw PrivilegeUserServiceDeclarationException(
+        throw PrivilegeUserServiceException(
             "UserService class was not found: $serviceClassName",
             failure,
         )

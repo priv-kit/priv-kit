@@ -1,7 +1,6 @@
 package priv.kit.internal.runtime
 
 import android.os.Bundle
-import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.IInterface
 import android.os.Parcel
@@ -14,15 +13,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import priv.kit.binder.PrivilegeServerUnavailableException
 import priv.kit.internal.userservice.IPrivilegeUserServiceManager
-import priv.kit.userservice.PrivilegeUserServiceBindException
 import priv.kit.internal.userservice.PrivilegeUserServiceContract
-import priv.kit.userservice.PrivilegeUserServiceDeclarationException
-import priv.kit.userservice.PrivilegeUserServiceManagerUnavailableException
-import priv.kit.userservice.PrivilegeUserServiceNotRunningException
-import priv.kit.userservice.PrivilegeUserServiceRemoteCallException
+import priv.kit.userservice.PrivilegeUserServiceException
 import priv.kit.userservice.PrivilegeUserServiceSpec
-import priv.kit.userservice.PrivilegeUserServiceStartException
 import java.io.FileDescriptor
 
 @RunWith(RobolectricTestRunner::class)
@@ -70,71 +65,31 @@ class PrivilegeUserServiceClientTest {
     }
 
     @Test
-    fun errorBundlesMapToTypedExceptions() {
-        val cases = listOf(
-            PrivilegeUserServiceContract.ERROR_DECLARATION to PrivilegeUserServiceDeclarationException::class.java,
-            PrivilegeUserServiceContract.ERROR_START to PrivilegeUserServiceStartException::class.java,
-            PrivilegeUserServiceContract.ERROR_BIND to PrivilegeUserServiceBindException::class.java,
-            PrivilegeUserServiceContract.ERROR_NOT_RUNNING to PrivilegeUserServiceNotRunningException::class.java,
-            PrivilegeUserServiceContract.ERROR_UNAVAILABLE to PrivilegeUserServiceManagerUnavailableException::class.java,
-            "unknown" to PrivilegeUserServiceManagerUnavailableException::class.java,
-        )
-
-        cases.forEach { (type, expected) ->
-            val manager = RecordingManager(spec())
-            manager.startResult = {
-                PrivilegeUserServiceContract.errorBundle(
-                    type = type,
-                    message = "broken $type",
-                )
-            }
-            val client = PrivilegeUserServiceClient { manager.binder }
-
-            val throwable = assertThrows(expected) {
-                client.start(spec())
-            }
-            if (expected != PrivilegeUserServiceManagerUnavailableException::class.java) {
-                assertEquals("broken $type", throwable.message)
-            }
-        }
-    }
-
-    @Test
-    fun managerProviderFailuresSurfaceUnavailable() {
-        assertThrows(PrivilegeUserServiceManagerUnavailableException::class.java) {
-            PrivilegeUserServiceClient { null }.start(spec())
-        }
-
-        val providerFailure = IllegalStateException("provider exploded")
-        val providerException = assertThrows(PrivilegeUserServiceManagerUnavailableException::class.java) {
-            PrivilegeUserServiceClient { throw providerFailure }.start(spec())
-        }
-        assertSame(providerFailure, providerException.cause)
-
-        val deadManager = RecordingManager(spec())
-        val deadBinder = FakeBinder(localInterface = deadManager, alive = false)
-        assertThrows(PrivilegeUserServiceManagerUnavailableException::class.java) {
-            PrivilegeUserServiceClient { deadBinder }.start(spec())
-        }
-    }
-
-    @Test
-    fun managerDeadObjectSurfacesUnavailable() {
+    fun errorBundleMapsToUserServiceException() {
         val manager = RecordingManager(spec())
         manager.startResult = {
-            throw DeadObjectException()
+            PrivilegeUserServiceContract.errorBundle("broken")
         }
         val client = PrivilegeUserServiceClient { manager.binder }
 
-        val throwable = assertThrows(PrivilegeUserServiceManagerUnavailableException::class.java) {
+        val throwable = assertThrows(PrivilegeUserServiceException::class.java) {
             client.start(spec())
         }
 
-        assertEquals(DeadObjectException::class.java, throwable.cause?.javaClass)
+        assertEquals("broken", throwable.message)
     }
 
     @Test
-    fun managerRemoteExceptionSurfacesRemoteCallException() {
+    fun managerProviderServerUnavailablePropagates() {
+        val providerFailure = PrivilegeServerUnavailableException()
+        val providerException = assertThrows(PrivilegeServerUnavailableException::class.java) {
+            PrivilegeUserServiceClient { throw providerFailure }.start(spec())
+        }
+        assertSame(providerFailure, providerException)
+    }
+
+    @Test
+    fun managerRemoteExceptionSurfacesServerUnavailable() {
         val manager = RecordingManager(spec())
         val remoteException = RemoteException("remote exploded")
         manager.startResult = {
@@ -142,11 +97,10 @@ class PrivilegeUserServiceClientTest {
         }
         val client = PrivilegeUserServiceClient { manager.binder }
 
-        val throwable = assertThrows(PrivilegeUserServiceRemoteCallException::class.java) {
+        val throwable = assertThrows(PrivilegeServerUnavailableException::class.java) {
             client.start(spec())
         }
 
-        assertEquals("Failed to start UserService", throwable.message)
         assertSame(remoteException, throwable.cause)
     }
 
@@ -156,7 +110,7 @@ class PrivilegeUserServiceClientTest {
         firstManager.bindResult = {
             PrivilegeUserServiceContract.successBundle()
         }
-        assertThrows(PrivilegeUserServiceBindException::class.java) {
+        assertThrows(PrivilegeUserServiceException::class.java) {
             PrivilegeUserServiceClient { firstManager.binder }.bind(spec())
         }
 
@@ -166,7 +120,7 @@ class PrivilegeUserServiceClientTest {
                 putString(PrivilegeUserServiceContract.KEY_CONNECTION_ID, "connection-1")
             }
         }
-        assertThrows(PrivilegeUserServiceBindException::class.java) {
+        assertThrows(PrivilegeUserServiceException::class.java) {
             PrivilegeUserServiceClient { secondManager.binder }.bind(spec())
         }
     }

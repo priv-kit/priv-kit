@@ -12,7 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import priv.kit.internal.binder.IPrivilegeServer
-import priv.kit.binder.PrivilegeServerDisconnectedException
+import priv.kit.binder.PrivilegeServerUnavailableException
 import priv.kit.internal.core.PrivilegeAndroidUsers
 import priv.kit.internal.core.PrivilegeProtocol
 import priv.kit.internal.core.PrivilegeServerHandshakeResult
@@ -29,7 +29,7 @@ class PrivilegeTest {
 
     @Test
     fun getServerInfoWithoutServerThrowsDisconnectedException() {
-        assertThrows(PrivilegeServerDisconnectedException::class.java) {
+        assertThrows(PrivilegeServerUnavailableException::class.java) {
             Privilege.getServerInfo()
         }
     }
@@ -86,7 +86,7 @@ class PrivilegeTest {
 
         assertEquals(serverInfo, Privilege.getServerInfo())
         assertFalse(Privilege.pingServer())
-        assertThrows(PrivilegeServerDisconnectedException::class.java) {
+        assertThrows(PrivilegeServerUnavailableException::class.java) {
             Privilege.getServerInfo()
         }
     }

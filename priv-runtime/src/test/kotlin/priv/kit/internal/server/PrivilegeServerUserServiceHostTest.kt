@@ -14,9 +14,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import priv.kit.internal.userservice.IPrivilegeUserServiceProcess
 import priv.kit.internal.userservice.PrivilegeUserServiceContract
-import priv.kit.userservice.PrivilegeUserServiceProcessMode
+import priv.kit.userservice.PrivilegeUserServiceException
 import priv.kit.userservice.PrivilegeUserServiceSpec
-import priv.kit.userservice.PrivilegeUserServiceStartException
 import java.io.ByteArrayInputStream
 import java.io.FileDescriptor
 import java.io.InputStream
@@ -30,7 +29,6 @@ class PrivilegeServerUserServiceHostTest {
         val spec = PrivilegeUserServiceSpec(
             serviceClassName = $$"com.example.My$Service",
             tag = "tag with/slash",
-            processMode = PrivilegeUserServiceProcessMode.DEDICATED_PROCESS,
         )
 
         val command = PrivilegeServerUserServiceProcessCommand.build(
@@ -73,7 +71,6 @@ class PrivilegeServerUserServiceHostTest {
         val spec = PrivilegeUserServiceSpec(
             serviceClassName = "com.example." + "VeryLongServiceName".repeat(4),
             tag = "dedicated",
-            processMode = PrivilegeUserServiceProcessMode.DEDICATED_PROCESS,
         )
 
         val command = PrivilegeServerUserServiceProcessCommand.build(
@@ -92,7 +89,7 @@ class PrivilegeServerUserServiceHostTest {
 
     @Test
     fun commandRequiresClasspath() {
-        assertThrows(PrivilegeUserServiceStartException::class.java) {
+        assertThrows(PrivilegeUserServiceException::class.java) {
             PrivilegeServerUserServiceProcessCommand.build(
                 config = config(classpath = ""),
                 spec = PrivilegeUserServiceSpec(serviceClassName = "test.UserService"),
@@ -156,7 +153,7 @@ class PrivilegeServerUserServiceHostTest {
             providerCall = { _, _ -> throw providerFailure },
         )
 
-        val throwable = assertThrows(PrivilegeUserServiceStartException::class.java) {
+        val throwable = assertThrows(PrivilegeUserServiceException::class.java) {
             claimer.await(
                 config = config(),
                 token = "token-1",

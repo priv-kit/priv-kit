@@ -117,7 +117,6 @@ class MyPrivilegeService private constructor(
 val spec = PrivilegeUserServiceSpec(
     serviceClassName = MyPrivilegeService::class.java.name,
     tag = "main",
-    processMode = PrivilegeUserServiceProcessMode.DEDICATED_PROCESS,
 )
 Privilege.startUserService(spec)
 Privilege.bindUserService(spec).use { connection ->
@@ -133,7 +132,7 @@ Privilege.stopUserService(spec)
 val spec = PrivilegeUserServiceSpec(
     serviceClassName = MyPrivilegeService::class.java.name,
     tag = "embedded",
-    processMode = PrivilegeUserServiceProcessMode.IN_SERVER_PROCESS,
+    embedded = true,
 )
 ```
 
