@@ -141,6 +141,7 @@ internal class PrivilegeUiAdbActions(
             )
         }
         store.appendLog(message)
+        store.notificationPairingStartedByOwner = true
         PrivilegeAdbPairingService.start(
             context = context,
             adbDeviceName = store.currentAdbDeviceNameOverride(),
@@ -149,6 +150,8 @@ internal class PrivilegeUiAdbActions(
 
     fun stopNotificationPairing() {
         val context = store.requireContext()
+        store.startNotificationPairingAfterPermission = false
+        store.notificationPairingStartedByOwner = false
         PrivilegeAdbPairingService.stop(context)
     }
 
@@ -460,10 +463,18 @@ internal class PrivilegeUiAdbActions(
         store.tcpAuthorizationRequestGeneration.incrementAndGet()
         store.tcpAuthorizationRequest = null
         request?.close()
+        stopOwnedNotificationPairing()
         stopWirelessAdbStatusPolling()
         pairingEventsJob?.cancel()
         pairingEventsJob = null
         pairingEventScope.cancel()
+    }
+
+    private fun stopOwnedNotificationPairing() {
+        store.startNotificationPairingAfterPermission = false
+        if (!store.notificationPairingStartedByOwner) return
+        store.notificationPairingStartedByOwner = false
+        store.applicationContext?.let(PrivilegeAdbPairingService::stop)
     }
 
     private fun pollWirelessAdbStatus(stop: AtomicBoolean) {
@@ -651,7 +662,10 @@ internal class PrivilegeUiAdbActions(
         }
         store.appendLog(event.message)
         if (event.type == PrivilegeAdbPairingEventType.PAIRED) {
+            store.notificationPairingStartedByOwner = false
             enableTcpModeAfterNotificationPairing()
+        } else if (event.type == PrivilegeAdbPairingEventType.STOPPED) {
+            store.notificationPairingStartedByOwner = false
         }
     }
 

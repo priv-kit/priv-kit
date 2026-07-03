@@ -5,10 +5,8 @@ import android.content.Context
 import android.content.pm.PackageManager
 import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeStartupLogListener
-import priv.kit.ui.PrivilegeUiAdbPairingStatus
 import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
-import priv.kit.ui.PrivilegeUiState
 import priv.kit.ui.PrivilegeUiStreamingExternalStartProvider
 import priv.kit.ui.PrivilegeUiStartupMode
 import priv.kit.ui.PrivilegeUiViewModel
@@ -42,37 +40,6 @@ internal fun MainActivity.handlePrivilegeUiConnected(serverInfo: PrivilegeServer
         message = "Connected",
     )
 }
-
-internal fun PrivilegeSampleScreenState.withPrivilegeUiNotificationPairing(
-    state: PrivilegeUiState,
-): PrivilegeSampleScreenState {
-    val hasNotificationPairingState = state.notificationPairingRunning ||
-        state.pairingStatus != PrivilegeUiAdbPairingStatus.NOT_PAIRED
-    if (!hasNotificationPairingState) return this
-
-    val message = state.pairingMessage.ifBlank { pairingMessage }
-    val ownsGlobalMessage = state.notificationPairingRunning ||
-        state.pairingStatus == PrivilegeUiAdbPairingStatus.FAILED ||
-        state.pairingStatus == PrivilegeUiAdbPairingStatus.PAIRED
-    return copy(
-        pairingStatus = state.pairingStatus.toSamplePairingStatus(),
-        pairingMessage = message,
-        adbKeyFingerprint = state.adbKeyFingerprint ?: adbKeyFingerprint,
-        adbKeyFingerprintLoading = false,
-        message = if (ownsGlobalMessage) state.message.ifBlank { message } else this.message,
-    )
-}
-
-private fun PrivilegeUiAdbPairingStatus.toSamplePairingStatus(): PrivilegeAdbPairingStatus =
-    when (this) {
-        PrivilegeUiAdbPairingStatus.NOT_PAIRED -> PrivilegeAdbPairingStatus.NOT_PAIRED
-        PrivilegeUiAdbPairingStatus.CHECKING -> PrivilegeAdbPairingStatus.CHECKING
-        PrivilegeUiAdbPairingStatus.SEARCHING -> PrivilegeAdbPairingStatus.SEARCHING
-        PrivilegeUiAdbPairingStatus.FOUND -> PrivilegeAdbPairingStatus.FOUND
-        PrivilegeUiAdbPairingStatus.PAIRING -> PrivilegeAdbPairingStatus.PAIRING
-        PrivilegeUiAdbPairingStatus.PAIRED -> PrivilegeAdbPairingStatus.PAIRED
-        PrivilegeUiAdbPairingStatus.FAILED -> PrivilegeAdbPairingStatus.FAILED
-    }
 
 private class PrivilegeSampleShizukuExternalStartProvider(
     override val label: CharSequence,

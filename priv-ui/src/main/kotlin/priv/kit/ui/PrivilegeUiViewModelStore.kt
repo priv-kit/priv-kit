@@ -27,6 +27,7 @@ internal class PrivilegeUiViewModelStore(
     var serverConnectedListener: Closeable? = null
     var serverDisconnectedWatcher: Closeable? = null
     var startNotificationPairingAfterPermission: Boolean = false
+    var notificationPairingStartedByOwner: Boolean = false
     var pendingExternalStartProviderId: String? = null
     @Volatile
     var tcpAuthorizationRequest: Closeable? = null

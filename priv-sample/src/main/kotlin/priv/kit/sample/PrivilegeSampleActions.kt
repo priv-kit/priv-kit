@@ -460,6 +460,7 @@ internal fun MainActivity.startNotificationPairing() {
     ) {
         startNotificationPairingAfterPermission = true
         screenState = screenState.copy(
+            notificationPairingRunning = false,
             pairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
             pairingMessage = "Allow notifications, then use the pairing notification to enter the code without leaving Settings.",
             message = "Notification permission required",
@@ -470,6 +471,7 @@ internal fun MainActivity.startNotificationPairing() {
 
     val message = "Notification pairing started. Open Wireless debugging pairing and reply with the code from the notification."
     screenState = screenState.copy(
+        notificationPairingRunning = true,
         pairingStatus = PrivilegeAdbPairingStatus.SEARCHING,
         pairingMessage = message,
         message = message,
@@ -484,6 +486,7 @@ internal fun MainActivity.startNotificationPairing() {
 internal fun MainActivity.stopNotificationPairing() {
     val message = "Stopping notification pairing..."
     screenState = screenState.copy(
+        notificationPairingRunning = false,
         pairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
         pairingMessage = message,
         message = message,

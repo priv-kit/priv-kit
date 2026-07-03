@@ -7,18 +7,15 @@ import android.os.IBinder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.ViewModelProvider
 import priv.kit.Privilege
 import priv.kit.PrivilegeUserServiceConnection
-import priv.kit.ui.PrivilegeUiViewModel
 import rikka.shizuku.Shizuku
 import java.io.Closeable
 import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
     private lateinit var sampleViewModel: PrivilegeSampleViewModel
-    private lateinit var privilegeUiViewModel: PrivilegeUiViewModel
     internal val executor = Executors.newSingleThreadExecutor()
     internal var serverConnectedListener: Closeable? = null
     internal var serverDisconnectedWatcher: Closeable? = null
@@ -30,6 +27,7 @@ class MainActivity : ComponentActivity() {
     internal var embeddedUserService: IPrivilegeSampleEmbeddedUserService? = null
     @Volatile
     internal var shizukuExternalStarter: PrivilegeSampleShizukuExternalStarter? = null
+    private var notificationPermissionResultHandler: ((Boolean) -> Unit)? = null
     internal var startNotificationPairingAfterPermission = false
     internal var startShizukuExternalAfterPermission = false
     private val shizukuBinderReceivedListener = Shizuku.OnBinderReceivedListener {
@@ -54,27 +52,27 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         sampleViewModel = ViewModelProvider(this)[PrivilegeSampleViewModel::class.java]
-        privilegeUiViewModel = ViewModelProvider(this)[PrivilegeSamplePrivilegeUiViewModel::class.java]
         Shizuku.addBinderReceivedListenerSticky(shizukuBinderReceivedListener)
         Shizuku.addBinderDeadListener(shizukuBinderDeadListener)
         initializePrivilegeSample()
         setContent {
-            val privilegeUiState = privilegeUiViewModel.state.collectAsState().value
-            val renderedState = screenState.withPrivilegeUiNotificationPairing(privilegeUiState)
             PrivilegeSampleTheme {
                 PrivilegeSampleScreen(
-                    state = renderedState,
+                    state = screenState,
                     backStack = sampleViewModel.backStack,
                     selectedStartupTab = sampleViewModel.selectedStartupTab,
-                    privilegeUiViewModel = privilegeUiViewModel,
-                    notificationPairingRunning = privilegeUiState.notificationPairingRunning,
                     onDestinationSelected = { sampleViewModel.selectDestination(it) },
                     onStartupTabSelected = { sampleViewModel.selectStartupTab(it) },
                     onOpenPrivilegeUi = { sampleViewModel.openPrivilegeUi() },
                     onPrivilegeUiBack = { sampleViewModel.navigateBack() },
                     onPrivilegeUiHelp = {},
                     onPrivilegeUiConnected = { handlePrivilegeUiConnected(it) },
-                    onPrivilegeUiNotificationPermissionRequired = { requestPrivilegeUiNotificationPermission() },
+                    onPrivilegeUiNotificationPermissionRequired = { handler ->
+                        requestPrivilegeUiNotificationPermission(handler)
+                    },
+                    onPrivilegeUiNotificationPermissionDisposed = { handler ->
+                        clearPrivilegeUiNotificationPermissionHandler(handler)
+                    },
                     onAdbDeviceNameChanged = { updateAdbDeviceName(it) },
                     onRefreshAdbFingerprint = { refreshAdbFingerprint() },
                     onCheckAdbPairing = { checkWirelessAdbPairing(showBusy = true) },
@@ -113,13 +111,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleNotificationPermissionResult(granted: Boolean) {
+        val pendingPrivilegeUiHandler = notificationPermissionResultHandler
+        notificationPermissionResultHandler = null
+        pendingPrivilegeUiHandler?.invoke(granted)
+
         val shouldStartSamplePairing = startNotificationPairingAfterPermission
         startNotificationPairingAfterPermission = false
-        privilegeUiViewModel.handleNotificationPermissionResult(granted)
         if (granted && shouldStartSamplePairing) {
             startNotificationPairing()
         } else if (!granted && shouldStartSamplePairing) {
             screenState = screenState.copy(
+                notificationPairingRunning = false,
                 pairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
                 pairingMessage = "Notification permission is required to enter the pairing code from a notification.",
                 message = "Notification permission not granted",
@@ -127,7 +129,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    internal fun requestNotificationPermission() {
+    internal fun requestNotificationPermission(onResult: ((Boolean) -> Unit)? = null) {
+        notificationPermissionResultHandler = onResult
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
@@ -142,8 +145,14 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    private fun requestPrivilegeUiNotificationPermission() {
-        requestNotificationPermission()
+    private fun requestPrivilegeUiNotificationPermission(onResult: (Boolean) -> Unit) {
+        requestNotificationPermission(onResult)
+    }
+
+    private fun clearPrivilegeUiNotificationPermissionHandler(handler: (Boolean) -> Unit) {
+        if (notificationPermissionResultHandler === handler) {
+            notificationPermissionResultHandler = null
+        }
     }
 }
 

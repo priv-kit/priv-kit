@@ -7,22 +7,20 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import priv.kit.PrivilegeServerInfo
-import priv.kit.ui.PrivilegeUiViewModel
 
 @Composable
 internal fun PrivilegeSampleScreen(
     state: PrivilegeSampleScreenState,
     backStack: SnapshotStateList<PrivilegeSampleDestination>,
     selectedStartupTab: PrivilegeStartupTab,
-    privilegeUiViewModel: PrivilegeUiViewModel,
-    notificationPairingRunning: Boolean,
     onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
     onStartupTabSelected: (PrivilegeStartupTab) -> Unit,
     onOpenPrivilegeUi: () -> Unit,
     onPrivilegeUiBack: () -> Unit,
     onPrivilegeUiHelp: () -> Unit,
     onPrivilegeUiConnected: (PrivilegeServerInfo) -> Unit,
-    onPrivilegeUiNotificationPermissionRequired: () -> Unit,
+    onPrivilegeUiNotificationPermissionRequired: ((Boolean) -> Unit) -> Unit,
+    onPrivilegeUiNotificationPermissionDisposed: ((Boolean) -> Unit) -> Unit,
     onAdbDeviceNameChanged: (String) -> Unit,
     onRefreshAdbFingerprint: () -> Unit,
     onCheckAdbPairing: () -> Unit,
@@ -63,7 +61,7 @@ internal fun PrivilegeSampleScreen(
                     state = state,
                     selectedDestination = PrivilegeSampleDestination.Connection,
                     selectedStartupTab = selectedStartupTab,
-                    notificationPairingRunning = notificationPairingRunning,
+                    notificationPairingRunning = state.notificationPairingRunning,
                     onDestinationSelected = onDestinationSelected,
                     onStartupTabSelected = onStartupTabSelected,
                     onOpenPrivilegeUi = onOpenPrivilegeUi,
@@ -114,11 +112,11 @@ internal fun PrivilegeSampleScreen(
             }
             entry<PrivilegeSampleDestination.PrivilegeUi> {
                 PrivilegeUiAuthorizationPage(
-                    viewModel = privilegeUiViewModel,
                     onBackClick = onPrivilegeUiBack,
                     onHelpClick = onPrivilegeUiHelp,
                     onConnected = onPrivilegeUiConnected,
                     onNotificationPermissionRequired = onPrivilegeUiNotificationPermissionRequired,
+                    onNotificationPermissionDisposed = onPrivilegeUiNotificationPermissionDisposed,
                 )
             }
         },

@@ -96,6 +96,7 @@ internal data class PrivilegeSampleScreenState(
     val pairingCode: String = "",
     val pairingStatus: PrivilegeAdbPairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
     val pairingMessage: String = "Enter the Wireless debugging pairing code, or reply from the pairing notification.",
+    val notificationPairingRunning: Boolean = false,
     val tcpPortText: String = PRIVILEGE_ADB_DEFAULT_TCP_PORT.toString(),
     val systemServiceBinderCached: Boolean = false,
     val userManagerCached: Boolean = false,
