@@ -23,6 +23,5 @@ internal class PrivilegeUiManualShellActions(
             label = store.text(R.string.priv_ui_manual_command_clip_label),
             text = commandLine,
         )
-        store.updateState { it.copy(message = store.text(R.string.priv_ui_manual_command_copied)) }
     }
 }

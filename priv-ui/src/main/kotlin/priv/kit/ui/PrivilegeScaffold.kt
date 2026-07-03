@@ -10,18 +10,25 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import priv.kit.PrivilegeServerInfo
 
 @Composable
@@ -37,6 +44,19 @@ public fun PrivilegeScaffold(
     val state by viewModel.state.collectAsState()
     val tcpModeEnabled by viewModel.tcpModeEnabled.collectAsState()
     val selectedAdbStartupTab by viewModel.selectedAdbStartupTab.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarScope = rememberCoroutineScope()
+    val manualCommandCopiedMessage = stringResource(R.string.priv_ui_manual_command_copied)
+    val startupLogCopiedMessage = stringResource(R.string.priv_ui_startup_log_copied)
+    fun showFeedback(message: String) {
+        snackbarScope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short,
+            )
+        }
+    }
     LaunchedEffect(state.connectionSerial) {
         val serverInfo = state.serverInfo
         if (state.connectionSerial > 0L && serverInfo != null) {
@@ -70,6 +90,9 @@ public fun PrivilegeScaffold(
                 onHelpClick = onHelpClick,
             )
         },
+        snackbarHost = {
+            SnackbarHost(snackbarHostState)
+        },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -97,11 +120,20 @@ public fun PrivilegeScaffold(
                 tcpModeEnabled = tcpModeEnabled,
                 selectedAdbStartupTab = selectedAdbStartupTab,
                 viewModel = viewModel,
-                onCopyManualCommand = { viewModel.copyManualCommand(context) },
+                onCopyManualCommand = {
+                    viewModel.copyManualCommand(context)
+                    showFeedback(manualCommandCopiedMessage)
+                },
                 onNotificationPermissionRequired = onNotificationPermissionRequired,
             )
             if (state.startupLogLines.isNotEmpty()) {
-                StartupLogPanel(state.startupLogLines)
+                StartupLogPanel(
+                    lines = state.startupLogLines,
+                    onCopyLog = {
+                        viewModel.copyStartupLog(context)
+                        showFeedback(startupLogCopiedMessage)
+                    },
+                )
             }
         }
     }

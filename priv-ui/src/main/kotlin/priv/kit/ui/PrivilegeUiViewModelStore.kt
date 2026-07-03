@@ -51,7 +51,9 @@ internal class PrivilegeUiViewModelStore(
             current.copy(
                 selectedStartupMode = selected,
                 startupModes = modes,
-                message = current.message.ifBlank { context.getString(R.string.priv_ui_ready) },
+                serviceMessage = current.serviceMessage.ifBlank {
+                    context.getString(R.string.priv_ui_ready)
+                },
                 pairingMessage = current.pairingMessage.ifBlank {
                     context.getString(R.string.priv_ui_pairing_default_message)
                 },
@@ -140,7 +142,7 @@ internal class PrivilegeUiViewModelStore(
             PrivilegeUiRuntimeStatus.DISCONNECTED,
             PrivilegeUiRuntimeStatus.FAILED,
             -> text(R.string.priv_ui_ready)
-            PrivilegeUiRuntimeStatus.STARTING -> state.message
+            PrivilegeUiRuntimeStatus.STARTING -> state.serviceMessage
         }
 
     private fun PrivilegeUiConfig.effectiveStartupModes(): List<PrivilegeUiStartupMode> {

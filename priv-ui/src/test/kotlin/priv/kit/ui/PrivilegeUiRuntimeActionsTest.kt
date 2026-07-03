@@ -33,7 +33,7 @@ class PrivilegeUiRuntimeActionsTest {
             assertTrue(waitUntilIdle(store))
             assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, store.state.value.runtimeStatus)
             assertEquals(2000, store.state.value.serverInfo?.uid)
-            assertEquals("root unavailable", store.state.value.message)
+            assertEquals("root unavailable", store.state.value.serviceMessage)
         } finally {
             actions.close()
             store.close()
@@ -60,7 +60,7 @@ class PrivilegeUiRuntimeActionsTest {
             assertTrue(waitUntilIdle(store))
             assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, store.state.value.runtimeStatus)
             assertEquals(2000, store.state.value.serverInfo?.uid)
-            assertEquals("external unavailable", store.state.value.message)
+            assertEquals("external unavailable", store.state.value.serviceMessage)
         } finally {
             actions.close()
             store.close()
@@ -94,7 +94,7 @@ class PrivilegeUiRuntimeActionsTest {
             assertTrue(waitUntilIdle(store))
             assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, store.state.value.runtimeStatus)
             assertEquals(2000, store.state.value.serverInfo?.uid)
-            assertEquals("adb unavailable", store.state.value.message)
+            assertEquals("adb unavailable", store.state.value.serviceMessage)
         } finally {
             actions.close()
             store.close()
@@ -170,7 +170,7 @@ class PrivilegeUiRuntimeActionsTest {
                     pid = 1234,
                     protocolVersion = 1,
                 ),
-                message = "connected",
+                serviceMessage = "connected",
             )
         }
     }

@@ -90,7 +90,7 @@ internal class PrivilegeUiAdbActions(
         if (code.isBlank()) {
             store.updateState {
                 it.copy(
-                    message = store.text(R.string.priv_ui_pairing_code_required),
+                    serviceMessage = store.text(R.string.priv_ui_pairing_code_required),
                     pairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
                     pairingMessage = store.text(R.string.priv_ui_pairing_default_message),
                 )
@@ -106,7 +106,7 @@ internal class PrivilegeUiAdbActions(
                 pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
                 pairingMessage = store.text(R.string.priv_ui_searching_pairing_port),
                 wirelessPairingRunning = true,
-                message = store.text(R.string.priv_ui_discovering_pairing_port),
+                serviceMessage = store.text(R.string.priv_ui_discovering_pairing_port),
             )
         }
         store.appendLog(store.text(R.string.priv_ui_discovering_pairing_port))
@@ -119,7 +119,7 @@ internal class PrivilegeUiAdbActions(
                     it.copy(
                         pairingStatus = PrivilegeUiAdbPairingStatus.PAIRING,
                         pairingMessage = store.text(R.string.priv_ui_pairing_with_port),
-                        message = store.text(R.string.priv_ui_pairing_with_port),
+                        serviceMessage = store.text(R.string.priv_ui_pairing_with_port),
                     )
                 }
                 val pairingResult = starter.pair(
@@ -139,7 +139,7 @@ internal class PrivilegeUiAdbActions(
                         wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
                         wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.ON,
                         adbKeyFingerprint = pairingResult.publicKeyFingerprint,
-                        message = store.idleMessage(current),
+                        serviceMessage = store.idleMessage(current),
                     )
                 }
                 store.appendLog(resultMessage)
@@ -152,7 +152,7 @@ internal class PrivilegeUiAdbActions(
                         pairingStatus = PrivilegeUiAdbPairingStatus.FAILED,
                         pairingMessage = failureMessage,
                         wirelessPairingRunning = false,
-                        message = failureMessage,
+                        serviceMessage = failureMessage,
                     )
                 }
                 store.appendLog(throwable.toPrivilegeUiDiagnosticString())
@@ -182,7 +182,7 @@ internal class PrivilegeUiAdbActions(
                 pairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
                 pairingMessage = store.text(R.string.priv_ui_pairing_default_message),
                 wirelessPairingRunning = false,
-                message = message,
+                serviceMessage = message,
             )
         }
         store.appendLog(message)
@@ -210,7 +210,7 @@ internal class PrivilegeUiAdbActions(
                 it.copy(
                     pairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
                     pairingMessage = store.text(R.string.priv_ui_notification_permission_missing),
-                    message = store.text(R.string.priv_ui_notification_permission_required),
+                    serviceMessage = store.text(R.string.priv_ui_notification_permission_required),
                 )
             }
             onNotificationPermissionRequired()
@@ -222,7 +222,7 @@ internal class PrivilegeUiAdbActions(
             it.copy(
                 pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
                 pairingMessage = message,
-                message = message,
+                serviceMessage = message,
                 notificationPairingRunning = true,
             )
         }
@@ -251,7 +251,7 @@ internal class PrivilegeUiAdbActions(
                 it.copy(
                     pairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
                     pairingMessage = store.text(R.string.priv_ui_notification_permission_missing),
-                    message = store.text(R.string.priv_ui_notification_permission_required),
+                    serviceMessage = store.text(R.string.priv_ui_notification_permission_required),
                 )
             }
         }
@@ -330,7 +330,7 @@ internal class PrivilegeUiAdbActions(
         store.updateState {
             it.copy(
                 tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
-                message = store.text(R.string.priv_ui_tcp_authorization_requesting),
+                serviceMessage = store.text(R.string.priv_ui_tcp_authorization_requesting),
             )
         }
         val starter = Privilege.createAdbStarter(
@@ -349,7 +349,7 @@ internal class PrivilegeUiAdbActions(
                 store.updateState {
                     it.copy(
                         tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
-                        message = message,
+                        serviceMessage = message,
                     )
                 }
                 store.appendLog(message)
@@ -366,7 +366,7 @@ internal class PrivilegeUiAdbActions(
                 store.updateState {
                     it.copy(
                         tcpAuthorizationStatus = status,
-                        message = message,
+                        serviceMessage = message,
                     )
                 }
                 store.appendLog(message)
@@ -401,7 +401,7 @@ internal class PrivilegeUiAdbActions(
                 if (current.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING) {
                     current.copy(
                         tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
-                        message = store.text(R.string.priv_ui_tcp_authorization_not_completed),
+                        serviceMessage = store.text(R.string.priv_ui_tcp_authorization_not_completed),
                     )
                 } else {
                     current
@@ -414,7 +414,7 @@ internal class PrivilegeUiAdbActions(
             if (current.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING) {
                 current.copy(
                     tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
-                    message = store.text(R.string.priv_ui_tcp_authorization_not_completed),
+                    serviceMessage = store.text(R.string.priv_ui_tcp_authorization_not_completed),
                 )
             } else {
                 current
@@ -740,7 +740,7 @@ internal class PrivilegeUiAdbActions(
                     it.wirelessPairingCheckStatus
                 },
                 pairingCode = if (event.type == PrivilegeAdbPairingEventType.PAIRED) "" else it.pairingCode,
-                message = if (event.running || event.type == PrivilegeAdbPairingEventType.FAILED) {
+                serviceMessage = if (event.running || event.type == PrivilegeAdbPairingEventType.FAILED) {
                     event.message
                 } else {
                     store.idleMessage(it)

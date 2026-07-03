@@ -106,6 +106,15 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         manualShellActions.copyCommand(context)
     }
 
+    public open fun copyStartupLog(context: Context) {
+        val logText = store.state.value.startupLogLines.joinToString("\n")
+        if (logText.isBlank()) return
+        context.copyToClipboard(
+            label = store.text(R.string.priv_ui_startup_log_clip_label),
+            text = logText,
+        )
+    }
+
     public open fun pairWirelessAdb() {
         adbActions.pairWirelessAdb()
     }
