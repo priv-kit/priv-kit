@@ -16,8 +16,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -101,7 +102,16 @@ internal fun ServiceStatusPanel(
 ) {
     var showStopConfirmation by remember { mutableStateOf(false) }
     val running = state.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED
-    val (title, detail, background, foreground, icon, iconDescription) = if (running) {
+    val (
+        title,
+        detail,
+        background,
+        foreground,
+        icon,
+        iconDescription,
+        actionContainer,
+        actionForeground,
+    ) = if (running) {
         StatusUi(
             title = stringResource(R.string.priv_ui_service_started),
             detail = stringResource(
@@ -110,8 +120,10 @@ internal fun ServiceStatusPanel(
             ),
             background = MaterialTheme.colorScheme.tertiaryContainer,
             foreground = MaterialTheme.colorScheme.onTertiaryContainer,
-            icon = PrivilegeUiIcons.StopCircle,
+            icon = PrivilegeUiIcons.Stop,
             iconDescription = stringResource(R.string.priv_ui_service_stop_action_description),
+            actionContainer = MaterialTheme.colorScheme.errorContainer,
+            actionForeground = MaterialTheme.colorScheme.onErrorContainer,
         )
     } else {
         StatusUi(
@@ -119,8 +131,10 @@ internal fun ServiceStatusPanel(
             detail = state.serviceMessage.ifBlank { stringResource(R.string.priv_ui_ready) },
             background = MaterialTheme.colorScheme.surface,
             foreground = MaterialTheme.colorScheme.onSurface,
-            icon = PrivilegeUiIcons.PlayCircle,
+            icon = PrivilegeUiIcons.PlayArrow,
             iconDescription = stringResource(R.string.priv_ui_service_start_action_description),
+            actionContainer = MaterialTheme.colorScheme.primaryContainer,
+            actionForeground = MaterialTheme.colorScheme.onPrimaryContainer,
         )
     }
 
@@ -184,8 +198,15 @@ internal fun ServiceStatusPanel(
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
-            IconButton(
+            FilledTonalIconButton(
+                modifier = Modifier.size(44.dp),
                 enabled = !state.busy,
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = actionContainer,
+                    contentColor = actionForeground,
+                    disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                    disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.34f),
+                ),
                 onClick = {
                     if (running) {
                         showStopConfirmation = true
@@ -195,6 +216,7 @@ internal fun ServiceStatusPanel(
                 },
             ) {
                 Icon(
+                    modifier = Modifier.size(22.dp),
                     imageVector = icon,
                     contentDescription = iconDescription,
                 )
@@ -289,6 +311,8 @@ private data class StatusUi(
     val foreground: Color,
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val iconDescription: String,
+    val actionContainer: Color,
+    val actionForeground: Color,
 )
 
 @Composable
