@@ -5,33 +5,60 @@ import org.junit.Test
 
 class PrivilegeUiAdbActionsTest {
     @Test
-    fun passivePairingCheckStatusIsUnknownWithoutWirelessDebugging() {
+    fun pairingCheckStatusIsUnknownWithoutWirelessDebugging() {
         assertEquals(
             PrivilegeUiWirelessAdbStatus.UNKNOWN,
-            privilegeUiPassivePairingCheckStatus(
+            privilegeUiPairingCheckStatus(
                 wirelessDebuggingOn = false,
+                pairingCheckPaired = true,
                 currentStatus = PrivilegeUiWirelessAdbStatus.ON,
             ),
         )
     }
 
     @Test
-    fun passivePairingCheckStatusPreservesExplicitPairingSuccess() {
+    fun pairingCheckStatusUsesSuccessfulRefreshResult() {
         assertEquals(
             PrivilegeUiWirelessAdbStatus.ON,
-            privilegeUiPassivePairingCheckStatus(
+            privilegeUiPairingCheckStatus(
                 wirelessDebuggingOn = true,
+                pairingCheckPaired = true,
+                currentStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+            ),
+        )
+    }
+
+    @Test
+    fun pairingCheckStatusUsesFailedRefreshResult() {
+        assertEquals(
+            PrivilegeUiWirelessAdbStatus.OFF,
+            privilegeUiPairingCheckStatus(
+                wirelessDebuggingOn = true,
+                pairingCheckPaired = false,
                 currentStatus = PrivilegeUiWirelessAdbStatus.ON,
             ),
         )
     }
 
     @Test
-    fun passivePairingCheckStatusDoesNotInventPairingFailure() {
+    fun pairingCheckStatusPreservesExplicitPairingSuccessWithoutRefreshResult() {
+        assertEquals(
+            PrivilegeUiWirelessAdbStatus.ON,
+            privilegeUiPairingCheckStatus(
+                wirelessDebuggingOn = true,
+                pairingCheckPaired = null,
+                currentStatus = PrivilegeUiWirelessAdbStatus.ON,
+            ),
+        )
+    }
+
+    @Test
+    fun pairingCheckStatusDoesNotInventPairingFailureWithoutRefreshResult() {
         assertEquals(
             PrivilegeUiWirelessAdbStatus.UNKNOWN,
-            privilegeUiPassivePairingCheckStatus(
+            privilegeUiPairingCheckStatus(
                 wirelessDebuggingOn = true,
+                pairingCheckPaired = null,
                 currentStatus = PrivilegeUiWirelessAdbStatus.CHECKING,
             ),
         )

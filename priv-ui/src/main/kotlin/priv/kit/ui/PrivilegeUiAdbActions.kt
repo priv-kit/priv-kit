@@ -41,6 +41,7 @@ internal class PrivilegeUiAdbActions(
                     wirelessStatusPollingActive = true,
                     wirelessDebuggingStatus = it.wirelessDebuggingStatus.checkingIfUnknown(),
                     wirelessPairingServiceStatus = it.wirelessPairingServiceStatus.checkingIfUnknown(),
+                    wirelessPairingCheckStatus = it.wirelessPairingCheckStatus.checkingIfUnknown(),
                     notificationPairingRunning = PrivilegeAdbPairingService.running,
                 )
             }
@@ -637,6 +638,7 @@ internal class PrivilegeUiAdbActions(
             it.copy(
                 wirelessDebuggingStatus = it.wirelessDebuggingStatus.checkingUnlessOn(),
                 wirelessPairingServiceStatus = it.wirelessPairingServiceStatus.checkingUnlessOn(),
+                wirelessPairingCheckStatus = it.wirelessPairingCheckStatus.checkingUnlessOn(),
                 notificationPairingRunning = PrivilegeAdbPairingService.running,
             )
         }
@@ -656,6 +658,16 @@ internal class PrivilegeUiAdbActions(
         }.isSuccess
         if (stop.get()) return
         val wirelessDebuggingOn = connectPort != null || pairingServiceOn
+        val pairingCheck = if (connectPort != null) {
+            starter.checkPairing(
+                port = connectPort,
+                discoverPort = false,
+                portDiscoveryTimeoutMillis = timeoutMillis,
+            )
+        } else {
+            null
+        }
+        if (stop.get()) return
 
         store.updateState {
             it.copy(
@@ -669,10 +681,15 @@ internal class PrivilegeUiAdbActions(
                 } else {
                     PrivilegeUiWirelessAdbStatus.OFF
                 },
-                wirelessPairingCheckStatus = privilegeUiPassivePairingCheckStatus(
+                wirelessPairingCheckStatus = privilegeUiPairingCheckStatus(
                     wirelessDebuggingOn = wirelessDebuggingOn,
+                    pairingCheckPaired = pairingCheck?.paired,
                     currentStatus = it.wirelessPairingCheckStatus,
                 ),
+                adbKeyFingerprint = pairingCheck
+                    ?.publicKeyFingerprint
+                    ?.takeIf { fingerprint -> fingerprint.isNotBlank() }
+                    ?: it.adbKeyFingerprint,
                 notificationPairingRunning = PrivilegeAdbPairingService.running,
             )
         }
@@ -798,12 +815,18 @@ internal class PrivilegeUiAdbActions(
     }
 }
 
-internal fun privilegeUiPassivePairingCheckStatus(
+internal fun privilegeUiPairingCheckStatus(
     wirelessDebuggingOn: Boolean,
+    pairingCheckPaired: Boolean?,
     currentStatus: PrivilegeUiWirelessAdbStatus,
 ): PrivilegeUiWirelessAdbStatus =
     when {
         !wirelessDebuggingOn -> PrivilegeUiWirelessAdbStatus.UNKNOWN
+        pairingCheckPaired != null -> if (pairingCheckPaired) {
+            PrivilegeUiWirelessAdbStatus.ON
+        } else {
+            PrivilegeUiWirelessAdbStatus.OFF
+        }
         currentStatus == PrivilegeUiWirelessAdbStatus.ON -> PrivilegeUiWirelessAdbStatus.ON
         else -> PrivilegeUiWirelessAdbStatus.UNKNOWN
     }
