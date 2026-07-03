@@ -63,4 +63,26 @@ class PrivilegeUiAdbActionsTest {
             ),
         )
     }
+
+    @Test
+    fun wirelessAdbStartOptionsEnableConfiguredTcpPortWhenPolicyAllowsTcp() {
+        val options = privilegeUiWirelessAdbStartOptions(
+            tcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
+            tcpPort = 4567,
+        )
+
+        assertEquals(true, options.tcpMode)
+        assertEquals(4567, options.tcpPort)
+        assertEquals(true, options.discoverPort)
+    }
+
+    @Test
+    fun wirelessAdbStartOptionsDoNotEnableTcpWhenPolicyDisablesTcp() {
+        val options = privilegeUiWirelessAdbStartOptions(
+            tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+            tcpPort = 4567,
+        )
+
+        assertEquals(false, options.tcpMode)
+    }
 }

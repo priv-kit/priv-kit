@@ -17,13 +17,17 @@ internal interface PrivilegeAdbConnection : Closeable {
     fun keepAlive(output: PrivilegeAdbOutput)
 }
 
+internal interface PrivilegeAdbAuthorizationConnection : PrivilegeAdbConnection {
+    fun checkAuthorization(output: PrivilegeAdbOutput? = null): PrivilegeAdbAuthorizationStatus
+}
+
 internal class PrivilegeAdbClient private constructor(
     private val port: Int,
     private val signAuthToken: (ByteArray?) -> ByteArray,
     private val adbPublicKey: ByteArray,
     private val sslContextProvider: () -> SSLContext,
     private val socketReadTimeoutMillis: Int,
-) : PrivilegeAdbConnection {
+) : PrivilegeAdbAuthorizationConnection {
     constructor(
         port: Int,
         key: PrivilegeAdbKey,
@@ -84,7 +88,7 @@ internal class PrivilegeAdbClient private constructor(
         command(KEEP_ALIVE_COMMAND, output)
     }
 
-    fun checkAuthorization(output: PrivilegeAdbOutput? = null): PrivilegeAdbAuthorizationStatus {
+    override fun checkAuthorization(output: PrivilegeAdbOutput?): PrivilegeAdbAuthorizationStatus {
         connectSocket(output)
         return authenticate(
             output = output,
