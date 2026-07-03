@@ -35,14 +35,6 @@ internal fun ExternalStartPanel(
                     )
                     StatusText(item.snapshot.externalStartStatusText())
                 }
-                val message = item.snapshot.externalStartMessageText()
-                if (message != null) {
-                    Text(
-                        text = message.toString(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !state.busy && !item.busy,
@@ -60,6 +52,3 @@ internal fun ExternalStartPanel(
         }
     }
 }
-
-internal fun PrivilegeUiExternalStartSnapshot.externalStartMessageText(): CharSequence? =
-    message.takeIf { !canStart && it.isNotBlank() }
