@@ -14,6 +14,11 @@ Public entry points:
 
 `PrivilegeScaffold` consumes the caller's Compose `MaterialTheme` colors. Apps that need light, dark, dynamic, or branded authorization UI should wrap it in their own Material 3 theme instead of configuring colors through `PrivilegeUiConfig`.
 
+`PrivilegeUiViewModel.startWirelessAdbStatusPolling()`, `startTcpModeStatusPolling()`,
+and `startExternalStartStatusPolling()` return `AutoCloseable` polling handles. Close
+the returned handle when the host no longer needs that polling request; the paired
+`stop*Polling()` methods still force-stop all active handles for that polling type.
+
 Internal Android components:
 
 - `PrivilegeAdbPairingService` is manifest-merged for the built-in notification pairing flow and is not a public app-call API.

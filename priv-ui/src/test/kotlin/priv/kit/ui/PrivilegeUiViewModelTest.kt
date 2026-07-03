@@ -136,6 +136,7 @@ class PrivilegeUiViewModelTest {
         try {
             assertTrue(viewModel.state.value.tcpModeStatusPollingActive)
 
+            viewModel.onHostResume()
             viewModel.selectStartupMode(PrivilegeUiStartupMode.ROOT)
 
             assertFalse(viewModel.state.value.tcpModeStatusPollingActive)
@@ -144,6 +145,80 @@ class PrivilegeUiViewModelTest {
 
             assertTrue(viewModel.state.value.tcpModeStatusPollingActive)
         } finally {
+            viewModel.stopTcpModeStatusPolling()
+            viewModel.stopWirelessAdbStatusPolling()
+        }
+    }
+
+    @Test
+    fun tcpModeStatusPollingHandleKeepsPollingUntilAllHandlesClose() {
+        val application = RuntimeEnvironment.getApplication() as Application
+        installRuntimeContext(application)
+        val viewModel = ConfiguredPrivilegeUiViewModel(
+            application = application,
+            config = PrivilegeUiConfig(
+                startupModes = setOf(PrivilegeUiStartupMode.ROOT),
+                adbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
+                wirelessStatusPollIntervalMillis = 60_000L,
+            ),
+        )
+        var first: AutoCloseable? = null
+        var second: AutoCloseable? = null
+
+        try {
+            assertFalse(viewModel.state.value.tcpModeStatusPollingActive)
+
+            first = viewModel.startTcpModeStatusPolling()
+            second = viewModel.startTcpModeStatusPolling()
+
+            assertTrue(viewModel.state.value.tcpModeStatusPollingActive)
+
+            first.close()
+
+            assertTrue(viewModel.state.value.tcpModeStatusPollingActive)
+
+            second.close()
+
+            assertFalse(viewModel.state.value.tcpModeStatusPollingActive)
+        } finally {
+            second?.close()
+            first?.close()
+            viewModel.stopTcpModeStatusPolling()
+        }
+    }
+
+    @Test
+    fun stopTcpModeStatusPollingStopsAllHandles() {
+        val application = RuntimeEnvironment.getApplication() as Application
+        installRuntimeContext(application)
+        val viewModel = ConfiguredPrivilegeUiViewModel(
+            application = application,
+            config = PrivilegeUiConfig(
+                startupModes = setOf(PrivilegeUiStartupMode.ROOT),
+                adbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
+                wirelessStatusPollIntervalMillis = 60_000L,
+            ),
+        )
+        var first: AutoCloseable? = null
+        var second: AutoCloseable? = null
+
+        try {
+            first = viewModel.startTcpModeStatusPolling()
+            second = viewModel.startTcpModeStatusPolling()
+
+            assertTrue(viewModel.state.value.tcpModeStatusPollingActive)
+
+            viewModel.stopTcpModeStatusPolling()
+
+            assertFalse(viewModel.state.value.tcpModeStatusPollingActive)
+
+            first.close()
+            second.close()
+
+            assertFalse(viewModel.state.value.tcpModeStatusPollingActive)
+        } finally {
+            second?.close()
+            first?.close()
             viewModel.stopTcpModeStatusPolling()
         }
     }

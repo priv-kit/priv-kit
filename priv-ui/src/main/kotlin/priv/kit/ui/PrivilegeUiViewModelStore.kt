@@ -35,12 +35,6 @@ internal class PrivilegeUiViewModelStore(
     @Volatile
     var tcpAuthorizationRequest: Closeable? = null
     val tcpAuthorizationRequestGeneration = AtomicLong(0L)
-    var wirelessStatusPollingStop: AtomicBoolean? = null
-    var wirelessStatusPollingThread: Thread? = null
-    var tcpModeStatusPollingStop: AtomicBoolean? = null
-    var tcpModeStatusPollingThread: Thread? = null
-    var externalStartStatusPollingStop: AtomicBoolean? = null
-    var externalStartStatusPollingThread: Thread? = null
     var wirelessPairingThread: Thread? = null
     val wirelessPairingGeneration = AtomicLong(0L)
     val wirelessStatusRefreshRunning = AtomicBoolean(false)
@@ -134,10 +128,6 @@ internal class PrivilegeUiViewModelStore(
         tcpAuthorizationRequestGeneration.incrementAndGet()
         tcpAuthorizationRequest = null
         request?.close()
-        tcpModeStatusPollingStop?.set(true)
-        tcpModeStatusPollingThread?.interrupt()
-        tcpModeStatusPollingStop = null
-        tcpModeStatusPollingThread = null
         wirelessPairingGeneration.incrementAndGet()
         wirelessPairingThread?.interrupt()
         wirelessPairingThread = null

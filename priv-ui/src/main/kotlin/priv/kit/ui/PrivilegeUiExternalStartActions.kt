@@ -9,6 +9,12 @@ internal class PrivilegeUiExternalStartActions(
     private val runtimeActions: PrivilegeUiRuntimeActions,
     private val createShellStartCommand: () -> String = Privilege::createShellStartCommand,
 ) : AutoCloseable {
+    private val externalStartStatusPolling = PrivilegeUiPollingSlot(
+        threadName = "priv-ui-external-start-status",
+    ) { stop ->
+        pollExternalStartStatus(stop)
+    }
+
     fun refreshExternalStartStatus(providerId: String? = null) {
         Thread {
             refreshExternalStartStatusNow(stop = null, providerId = providerId)
@@ -19,32 +25,15 @@ internal class PrivilegeUiExternalStartActions(
         }
     }
 
-    fun startExternalStartStatusPolling() {
-        if (store.config.externalStartProviders.isEmpty()) return
-        synchronized(store) {
-            if (store.externalStartStatusPollingThread?.isAlive == true) return
-            val stop = AtomicBoolean(false)
-            val thread = Thread {
-                pollExternalStartStatus(stop)
-            }.apply {
-                name = "priv-ui-external-start-status"
-                isDaemon = true
-            }
-            store.externalStartStatusPollingStop = stop
-            store.externalStartStatusPollingThread = thread
-            thread.start()
+    fun startExternalStartStatusPolling(): AutoCloseable =
+        if (store.config.externalStartProviders.isEmpty()) {
+            PrivilegeUiNoopCloseable
+        } else {
+            externalStartStatusPolling.acquire()
         }
-    }
 
     fun stopExternalStartStatusPolling() {
-        val thread: Thread?
-        synchronized(store) {
-            store.externalStartStatusPollingStop?.set(true)
-            thread = store.externalStartStatusPollingThread
-            store.externalStartStatusPollingStop = null
-            store.externalStartStatusPollingThread = null
-        }
-        thread?.interrupt()
+        externalStartStatusPolling.stopAll()
     }
 
     override fun close() {

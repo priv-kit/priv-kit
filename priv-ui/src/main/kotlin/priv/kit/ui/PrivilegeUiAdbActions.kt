@@ -22,6 +22,40 @@ internal class PrivilegeUiAdbActions(
 ) : AutoCloseable {
     private val pairingEventScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var pairingEventsJob: Job? = null
+    private val tcpModeStatusPolling = PrivilegeUiPollingSlot(
+        threadName = "priv-ui-tcp-mode-status",
+        onStart = {
+            store.updateState { it.copy(tcpModeStatusPollingActive = true) }
+        },
+        onStop = {
+            store.updateState { it.copy(tcpModeStatusPollingActive = false) }
+        },
+    ) { stop ->
+        pollTcpModeStatus(stop)
+    }
+    private val wirelessAdbStatusPolling = PrivilegeUiPollingSlot(
+        threadName = "priv-ui-wireless-adb-status",
+        onStart = {
+            store.updateState {
+                it.copy(
+                    wirelessStatusPollingActive = true,
+                    wirelessDebuggingStatus = it.wirelessDebuggingStatus.checkingIfUnknown(),
+                    wirelessPairingServiceStatus = it.wirelessPairingServiceStatus.checkingIfUnknown(),
+                    notificationPairingRunning = PrivilegeAdbPairingService.running,
+                )
+            }
+        },
+        onStop = {
+            store.updateState {
+                it.copy(
+                    wirelessStatusPollingActive = false,
+                    notificationPairingRunning = PrivilegeAdbPairingService.running,
+                )
+            }
+        },
+    ) { stop ->
+        pollWirelessAdbStatus(stop)
+    }
 
     fun observePairingEvents() {
         pairingEventsJob?.cancel()
@@ -444,37 +478,16 @@ internal class PrivilegeUiAdbActions(
         }
     }
 
-    fun startTcpModeStatusPolling() {
+    fun startTcpModeStatusPolling(): AutoCloseable {
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) {
             stopTcpModeStatusPolling()
-            return
+            return PrivilegeUiNoopCloseable
         }
-        synchronized(store) {
-            if (store.tcpModeStatusPollingThread?.isAlive == true) return
-            val stop = AtomicBoolean(false)
-            val thread = Thread {
-                pollTcpModeStatus(stop)
-            }.apply {
-                name = "priv-ui-tcp-mode-status"
-                isDaemon = true
-            }
-            store.tcpModeStatusPollingStop = stop
-            store.tcpModeStatusPollingThread = thread
-            store.updateState { it.copy(tcpModeStatusPollingActive = true) }
-            thread.start()
-        }
+        return tcpModeStatusPolling.acquire()
     }
 
     fun stopTcpModeStatusPolling() {
-        val thread: Thread?
-        synchronized(store) {
-            store.tcpModeStatusPollingStop?.set(true)
-            thread = store.tcpModeStatusPollingThread
-            store.tcpModeStatusPollingStop = null
-            store.tcpModeStatusPollingThread = null
-        }
-        thread?.interrupt()
-        store.updateState { it.copy(tcpModeStatusPollingActive = false) }
+        tcpModeStatusPolling.stopAll()
     }
 
     fun refreshAdbIdentityInfo() {
@@ -497,34 +510,11 @@ internal class PrivilegeUiAdbActions(
         }
     }
 
-    fun startWirelessAdbStatusPolling() {
-        synchronized(store) {
-            if (store.wirelessStatusPollingThread?.isAlive == true) return
-            val stop = AtomicBoolean(false)
-            val thread = Thread {
-                pollWirelessAdbStatus(stop)
-            }.apply {
-                name = "priv-ui-wireless-adb-status"
-                isDaemon = true
-            }
-            store.wirelessStatusPollingStop = stop
-            store.wirelessStatusPollingThread = thread
-            store.updateState {
-                it.copy(
-                    wirelessStatusPollingActive = true,
-                    wirelessDebuggingStatus = it.wirelessDebuggingStatus.checkingIfUnknown(),
-                    wirelessPairingServiceStatus = it.wirelessPairingServiceStatus.checkingIfUnknown(),
-                    notificationPairingRunning = PrivilegeAdbPairingService.running,
-                )
-            }
-            thread.start()
-        }
-    }
+    fun startWirelessAdbStatusPolling(): AutoCloseable =
+        wirelessAdbStatusPolling.acquire()
 
     fun refreshWirelessAdbStatus() {
-        val stop = synchronized(store) {
-            store.wirelessStatusPollingStop ?: return
-        }
+        val stop = wirelessAdbStatusPolling.currentStop() ?: return
         Thread {
             refreshWirelessAdbStatus(stop = stop, markChecking = true)
         }.apply {
@@ -535,20 +525,7 @@ internal class PrivilegeUiAdbActions(
     }
 
     fun stopWirelessAdbStatusPolling() {
-        val thread: Thread?
-        synchronized(store) {
-            store.wirelessStatusPollingStop?.set(true)
-            thread = store.wirelessStatusPollingThread
-            store.wirelessStatusPollingStop = null
-            store.wirelessStatusPollingThread = null
-        }
-        thread?.interrupt()
-        store.updateState {
-            it.copy(
-                wirelessStatusPollingActive = false,
-                notificationPairingRunning = PrivilegeAdbPairingService.running,
-            )
-        }
+        wirelessAdbStatusPolling.stopAll()
     }
 
     override fun close() {

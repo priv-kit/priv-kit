@@ -16,6 +16,9 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     private val manualShellActions = PrivilegeUiManualShellActions(store)
     private val adbActions = PrivilegeUiAdbActions(store, runtimeActions).also(::addCloseable)
     private val externalStartActions = PrivilegeUiExternalStartActions(store, runtimeActions).also(::addCloseable)
+    private var wirelessStatusPollingHandle: AutoCloseable? = null
+    private var tcpModeStatusPollingHandle: AutoCloseable? = null
+    private var externalStartStatusPollingHandle: AutoCloseable? = null
     public val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
     public open val tcpModeEnabled: MutableStateFlow<Boolean> = store.tcpModeEnabled
     internal val selectedAdbStartupTab: StateFlow<PrivilegeUiAdbStartupTab?> =
@@ -139,13 +142,13 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         adbActions.startAdb()
     }
 
-    public open fun startWirelessAdbStatusPolling() {
+    public open fun startWirelessAdbStatusPolling(): AutoCloseable =
         if (isPrivilegeUiWirelessAdbSupported()) {
             adbActions.startWirelessAdbStatusPolling()
         } else {
             adbActions.stopWirelessAdbStatusPolling()
+            PrivilegeUiNoopCloseable
         }
-    }
 
     public open fun refreshWirelessAdbStatus() {
         if (isPrivilegeUiWirelessAdbSupported()) {
@@ -171,14 +174,17 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     public open fun stopWirelessAdbStatusPolling() {
+        wirelessStatusPollingHandle?.close()
+        wirelessStatusPollingHandle = null
         adbActions.stopWirelessAdbStatusPolling()
     }
 
-    public open fun startTcpModeStatusPolling() {
+    public open fun startTcpModeStatusPolling(): AutoCloseable =
         adbActions.startTcpModeStatusPolling()
-    }
 
     public open fun stopTcpModeStatusPolling() {
+        tcpModeStatusPollingHandle?.close()
+        tcpModeStatusPollingHandle = null
         adbActions.stopTcpModeStatusPolling()
     }
 
@@ -202,11 +208,12 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         externalStartActions.refreshExternalStartStatus(providerId)
     }
 
-    public open fun startExternalStartStatusPolling() {
+    public open fun startExternalStartStatusPolling(): AutoCloseable =
         externalStartActions.startExternalStartStatusPolling()
-    }
 
     public open fun stopExternalStartStatusPolling() {
+        externalStartStatusPollingHandle?.close()
+        externalStartStatusPollingHandle = null
         externalStartActions.stopExternalStartStatusPolling()
     }
 
@@ -219,9 +226,12 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
             store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB &&
             isPrivilegeUiWirelessAdbSupported()
         ) {
-            adbActions.startWirelessAdbStatusPolling()
+            if (wirelessStatusPollingHandle == null) {
+                wirelessStatusPollingHandle = adbActions.startWirelessAdbStatusPolling()
+            }
         } else {
-            adbActions.stopWirelessAdbStatusPolling()
+            wirelessStatusPollingHandle?.close()
+            wirelessStatusPollingHandle = null
         }
     }
 
@@ -230,17 +240,24 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
             store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB &&
             store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED
         ) {
-            adbActions.startTcpModeStatusPolling()
+            if (tcpModeStatusPollingHandle == null) {
+                tcpModeStatusPollingHandle = adbActions.startTcpModeStatusPolling()
+            }
         } else {
-            adbActions.stopTcpModeStatusPolling()
+            tcpModeStatusPollingHandle?.close()
+            tcpModeStatusPollingHandle = null
         }
     }
 
     private fun syncExternalStartStatusPolling() {
         if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.EXTERNAL) {
-            externalStartActions.startExternalStartStatusPolling()
+            if (externalStartStatusPollingHandle == null) {
+                externalStartStatusPollingHandle =
+                    externalStartActions.startExternalStartStatusPolling()
+            }
         } else {
-            externalStartActions.stopExternalStartStatusPolling()
+            externalStartStatusPollingHandle?.close()
+            externalStartStatusPollingHandle = null
         }
     }
 
