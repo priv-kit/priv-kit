@@ -63,7 +63,7 @@
     <string name="priv_ui_wireless_realtime_status_title">连接状态</string>
     <string name="priv_ui_wireless_status_debugging">无线调试</string>
     <string name="priv_ui_wireless_status_pairing_service">配对入口</string>
-    <string name="priv_ui_wireless_status_pairing_check">本机已配对</string>
+    <string name="priv_ui_wireless_status_pairing_check">已配对</string>
     <string name="priv_ui_wireless_status_unknown">未知</string>
     <string name="priv_ui_wireless_status_checking">正在检查</string>
     <string name="priv_ui_wireless_status_on">开启</string>
