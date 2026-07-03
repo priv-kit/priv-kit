@@ -1,0 +1,111 @@
+package priv.kit.adb
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class PrivilegeAdbPairingCheckSessionTest {
+    @Test
+    fun checkReusesPersistentConnectionUntilClosed() {
+        val connections = mutableListOf<FakeAdbConnection>()
+        val session = session(
+            clientFactory = {
+                FakeAdbConnection().also(connections::add)
+            },
+        )
+
+        val first = session.check()
+        val second = session.check()
+
+        assertTrue(first.paired)
+        assertTrue(second.paired)
+        assertEquals(1, connections.size)
+        assertEquals(1, connections.single().connectCount)
+        assertEquals(1, connections.single().keepAliveCount)
+        assertEquals(0, connections.single().closeCount)
+
+        session.close()
+
+        assertEquals(1, connections.single().closeCount)
+    }
+
+    @Test
+    fun checkReconnectsAfterPersistentConnectionFails() {
+        val connections = mutableListOf<FakeAdbConnection>()
+        val session = session(
+            clientFactory = {
+                FakeAdbConnection().also(connections::add)
+            },
+        )
+
+        assertTrue(session.check().paired)
+        connections.single().failKeepAlive = true
+
+        val result = session.check()
+
+        assertTrue(result.paired)
+        assertEquals(2, connections.size)
+        assertEquals(1, connections.first().closeCount)
+        assertEquals(1, connections.last().connectCount)
+        assertEquals(0, connections.last().keepAliveCount)
+    }
+
+    @Test
+    fun checkReportsUnavailableWhenNoPortCanBeResolved() {
+        val session = session(
+            explicitPort = null,
+            discoverPort = false,
+            clientFactory = {
+                error("client should not be created without an ADB connect port")
+            },
+        )
+
+        val result = session.check()
+
+        assertFalse(result.paired)
+        assertNull(result.port)
+        assertEquals("ADB connect port is not available", result.failureMessage)
+    }
+
+    private fun session(
+        explicitPort: Int? = 37099,
+        discoverPort: Boolean = false,
+        clientFactory: (Int) -> PrivilegeAdbConnection,
+    ): PrivilegeAdbPairingCheckSession =
+        PrivilegeAdbPairingCheckSession(
+            identity = PrivilegeAdbIdentity.default(),
+            publicKeyFingerprint = "AA:BB",
+            explicitPort = explicitPort,
+            discoverPort = discoverPort,
+            portDiscoveryTimeoutMillis = 1_000L,
+            discoverConnectPort = { error("discovery should not be used") },
+            clientFactory = clientFactory,
+        )
+
+    private class FakeAdbConnection : PrivilegeAdbConnection {
+        var failKeepAlive = false
+        var connectCount = 0
+            private set
+        var keepAliveCount = 0
+            private set
+        var closeCount = 0
+            private set
+
+        override fun connect(output: PrivilegeAdbOutput?) {
+            connectCount += 1
+        }
+
+        override fun keepAlive(output: PrivilegeAdbOutput) {
+            keepAliveCount += 1
+            if (failKeepAlive) {
+                error("keep alive failed")
+            }
+        }
+
+        override fun close() {
+            closeCount += 1
+        }
+    }
+}

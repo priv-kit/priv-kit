@@ -113,6 +113,64 @@ class PrivilegeAdbClientTest {
         }
     }
 
+    @Test
+    fun commandsCanReuseOneAuthorizedConnection() {
+        val localIds = mutableListOf<Int>()
+        ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { server ->
+            val serverThread = thread(name = "fake-adb-reused-connection", isDaemon = true) {
+                server.accept().use { socket ->
+                    socket.soTimeout = 2_000
+                    val input = DataInputStream(socket.getInputStream())
+                    val output = DataOutputStream(socket.getOutputStream())
+
+                    input.readAdbMessage()
+                    output.writeAdbMessage(
+                        PrivilegeAdbMessage(
+                            command = PrivilegeAdbProtocol.A_CNXN,
+                            arg0 = PrivilegeAdbProtocol.A_VERSION,
+                            arg1 = PrivilegeAdbProtocol.A_MAXDATA,
+                            data = "device::".toByteArray(),
+                        ),
+                    )
+
+                    repeat(2) { index ->
+                        val open = input.readAdbMessage()
+                        localIds += open.arg0
+                        val remoteId = index + 1
+                        output.writeAdbMessage(
+                            PrivilegeAdbMessage(
+                                command = PrivilegeAdbProtocol.A_OKAY,
+                                arg0 = remoteId,
+                                arg1 = open.arg0,
+                                data = null,
+                            ),
+                        )
+                        output.writeAdbMessage(
+                            PrivilegeAdbMessage(
+                                command = PrivilegeAdbProtocol.A_CLSE,
+                                arg0 = remoteId,
+                                arg1 = open.arg0,
+                                data = null,
+                            ),
+                        )
+                        input.readAdbMessage()
+                    }
+                }
+            }
+
+            client(server.localPort).use { client ->
+                val output = PrivilegeAdbOutput()
+
+                client.connect(output)
+                client.command("shell:true", output)
+                client.command("shell:true", output)
+            }
+
+            serverThread.join(1_500L)
+            assertEquals(listOf(1, 2), localIds)
+        }
+    }
+
     private fun client(
         port: Int,
         socketReadTimeoutMillis: Int = 1_000,

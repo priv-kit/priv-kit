@@ -11,6 +11,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import priv.kit.adb.PrivilegeAdbAuthorizationEndReason
 import priv.kit.adb.PrivilegeAdbAuthorizationStatus
+import priv.kit.adb.PrivilegeAdbPairingCheckResult
+import priv.kit.adb.PrivilegeAdbPairingCheckSession
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStarter
 import priv.kit.Privilege
@@ -22,6 +24,8 @@ internal class PrivilegeUiAdbActions(
 ) : AutoCloseable {
     private val pairingEventScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var pairingEventsJob: Job? = null
+    private val wirelessPairingCheckSessionLock = Any()
+    private var wirelessPairingCheckSession: PrivilegeAdbPairingCheckSession? = null
     private val tcpModeStatusPolling = PrivilegeUiPollingSlot(
         threadName = "priv-ui-tcp-mode-status",
         onStart = {
@@ -47,6 +51,7 @@ internal class PrivilegeUiAdbActions(
             }
         },
         onStop = {
+            closeWirelessPairingCheckSession()
             store.updateState {
                 it.copy(
                     wirelessStatusPollingActive = false,
@@ -526,6 +531,7 @@ internal class PrivilegeUiAdbActions(
 
     fun stopWirelessAdbStatusPolling() {
         wirelessAdbStatusPolling.stopAll()
+        closeWirelessPairingCheckSession()
     }
 
     override fun close() {
@@ -657,17 +663,16 @@ internal class PrivilegeUiAdbActions(
             starter.discoverPairingPort(timeoutMillis)
         }.isSuccess
         if (stop.get()) return
-        val wirelessDebuggingOn = connectPort != null || pairingServiceOn
-        val pairingCheck = if (connectPort != null) {
-            starter.checkPairing(
-                port = connectPort,
-                discoverPort = false,
-                portDiscoveryTimeoutMillis = timeoutMillis,
-            )
-        } else {
-            null
-        }
+        val pairingCheck = checkWirelessAdbPairing(
+            starter = starter,
+            connectPort = connectPort,
+            timeoutMillis = timeoutMillis,
+            stop = stop,
+        )
         if (stop.get()) return
+        val wirelessDebuggingOn = connectPort != null ||
+            pairingServiceOn ||
+            pairingCheck?.paired == true
 
         store.updateState {
             it.copy(
@@ -693,6 +698,74 @@ internal class PrivilegeUiAdbActions(
                 notificationPairingRunning = PrivilegeAdbPairingService.running,
             )
         }
+    }
+
+    private fun checkWirelessAdbPairing(
+        starter: PrivilegeAdbStarter,
+        connectPort: Int?,
+        timeoutMillis: Long,
+        stop: AtomicBoolean,
+    ): PrivilegeAdbPairingCheckResult? {
+        currentWirelessPairingCheckSession()?.let { session ->
+            val result = session.check()
+            if (result.paired) return result
+            clearWirelessPairingCheckSession(session)
+            if (stop.get()) return result
+            if (connectPort == null) return result
+        }
+        if (connectPort == null) return null
+        if (stop.get()) return null
+
+        val session = starter.openPairingCheckSession(
+            port = connectPort,
+            discoverPort = false,
+            portDiscoveryTimeoutMillis = timeoutMillis,
+        )
+        replaceWirelessPairingCheckSession(session)
+        if (stop.get()) {
+            clearWirelessPairingCheckSession(session)
+            return null
+        }
+        val result = session.check()
+        if (!result.paired || stop.get()) {
+            clearWirelessPairingCheckSession(session)
+        }
+        return result
+    }
+
+    private fun currentWirelessPairingCheckSession(): PrivilegeAdbPairingCheckSession? =
+        synchronized(wirelessPairingCheckSessionLock) {
+            wirelessPairingCheckSession
+        }
+
+    private fun replaceWirelessPairingCheckSession(session: PrivilegeAdbPairingCheckSession) {
+        val previousSession = synchronized(wirelessPairingCheckSessionLock) {
+            val previous = wirelessPairingCheckSession
+            wirelessPairingCheckSession = session
+            previous
+        }
+        previousSession?.takeIf { it !== session }?.close()
+    }
+
+    private fun clearWirelessPairingCheckSession(session: PrivilegeAdbPairingCheckSession) {
+        val sessionToClose = synchronized(wirelessPairingCheckSessionLock) {
+            if (wirelessPairingCheckSession === session) {
+                wirelessPairingCheckSession = null
+                session
+            } else {
+                null
+            }
+        }
+        sessionToClose?.close()
+    }
+
+    private fun closeWirelessPairingCheckSession() {
+        val sessionToClose = synchronized(wirelessPairingCheckSessionLock) {
+            val session = wirelessPairingCheckSession
+            wirelessPairingCheckSession = null
+            session
+        }
+        sessionToClose?.close()
     }
 
     private fun sleepWirelessAdbPolling(stop: AtomicBoolean): Boolean =

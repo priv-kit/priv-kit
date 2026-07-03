@@ -12,13 +12,18 @@ import java.nio.ByteOrder
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
 
+internal interface PrivilegeAdbConnection : Closeable {
+    fun connect(output: PrivilegeAdbOutput? = null)
+    fun keepAlive(output: PrivilegeAdbOutput)
+}
+
 internal class PrivilegeAdbClient private constructor(
     private val port: Int,
     private val signAuthToken: (ByteArray?) -> ByteArray,
     private val adbPublicKey: ByteArray,
     private val sslContextProvider: () -> SSLContext,
     private val socketReadTimeoutMillis: Int,
-) : Closeable {
+) : PrivilegeAdbConnection {
     constructor(
         port: Int,
         key: PrivilegeAdbKey,
@@ -56,13 +61,14 @@ internal class PrivilegeAdbClient private constructor(
     private lateinit var tlsSocket: SSLSocket
     private lateinit var tlsInputStream: DataInputStream
     private lateinit var tlsOutputStream: DataOutputStream
+    private var nextLocalId = 1
 
     private val inputStream: DataInputStream
         get() = if (useTls) tlsInputStream else plainInputStream
     private val outputStream: DataOutputStream
         get() = if (useTls) tlsOutputStream else plainOutputStream
 
-    fun connect(output: PrivilegeAdbOutput? = null) {
+    override fun connect(output: PrivilegeAdbOutput?) {
         connectSocket(output)
         val status = authenticate(
             output = output,
@@ -72,6 +78,10 @@ internal class PrivilegeAdbClient private constructor(
             privilegeAdbError("ADB key is not authorized")
         }
         output.diagnostic("ADB connection ready on $PRIVILEGE_ADB_LOCAL_HOST:$port, tls=$useTls")
+    }
+
+    override fun keepAlive(output: PrivilegeAdbOutput) {
+        command(KEEP_ALIVE_COMMAND, output)
     }
 
     fun checkAuthorization(output: PrivilegeAdbOutput? = null): PrivilegeAdbAuthorizationStatus {
@@ -183,7 +193,7 @@ internal class PrivilegeAdbClient private constructor(
         command: String,
         output: PrivilegeAdbOutput,
     ) {
-        val localId = 1
+        val localId = nextLocalId()
         output.diagnostic("Opening ADB service ${command.toDiagnosticName()}")
         write(PrivilegeAdbProtocol.A_OPEN, localId, 0, command)
 
@@ -219,6 +229,12 @@ internal class PrivilegeAdbClient private constructor(
             }
             else -> privilegeAdbError("ADB command did not return OKAY or CLSE")
         }
+    }
+
+    private fun nextLocalId(): Int {
+        val localId = nextLocalId
+        nextLocalId = if (nextLocalId == Int.MAX_VALUE) 1 else nextLocalId + 1
+        return localId
     }
 
     private fun write(command: Int, arg0: Int, arg1: Int, data: ByteArray? = null) {
@@ -270,6 +286,7 @@ internal class PrivilegeAdbClient private constructor(
     companion object {
         private const val CONNECT_TIMEOUT_MILLIS = 5_000
         private const val DEFAULT_READ_TIMEOUT_MILLIS = 5_000
+        private const val KEEP_ALIVE_COMMAND = "shell:true"
     }
 }
 
