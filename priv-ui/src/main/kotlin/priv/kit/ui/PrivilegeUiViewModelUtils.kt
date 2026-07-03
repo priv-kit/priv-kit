@@ -26,11 +26,6 @@ internal fun String.toPrivilegeUiHostAdbShellCommand(): String {
     }
 }
 
-internal fun String.toPrivilegeUiHostAdbStaticTcpCommand(tcpPort: Int): String {
-    require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
-    return "adb tcpip $tcpPort; ${toPrivilegeUiHostAdbShellCommand()}"
-}
-
 internal fun isPrivilegeUiWirelessAdbSupported(): Boolean =
     Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
 

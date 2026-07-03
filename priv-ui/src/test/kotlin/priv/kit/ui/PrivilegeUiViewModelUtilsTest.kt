@@ -5,18 +5,18 @@ import org.junit.Test
 
 class PrivilegeUiViewModelUtilsTest {
     @Test
-    fun staticTcpCommandOpensPortBeforeShellStart() {
+    fun hostShellCommandAddsAdbShellPrefix() {
         assertEquals(
-            "adb tcpip 5555; adb shell /data/app/libprivkitstarter.so",
-            "/data/app/libprivkitstarter.so".toPrivilegeUiHostAdbStaticTcpCommand(5555),
+            "adb shell /data/app/libprivkitstarter.so",
+            "/data/app/libprivkitstarter.so".toPrivilegeUiHostAdbShellCommand(),
         )
     }
 
     @Test
-    fun staticTcpCommandDoesNotDuplicateAdbShellPrefix() {
+    fun hostShellCommandDoesNotDuplicateAdbShellPrefix() {
         assertEquals(
-            "adb tcpip 5555; adb shell /data/app/libprivkitstarter.so",
-            "adb shell /data/app/libprivkitstarter.so".toPrivilegeUiHostAdbStaticTcpCommand(5555),
+            "adb shell /data/app/libprivkitstarter.so",
+            "adb shell /data/app/libprivkitstarter.so".toPrivilegeUiHostAdbShellCommand(),
         )
     }
 }

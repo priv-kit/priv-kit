@@ -304,7 +304,6 @@ internal class PrivilegeUiAdbActions(
                     adbDeviceName = store.currentAdbDeviceNameOverride(),
                 )
                 starter.switchToTcp(
-                    currentPort = starter.discoverConnectPort(),
                     tcpPort = tcpPort,
                 )
             },
@@ -595,7 +594,6 @@ internal class PrivilegeUiAdbActions(
         }
         runCatching {
             starter.switchToTcp(
-                currentPort = starter.discoverConnectPort(),
                 tcpPort = store.config.tcpPort,
             )
         }.onSuccess {

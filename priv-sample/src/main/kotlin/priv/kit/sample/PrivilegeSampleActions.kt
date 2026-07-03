@@ -512,11 +512,9 @@ internal fun MainActivity.switchToTcp() {
     val tcpPort = screenState.tcpPortText.toIntOrNull() ?: PRIVILEGE_ADB_DEFAULT_TCP_PORT
     val adbDeviceName = currentAdbDeviceNameOverride()
     runBusy(
-        message = "Discovering current ADB connect port and switching to TCP port $tcpPort...",
+        message = "Opening or reusing ADB TCP port $tcpPort...",
         action = {
-            val starter = createAdbStarter(adbDeviceName)
-            val activeConnectPort = starter.discoverConnectPort()
-            starter.switchToTcp(currentPort = activeConnectPort, tcpPort = tcpPort)
+            createAdbStarter(adbDeviceName).switchToTcp(tcpPort = tcpPort)
         },
     ) {
         screenState = screenState.copy(connectPortText = tcpPort.toString())

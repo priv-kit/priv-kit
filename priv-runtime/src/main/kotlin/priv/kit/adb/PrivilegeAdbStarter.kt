@@ -286,17 +286,32 @@ public class PrivilegeAdbStarter private constructor(
 
     @Throws(PrivilegeStartupException::class)
     public fun switchToTcp(
-        currentPort: Int,
+        currentPort: Int? = null,
         tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     ): PrivilegeAdbTcpResult {
-        require(currentPort in 1..65535) { "currentPort must be between 1 and 65535" }
+        require(currentPort == null || currentPort in 1..65535) { "currentPort must be between 1 and 65535" }
         require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
         val output = PrivilegeAdbOutput()
         return try {
+            val activeTcpPort = getActiveTcpPort()
+            output.append(
+                "diag",
+                "ADB TCP switch currentPort=$currentPort, activeTcp=$activeTcpPort, targetTcp=$tcpPort",
+            )
+            if (activeTcpPort == tcpPort) {
+                output.append("adb", "ADB TCP port $tcpPort is already active")
+                return PrivilegeAdbTcpResult(
+                    port = tcpPort,
+                    outputText = output.text(),
+                    identity = identity,
+                )
+            }
+
+            val connectPort = currentPort ?: activeTcpPort ?: discoverConnectPort()
             val key = createKey()
             output.append("diag", "ADB identity name=${identity.adbDeviceName}, keySignature=<redacted>")
             output.append("diag", "ADB public key fingerprint=${key.adbPublicKeyFingerprint}")
-            PrivilegeAdbClient(currentPort, key).use { client ->
+            PrivilegeAdbClient(connectPort, key).use { client ->
                 client.connect(output)
                 runCatching {
                     client.command("tcpip:$tcpPort", output)

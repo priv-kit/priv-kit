@@ -32,7 +32,7 @@
     <string name="priv_ui_startup_log_copied">已复制启动日志</string>
     <string name="priv_ui_startup_log_clip_label">Priv Kit 启动日志</string>
     <string name="priv_ui_root_authorization_action">使用 Root 授权</string>
-    <string name="priv_ui_manual_authorization_desc">复制此命令，并在连接到此设备的电脑上运行。命令会先打开静态 ADB 端口，再启动服务</string>
+    <string name="priv_ui_manual_authorization_desc">复制此命令，并在连接到此设备的电脑上运行</string>
     <string name="priv_ui_manual_command_unavailable">手动命令不可用</string>
     <string name="priv_ui_manual_copy_command">复制命令</string>
     <string name="priv_ui_manual_command_copied">已复制手动命令</string>
@@ -97,7 +97,7 @@
     <string name="priv_ui_external_permission_required">需要权限</string>
     <string name="priv_ui_external_no_provider">未配置外部提供方</string>
     <string name="priv_ui_external_starting">正在通过外部授权启动...</string>
-    <string name="priv_ui_external_start_requested">已发送外部启动命令。正在等待服务器握手</string>
+    <string name="priv_ui_external_start_requested">已发送外部启动请求，正在等待连接</string>
     <string name="priv_ui_pairing_channel_name">无线调试配对</string>
     <string name="priv_ui_pairing_search_title">等待配对码</string>
     <string name="priv_ui_pairing_search_text">请打开无线调试，选择“使用配对码配对设备”</string>

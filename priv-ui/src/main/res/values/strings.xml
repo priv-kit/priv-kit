@@ -32,7 +32,7 @@
     <string name="priv_ui_startup_log_copied">Startup log copied</string>
     <string name="priv_ui_startup_log_clip_label">Priv Kit startup log</string>
     <string name="priv_ui_root_authorization_action">Authorize with Root</string>
-    <string name="priv_ui_manual_authorization_desc">Copy this command and run it from a computer connected to this device. It opens the static ADB port first, then starts the service</string>
+    <string name="priv_ui_manual_authorization_desc">Copy this command and run it from a computer connected to this device</string>
     <string name="priv_ui_manual_command_unavailable">Manual command is unavailable</string>
     <string name="priv_ui_manual_copy_command">Copy Command</string>
     <string name="priv_ui_manual_command_copied">Manual command copied</string>
@@ -97,7 +97,7 @@
     <string name="priv_ui_external_permission_required">Permission required</string>
     <string name="priv_ui_external_no_provider">No external provider configured</string>
     <string name="priv_ui_external_starting">Starting through external authorization...</string>
-    <string name="priv_ui_external_start_requested">External start command sent. Waiting for the server handshake</string>
+    <string name="priv_ui_external_start_requested">External start requested. Waiting for connection</string>
     <string name="priv_ui_pairing_channel_name">Wireless debugging pairing</string>
     <string name="priv_ui_pairing_search_title">Waiting for pairing code</string>
     <string name="priv_ui_pairing_search_text">Open Wireless debugging and choose Pair device with pairing code</string>
