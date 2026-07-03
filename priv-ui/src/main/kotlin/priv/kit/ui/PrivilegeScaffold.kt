@@ -36,6 +36,7 @@ public fun PrivilegeScaffold(
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
     val tcpModeEnabled by viewModel.tcpModeEnabled.collectAsState()
+    val selectedAdbStartupTab by viewModel.selectedAdbStartupTab.collectAsState()
     LaunchedEffect(state.connectionSerial) {
         val serverInfo = state.serverInfo
         if (state.connectionSerial > 0L && serverInfo != null) {
@@ -78,7 +79,11 @@ public fun PrivilegeScaffold(
                 .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            ServiceStatusPanel(state)
+            ServiceStatusPanel(
+                state = state,
+                onStartClick = viewModel::startAvailable,
+                onStopClick = viewModel::stopServer,
+            )
             AuthorizationModeTabs(
                 modes = state.startupModes,
                 selectedMode = state.selectedStartupMode,
@@ -90,6 +95,7 @@ public fun PrivilegeScaffold(
                     ?: state.startupModes.first(),
                 state = state,
                 tcpModeEnabled = tcpModeEnabled,
+                selectedAdbStartupTab = selectedAdbStartupTab,
                 viewModel = viewModel,
                 onCopyManualCommand = { viewModel.copyManualCommand(context) },
                 onNotificationPermissionRequired = onNotificationPermissionRequired,
@@ -113,6 +119,7 @@ private fun AuthorizationModePanel(
     mode: PrivilegeUiStartupMode,
     state: PrivilegeUiState,
     tcpModeEnabled: Boolean,
+    selectedAdbStartupTab: PrivilegeUiAdbStartupTab?,
     viewModel: PrivilegeUiViewModel,
     onCopyManualCommand: () -> Unit,
     onNotificationPermissionRequired: () -> Unit,
@@ -129,14 +136,19 @@ private fun AuthorizationModePanel(
         PrivilegeUiStartupMode.ADB -> AdbPanel(
             state = state,
             tcpModeEnabled = tcpModeEnabled,
+            selectedTab = selectedAdbStartupTab,
             tcpPolicy = viewModel.adbTcpPolicy,
+            tcpPort = viewModel.config.tcpPort,
+            onTabSelected = viewModel::selectAdbStartupTab,
             onPairingCodeChanged = viewModel::updatePairingCode,
             onPairByCode = viewModel::pairWirelessAdb,
+            onCancelPairing = viewModel::cancelWirelessAdbPairing,
             onNotificationPairingClick = {
                 viewModel.toggleNotificationPairing(onNotificationPermissionRequired)
             },
             onEnableTcpMode = viewModel::enableTcpMode,
-            onStartAdb = viewModel::startAdb,
+            onStartWirelessAdb = viewModel::startWirelessAdb,
+            onStartStaticTcpAdb = viewModel::startStaticTcpAdb,
         )
         PrivilegeUiStartupMode.EXTERNAL -> ExternalStartPanel(
             state = state,

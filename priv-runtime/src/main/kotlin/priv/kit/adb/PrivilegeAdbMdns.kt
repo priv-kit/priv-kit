@@ -35,8 +35,11 @@ internal class PrivilegeAdbMdns(
         handler.post {
             nsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
         }
-        discoveryLatch.await(timeoutMillis, TimeUnit.MILLISECONDS)
-        close()
+        try {
+            discoveryLatch.await(timeoutMillis, TimeUnit.MILLISECONDS)
+        } finally {
+            close()
+        }
         val discoveredPort = port.get()
         if (discoveredPort <= 0) {
             throw PrivilegeAdbException("Timed out discovering ADB service $serviceType")

@@ -134,6 +134,22 @@ internal class PrivilegeUiExternalStartActions(
         startExternal(provider, context)
     }
 
+    fun directStartAttempt(providerId: String): PrivilegeUiRuntimeStartAttempt.Request? {
+        val context = store.requireContext()
+        val provider = store.config.externalStartProviders.firstOrNull { it.id == providerId } ?: return null
+        val snapshot = runCatching { provider.snapshot(context) }
+            .getOrElse { throwable ->
+                PrivilegeUiExternalStartSnapshot(
+                    message = throwable.failureMessage(),
+                    exceptionText = throwable.toPrivilegeUiDiagnosticString(),
+                )
+            }
+        store.updateExternalStartItem(provider.id) { it.copy(snapshot = snapshot) }
+        if (snapshot.exceptionText.isNotBlank()) store.appendLog(snapshot.exceptionText)
+        if (!snapshot.canStart) return null
+        return externalStartAttempt(provider, context)
+    }
+
     private fun continuePendingExternalStart(
         provider: PrivilegeUiExternalStartProvider,
         snapshot: PrivilegeUiExternalStartSnapshot,
@@ -153,7 +169,14 @@ internal class PrivilegeUiExternalStartActions(
         provider: PrivilegeUiExternalStartProvider,
         context: Context,
     ) {
-        runtimeActions.runServerStartRequest(
+        runtimeActions.runServerStartRequest(externalStartAttempt(provider, context))
+    }
+
+    private fun externalStartAttempt(
+        provider: PrivilegeUiExternalStartProvider,
+        context: Context,
+    ): PrivilegeUiRuntimeStartAttempt.Request =
+        PrivilegeUiRuntimeStartAttempt.Request(
             message = store.text(R.string.priv_ui_external_starting),
             startedMessage = store.text(R.string.priv_ui_external_start_requested),
             startupSource = provider.label.toString(),
@@ -169,7 +192,6 @@ internal class PrivilegeUiExternalStartActions(
                 provider.start(context, commandLine)
             }
         }
-    }
 
     private fun sleepExternalStartStatusPolling(stop: AtomicBoolean): Boolean =
         try {

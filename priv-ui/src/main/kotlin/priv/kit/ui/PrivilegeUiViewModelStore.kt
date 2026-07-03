@@ -16,6 +16,7 @@ internal class PrivilegeUiViewModelStore(
 ) : AutoCloseable {
     val state = MutableStateFlow(PrivilegeUiState())
     val tcpModeEnabled = MutableStateFlow(false)
+    val selectedAdbStartupTab = MutableStateFlow<PrivilegeUiAdbStartupTab?>(null)
     val executor: ExecutorService = Executors.newSingleThreadExecutor()
     val startupLogListener = PrivilegeStartupLogListener { line ->
         appendStartupLog(line)
@@ -30,12 +31,18 @@ internal class PrivilegeUiViewModelStore(
     var notificationPairingStartedByOwner: Boolean = false
     var pendingExternalStartProviderId: String? = null
     @Volatile
+    var serverShutdownRequestedByOwner: Boolean = false
+    @Volatile
     var tcpAuthorizationRequest: Closeable? = null
     val tcpAuthorizationRequestGeneration = AtomicLong(0L)
     var wirelessStatusPollingStop: AtomicBoolean? = null
     var wirelessStatusPollingThread: Thread? = null
+    var tcpModeStatusPollingStop: AtomicBoolean? = null
+    var tcpModeStatusPollingThread: Thread? = null
     var externalStartStatusPollingStop: AtomicBoolean? = null
     var externalStartStatusPollingThread: Thread? = null
+    var wirelessPairingThread: Thread? = null
+    val wirelessPairingGeneration = AtomicLong(0L)
     val wirelessStatusRefreshRunning = AtomicBoolean(false)
     val tcpModeRefreshRunning = AtomicBoolean(false)
     val externalStartStatusRefreshRunning = AtomicBoolean(false)
@@ -43,7 +50,9 @@ internal class PrivilegeUiViewModelStore(
     fun initializeState(config: PrivilegeUiConfig) {
         val context = requireContext()
         val modes = config.effectiveStartupModes()
-        val selected = state.value.selectedStartupMode.takeIf { it in modes } ?: modes.first()
+        val selected = state.value.selectedStartupMode.takeIf { it in modes }
+            ?: PrivilegeUiStartupMode.ADB.takeIf { it in modes }
+            ?: modes.first()
         updateState { current ->
             current.copy(
                 selectedStartupMode = selected,
@@ -125,6 +134,13 @@ internal class PrivilegeUiViewModelStore(
         tcpAuthorizationRequestGeneration.incrementAndGet()
         tcpAuthorizationRequest = null
         request?.close()
+        tcpModeStatusPollingStop?.set(true)
+        tcpModeStatusPollingThread?.interrupt()
+        tcpModeStatusPollingStop = null
+        tcpModeStatusPollingThread = null
+        wirelessPairingGeneration.incrementAndGet()
+        wirelessPairingThread?.interrupt()
+        wirelessPairingThread = null
         executor.shutdownNow()
     }
 
@@ -149,10 +165,10 @@ internal class PrivilegeUiViewModelStore(
         private const val MAX_STARTUP_LOG_LINES = 240
 
         val USER_VISIBLE_AUTHORIZATION_MODE_ORDER = listOf(
-            PrivilegeUiStartupMode.ADB,
-            PrivilegeUiStartupMode.EXTERNAL,
-            PrivilegeUiStartupMode.MANUAL_SHELL,
             PrivilegeUiStartupMode.ROOT,
+            PrivilegeUiStartupMode.ADB,
+            PrivilegeUiStartupMode.MANUAL_SHELL,
+            PrivilegeUiStartupMode.EXTERNAL,
         )
     }
 }

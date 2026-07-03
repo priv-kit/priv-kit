@@ -18,11 +18,6 @@ internal fun ExternalStartPanel(
     onAuthorizeOrStart: (String) -> Unit,
 ) {
     Panel {
-        Text(
-            text = stringResource(R.string.priv_ui_external_authorization_title),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
         if (state.externalStartItems.isEmpty()) {
             Text(stringResource(R.string.priv_ui_external_no_provider))
         }
@@ -40,9 +35,10 @@ internal fun ExternalStartPanel(
                     )
                     StatusText(item.snapshot.externalStartStatusText())
                 }
-                if (item.snapshot.message.isNotBlank()) {
+                val message = item.snapshot.externalStartMessageText()
+                if (message != null) {
                     Text(
-                        text = item.snapshot.message.toString(),
+                        text = message.toString(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -54,7 +50,7 @@ internal fun ExternalStartPanel(
                 ) {
                     Text(
                         if (item.snapshot.canStart) {
-                            stringResource(R.string.priv_ui_external_start)
+                            stringResource(R.string.priv_ui_external_start, item.label)
                         } else {
                             stringResource(R.string.priv_ui_external_authorize_start)
                         },
@@ -64,3 +60,6 @@ internal fun ExternalStartPanel(
         }
     }
 }
+
+internal fun PrivilegeUiExternalStartSnapshot.externalStartMessageText(): CharSequence? =
+    message.takeIf { !canStart && it.isNotBlank() }

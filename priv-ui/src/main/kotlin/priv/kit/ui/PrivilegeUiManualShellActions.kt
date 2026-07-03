@@ -8,7 +8,8 @@ internal class PrivilegeUiManualShellActions(
 ) {
     fun loadCommand() {
         val commandLine = runCatching {
-            Privilege.createShellStartCommand().toPrivilegeUiHostAdbShellCommand()
+            Privilege.createShellStartCommand()
+                .toPrivilegeUiHostAdbStaticTcpCommand(store.config.tcpPort)
         }.getOrElse { throwable ->
             store.appendLog(throwable.toPrivilegeUiDiagnosticString())
             null

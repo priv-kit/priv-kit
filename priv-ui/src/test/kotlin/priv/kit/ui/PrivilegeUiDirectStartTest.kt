@@ -1,0 +1,148 @@
+package priv.kit.ui
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class PrivilegeUiDirectStartTest {
+    @Test
+    fun manualOnlyHasNoDirectStartTarget() {
+        val state = PrivilegeUiState(
+            selectedStartupMode = PrivilegeUiStartupMode.MANUAL_SHELL,
+            startupModes = listOf(PrivilegeUiStartupMode.MANUAL_SHELL),
+        )
+
+        assertNull(
+            state.directStartTarget(
+                tcpModeEnabled = false,
+                tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+            ),
+        )
+    }
+
+    @Test
+    fun selectedAdbStartsWhenPaired() {
+        val state = PrivilegeUiState(
+            selectedStartupMode = PrivilegeUiStartupMode.ADB,
+            startupModes = listOf(
+                PrivilegeUiStartupMode.ADB,
+                PrivilegeUiStartupMode.ROOT,
+            ),
+            wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.ON,
+        )
+
+        assertEquals(
+            PrivilegeUiDirectStartTarget.Adb,
+            state.directStartTarget(
+                tcpModeEnabled = false,
+                tcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
+            ),
+        )
+    }
+
+    @Test
+    fun wirelessAdbDirectStartRequiresSupportedPlatform() {
+        val state = PrivilegeUiState(
+            selectedStartupMode = PrivilegeUiStartupMode.ADB,
+            startupModes = listOf(PrivilegeUiStartupMode.ADB),
+            wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
+            wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.ON,
+        )
+
+        assertNull(
+            state.directStartTarget(
+                tcpModeEnabled = false,
+                tcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
+                wirelessAdbSupported = false,
+            ),
+        )
+    }
+
+    @Test
+    fun externalStartTargetRequiresReadyProvider() {
+        val state = PrivilegeUiState(
+            selectedStartupMode = PrivilegeUiStartupMode.EXTERNAL,
+            startupModes = listOf(
+                PrivilegeUiStartupMode.EXTERNAL,
+                PrivilegeUiStartupMode.ROOT,
+            ),
+            externalStartItems = listOf(
+                PrivilegeUiExternalStartItemState(
+                    id = "provider",
+                    label = "Provider",
+                    snapshot = PrivilegeUiExternalStartSnapshot(
+                        available = true,
+                        authorized = true,
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals(
+            PrivilegeUiDirectStartTarget.External("provider"),
+            state.directStartTarget(
+                tcpModeEnabled = false,
+                tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+            ),
+        )
+    }
+
+    @Test
+    fun rootFallsBackWhenEarlierModesCannotStartDirectly() {
+        val state = PrivilegeUiState(
+            selectedStartupMode = PrivilegeUiStartupMode.ADB,
+            startupModes = listOf(
+                PrivilegeUiStartupMode.ADB,
+                PrivilegeUiStartupMode.MANUAL_SHELL,
+                PrivilegeUiStartupMode.ROOT,
+            ),
+        )
+
+        assertEquals(
+            PrivilegeUiDirectStartTarget.Root,
+            state.directStartTarget(
+                tcpModeEnabled = false,
+                tcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
+            ),
+        )
+    }
+
+    @Test
+    fun selectedRootKeepsReadyAdbAsFallbackTarget() {
+        val state = PrivilegeUiState(
+            selectedStartupMode = PrivilegeUiStartupMode.ROOT,
+            startupModes = listOf(
+                PrivilegeUiStartupMode.ADB,
+                PrivilegeUiStartupMode.ROOT,
+            ),
+            wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.ON,
+        )
+
+        assertEquals(
+            listOf(
+                PrivilegeUiDirectStartTarget.Root,
+                PrivilegeUiDirectStartTarget.Adb,
+            ),
+            state.directStartTargets(
+                tcpModeEnabled = false,
+                tcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
+            ),
+        )
+    }
+
+    @Test
+    fun manualOnlyHasNoDirectStartFallbackTargets() {
+        val state = PrivilegeUiState(
+            selectedStartupMode = PrivilegeUiStartupMode.MANUAL_SHELL,
+            startupModes = listOf(PrivilegeUiStartupMode.MANUAL_SHELL),
+        )
+
+        assertFalse(
+            state.hasDirectStartTarget(
+                tcpModeEnabled = false,
+                tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+            ),
+        )
+    }
+}

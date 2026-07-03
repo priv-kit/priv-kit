@@ -18,6 +18,8 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     private val externalStartActions = PrivilegeUiExternalStartActions(store, runtimeActions).also(::addCloseable)
     public val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
     public open val tcpModeEnabled: MutableStateFlow<Boolean> = store.tcpModeEnabled
+    internal val selectedAdbStartupTab: StateFlow<PrivilegeUiAdbStartupTab?> =
+        store.selectedAdbStartupTab.asStateFlow()
     public open val adbTcpPolicy: PrivilegeUiAdbTcpPolicy
         get() = store.config.adbTcpPolicy
 
@@ -38,6 +40,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         externalStartActions.refreshExternalStartStatus()
         adbActions.refreshAdbIdentityInfo()
         syncWirelessAdbStatusPolling()
+        syncTcpModeStatusPolling()
         syncExternalStartStatusPolling()
         refreshTcpModeEnabledIfSelected()
     }
@@ -46,10 +49,15 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         adbActions.updatePairingCode(value)
     }
 
+    internal fun selectAdbStartupTab(tab: PrivilegeUiAdbStartupTab) {
+        store.selectedAdbStartupTab.value = tab
+    }
+
     public open fun selectStartupMode(mode: PrivilegeUiStartupMode) {
         if (mode !in store.state.value.startupModes) return
         store.updateState { it.copy(selectedStartupMode = mode) }
         syncWirelessAdbStatusPolling()
+        syncTcpModeStatusPolling()
         syncExternalStartStatusPolling()
         refreshTcpModeEnabledIfSelected()
     }
@@ -58,12 +66,49 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         runtimeActions.startRoot()
     }
 
+    public open fun startAvailable() {
+        if (
+            store.state.value.busy ||
+            store.state.value.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED
+        ) {
+            return
+        }
+        val attempts = store.state.value
+            .directStartTargets(
+                tcpModeEnabled = store.tcpModeEnabled.value,
+                tcpPolicy = store.config.adbTcpPolicy,
+                wirelessAdbSupported = isPrivilegeUiWirelessAdbSupported(),
+            )
+            .mapNotNull { target ->
+                when (target) {
+                    PrivilegeUiDirectStartTarget.Adb -> adbActions.directStartAttempt()
+                    is PrivilegeUiDirectStartTarget.External -> {
+                        externalStartActions.directStartAttempt(target.providerId)
+                    }
+                    PrivilegeUiDirectStartTarget.Root -> runtimeActions.rootStartAttempt()
+                }
+            }
+        if (attempts.isEmpty()) {
+            runtimeActions.reportNoDirectStart()
+        } else {
+            runtimeActions.runServerStartFallback(attempts)
+        }
+    }
+
+    public open fun stopServer() {
+        runtimeActions.stopServer()
+    }
+
     public open fun copyManualCommand(context: Context) {
         manualShellActions.copyCommand(context)
     }
 
     public open fun pairWirelessAdb() {
         adbActions.pairWirelessAdb()
+    }
+
+    public open fun cancelWirelessAdbPairing() {
+        adbActions.cancelWirelessAdbPairing()
     }
 
     public open fun toggleNotificationPairing(
@@ -95,18 +140,28 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     public open fun startWirelessAdbStatusPolling() {
-        adbActions.startWirelessAdbStatusPolling()
+        if (isPrivilegeUiWirelessAdbSupported()) {
+            adbActions.startWirelessAdbStatusPolling()
+        } else {
+            adbActions.stopWirelessAdbStatusPolling()
+        }
     }
 
     public open fun refreshWirelessAdbStatus() {
-        adbActions.refreshWirelessAdbStatus()
+        if (isPrivilegeUiWirelessAdbSupported()) {
+            adbActions.refreshWirelessAdbStatus()
+        }
     }
 
     public open fun onHostResume() {
         adbActions.finishPendingTcpAuthorizationOnHostResume()
         syncWirelessAdbStatusPolling()
+        syncTcpModeStatusPolling()
         syncExternalStartStatusPolling()
-        if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB) {
+        if (
+            store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB &&
+            isPrivilegeUiWirelessAdbSupported()
+        ) {
             adbActions.refreshWirelessAdbStatus()
         }
         if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.EXTERNAL) {
@@ -119,6 +174,14 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         adbActions.stopWirelessAdbStatusPolling()
     }
 
+    public open fun startTcpModeStatusPolling() {
+        adbActions.startTcpModeStatusPolling()
+    }
+
+    public open fun stopTcpModeStatusPolling() {
+        adbActions.stopTcpModeStatusPolling()
+    }
+
     public open fun enableTcpMode() {
         adbActions.enableTcpMode()
     }
@@ -129,6 +192,10 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
     public open fun startTcpAdb() {
         adbActions.startTcpAdb()
+    }
+
+    public open fun startStaticTcpAdb() {
+        adbActions.startStaticTcpAdb()
     }
 
     public open fun refreshExternalStartStatus(providerId: String? = null) {
@@ -148,10 +215,24 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     private fun syncWirelessAdbStatusPolling() {
-        if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB) {
+        if (
+            store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB &&
+            isPrivilegeUiWirelessAdbSupported()
+        ) {
             adbActions.startWirelessAdbStatusPolling()
         } else {
             adbActions.stopWirelessAdbStatusPolling()
+        }
+    }
+
+    private fun syncTcpModeStatusPolling() {
+        if (
+            store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB &&
+            store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED
+        ) {
+            adbActions.startTcpModeStatusPolling()
+        } else {
+            adbActions.stopTcpModeStatusPolling()
         }
     }
 

@@ -3,6 +3,7 @@ package priv.kit.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
 
 internal fun Context.copyToClipboard(label: String, text: String) {
     val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -24,6 +25,14 @@ internal fun String.toPrivilegeUiHostAdbShellCommand(): String {
         ADB_SHELL_PREFIX + command
     }
 }
+
+internal fun String.toPrivilegeUiHostAdbStaticTcpCommand(tcpPort: Int): String {
+    require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
+    return "adb tcpip $tcpPort; ${toPrivilegeUiHostAdbShellCommand()}"
+}
+
+internal fun isPrivilegeUiWirelessAdbSupported(): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
 
 internal fun Throwable.failureMessage(): String =
     message ?: javaClass.simpleName

@@ -5,15 +5,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
+import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,44 +23,144 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 @Composable
 internal fun AdbPanel(
     state: PrivilegeUiState,
     tcpModeEnabled: Boolean,
+    selectedTab: PrivilegeUiAdbStartupTab?,
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
+    tcpPort: Int,
+    onTabSelected: (PrivilegeUiAdbStartupTab) -> Unit,
     onPairingCodeChanged: (String) -> Unit,
     onPairByCode: () -> Unit,
+    onCancelPairing: () -> Unit,
     onNotificationPairingClick: () -> Unit,
     onEnableTcpMode: () -> Unit,
-    onStartAdb: () -> Unit,
+    onStartWirelessAdb: () -> Unit,
+    onStartStaticTcpAdb: () -> Unit,
 ) {
     Panel {
         val paired = state.wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON
-        val tcpAvailable = tcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED && tcpModeEnabled
-        val tcpAuthorized = tcpAvailable &&
-            state.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED
-        val tcpAuthorizationActionAvailable = tcpAvailable &&
-            state.tcpAuthorizationStatus in setOf(
-                PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
-                PrivilegeUiAdbTcpAuthorizationStatus.FAILED,
-            )
-        val tcpAuthorizationWaiting = tcpAvailable &&
-            state.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING
-        val adbEndpointAvailable = state.wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.ON || tcpAuthorized
-        val canStart = paired || adbEndpointAvailable || tcpAuthorizationActionAvailable || tcpAuthorizationWaiting
-        Text(
-            text = stringResource(R.string.priv_ui_adb_authorization_title),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-        AdbRealtimeStatusPanel(
-            state = state,
-            tcpModeEnabled = tcpModeEnabled,
+        val wirelessStartAvailable = paired || state.wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.ON
+        val tabs = privilegeUiAdbStartupTabs(
+            wirelessAdbSupported = isPrivilegeUiWirelessAdbSupported(),
             tcpPolicy = tcpPolicy,
         )
-        AnimatedVisibility(visible = !paired && !tcpAvailable) {
+        val currentTab = selectedTab.takeIf { it in tabs }
+            ?: defaultPrivilegeUiAdbStartupTab(
+                tabs = tabs,
+                tcpModeEnabled = tcpModeEnabled,
+                tcpAuthorizationStatus = state.tcpAuthorizationStatus,
+            )
+        LaunchedEffect(tabs, currentTab, selectedTab) {
+            if (currentTab != null && currentTab != selectedTab) {
+                onTabSelected(currentTab)
+            }
+        }
+        AdbFingerprintRow(fingerprint = state.adbKeyFingerprint)
+        if (tabs.size > 1 && currentTab != null) {
+            AdbStartupTabRow(
+                tabs = tabs,
+                selectedTab = currentTab,
+                onSelected = onTabSelected,
+            )
+        }
+        when (currentTab) {
+            PrivilegeUiAdbStartupTab.WIRELESS -> {
+                WirelessAdbSection(
+                    state = state,
+                    paired = paired,
+                    startAvailable = wirelessStartAvailable,
+                    onPairingCodeChanged = onPairingCodeChanged,
+                    onPairByCode = onPairByCode,
+                    onCancelPairing = onCancelPairing,
+                    onNotificationPairingClick = onNotificationPairingClick,
+                    onStartWirelessAdb = onStartWirelessAdb,
+                )
+            }
+            PrivilegeUiAdbStartupTab.STATIC_TCP -> {
+                StaticTcpAdbSection(
+                    state = state,
+                    paired = paired,
+                    tcpModeEnabled = tcpModeEnabled,
+                    tcpPolicy = tcpPolicy,
+                    tcpPort = tcpPort,
+                    onEnableTcpMode = onEnableTcpMode,
+                    onStartStaticTcpAdb = onStartStaticTcpAdb,
+                )
+            }
+            null -> {
+                StatusText(stringResource(R.string.priv_ui_adb_unavailable))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AdbStartupTabRow(
+    tabs: List<PrivilegeUiAdbStartupTab>,
+    selectedTab: PrivilegeUiAdbStartupTab,
+    onSelected: (PrivilegeUiAdbStartupTab) -> Unit,
+) {
+    val selectedIndex = tabs.indexOf(selectedTab).takeIf { it >= 0 } ?: 0
+    SecondaryTabRow(
+        selectedTabIndex = selectedIndex,
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.primary,
+    ) {
+        tabs.forEach { tab ->
+            Tab(
+                selected = tab == selectedTab,
+                onClick = { onSelected(tab) },
+                text = {
+                    Text(
+                        text = stringResource(tab.labelRes()),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun WirelessAdbSection(
+    state: PrivilegeUiState,
+    paired: Boolean,
+    startAvailable: Boolean,
+    onPairingCodeChanged: (String) -> Unit,
+    onPairByCode: () -> Unit,
+    onCancelPairing: () -> Unit,
+    onNotificationPairingClick: () -> Unit,
+    onStartWirelessAdb: () -> Unit,
+) {
+    ItemPanel {
+        RealtimeStatusRow(
+            label = stringResource(R.string.priv_ui_wireless_status_debugging),
+            status = state.wirelessDebuggingStatus,
+        )
+        AnimatedVisibility(
+            visible = state.wirelessPairingCheckStatus != PrivilegeUiWirelessAdbStatus.ON,
+        ) {
+            RealtimeStatusRow(
+                label = stringResource(R.string.priv_ui_wireless_status_pairing_service),
+                status = state.wirelessPairingServiceStatus,
+                negativeLabel = stringResource(R.string.priv_ui_status_unavailable),
+            )
+        }
+        RealtimeStatusRow(
+            label = stringResource(R.string.priv_ui_wireless_status_pairing_check),
+            status = state.wirelessPairingCheckStatus,
+            positiveLabel = stringResource(R.string.priv_ui_wireless_status_yes),
+            negativeLabel = stringResource(R.string.priv_ui_wireless_status_no),
+        )
+        AnimatedVisibility(visible = !paired) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -72,10 +174,24 @@ internal fun AdbPanel(
                 )
                 Button(
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !state.busy,
-                    onClick = onPairByCode,
+                    enabled = !state.busy || state.wirelessPairingRunning,
+                    onClick = {
+                        if (state.wirelessPairingRunning) {
+                            onCancelPairing()
+                        } else {
+                            onPairByCode()
+                        }
+                    },
                 ) {
-                    Text(stringResource(R.string.priv_ui_wireless_pair_action))
+                    Text(
+                        stringResource(
+                            if (state.wirelessPairingRunning) {
+                                R.string.priv_ui_wireless_pair_searching_action
+                            } else {
+                                R.string.priv_ui_wireless_pair_action
+                            },
+                        ),
+                    )
                 }
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
@@ -92,9 +208,46 @@ internal fun AdbPanel(
                 }
             }
         }
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !state.busy && startAvailable,
+            onClick = onStartWirelessAdb,
+        ) {
+            Text(stringResource(R.string.priv_ui_adb_wireless_start_action))
+        }
+    }
+}
+
+@Composable
+private fun StaticTcpAdbSection(
+    state: PrivilegeUiState,
+    paired: Boolean,
+    tcpModeEnabled: Boolean,
+    tcpPolicy: PrivilegeUiAdbTcpPolicy,
+    tcpPort: Int,
+    onEnableTcpMode: () -> Unit,
+    onStartStaticTcpAdb: () -> Unit,
+) {
+    ItemPanel {
+        Text(
+            modifier = Modifier.fillMaxWidth(),
+            text = stringResource(R.string.priv_ui_adb_static_section_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        StaticTcpPortStatusRow(
+            enabled = tcpModeEnabled,
+            tcpPort = tcpPort,
+        )
+        TcpAuthorizationStatusRow(
+            status = staticTcpAuthorizationDisplayStatus(
+                tcpModeEnabled = tcpModeEnabled,
+                status = state.tcpAuthorizationStatus,
+            ),
+        )
         AnimatedVisibility(
             visible = paired &&
-                !tcpAvailable &&
+                !tcpModeEnabled &&
                 tcpPolicy == PrivilegeUiAdbTcpPolicy.AUTO_ENABLE_AFTER_WIRELESS_PAIRED,
         ) {
             OutlinedButton(
@@ -102,75 +255,19 @@ internal fun AdbPanel(
                 enabled = !state.busy,
                 onClick = onEnableTcpMode,
             ) {
-                Text(stringResource(R.string.priv_ui_adb_prepare_stable_action))
+                Text(stringResource(R.string.priv_ui_adb_static_prepare_action))
             }
         }
         Button(
             modifier = Modifier.fillMaxWidth(),
-            enabled = !state.busy && canStart,
-            onClick = onStartAdb,
+            enabled = staticTcpActionEnabled(
+                tcpModeEnabled = tcpModeEnabled,
+                busy = state.busy,
+                status = state.tcpAuthorizationStatus,
+            ),
+            onClick = onStartStaticTcpAdb,
         ) {
-            Text(
-                stringResource(
-                    if (tcpAuthorizationActionAvailable) {
-                        R.string.priv_ui_adb_key_authorization_action
-                    } else if (tcpAuthorizationWaiting) {
-                        R.string.priv_ui_tcp_authorization_waiting_action
-                    } else {
-                        R.string.priv_ui_adb_authorization_action
-                    },
-                ),
-            )
-        }
-    }
-}
-
-@Composable
-private fun AdbRealtimeStatusPanel(
-    state: PrivilegeUiState,
-    tcpModeEnabled: Boolean,
-    tcpPolicy: PrivilegeUiAdbTcpPolicy,
-) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-        shape = MaterialTheme.shapes.small,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                modifier = Modifier.fillMaxWidth(),
-                text = stringResource(R.string.priv_ui_wireless_realtime_status_title),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            AdbFingerprintRow(fingerprint = state.adbKeyFingerprint)
-            RealtimeStatusRow(
-                label = stringResource(R.string.priv_ui_wireless_status_debugging),
-                status = state.wirelessDebuggingStatus,
-            )
-            AnimatedVisibility(
-                visible = state.wirelessPairingCheckStatus != PrivilegeUiWirelessAdbStatus.ON &&
-                    !tcpModeEnabled,
-            ) {
-                RealtimeStatusRow(
-                    label = stringResource(R.string.priv_ui_wireless_status_pairing_service),
-                    status = state.wirelessPairingServiceStatus,
-                )
-            }
-            RealtimeStatusRow(
-                label = stringResource(R.string.priv_ui_wireless_status_pairing_check),
-                status = state.wirelessPairingCheckStatus,
-                positiveLabel = stringResource(R.string.priv_ui_wireless_status_yes),
-                negativeLabel = stringResource(R.string.priv_ui_wireless_status_no),
-            )
-            if (tcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED) {
-                StableAdbStatusRow(enabled = tcpModeEnabled)
-                TcpAuthorizationStatusRow(status = state.tcpAuthorizationStatus)
-            }
+            Text(stringResource(staticTcpActionLabel(tcpModeEnabled, state.tcpAuthorizationStatus)))
         }
     }
 }
@@ -197,23 +294,26 @@ private fun AdbFingerprintRow(fingerprint: String?) {
 }
 
 @Composable
-private fun StableAdbStatusRow(enabled: Boolean) {
+private fun StaticTcpPortStatusRow(
+    enabled: Boolean,
+    tcpPort: Int,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = stringResource(R.string.priv_ui_adb_stable_status),
+            text = stringResource(R.string.priv_ui_adb_static_port_status, tcpPort),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
             text = stringResource(
                 if (enabled) {
-                    R.string.priv_ui_adb_stable_ready
+                    R.string.priv_ui_adb_static_port_ready
                 } else {
-                    R.string.priv_ui_adb_stable_unavailable
+                    R.string.priv_ui_adb_static_port_unavailable
                 },
             ),
             style = MaterialTheme.typography.labelLarge,
@@ -231,7 +331,7 @@ private fun TcpAuthorizationStatusRow(status: PrivilegeUiAdbTcpAuthorizationStat
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = stringResource(R.string.priv_ui_adb_key_authorization_status),
+            text = stringResource(R.string.priv_ui_adb_static_authorization_status),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -303,7 +403,7 @@ private fun PrivilegeUiAdbTcpAuthorizationStatus.displayText(): String =
         PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING -> stringResource(R.string.priv_ui_tcp_authorization_waiting)
         PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED -> stringResource(R.string.priv_ui_tcp_authorization_authorized)
         PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED -> stringResource(R.string.priv_ui_tcp_authorization_unauthorized)
-        PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE -> stringResource(R.string.priv_ui_adb_stable_unavailable)
+        PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE -> stringResource(R.string.priv_ui_adb_static_port_unavailable)
         PrivilegeUiAdbTcpAuthorizationStatus.FAILED -> stringResource(R.string.priv_ui_tcp_authorization_failed)
     }
 
@@ -319,4 +419,40 @@ private fun PrivilegeUiAdbTcpAuthorizationStatus.displayColor(): Color =
         PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
         PrivilegeUiAdbTcpAuthorizationStatus.FAILED,
         -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+internal fun staticTcpAuthorizationDisplayStatus(
+    tcpModeEnabled: Boolean,
+    status: PrivilegeUiAdbTcpAuthorizationStatus,
+): PrivilegeUiAdbTcpAuthorizationStatus =
+    if (tcpModeEnabled) status else PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN
+
+internal fun staticTcpActionEnabled(
+    tcpModeEnabled: Boolean,
+    busy: Boolean,
+    status: PrivilegeUiAdbTcpAuthorizationStatus,
+): Boolean =
+    tcpModeEnabled &&
+        !busy &&
+        status != PrivilegeUiAdbTcpAuthorizationStatus.CHECKING
+
+internal fun staticTcpActionLabel(
+    tcpModeEnabled: Boolean,
+    status: PrivilegeUiAdbTcpAuthorizationStatus,
+): Int =
+    when {
+        !tcpModeEnabled -> R.string.priv_ui_adb_static_use_other_method_action
+        status == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED -> R.string.priv_ui_adb_static_start_action
+        status == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING -> R.string.priv_ui_tcp_authorization_cancel_action
+        status == PrivilegeUiAdbTcpAuthorizationStatus.CHECKING -> R.string.priv_ui_wireless_status_checking
+        status == PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED ||
+            status == PrivilegeUiAdbTcpAuthorizationStatus.FAILED ->
+            R.string.priv_ui_adb_static_authorize_action
+        else -> R.string.priv_ui_adb_static_check_action
+    }
+
+private fun PrivilegeUiAdbStartupTab.labelRes(): Int =
+    when (this) {
+        PrivilegeUiAdbStartupTab.WIRELESS -> R.string.priv_ui_adb_tab_wireless
+        PrivilegeUiAdbStartupTab.STATIC_TCP -> R.string.priv_ui_adb_tab_static
     }

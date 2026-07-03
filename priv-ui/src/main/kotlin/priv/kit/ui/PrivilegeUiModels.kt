@@ -57,9 +57,9 @@ public enum class PrivilegeUiAdbTcpAuthorizationStatus {
 
 public data class PrivilegeUiConfig public constructor(
     public val startupModes: Set<PrivilegeUiStartupMode> = setOf(
+        PrivilegeUiStartupMode.ROOT,
         PrivilegeUiStartupMode.ADB,
         PrivilegeUiStartupMode.MANUAL_SHELL,
-        PrivilegeUiStartupMode.ROOT,
     ),
     public val externalStartProviders: List<PrivilegeUiExternalStartProvider> = emptyList(),
     public val adbDeviceName: String? = null,
@@ -152,21 +152,23 @@ public data class PrivilegeUiState public constructor(
     public val serverInfo: PrivilegeServerInfo? = null,
     public val selectedStartupMode: PrivilegeUiStartupMode = PrivilegeUiStartupMode.ADB,
     public val startupModes: List<PrivilegeUiStartupMode> = listOf(
+        PrivilegeUiStartupMode.ROOT,
         PrivilegeUiStartupMode.ADB,
         PrivilegeUiStartupMode.MANUAL_SHELL,
-        PrivilegeUiStartupMode.ROOT,
     ),
     public val message: String = "",
     public val manualShellCommandLine: String? = null,
     public val pairingCode: String = "",
     public val pairingStatus: PrivilegeUiAdbPairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
     public val pairingMessage: String = "",
+    public val wirelessPairingRunning: Boolean = false,
     public val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val tcpAuthorizationStatus: PrivilegeUiAdbTcpAuthorizationStatus =
         PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
     public val wirelessStatusPollingActive: Boolean = false,
+    public val tcpModeStatusPollingActive: Boolean = false,
     public val adbKeyFingerprint: String? = null,
     public val notificationPairingRunning: Boolean = false,
     public val externalStartItems: List<PrivilegeUiExternalStartItemState> = emptyList(),

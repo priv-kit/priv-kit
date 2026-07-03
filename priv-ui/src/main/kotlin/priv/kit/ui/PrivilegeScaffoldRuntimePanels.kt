@@ -22,10 +22,6 @@ internal fun RootPanel(
     onStartRoot: () -> Unit,
 ) {
     Panel {
-        Text(
-            text = stringResource(R.string.priv_ui_root_authorization_title),
-            style = MaterialTheme.typography.titleMedium,
-        )
         Button(
             modifier = Modifier.fillMaxWidth(),
             enabled = !state.busy,
@@ -42,10 +38,6 @@ internal fun ManualShellPanel(
     onCopyCommand: () -> Unit,
 ) {
     Panel {
-        Text(
-            text = stringResource(R.string.priv_ui_manual_authorization_title),
-            style = MaterialTheme.typography.titleMedium,
-        )
         Text(
             text = stringResource(R.string.priv_ui_manual_authorization_desc),
             style = MaterialTheme.typography.bodyMedium,
