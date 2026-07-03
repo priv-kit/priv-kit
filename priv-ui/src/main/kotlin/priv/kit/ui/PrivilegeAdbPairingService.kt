@@ -5,6 +5,7 @@ import android.app.Notification
 import android.app.RemoteInput
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import androidx.annotation.RestrictTo
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.LifecycleService
@@ -81,6 +82,11 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
             startForegroundSafely(notification)
         }
         return START_REDELIVER_INTENT
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        pairingInputState?.let(::showInputNotification)
     }
 
     override fun onDestroy() {

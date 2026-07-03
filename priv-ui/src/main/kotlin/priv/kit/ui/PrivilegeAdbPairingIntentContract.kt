@@ -21,7 +21,6 @@ internal object PrivilegeAdbPairingIntentContract {
     internal const val INPUT_NOTIFICATION_ID: Int = 202
     internal const val REQUEST_REPLY: Int = 1
     internal const val REQUEST_STOP: Int = 3
-    internal const val REQUEST_OPEN_APP: Int = 4
     internal const val REQUEST_INPUT_LEFT: Int = 5
     internal const val REQUEST_INPUT_UP: Int = 6
     internal const val REQUEST_INPUT_DOWN: Int = 7

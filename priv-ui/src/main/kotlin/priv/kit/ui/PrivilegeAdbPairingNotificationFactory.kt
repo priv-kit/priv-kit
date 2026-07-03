@@ -7,6 +7,8 @@ import android.app.PendingIntent
 import android.app.RemoteInput
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Color
 import android.os.Build
 import android.widget.RemoteViews
 import androidx.core.app.NotificationManagerCompat
@@ -40,8 +42,6 @@ internal class PrivilegeAdbPairingNotificationFactory(
         baseNotification(
             title = context.getString(R.string.priv_ui_pairing_working_title),
             text = text,
-            ongoing = true,
-            openAppOnClick = false,
         )
             .addAction(stopAction())
             .addAction(replyAction())
@@ -53,8 +53,6 @@ internal class PrivilegeAdbPairingNotificationFactory(
         return baseNotification(
             title = context.getString(R.string.priv_ui_pairing_reply_notification_title),
             text = context.getString(R.string.priv_ui_pairing_reply_notification_text),
-            ongoing = true,
-            openAppOnClick = false,
         )
             .setStyle(Notification.DecoratedCustomViewStyle())
             .setCustomContentView(pairingInputRemoteViews(state))
@@ -69,30 +67,24 @@ internal class PrivilegeAdbPairingNotificationFactory(
     private fun baseNotification(
         title: String,
         text: String,
-        ongoing: Boolean,
-        openAppOnClick: Boolean = true,
     ): Notification.Builder =
         Notification.Builder(context, PrivilegeAdbPairingIntentContract.NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(notificationSmallIcon())
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(Notification.BigTextStyle().bigText(text))
-            .setOngoing(ongoing)
+            .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setLocalOnly(true)
             .setShowWhen(false)
             .setCategory(Notification.CATEGORY_STATUS)
-            .apply {
-                if (openAppOnClick) {
-                    openAppPendingIntent()?.let(::setContentIntent)
-                }
-            }
 
     private fun notificationSmallIcon(): Int =
         context.applicationInfo.icon.takeIf { it != 0 } ?: android.R.drawable.sym_def_app_icon
 
     private fun pairingInputRemoteViews(state: PrivilegeAdbPairingInputState): RemoteViews =
         RemoteViews(context.packageName, R.layout.priv_ui_notification_pairing_code).apply {
+            applyPairingInputTextColor()
             setContentDescription(
                 R.id.priv_ui_pairing_close,
                 context.getString(R.string.priv_ui_pairing_close_description),
@@ -150,6 +142,23 @@ internal class PrivilegeAdbPairingNotificationFactory(
             )
         }
 
+    private fun RemoteViews.applyPairingInputTextColor() {
+        val color = pairingInputTextColor()
+        pairingInputTextViewIds.forEach { viewId ->
+            setTextColor(viewId, color)
+        }
+    }
+
+    private fun pairingInputTextColor(): Int =
+        if (context.resources.configuration.isNightMode()) {
+            Color.rgb(230, 225, 229)
+        } else {
+            Color.rgb(29, 27, 32)
+        }
+
+    private fun Configuration.isNightMode(): Boolean =
+        uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+
     private fun RemoteViews.bindPairingInputAction(
         viewId: Int,
         contentDescription: String,
@@ -173,7 +182,7 @@ internal class PrivilegeAdbPairingNotificationFactory(
         PendingIntent.getForegroundService(
             context,
             requestCode,
-            serviceIntent(action, adbDeviceName = null),
+            serviceIntent(action),
             PrivilegeAdbPairingIntentContract.immutablePendingIntentFlags(),
         )
 
@@ -185,7 +194,7 @@ internal class PrivilegeAdbPairingNotificationFactory(
         val pendingIntent = PendingIntent.getForegroundService(
             context,
             PrivilegeAdbPairingIntentContract.REQUEST_REPLY,
-            serviceIntent(PrivilegeAdbPairingIntentContract.ACTION_REPLY, adbDeviceName = null),
+            serviceIntent(PrivilegeAdbPairingIntentContract.ACTION_REPLY),
             PrivilegeAdbPairingIntentContract.mutablePendingIntentFlags(),
         )
         val actionBuilder = Notification.Action.Builder(
@@ -213,29 +222,13 @@ internal class PrivilegeAdbPairingNotificationFactory(
         PendingIntent.getForegroundService(
             context,
             PrivilegeAdbPairingIntentContract.REQUEST_STOP,
-            serviceIntent(PrivilegeAdbPairingIntentContract.ACTION_STOP, adbDeviceName = null),
+            serviceIntent(PrivilegeAdbPairingIntentContract.ACTION_STOP),
             PrivilegeAdbPairingIntentContract.immutablePendingIntentFlags(),
         )
 
-    private fun openAppPendingIntent(): PendingIntent? {
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return null
-        launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        return PendingIntent.getActivity(
-            context,
-            PrivilegeAdbPairingIntentContract.REQUEST_OPEN_APP,
-            launchIntent,
-            PrivilegeAdbPairingIntentContract.immutablePendingIntentFlags(),
-        )
-    }
-
-    private fun serviceIntent(action: String, adbDeviceName: String?): Intent =
+    private fun serviceIntent(action: String): Intent =
         Intent(context, PrivilegeAdbPairingService::class.java)
             .setAction(action)
-            .apply {
-                if (!adbDeviceName.isNullOrBlank()) {
-                    putExtra(PrivilegeAdbPairingIntentContract.EXTRA_REQUESTED_ADB_DEVICE_NAME, adbDeviceName)
-                }
-            }
 
     private fun Notification.Builder.buildPersistent(): Notification =
         build().apply {
@@ -244,4 +237,16 @@ internal class PrivilegeAdbPairingNotificationFactory(
 
     private val notificationManager: NotificationManagerCompat
         get() = NotificationManagerCompat.from(context)
+
+    private companion object {
+        private val pairingInputTextViewIds = intArrayOf(
+            R.id.priv_ui_pairing_close,
+            R.id.priv_ui_pairing_code_text,
+            R.id.priv_ui_pairing_confirm,
+            R.id.priv_ui_pairing_arrow_left,
+            R.id.priv_ui_pairing_arrow_up,
+            R.id.priv_ui_pairing_arrow_down,
+            R.id.priv_ui_pairing_arrow_right,
+        )
+    }
 }
