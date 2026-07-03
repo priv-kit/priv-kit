@@ -47,6 +47,7 @@ public fun PrivilegeScaffold(
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
     val manualCommandCopiedMessage = stringResource(R.string.priv_ui_manual_command_copied)
+    val staticTcpCommandCopiedMessage = stringResource(R.string.priv_ui_adb_static_command_copied)
     val startupLogCopiedMessage = stringResource(R.string.priv_ui_startup_log_copied)
     fun showFeedback(message: String) {
         snackbarScope.launch {
@@ -124,6 +125,10 @@ public fun PrivilegeScaffold(
                     viewModel.copyManualCommand(context)
                     showFeedback(manualCommandCopiedMessage)
                 },
+                onCopyStaticTcpCommand = {
+                    viewModel.copyStaticTcpCommand(context)
+                    showFeedback(staticTcpCommandCopiedMessage)
+                },
                 onNotificationPermissionRequired = onNotificationPermissionRequired,
             )
             if (state.startupLogLines.isNotEmpty()) {
@@ -154,6 +159,7 @@ private fun AuthorizationModePanel(
     selectedAdbStartupTab: PrivilegeUiAdbStartupTab?,
     viewModel: PrivilegeUiViewModel,
     onCopyManualCommand: () -> Unit,
+    onCopyStaticTcpCommand: () -> Unit,
     onNotificationPermissionRequired: () -> Unit,
 ) {
     when (mode) {
@@ -181,6 +187,7 @@ private fun AuthorizationModePanel(
             onEnableTcpMode = viewModel::enableTcpMode,
             onStartWirelessAdb = viewModel::startWirelessAdb,
             onStartStaticTcpAdb = viewModel::startStaticTcpAdb,
+            onCopyStaticTcpCommand = onCopyStaticTcpCommand,
         )
         PrivilegeUiStartupMode.EXTERNAL -> ExternalStartPanel(
             state = state,

@@ -106,6 +106,13 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         manualShellActions.copyCommand(context)
     }
 
+    public open fun copyStaticTcpCommand(context: Context) {
+        context.copyToClipboard(
+            label = store.text(R.string.priv_ui_adb_static_command_clip_label),
+            text = privilegeUiStaticTcpOpenCommand(store.config.tcpPort),
+        )
+    }
+
     public open fun copyStartupLog(context: Context) {
         val logText = store.state.value.startupLogLines.joinToString("\n")
         if (logText.isBlank()) return

@@ -19,4 +19,12 @@ class PrivilegeUiViewModelUtilsTest {
             "adb shell /data/app/libprivkitstarter.so".toPrivilegeUiHostAdbShellCommand(),
         )
     }
+
+    @Test
+    fun staticTcpOpenCommandUsesConfiguredPort() {
+        assertEquals(
+            "adb tcpip 5555",
+            privilegeUiStaticTcpOpenCommand(5555),
+        )
+    }
 }

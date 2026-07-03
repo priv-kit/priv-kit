@@ -71,6 +71,29 @@ internal fun ItemPanel(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
+internal fun CommandBlock(commandLine: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = Color(0xFF111820),
+                shape = MaterialTheme.shapes.small,
+            )
+            .padding(12.dp),
+    ) {
+        SelectionContainer {
+            Text(
+                modifier = Modifier.fillMaxWidth(),
+                text = commandLine,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFF7FAFC),
+                fontFamily = FontFamily.Monospace,
+            )
+        }
+    }
+}
+
+@Composable
 internal fun ServiceStatusPanel(
     state: PrivilegeUiState,
     onStartClick: () -> Unit,

@@ -18,7 +18,7 @@ class PrivilegeUiStaticTcpUiStateTest {
     }
 
     @Test
-    fun closedStaticPortDisablesMainActionAndPromptsOtherMethod() {
+    fun closedStaticPortHidesMainActionAndShowsCommandHelp() {
         assertFalse(
             staticTcpActionEnabled(
                 tcpModeEnabled = false,
@@ -26,13 +26,8 @@ class PrivilegeUiStaticTcpUiStateTest {
                 status = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
             ),
         )
-        assertEquals(
-            R.string.priv_ui_adb_static_use_other_method_action,
-            staticTcpActionLabel(
-                tcpModeEnabled = false,
-                status = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
-            ),
-        )
+        assertFalse(staticTcpActionVisible(tcpModeEnabled = false))
+        assertTrue(staticTcpCommandHelpVisible(tcpModeEnabled = false))
     }
 
     @Test
@@ -44,6 +39,8 @@ class PrivilegeUiStaticTcpUiStateTest {
                 status = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
             ),
         )
+        assertTrue(staticTcpActionVisible(tcpModeEnabled = true))
+        assertFalse(staticTcpCommandHelpVisible(tcpModeEnabled = true))
         assertEquals(
             R.string.priv_ui_adb_static_start_action,
             staticTcpActionLabel(

@@ -41,6 +41,7 @@ internal fun AdbPanel(
     onEnableTcpMode: () -> Unit,
     onStartWirelessAdb: () -> Unit,
     onStartStaticTcpAdb: () -> Unit,
+    onCopyStaticTcpCommand: () -> Unit,
 ) {
     Panel {
         val paired = state.wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON
@@ -90,6 +91,7 @@ internal fun AdbPanel(
                     tcpPort = tcpPort,
                     onEnableTcpMode = onEnableTcpMode,
                     onStartStaticTcpAdb = onStartStaticTcpAdb,
+                    onCopyStaticTcpCommand = onCopyStaticTcpCommand,
                 )
             }
             null -> {
@@ -227,14 +229,12 @@ private fun StaticTcpAdbSection(
     tcpPort: Int,
     onEnableTcpMode: () -> Unit,
     onStartStaticTcpAdb: () -> Unit,
+    onCopyStaticTcpCommand: () -> Unit,
 ) {
     ItemPanel {
-        Text(
-            modifier = Modifier.fillMaxWidth(),
-            text = stringResource(R.string.priv_ui_adb_static_section_desc),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        val staticTcpCommand = privilegeUiStaticTcpOpenCommand(tcpPort)
+        val startActionVisible = staticTcpActionVisible(tcpModeEnabled)
+        val commandHelpVisible = staticTcpCommandHelpVisible(tcpModeEnabled)
         StaticTcpPortStatusRow(
             enabled = tcpModeEnabled,
             tcpPort = tcpPort,
@@ -258,16 +258,46 @@ private fun StaticTcpAdbSection(
                 Text(stringResource(R.string.priv_ui_adb_static_prepare_action))
             }
         }
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            enabled = staticTcpActionEnabled(
-                tcpModeEnabled = tcpModeEnabled,
-                busy = state.busy,
-                status = state.tcpAuthorizationStatus,
-            ),
-            onClick = onStartStaticTcpAdb,
-        ) {
-            Text(stringResource(staticTcpActionLabel(tcpModeEnabled, state.tcpAuthorizationStatus)))
+        AnimatedVisibility(visible = startActionVisible) {
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = startActionVisible && staticTcpActionEnabled(
+                    tcpModeEnabled = tcpModeEnabled,
+                    busy = state.busy,
+                    status = state.tcpAuthorizationStatus,
+                ),
+                onClick = onStartStaticTcpAdb,
+            ) {
+                Text(
+                    stringResource(
+                        staticTcpActionLabel(
+                            tcpModeEnabled = true,
+                            status = state.tcpAuthorizationStatus,
+                        ),
+                    ),
+                )
+            }
+        }
+        AnimatedVisibility(visible = commandHelpVisible) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    modifier = Modifier.fillMaxWidth(),
+                    text = stringResource(R.string.priv_ui_adb_static_command_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                CommandBlock(staticTcpCommand)
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !state.busy,
+                    onClick = onCopyStaticTcpCommand,
+                ) {
+                    Text(stringResource(R.string.priv_ui_manual_copy_command))
+                }
+            }
         }
     }
 }
@@ -435,6 +465,12 @@ internal fun staticTcpActionEnabled(
     tcpModeEnabled &&
         !busy &&
         status != PrivilegeUiAdbTcpAuthorizationStatus.CHECKING
+
+internal fun staticTcpActionVisible(tcpModeEnabled: Boolean): Boolean =
+    tcpModeEnabled
+
+internal fun staticTcpCommandHelpVisible(tcpModeEnabled: Boolean): Boolean =
+    !tcpModeEnabled
 
 internal fun staticTcpActionLabel(
     tcpModeEnabled: Boolean,

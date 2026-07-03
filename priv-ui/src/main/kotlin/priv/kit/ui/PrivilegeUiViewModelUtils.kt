@@ -26,6 +26,9 @@ internal fun String.toPrivilegeUiHostAdbShellCommand(): String {
     }
 }
 
+internal fun privilegeUiStaticTcpOpenCommand(tcpPort: Int): String =
+    "adb tcpip $tcpPort"
+
 internal fun isPrivilegeUiWirelessAdbSupported(): Boolean =
     Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
 
