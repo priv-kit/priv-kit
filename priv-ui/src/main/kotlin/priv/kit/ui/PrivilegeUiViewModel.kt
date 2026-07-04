@@ -78,7 +78,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         }
         val attempts = store.state.value
             .directStartTargets(
-                tcpModeEnabled = store.tcpModeEnabled.value,
+                tcpModeEnabled = store.state.value.tcpModePort != null,
                 tcpPolicy = store.config.adbTcpPolicy,
                 wirelessAdbSupported = isPrivilegeUiWirelessAdbSupported(),
             )

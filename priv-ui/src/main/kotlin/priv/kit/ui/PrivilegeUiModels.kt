@@ -165,6 +165,7 @@ public data class PrivilegeUiState public constructor(
     public val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+    public val tcpModePort: Int? = null,
     public val tcpAuthorizationStatus: PrivilegeUiAdbTcpAuthorizationStatus =
         PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
     public val wirelessStatusPollingActive: Boolean = false,

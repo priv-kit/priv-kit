@@ -49,6 +49,7 @@
     <string name="priv_ui_adb_unavailable">当前没有可用的 ADB 启动入口</string>
     <string name="priv_ui_adb_wireless_start_action">通过无线调试启动</string>
     <string name="priv_ui_adb_static_port_status">静态端口 %1$d</string>
+    <string name="priv_ui_adb_static_port_status_unavailable">静态端口</string>
     <string name="priv_ui_adb_static_port_ready">已开启</string>
     <string name="priv_ui_adb_static_port_unavailable">不可用</string>
     <string name="priv_ui_adb_static_authorization_status">ADB 授权</string>

@@ -49,6 +49,7 @@
     <string name="priv_ui_adb_unavailable">No ADB startup entry is available</string>
     <string name="priv_ui_adb_wireless_start_action">Start with wireless debugging</string>
     <string name="priv_ui_adb_static_port_status">Static port %1$d</string>
+    <string name="priv_ui_adb_static_port_status_unavailable">Static port</string>
     <string name="priv_ui_adb_static_port_ready">Open</string>
     <string name="priv_ui_adb_static_port_unavailable">Unavailable</string>
     <string name="priv_ui_adb_static_authorization_status">ADB authorization</string>

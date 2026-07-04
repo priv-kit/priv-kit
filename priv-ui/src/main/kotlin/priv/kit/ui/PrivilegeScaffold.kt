@@ -42,7 +42,6 @@ public fun PrivilegeScaffold(
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
-    val tcpModeEnabled by viewModel.tcpModeEnabled.collectAsState()
     val selectedAdbStartupTab by viewModel.selectedAdbStartupTab.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
@@ -118,7 +117,6 @@ public fun PrivilegeScaffold(
                 mode = state.selectedStartupMode.takeIf { it in state.startupModes }
                     ?: state.startupModes.first(),
                 state = state,
-                tcpModeEnabled = tcpModeEnabled,
                 selectedAdbStartupTab = selectedAdbStartupTab,
                 viewModel = viewModel,
                 onCopyManualCommand = {
@@ -155,7 +153,6 @@ private tailrec fun Context.findLifecycleOwner(): LifecycleOwner? =
 private fun AuthorizationModePanel(
     mode: PrivilegeUiStartupMode,
     state: PrivilegeUiState,
-    tcpModeEnabled: Boolean,
     selectedAdbStartupTab: PrivilegeUiAdbStartupTab?,
     viewModel: PrivilegeUiViewModel,
     onCopyManualCommand: () -> Unit,
@@ -173,10 +170,9 @@ private fun AuthorizationModePanel(
         )
         PrivilegeUiStartupMode.ADB -> AdbPanel(
             state = state,
-            tcpModeEnabled = tcpModeEnabled,
             selectedTab = selectedAdbStartupTab,
             tcpPolicy = viewModel.adbTcpPolicy,
-            tcpPort = viewModel.config.tcpPort,
+            configuredTcpPort = viewModel.config.tcpPort,
             onTabSelected = viewModel::selectAdbStartupTab,
             onPairingCodeChanged = viewModel::updatePairingCode,
             onPairByCode = viewModel::pairWirelessAdb,

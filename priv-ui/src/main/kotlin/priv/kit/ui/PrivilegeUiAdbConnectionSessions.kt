@@ -13,6 +13,7 @@ internal class PrivilegeUiAdbConnectionSessions {
     private var wirelessPairingCheckSession: PrivilegeAdbPairingCheckSession? = null
     private val tcpAuthorizationCheckSessionLock = Any()
     private var tcpAuthorizationCheckSession: PrivilegeAdbTcpAuthorizationCheckSession? = null
+    private var tcpAuthorizationCheckSessionPort: Int? = null
 
     fun checkTcpAuthorization(
         starter: PrivilegeAdbStarter,
@@ -20,7 +21,7 @@ internal class PrivilegeUiAdbConnectionSessions {
         stop: AtomicBoolean,
     ): PrivilegeAdbAuthorizationCheckResult? {
         if (stop.get()) return null
-        currentTcpAuthorizationCheckSession()?.let { session ->
+        currentTcpAuthorizationCheckSession(tcpPort)?.let { session ->
             val result = session.check()
             if (stop.get()) {
                 clearTcpAuthorizationCheckSession(session)
@@ -37,7 +38,7 @@ internal class PrivilegeUiAdbConnectionSessions {
             if (stop.get()) return null
             return starter.checkTcpAuthorization(tcpPort = tcpPort)
         }
-        replaceTcpAuthorizationCheckSession(session)
+        replaceTcpAuthorizationCheckSession(session, tcpPort)
         if (stop.get()) {
             clearTcpAuthorizationCheckSession(session)
             return null
@@ -86,6 +87,7 @@ internal class PrivilegeUiAdbConnectionSessions {
         val sessionToClose = synchronized(tcpAuthorizationCheckSessionLock) {
             val session = tcpAuthorizationCheckSession
             tcpAuthorizationCheckSession = null
+            tcpAuthorizationCheckSessionPort = null
             session
         }
         sessionToClose?.close()
@@ -100,15 +102,34 @@ internal class PrivilegeUiAdbConnectionSessions {
         sessionToClose?.close()
     }
 
-    private fun currentTcpAuthorizationCheckSession(): PrivilegeAdbTcpAuthorizationCheckSession? =
-        synchronized(tcpAuthorizationCheckSessionLock) {
-            tcpAuthorizationCheckSession
+    private fun currentTcpAuthorizationCheckSession(
+        tcpPort: Int,
+    ): PrivilegeAdbTcpAuthorizationCheckSession? {
+        var currentSession: PrivilegeAdbTcpAuthorizationCheckSession? = null
+        val staleSession = synchronized(tcpAuthorizationCheckSessionLock) {
+            if (tcpAuthorizationCheckSessionPort == tcpPort) {
+                currentSession = tcpAuthorizationCheckSession
+                null
+            } else {
+                val stale = tcpAuthorizationCheckSession
+                tcpAuthorizationCheckSession = null
+                tcpAuthorizationCheckSessionPort = null
+                stale
+            }
         }
+        currentSession?.let { return it }
+        staleSession?.close()
+        return null
+    }
 
-    private fun replaceTcpAuthorizationCheckSession(session: PrivilegeAdbTcpAuthorizationCheckSession) {
+    private fun replaceTcpAuthorizationCheckSession(
+        session: PrivilegeAdbTcpAuthorizationCheckSession,
+        tcpPort: Int,
+    ) {
         val previousSession = synchronized(tcpAuthorizationCheckSessionLock) {
             val previous = tcpAuthorizationCheckSession
             tcpAuthorizationCheckSession = session
+            tcpAuthorizationCheckSessionPort = tcpPort
             previous
         }
         previousSession?.takeIf { it !== session }?.close()
@@ -118,6 +139,7 @@ internal class PrivilegeUiAdbConnectionSessions {
         val sessionToClose = synchronized(tcpAuthorizationCheckSessionLock) {
             if (tcpAuthorizationCheckSession === session) {
                 tcpAuthorizationCheckSession = null
+                tcpAuthorizationCheckSessionPort = null
                 session
             } else {
                 null

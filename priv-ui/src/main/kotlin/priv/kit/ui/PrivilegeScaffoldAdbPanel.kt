@@ -29,10 +29,9 @@ import androidx.compose.ui.unit.dp
 @Composable
 internal fun AdbPanel(
     state: PrivilegeUiState,
-    tcpModeEnabled: Boolean,
     selectedTab: PrivilegeUiAdbStartupTab?,
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
-    tcpPort: Int,
+    configuredTcpPort: Int,
     onTabSelected: (PrivilegeUiAdbStartupTab) -> Unit,
     onPairingCodeChanged: (String) -> Unit,
     onPairByCode: () -> Unit,
@@ -46,6 +45,7 @@ internal fun AdbPanel(
     Panel {
         val paired = state.wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON
         val wirelessStartAvailable = paired || state.wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.ON
+        val staticTcpActive = state.tcpModePort != null
         val tabs = privilegeUiAdbStartupTabs(
             wirelessAdbSupported = isPrivilegeUiWirelessAdbSupported(),
             tcpPolicy = tcpPolicy,
@@ -53,7 +53,7 @@ internal fun AdbPanel(
         val currentTab = selectedTab.takeIf { it in tabs }
             ?: defaultPrivilegeUiAdbStartupTab(
                 tabs = tabs,
-                tcpModeEnabled = tcpModeEnabled,
+                tcpModeEnabled = staticTcpActive,
                 tcpAuthorizationStatus = state.tcpAuthorizationStatus,
             )
         LaunchedEffect(tabs, currentTab, selectedTab) {
@@ -86,9 +86,8 @@ internal fun AdbPanel(
                 StaticTcpAdbSection(
                     state = state,
                     paired = paired,
-                    tcpModeEnabled = tcpModeEnabled,
                     tcpPolicy = tcpPolicy,
-                    tcpPort = tcpPort,
+                    configuredTcpPort = configuredTcpPort,
                     onEnableTcpMode = onEnableTcpMode,
                     onStartStaticTcpAdb = onStartStaticTcpAdb,
                     onCopyStaticTcpCommand = onCopyStaticTcpCommand,
@@ -224,30 +223,30 @@ private fun WirelessAdbSection(
 private fun StaticTcpAdbSection(
     state: PrivilegeUiState,
     paired: Boolean,
-    tcpModeEnabled: Boolean,
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
-    tcpPort: Int,
+    configuredTcpPort: Int,
     onEnableTcpMode: () -> Unit,
     onStartStaticTcpAdb: () -> Unit,
     onCopyStaticTcpCommand: () -> Unit,
 ) {
     ItemPanel {
-        val staticTcpCommand = privilegeUiStaticTcpOpenCommand(tcpPort)
-        val startActionVisible = staticTcpActionVisible(tcpModeEnabled)
-        val commandHelpVisible = staticTcpCommandHelpVisible(tcpModeEnabled)
+        val activeTcpPort = state.tcpModePort
+        val staticTcpActive = activeTcpPort != null
+        val staticTcpCommand = privilegeUiStaticTcpOpenCommand(configuredTcpPort)
+        val startActionVisible = staticTcpActionVisible(staticTcpActive)
+        val commandHelpVisible = staticTcpCommandHelpVisible(staticTcpActive)
         StaticTcpPortStatusRow(
-            enabled = tcpModeEnabled,
-            tcpPort = tcpPort,
+            tcpPort = activeTcpPort,
         )
         TcpAuthorizationStatusRow(
             status = staticTcpAuthorizationDisplayStatus(
-                tcpModeEnabled = tcpModeEnabled,
+                tcpModeEnabled = staticTcpActive,
                 status = state.tcpAuthorizationStatus,
             ),
         )
         AnimatedVisibility(
             visible = paired &&
-                !tcpModeEnabled &&
+                !staticTcpActive &&
                 tcpPolicy == PrivilegeUiAdbTcpPolicy.AUTO_ENABLE_AFTER_WIRELESS_PAIRED,
         ) {
             OutlinedButton(
@@ -262,7 +261,7 @@ private fun StaticTcpAdbSection(
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = startActionVisible && staticTcpActionEnabled(
-                    tcpModeEnabled = tcpModeEnabled,
+                    tcpModeEnabled = staticTcpActive,
                     busy = state.busy,
                     status = state.tcpAuthorizationStatus,
                 ),
@@ -271,7 +270,7 @@ private fun StaticTcpAdbSection(
                 Text(
                     stringResource(
                         staticTcpActionLabel(
-                            tcpModeEnabled = true,
+                            tcpModeEnabled = staticTcpActive,
                             status = state.tcpAuthorizationStatus,
                         ),
                     ),
@@ -325,16 +324,20 @@ private fun AdbFingerprintRow(fingerprint: String?) {
 
 @Composable
 private fun StaticTcpPortStatusRow(
-    enabled: Boolean,
-    tcpPort: Int,
+    tcpPort: Int?,
 ) {
+    val enabled = tcpPort != null
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = stringResource(R.string.priv_ui_adb_static_port_status, tcpPort),
+            text = if (tcpPort != null) {
+                stringResource(R.string.priv_ui_adb_static_port_status, tcpPort)
+            } else {
+                stringResource(R.string.priv_ui_adb_static_port_status_unavailable)
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
