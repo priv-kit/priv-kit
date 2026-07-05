@@ -22,11 +22,14 @@ internal fun PrivilegeTopBar(
 ) {
     TopAppBar(
         navigationIcon = {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = PrivilegeUiIcons.ArrowBack,
-                    contentDescription = stringResource(R.string.priv_ui_nav_back),
-                )
+            val backDescription = stringResource(R.string.priv_ui_nav_back)
+            PrivilegeIconTooltip(text = backDescription) {
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = PrivilegeUiIcons.ArrowBack,
+                        contentDescription = backDescription,
+                    )
+                }
             }
         },
         title = {
@@ -37,11 +40,14 @@ internal fun PrivilegeTopBar(
             )
         },
         actions = {
-            IconButton(onClick = onHelpClick) {
-                Icon(
-                    imageVector = PrivilegeUiIcons.Help,
-                    contentDescription = stringResource(R.string.priv_ui_help),
-                )
+            val helpDescription = stringResource(R.string.priv_ui_help)
+            PrivilegeIconTooltip(text = helpDescription) {
+                IconButton(onClick = onHelpClick) {
+                    Icon(
+                        imageVector = PrivilegeUiIcons.Help,
+                        contentDescription = helpDescription,
+                    )
+                }
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(

@@ -198,28 +198,30 @@ internal fun ServiceStatusPanel(
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
-            FilledTonalIconButton(
-                modifier = Modifier.size(44.dp),
-                enabled = !state.busy,
-                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = actionContainer,
-                    contentColor = actionForeground,
-                    disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                    disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.34f),
-                ),
-                onClick = {
-                    if (running) {
-                        showStopConfirmation = true
-                    } else {
-                        onStartClick()
-                    }
-                },
-            ) {
-                Icon(
-                    modifier = Modifier.size(22.dp),
-                    imageVector = icon,
-                    contentDescription = iconDescription,
-                )
+            PrivilegeIconTooltip(text = iconDescription) {
+                FilledTonalIconButton(
+                    modifier = Modifier.size(44.dp),
+                    enabled = !state.busy,
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = actionContainer,
+                        contentColor = actionForeground,
+                        disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                        disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.34f),
+                    ),
+                    onClick = {
+                        if (running) {
+                            showStopConfirmation = true
+                        } else {
+                            onStartClick()
+                        }
+                    },
+                ) {
+                    Icon(
+                        modifier = Modifier.size(22.dp),
+                        imageVector = icon,
+                        contentDescription = iconDescription,
+                    )
+                }
             }
         }
     }
@@ -244,24 +246,26 @@ internal fun StartupLogPanel(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .clickable(
-                        enabled = lines.isNotEmpty(),
-                        onClickLabel = copyLogDescription,
-                        role = Role.Button,
-                        onClick = onCopyLog,
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    modifier = Modifier.size(18.dp),
-                    imageVector = PrivilegeUiIcons.ContentCopy,
-                    contentDescription = copyLogDescription,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            PrivilegeIconTooltip(text = copyLogDescription) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .clickable(
+                            enabled = lines.isNotEmpty(),
+                            onClickLabel = copyLogDescription,
+                            role = Role.Button,
+                            onClick = onCopyLog,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        modifier = Modifier.size(18.dp),
+                        imageVector = PrivilegeUiIcons.ContentCopy,
+                        contentDescription = copyLogDescription,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
         Box(

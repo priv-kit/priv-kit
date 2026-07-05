@@ -299,46 +299,49 @@ private fun PairingSquareIconButton(
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    Surface(
-        modifier = Modifier
-            .size(PairingInlineIconButtonSize)
-            .clickable(
-                enabled = enabled,
-                role = Role.Button,
-                onClick = onClick,
-            ),
-        shape = MaterialTheme.shapes.small,
-        color = when {
-            !enabled -> colors.onSurface.copy(alpha = 0.08f)
-            primary -> colors.primary
-            else -> colors.surface
-        },
-        contentColor = when {
-            !enabled -> colors.onSurface.copy(alpha = 0.34f)
-            primary -> colors.onPrimary
-            else -> colors.primary
-        },
-        border = if (primary) {
-            null
-        } else {
-            BorderStroke(
-                width = 1.dp,
-                color = if (enabled) {
-                    colors.outline
-                } else {
-                    colors.onSurface.copy(alpha = 0.12f)
-                },
-            )
-        },
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
+    PrivilegeIconTooltip(text = contentDescription) {
+        Surface(
+            modifier = Modifier
+                .size(PairingInlineIconButtonSize)
+                .clickable(
+                    enabled = enabled,
+                    onClickLabel = contentDescription,
+                    role = Role.Button,
+                    onClick = onClick,
+                ),
+            shape = MaterialTheme.shapes.small,
+            color = when {
+                !enabled -> colors.onSurface.copy(alpha = 0.08f)
+                primary -> colors.primary
+                else -> colors.surface
+            },
+            contentColor = when {
+                !enabled -> colors.onSurface.copy(alpha = 0.34f)
+                primary -> colors.onPrimary
+                else -> colors.primary
+            },
+            border = if (primary) {
+                null
+            } else {
+                BorderStroke(
+                    width = 1.dp,
+                    color = if (enabled) {
+                        colors.outline
+                    } else {
+                        colors.onSurface.copy(alpha = 0.12f)
+                    },
+                )
+            },
         ) {
-            Icon(
-                imageVector = imageVector,
-                contentDescription = contentDescription,
-            )
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = imageVector,
+                    contentDescription = contentDescription,
+                )
+            }
         }
     }
 }
