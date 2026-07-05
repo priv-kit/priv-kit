@@ -1,10 +1,5 @@
 package priv.kit.adb.crypto.pairing
 
-import org.bouncycastle.crypto.InvalidCipherTextException
-import org.bouncycastle.crypto.engines.AESEngine
-import org.bouncycastle.crypto.modes.GCMBlockCipher
-import org.bouncycastle.crypto.params.AEADParameters
-import org.bouncycastle.crypto.params.KeyParameter
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -23,11 +18,21 @@ class Aes128GcmTest {
         val key = adbAesKey(keyMaterial)
 
         assertArrayEquals(
-            bouncyCastleAesGcm(true, key, adbNonce(0), firstMessage),
+            BouncyCastlePairingOracle.aesGcm(
+                encrypt = true,
+                key = key,
+                nonce = BouncyCastlePairingOracle.adbNonce(0),
+                input = firstMessage,
+            ),
             cipher.encrypt(firstMessage),
         )
         assertArrayEquals(
-            bouncyCastleAesGcm(true, key, adbNonce(1), secondMessage),
+            BouncyCastlePairingOracle.aesGcm(
+                encrypt = true,
+                key = key,
+                nonce = BouncyCastlePairingOracle.adbNonce(1),
+                input = secondMessage,
+            ),
             cipher.encrypt(secondMessage),
         )
     }
@@ -40,11 +45,24 @@ class Aes128GcmTest {
         )
         val message = byteArrayOf(0x10, 0x20, 0x30, 0x40)
         val key = adbAesKey(keyMaterial)
-        val encrypted = bouncyCastleAesGcm(true, key, adbNonce(0), message)
+        val encrypted = BouncyCastlePairingOracle.aesGcm(
+            encrypt = true,
+            key = key,
+            nonce = BouncyCastlePairingOracle.adbNonce(0),
+            input = message,
+        )
         val cipher = Aes128Gcm(keyMaterial)
 
         assertArrayEquals(message, cipher.decrypt(encrypted))
-        assertArrayEquals(message, bouncyCastleAesGcm(false, key, adbNonce(0), encrypted))
+        assertArrayEquals(
+            message,
+            BouncyCastlePairingOracle.aesGcm(
+                encrypt = false,
+                key = key,
+                nonce = BouncyCastlePairingOracle.adbNonce(0),
+                input = encrypted,
+            ),
+        )
 
         val modified = encrypted.copyOf()
         modified[modified.lastIndex] = (modified.last().toInt() xor 1).toByte()
@@ -60,48 +78,9 @@ class Aes128GcmTest {
     }
 
     private fun adbAesKey(keyMaterial: ByteArray): ByteArray =
-        bouncyCastleHkdfSha256(
+        BouncyCastlePairingOracle.hkdfSha256(
             inputKeyMaterial = keyMaterial,
             info = "adb pairing_auth aes-128-gcm key".toByteArray(Charsets.US_ASCII),
             outputSize = 16,
         )
-
-    private fun bouncyCastleHkdfSha256(
-        inputKeyMaterial: ByteArray,
-        info: ByteArray,
-        outputSize: Int,
-    ): ByteArray {
-        val generator = org.bouncycastle.crypto.generators.HKDFBytesGenerator(
-            org.bouncycastle.crypto.digests.SHA256Digest(),
-        )
-        generator.init(org.bouncycastle.crypto.params.HKDFParameters(inputKeyMaterial, ByteArray(0), info))
-        val output = ByteArray(outputSize)
-        generator.generateBytes(output, 0, output.size)
-        return output
-    }
-
-    private fun bouncyCastleAesGcm(
-        encrypt: Boolean,
-        key: ByteArray,
-        nonce: ByteArray,
-        input: ByteArray,
-    ): ByteArray {
-        val cipher = GCMBlockCipher.newInstance(AESEngine.newInstance())
-        cipher.init(encrypt, AEADParameters(KeyParameter(key), 128, nonce))
-        val output = ByteArray(cipher.getOutputSize(input.size))
-        var size = cipher.processBytes(input, 0, input.size, output, 0)
-        try {
-            size += cipher.doFinal(output, size)
-        } catch (exception: InvalidCipherTextException) {
-            throw AssertionError("Bouncy Castle AES-GCM oracle failed", exception)
-        }
-        return output.copyOf(size)
-    }
-
-    private fun adbNonce(sequence: Long): ByteArray =
-        ByteArray(12).also { nonce ->
-            for (index in 0 until Long.SIZE_BYTES) {
-                nonce[index] = (sequence ushr (index * 8)).toByte()
-            }
-        }
 }

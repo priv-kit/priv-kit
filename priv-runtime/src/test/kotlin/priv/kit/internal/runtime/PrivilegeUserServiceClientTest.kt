@@ -2,8 +2,6 @@ package priv.kit.internal.runtime
 
 import android.os.Bundle
 import android.os.IBinder
-import android.os.IInterface
-import android.os.Parcel
 import android.os.RemoteException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -16,9 +14,9 @@ import org.robolectric.annotation.Config
 import priv.kit.binder.PrivilegeServerUnavailableException
 import priv.kit.internal.userservice.IPrivilegeUserServiceManager
 import priv.kit.internal.userservice.PrivilegeUserServiceContract
+import priv.kit.testing.TestBinder
 import priv.kit.userservice.PrivilegeUserServiceException
 import priv.kit.userservice.PrivilegeUserServiceSpec
-import java.io.FileDescriptor
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -26,7 +24,7 @@ class PrivilegeUserServiceClientTest {
     @Test
     fun startBindUnbindAndStopUseManagerProtocol() {
         val spec = spec()
-        val serviceBinder = FakeBinder()
+        val serviceBinder = TestBinder()
         val manager = RecordingManager(spec)
         manager.startResult = {
             PrivilegeUserServiceContract.successBundle()
@@ -129,7 +127,7 @@ class PrivilegeUserServiceClientTest {
         @Suppress("UNUSED_PARAMETER")
         defaultSpec: PrivilegeUserServiceSpec,
     ) : IPrivilegeUserServiceManager {
-        val binder = FakeBinder(localInterface = this)
+        val binder = TestBinder(localInterface = this)
         val calls = mutableListOf<String>()
         val startRequests = mutableListOf<Bundle>()
         val bindRequests = mutableListOf<Bundle>()
@@ -144,7 +142,7 @@ class PrivilegeUserServiceClientTest {
         var bindResult: () -> Bundle = {
             PrivilegeUserServiceContract.bindSuccessBundle(
                 connectionId = "connection",
-                binder = FakeBinder(),
+                binder = TestBinder(),
             )
         }
         var unbindResult: () -> Bundle = {
@@ -187,51 +185,6 @@ class PrivilegeUserServiceClientTest {
             stopRequests += request
             return stopResult()
         }
-    }
-
-    private class FakeBinder(
-        private val localInterface: IInterface? = null,
-        @Volatile
-        private var alive: Boolean = true,
-    ) : IBinder {
-        override fun getInterfaceDescriptor(): String = "fake"
-
-        override fun pingBinder(): Boolean = alive
-
-        override fun isBinderAlive(): Boolean = alive
-
-        override fun queryLocalInterface(descriptor: String): IInterface? = localInterface
-
-        override fun dump(
-            fd: FileDescriptor,
-            args: Array<out String>?,
-        ) = Unit
-
-        override fun dumpAsync(
-            fd: FileDescriptor,
-            args: Array<out String>?,
-        ) = Unit
-
-        override fun transact(
-            code: Int,
-            data: Parcel,
-            reply: Parcel?,
-            flags: Int,
-        ): Boolean = alive
-
-        override fun linkToDeath(
-            recipient: IBinder.DeathRecipient,
-            flags: Int,
-        ) {
-            if (!alive) {
-                throw RemoteException("Binder is dead")
-            }
-        }
-
-        override fun unlinkToDeath(
-            recipient: IBinder.DeathRecipient,
-            flags: Int,
-        ): Boolean = true
     }
 
     private companion object {

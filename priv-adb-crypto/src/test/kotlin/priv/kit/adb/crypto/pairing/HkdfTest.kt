@@ -1,9 +1,6 @@
 package priv.kit.adb.crypto.pairing
 
 import org.junit.Assert.assertArrayEquals
-import org.bouncycastle.crypto.digests.SHA256Digest
-import org.bouncycastle.crypto.generators.HKDFBytesGenerator
-import org.bouncycastle.crypto.params.HKDFParameters
 import org.junit.Test
 
 class HkdfTest {
@@ -27,20 +24,8 @@ class HkdfTest {
         val info = "adb pairing_auth aes-128-gcm key".toByteArray(Charsets.US_ASCII)
 
         assertArrayEquals(
-            bouncyCastleHkdfSha256(keyMaterial, info, 16),
+            BouncyCastlePairingOracle.hkdfSha256(keyMaterial, info, 16),
             Hkdf.sha256(keyMaterial, info, 16),
         )
-    }
-
-    private fun bouncyCastleHkdfSha256(
-        inputKeyMaterial: ByteArray,
-        info: ByteArray,
-        outputSize: Int,
-    ): ByteArray {
-        val generator = HKDFBytesGenerator(SHA256Digest())
-        generator.init(HKDFParameters(inputKeyMaterial, ByteArray(0), info))
-        val output = ByteArray(outputSize)
-        generator.generateBytes(output, 0, output.size)
-        return output
     }
 }

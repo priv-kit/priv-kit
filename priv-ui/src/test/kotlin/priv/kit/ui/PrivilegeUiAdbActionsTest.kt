@@ -6,85 +6,72 @@ import org.junit.Test
 
 class PrivilegeUiAdbActionsTest {
     @Test
-    fun pairingCheckStatusIsUnknownWithoutWirelessDebugging() {
-        assertEquals(
-            PrivilegeUiWirelessAdbStatus.UNKNOWN,
-            privilegeUiPairingCheckStatus(
+    fun pairingCheckStatusUsesWirelessAndRefreshResult() {
+        listOf(
+            PairingCheckCase(
                 wirelessDebuggingOn = false,
                 pairingCheckPaired = true,
                 currentStatus = PrivilegeUiWirelessAdbStatus.ON,
+                expected = PrivilegeUiWirelessAdbStatus.UNKNOWN,
             ),
-        )
-    }
-
-    @Test
-    fun pairingCheckStatusUsesSuccessfulRefreshResult() {
-        assertEquals(
-            PrivilegeUiWirelessAdbStatus.ON,
-            privilegeUiPairingCheckStatus(
+            PairingCheckCase(
                 wirelessDebuggingOn = true,
                 pairingCheckPaired = true,
                 currentStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+                expected = PrivilegeUiWirelessAdbStatus.ON,
             ),
-        )
-    }
-
-    @Test
-    fun pairingCheckStatusUsesFailedRefreshResult() {
-        assertEquals(
-            PrivilegeUiWirelessAdbStatus.OFF,
-            privilegeUiPairingCheckStatus(
+            PairingCheckCase(
                 wirelessDebuggingOn = true,
                 pairingCheckPaired = false,
                 currentStatus = PrivilegeUiWirelessAdbStatus.ON,
+                expected = PrivilegeUiWirelessAdbStatus.OFF,
             ),
-        )
-    }
-
-    @Test
-    fun pairingCheckStatusPreservesExplicitPairingSuccessWithoutRefreshResult() {
-        assertEquals(
-            PrivilegeUiWirelessAdbStatus.ON,
-            privilegeUiPairingCheckStatus(
+            PairingCheckCase(
                 wirelessDebuggingOn = true,
                 pairingCheckPaired = null,
                 currentStatus = PrivilegeUiWirelessAdbStatus.ON,
+                expected = PrivilegeUiWirelessAdbStatus.ON,
             ),
-        )
-    }
-
-    @Test
-    fun pairingCheckStatusDoesNotInventPairingFailureWithoutRefreshResult() {
-        assertEquals(
-            PrivilegeUiWirelessAdbStatus.UNKNOWN,
-            privilegeUiPairingCheckStatus(
+            PairingCheckCase(
                 wirelessDebuggingOn = true,
                 pairingCheckPaired = null,
                 currentStatus = PrivilegeUiWirelessAdbStatus.CHECKING,
+                expected = PrivilegeUiWirelessAdbStatus.UNKNOWN,
             ),
-        )
+        ).forEach { case ->
+            assertEquals(
+                case.expected,
+                privilegeUiPairingCheckStatus(
+                    wirelessDebuggingOn = case.wirelessDebuggingOn,
+                    pairingCheckPaired = case.pairingCheckPaired,
+                    currentStatus = case.currentStatus,
+                ),
+            )
+        }
     }
 
     @Test
-    fun refreshingPairingCheckStatusIsUnknownWhenWirelessDebuggingIsOff() {
-        assertEquals(
-            PrivilegeUiWirelessAdbStatus.UNKNOWN,
-            privilegeUiRefreshingPairingCheckStatus(
+    fun refreshingPairingCheckStatusReflectsWirelessState() {
+        listOf(
+            RefreshingPairingCase(
                 wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
                 currentStatus = PrivilegeUiWirelessAdbStatus.ON,
+                expected = PrivilegeUiWirelessAdbStatus.UNKNOWN,
             ),
-        )
-    }
-
-    @Test
-    fun refreshingPairingCheckStatusChecksWhenWirelessDebuggingMayBeOn() {
-        assertEquals(
-            PrivilegeUiWirelessAdbStatus.CHECKING,
-            privilegeUiRefreshingPairingCheckStatus(
+            RefreshingPairingCase(
                 wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
                 currentStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+                expected = PrivilegeUiWirelessAdbStatus.CHECKING,
             ),
-        )
+        ).forEach { case ->
+            assertEquals(
+                case.expected,
+                privilegeUiRefreshingPairingCheckStatus(
+                    wirelessDebuggingStatus = case.wirelessDebuggingStatus,
+                    currentStatus = case.currentStatus,
+                ),
+            )
+        }
     }
 
     @Test
@@ -164,4 +151,17 @@ class PrivilegeUiAdbActionsTest {
             PrivilegeUiManagedWirelessAdbStatus.UNDECLARED.isVisibleManagedWirelessAdbStatus(),
         )
     }
+
+    private data class PairingCheckCase(
+        val wirelessDebuggingOn: Boolean,
+        val pairingCheckPaired: Boolean?,
+        val currentStatus: PrivilegeUiWirelessAdbStatus,
+        val expected: PrivilegeUiWirelessAdbStatus,
+    )
+
+    private data class RefreshingPairingCase(
+        val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus,
+        val currentStatus: PrivilegeUiWirelessAdbStatus,
+        val expected: PrivilegeUiWirelessAdbStatus,
+    )
 }

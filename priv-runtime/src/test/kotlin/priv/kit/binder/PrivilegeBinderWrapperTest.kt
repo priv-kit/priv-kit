@@ -1,7 +1,6 @@
 package priv.kit.binder
 
 import android.os.IBinder
-import android.os.IInterface
 import android.os.Parcel
 import android.os.RemoteException
 import org.junit.After
@@ -16,10 +15,9 @@ import priv.kit.PrivilegeServerInfo
 import priv.kit.internal.core.PrivilegeProtocol
 import priv.kit.internal.core.PrivilegeServerHandshakeResult
 import priv.kit.internal.binder.IPrivilegeServer
+import priv.kit.testing.TestBinder
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.io.FileDescriptor
-import java.util.concurrent.CopyOnWriteArrayList
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -146,36 +144,13 @@ class PrivilegeBinderWrapperTest {
     }
 
     private class FakeBinder(
-        private val localInterface: IInterface? = null,
+        localInterface: android.os.IInterface? = null,
         private val transactException: RemoteException? = null,
-        @Volatile
-        private var alive: Boolean = true,
-    ) : IBinder {
-        private val deathRecipients = CopyOnWriteArrayList<IBinder.DeathRecipient>()
-        val deathRecipientCount: Int
-            get() = deathRecipients.size
-
+        alive: Boolean = true,
+    ) : TestBinder(localInterface = localInterface, alive = alive) {
         fun kill() {
-            alive = false
+            killBinder(notifyDeathRecipients = false)
         }
-
-        override fun getInterfaceDescriptor(): String = "fake"
-
-        override fun pingBinder(): Boolean = alive
-
-        override fun isBinderAlive(): Boolean = alive
-
-        override fun queryLocalInterface(descriptor: String): IInterface? = localInterface
-
-        override fun dump(
-            fd: FileDescriptor,
-            args: Array<out String>?,
-        ) = Unit
-
-        override fun dumpAsync(
-            fd: FileDescriptor,
-            args: Array<out String>?,
-        ) = Unit
 
         override fun transact(
             code: Int,
@@ -184,23 +159,7 @@ class PrivilegeBinderWrapperTest {
             flags: Int,
         ): Boolean {
             transactException?.let { throw it }
-            return alive
+            return super.transact(code, data, reply, flags)
         }
-
-        override fun linkToDeath(
-            recipient: IBinder.DeathRecipient,
-            flags: Int,
-        ) {
-            if (!alive) {
-                throw RemoteException("Binder is dead")
-            }
-            deathRecipients += recipient
-        }
-
-        override fun unlinkToDeath(
-            recipient: IBinder.DeathRecipient,
-            flags: Int,
-        ): Boolean =
-            deathRecipients.remove(recipient)
     }
 }

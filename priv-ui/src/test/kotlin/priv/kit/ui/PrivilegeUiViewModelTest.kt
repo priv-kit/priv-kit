@@ -16,11 +16,8 @@ import org.robolectric.annotation.Config
 class PrivilegeUiViewModelTest {
     @Test
     fun defaultConfigOrdersTabsButSelectsAdb() {
-        val application = RuntimeEnvironment.getApplication() as Application
-        installRuntimeContext(application)
-        val viewModel = ConfiguredPrivilegeUiViewModel(
-            application = application,
-            config = PrivilegeUiConfig(
+        val viewModel = configuredViewModel(
+            PrivilegeUiConfig(
                 adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
             ),
         )
@@ -40,11 +37,8 @@ class PrivilegeUiViewModelTest {
 
     @Test
     fun externalModeIsLastAndAdbRemainsSelected() {
-        val application = RuntimeEnvironment.getApplication() as Application
-        installRuntimeContext(application)
-        val viewModel = ConfiguredPrivilegeUiViewModel(
-            application = application,
-            config = PrivilegeUiConfig(
+        val viewModel = configuredViewModel(
+            PrivilegeUiConfig(
                 adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
                 externalStartProviders = listOf(TestExternalStartProvider),
             ),
@@ -66,9 +60,7 @@ class PrivilegeUiViewModelTest {
 
     @Test
     fun constructorConfigInitializesState() {
-        val application = RuntimeEnvironment.getApplication() as Application
-        installRuntimeContext(application)
-        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
 
         val state = viewModel.state.value
 
@@ -79,11 +71,8 @@ class PrivilegeUiViewModelTest {
     @Test
     @Config(sdk = [29])
     fun android10DoesNotStartWirelessAdbStatusPolling() {
-        val application = RuntimeEnvironment.getApplication() as Application
-        installRuntimeContext(application)
-        val viewModel = ConfiguredPrivilegeUiViewModel(
-            application = application,
-            config = PrivilegeUiConfig(
+        val viewModel = configuredViewModel(
+            PrivilegeUiConfig(
                 startupModes = setOf(PrivilegeUiStartupMode.ADB),
                 adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
             ),
@@ -99,11 +88,8 @@ class PrivilegeUiViewModelTest {
 
     @Test
     fun adbStartupTabSelectionIsHeldByViewModel() {
-        val application = RuntimeEnvironment.getApplication() as Application
-        installRuntimeContext(application)
-        val viewModel = ConfiguredPrivilegeUiViewModel(
-            application = application,
-            config = PrivilegeUiConfig(
+        val viewModel = configuredViewModel(
+            PrivilegeUiConfig(
                 adbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
             ),
         )
@@ -119,11 +105,8 @@ class PrivilegeUiViewModelTest {
 
     @Test
     fun tcpModeStatusPollingFollowsAdbMode() {
-        val application = RuntimeEnvironment.getApplication() as Application
-        installRuntimeContext(application)
-        val viewModel = ConfiguredPrivilegeUiViewModel(
-            application = application,
-            config = PrivilegeUiConfig(
+        val viewModel = configuredViewModel(
+            PrivilegeUiConfig(
                 startupModes = setOf(
                     PrivilegeUiStartupMode.ADB,
                     PrivilegeUiStartupMode.ROOT,
@@ -152,11 +135,8 @@ class PrivilegeUiViewModelTest {
 
     @Test
     fun tcpModeStatusPollingHandleKeepsPollingUntilAllHandlesClose() {
-        val application = RuntimeEnvironment.getApplication() as Application
-        installRuntimeContext(application)
-        val viewModel = ConfiguredPrivilegeUiViewModel(
-            application = application,
-            config = PrivilegeUiConfig(
+        val viewModel = configuredViewModel(
+            PrivilegeUiConfig(
                 startupModes = setOf(PrivilegeUiStartupMode.ROOT),
                 adbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
                 wirelessStatusPollIntervalMillis = 60_000L,
@@ -189,11 +169,8 @@ class PrivilegeUiViewModelTest {
 
     @Test
     fun stopTcpModeStatusPollingStopsAllHandles() {
-        val application = RuntimeEnvironment.getApplication() as Application
-        installRuntimeContext(application)
-        val viewModel = ConfiguredPrivilegeUiViewModel(
-            application = application,
-            config = PrivilegeUiConfig(
+        val viewModel = configuredViewModel(
+            PrivilegeUiConfig(
                 startupModes = setOf(PrivilegeUiStartupMode.ROOT),
                 adbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
                 wirelessStatusPollIntervalMillis = 60_000L,
@@ -250,6 +227,15 @@ class PrivilegeUiViewModelTest {
             commandLine: String,
         ) = Unit
     }
+
+    private fun configuredViewModel(config: PrivilegeUiConfig): ConfiguredPrivilegeUiViewModel =
+        ConfiguredPrivilegeUiViewModel(
+            application = application(),
+            config = config,
+        )
+
+    private fun application(): Application =
+        (RuntimeEnvironment.getApplication() as Application).also(::installRuntimeContext)
 
     private fun installRuntimeContext(context: Context) {
         val runtimeContext = Class.forName("priv.kit.internal.runtime.PrivilegeContext")

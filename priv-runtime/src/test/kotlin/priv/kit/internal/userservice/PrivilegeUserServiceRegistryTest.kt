@@ -1,21 +1,15 @@
 package priv.kit.internal.userservice
 
 import android.content.Context
-import android.os.IBinder
-import android.os.IInterface
-import android.os.Parcel
-import android.os.RemoteException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import priv.kit.testing.TestBinder
+import priv.kit.testing.TestProcess
+import priv.kit.testing.TestUserServiceProcess
 import priv.kit.userservice.*
-import java.io.ByteArrayInputStream
-import java.io.FileDescriptor
-import java.io.InputStream
-import java.io.OutputStream
-import java.util.concurrent.CopyOnWriteArrayList
-import org.junit.Assert.assertNull
 
 class PrivilegeUserServiceRegistryTest {
     @Test
@@ -30,12 +24,12 @@ class PrivilegeUserServiceRegistryTest {
     fun nonDaemonServiceIsDestroyedWhenOwnerDies() {
         EmbeddedService.reset()
         val registry = PrivilegeUserServiceRegistry(FakeHost())
-        val owner = FakeBinder()
+        val owner = TestBinder()
         val spec = embeddedSpec()
 
         registry.start(spec, owner)
         owner.killBinder()
-        val result = registry.bind(spec, FakeBinder())
+        val result = registry.bind(spec, TestBinder())
 
         assertEquals(2, EmbeddedService.created)
         registry.unbind(result.connectionId)
@@ -45,12 +39,12 @@ class PrivilegeUserServiceRegistryTest {
     fun daemonServiceSurvivesOwnerDeath() {
         EmbeddedService.reset()
         val registry = PrivilegeUserServiceRegistry(FakeHost())
-        val owner = FakeBinder()
+        val owner = TestBinder()
         val spec = embeddedSpec(daemon = true)
 
         registry.start(spec, owner)
         owner.killBinder()
-        val result = registry.bind(spec, FakeBinder())
+        val result = registry.bind(spec, TestBinder())
 
         assertEquals(1, EmbeddedService.created)
         registry.unbind(result.connectionId)
@@ -63,9 +57,9 @@ class PrivilegeUserServiceRegistryTest {
         val registry = PrivilegeUserServiceRegistry(FakeHost())
         val spec = embeddedSpec(daemon = true)
 
-        val first = registry.bind(spec, FakeBinder())
+        val first = registry.bind(spec, TestBinder())
         registry.unbind(first.connectionId)
-        val second = registry.bind(spec, FakeBinder())
+        val second = registry.bind(spec, TestBinder())
 
         assertEquals(1, EmbeddedService.created)
         registry.unbind(second.connectionId)
@@ -74,12 +68,12 @@ class PrivilegeUserServiceRegistryTest {
 
     @Test
     fun dedicatedProcessDeathClearsConnection() {
-        val process = FakeDedicatedProcess()
+        val process = TestUserServiceProcess()
         val registry = PrivilegeUserServiceRegistry(DedicatedFakeHost(process))
         val spec = dedicatedSpec()
 
-        val result = registry.bind(spec, FakeBinder())
-        process.kill()
+        val result = registry.bind(spec, TestBinder())
+        process.killBinder()
 
         assertThrows(PrivilegeUserServiceException::class.java) {
             registry.unbind(result.connectionId)
@@ -88,15 +82,15 @@ class PrivilegeUserServiceRegistryTest {
 
     @Test
     fun dedicatedProcessDeathAllowsNextBindToCreateReplacement() {
-        val firstProcess = FakeDedicatedProcess()
+        val firstProcess = TestUserServiceProcess()
         val host = DedicatedFakeHost(firstProcess)
         val registry = PrivilegeUserServiceRegistry(host)
         val spec = dedicatedSpec()
 
-        val first = registry.bind(spec, FakeBinder())
-        firstProcess.kill()
-        host.process = FakeDedicatedProcess()
-        val result = registry.bind(spec, FakeBinder())
+        val first = registry.bind(spec, TestBinder())
+        firstProcess.killBinder()
+        host.process = TestUserServiceProcess()
+        val result = registry.bind(spec, TestBinder())
 
         assertNotSame(first.binder, result.binder)
     }
@@ -105,7 +99,7 @@ class PrivilegeUserServiceRegistryTest {
     fun embeddedModeCreatesSeparateInstancesForDifferentTags() {
         EmbeddedService.reset()
         val registry = PrivilegeUserServiceRegistry(FakeHost())
-        val client = FakeBinder()
+        val client = TestBinder()
 
         val first = registry.bind(embeddedSpec(tag = "first"), client)
         val second = registry.bind(embeddedSpec(tag = "second"), client)
@@ -121,7 +115,7 @@ class PrivilegeUserServiceRegistryTest {
     fun embeddedVersionChangeDestroysPreviousInstance() {
         EmbeddedService.reset()
         val registry = PrivilegeUserServiceRegistry(FakeHost())
-        val client = FakeBinder()
+        val client = TestBinder()
 
         val first = registry.bind(embeddedSpec(version = 1), client)
         val second = registry.bind(embeddedSpec(version = 2), client)
@@ -143,7 +137,7 @@ class PrivilegeUserServiceRegistryTest {
         Thread.currentThread().contextClassLoader = object : ClassLoader(null) {}
         try {
             val registry = PrivilegeUserServiceRegistry(FakeHost())
-            val client = FakeBinder()
+            val client = TestBinder()
 
             val result = registry.bind(embeddedSpec(), client)
 
@@ -164,7 +158,7 @@ class PrivilegeUserServiceRegistryTest {
                     serviceClassName = "missing.Service",
                     embedded = true,
                 ),
-                FakeBinder(),
+                TestBinder(),
             )
         }
     }
@@ -248,7 +242,7 @@ class PrivilegeUserServiceRegistryTest {
         )
 
     class EmbeddedService :
-        FakeBinder() {
+        TestBinder() {
         init {
             created += 1
         }
@@ -265,11 +259,11 @@ class PrivilegeUserServiceRegistryTest {
     class ContextOnlyService(
         @Suppress("UNUSED_PARAMETER")
         context: Context,
-    ) : FakeBinder()
+    ) : TestBinder()
 
     class BothConstructorsService private constructor(
         val createdWith: String,
-    ) : FakeBinder() {
+    ) : TestBinder() {
         constructor() : this("no-arg")
 
         constructor(context: Context) : this(context.packageName)
@@ -306,7 +300,7 @@ class PrivilegeUserServiceRegistryTest {
     }
 
     private class DedicatedFakeHost(
-        var process: FakeDedicatedProcess,
+        var process: TestUserServiceProcess,
     ) : PrivilegeUserServiceHost {
         override val uid: Int = 0
         override val pid: Int = 1234
@@ -317,7 +311,7 @@ class PrivilegeUserServiceRegistryTest {
             spec: PrivilegeUserServiceSpec,
             token: String,
         ): Process =
-            FakeProcess()
+            TestProcess()
 
         override fun awaitDedicatedProcess(
             token: String,
@@ -327,90 +321,4 @@ class PrivilegeUserServiceRegistryTest {
         override fun killDedicatedProcess(process: Process) = Unit
     }
 
-    private class FakeDedicatedProcess : IPrivilegeUserServiceProcess {
-        private val binder = FakeBinder()
-
-        override fun asBinder(): IBinder = binder
-
-        override fun start() = Unit
-
-        override fun bind(): IBinder = binder
-
-        override fun unbind(connectionId: String) = Unit
-
-        override fun destroy() = Unit
-
-        fun kill() {
-            binder.killBinder()
-        }
-    }
-
-    private class FakeProcess : Process() {
-        override fun getOutputStream(): OutputStream = OutputStream.nullOutputStream()
-
-        override fun getInputStream(): InputStream = ByteArrayInputStream(ByteArray(0))
-
-        override fun getErrorStream(): InputStream = ByteArrayInputStream(ByteArray(0))
-
-        override fun waitFor(): Int = 0
-
-        override fun exitValue(): Int = 0
-
-        override fun destroy() = Unit
-    }
-
-    open class FakeBinder(
-        @Volatile
-        private var alive: Boolean = true,
-    ) : IBinder {
-        private val deathRecipients = CopyOnWriteArrayList<IBinder.DeathRecipient>()
-
-        override fun getInterfaceDescriptor(): String = "fake"
-
-        override fun pingBinder(): Boolean = alive
-
-        override fun isBinderAlive(): Boolean = alive
-
-        override fun queryLocalInterface(descriptor: String): IInterface? = null
-
-        override fun dump(
-            fd: FileDescriptor,
-            args: Array<out String>?,
-        ) = Unit
-
-        override fun dumpAsync(
-            fd: FileDescriptor,
-            args: Array<out String>?,
-        ) = Unit
-
-        open override fun transact(
-            code: Int,
-            data: Parcel,
-            reply: Parcel?,
-            flags: Int,
-        ): Boolean = alive
-
-        override fun linkToDeath(
-            recipient: IBinder.DeathRecipient,
-            flags: Int,
-        ) {
-            if (!alive) {
-                throw RemoteException("Binder is dead")
-            }
-            deathRecipients += recipient
-        }
-
-        override fun unlinkToDeath(
-            recipient: IBinder.DeathRecipient,
-            flags: Int,
-        ): Boolean =
-            deathRecipients.remove(recipient)
-
-        fun killBinder() {
-            if (!alive) return
-            alive = false
-            deathRecipients.forEach { it.binderDied() }
-            deathRecipients.clear()
-        }
-    }
 }

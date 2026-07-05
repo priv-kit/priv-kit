@@ -1,10 +1,6 @@
 package priv.kit.internal.server
 
 import android.os.Bundle
-import android.os.IBinder
-import android.os.IInterface
-import android.os.Parcel
-import android.os.RemoteException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
@@ -12,14 +8,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import priv.kit.internal.userservice.IPrivilegeUserServiceProcess
 import priv.kit.internal.userservice.PrivilegeUserServiceContract
+import priv.kit.testing.TestProcess
+import priv.kit.testing.TestUserServiceProcess
 import priv.kit.userservice.PrivilegeUserServiceException
 import priv.kit.userservice.PrivilegeUserServiceSpec
-import java.io.ByteArrayInputStream
-import java.io.FileDescriptor
-import java.io.InputStream
-import java.io.OutputStream
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -102,7 +95,7 @@ class PrivilegeServerUserServiceHostTest {
     @Test
     fun hostStartsProcessFromBuiltCommand() {
         val startedCommands = mutableListOf<PrivilegeServerUserServiceProcessStartCommand>()
-        val process = FakeProcess()
+        val process = TestProcess()
         val host = PrivilegeServerUserServiceHost(
             config = config(),
             processStarter = { command ->
@@ -122,7 +115,7 @@ class PrivilegeServerUserServiceHostTest {
 
     @Test
     fun claimerReturnsClaimedProcessBinder() {
-        val process = FakeUserServiceProcess()
+        val process = TestUserServiceProcess()
         val claimer = PrivilegeServerUserServiceProcessClaimer(
             elapsedRealtime = { 0L },
             sleep = { error("sleep should not be needed") },
@@ -175,35 +168,7 @@ class PrivilegeServerUserServiceHostTest {
         assertEquals(1, process.destroyCalls)
     }
 
-    private class FakeUserServiceProcess : IPrivilegeUserServiceProcess {
-        private val binder = FakeBinder(localInterface = this)
-
-        override fun asBinder(): IBinder = binder
-
-        override fun start() = Unit
-
-        override fun bind(): IBinder = binder
-
-        override fun unbind(connectionId: String) = Unit
-
-        override fun destroy() = Unit
-    }
-
-    private open class FakeProcess : Process() {
-        override fun getOutputStream(): OutputStream = OutputStream.nullOutputStream()
-
-        override fun getInputStream(): InputStream = ByteArrayInputStream(ByteArray(0))
-
-        override fun getErrorStream(): InputStream = ByteArrayInputStream(ByteArray(0))
-
-        override fun waitFor(): Int = 0
-
-        override fun exitValue(): Int = 0
-
-        override fun destroy() = Unit
-    }
-
-    private class RecordingProcess : FakeProcess() {
+    private class RecordingProcess : TestProcess() {
         var destroyForciblyCalls = 0
         var destroyCalls = 0
 
@@ -215,51 +180,6 @@ class PrivilegeServerUserServiceHostTest {
         override fun destroy() {
             destroyCalls += 1
         }
-    }
-
-    private class FakeBinder(
-        private val localInterface: IInterface? = null,
-        @Volatile
-        private var alive: Boolean = true,
-    ) : IBinder {
-        override fun getInterfaceDescriptor(): String = "fake"
-
-        override fun pingBinder(): Boolean = alive
-
-        override fun isBinderAlive(): Boolean = alive
-
-        override fun queryLocalInterface(descriptor: String): IInterface? = localInterface
-
-        override fun dump(
-            fd: FileDescriptor,
-            args: Array<out String>?,
-        ) = Unit
-
-        override fun dumpAsync(
-            fd: FileDescriptor,
-            args: Array<out String>?,
-        ) = Unit
-
-        override fun transact(
-            code: Int,
-            data: Parcel,
-            reply: Parcel?,
-            flags: Int,
-        ): Boolean = alive
-
-        override fun linkToDeath(
-            recipient: IBinder.DeathRecipient,
-            flags: Int,
-        ) {
-            if (!alive) {
-                throw RemoteException("Binder is dead")
-            }
-        }
-
-        override fun unlinkToDeath(
-            recipient: IBinder.DeathRecipient,
-            flags: Int,
-        ): Boolean = true
     }
 
     private companion object {

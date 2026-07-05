@@ -2,9 +2,6 @@ package priv.kit
 
 import android.content.pm.PackageManager
 import android.os.IBinder
-import android.os.IInterface
-import android.os.Parcel
-import android.os.RemoteException
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -17,9 +14,8 @@ import priv.kit.internal.core.PrivilegeAndroidUsers
 import priv.kit.internal.core.PrivilegeProtocol
 import priv.kit.internal.core.PrivilegeServerHandshakeResult
 import priv.kit.internal.runtime.PrivilegeServerLaunchCommandBuilder
+import priv.kit.testing.TestBinder
 import java.io.File
-import java.io.FileDescriptor
-import java.util.concurrent.CopyOnWriteArrayList
 
 class PrivilegeTest {
     @After
@@ -250,13 +246,13 @@ class PrivilegeTest {
     private class FakePrivilegeServer(
         private val permissionResult: Int = PackageManager.PERMISSION_DENIED,
     ) : IPrivilegeServer {
-        private val binder = FakeBinder(localInterface = this)
+        private val binder = TestBinder(localInterface = this)
         val serverPermissionChecks = mutableListOf<String>()
         val packagePermissionChecks = mutableListOf<PackagePermissionCheck>()
         val runtimePermissionGrants = mutableListOf<RuntimePermissionGrant>()
 
         fun killBinder() {
-            binder.kill()
+            binder.killBinder(notifyDeathRecipients = false)
         }
 
         override fun asBinder(): IBinder = binder
@@ -310,56 +306,4 @@ class PrivilegeTest {
         val userId: Int,
     )
 
-    private class FakeBinder(
-        private val localInterface: IInterface? = null,
-        @Volatile
-        private var alive: Boolean = true,
-    ) : IBinder {
-        private val deathRecipients = CopyOnWriteArrayList<IBinder.DeathRecipient>()
-
-        fun kill() {
-            alive = false
-        }
-
-        override fun getInterfaceDescriptor(): String = "fake"
-
-        override fun pingBinder(): Boolean = alive
-
-        override fun isBinderAlive(): Boolean = alive
-
-        override fun queryLocalInterface(descriptor: String): IInterface? = localInterface
-
-        override fun dump(
-            fd: FileDescriptor,
-            args: Array<out String>?,
-        ) = Unit
-
-        override fun dumpAsync(
-            fd: FileDescriptor,
-            args: Array<out String>?,
-        ) = Unit
-
-        override fun transact(
-            code: Int,
-            data: Parcel,
-            reply: Parcel?,
-            flags: Int,
-        ): Boolean = alive
-
-        override fun linkToDeath(
-            recipient: IBinder.DeathRecipient,
-            flags: Int,
-        ) {
-            if (!alive) {
-                throw RemoteException("Binder is dead")
-            }
-            deathRecipients += recipient
-        }
-
-        override fun unlinkToDeath(
-            recipient: IBinder.DeathRecipient,
-            flags: Int,
-        ): Boolean =
-            deathRecipients.remove(recipient)
-    }
 }
