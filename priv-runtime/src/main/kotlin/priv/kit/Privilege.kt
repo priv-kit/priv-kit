@@ -1,6 +1,11 @@
 package priv.kit
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.IBinder
+import android.os.Process
 import android.os.RemoteException
 import android.util.Log
 import priv.kit.adb.PrivilegeAdbIdentity
@@ -11,6 +16,7 @@ import priv.kit.adb.PrivilegeAdbStarter
 import priv.kit.binder.serverControlCall
 import priv.kit.binder.serverUnavailable
 import priv.kit.internal.binder.IPrivilegeServer
+import priv.kit.internal.core.PrivilegeAndroidUsers
 import priv.kit.internal.core.PrivilegeProtocol
 import priv.kit.internal.core.PrivilegeServerHandshakeRegistry
 import priv.kit.internal.core.PrivilegeServerHandshakeResult
@@ -27,9 +33,14 @@ import java.util.concurrent.CopyOnWriteArraySet
 
 public object Privilege {
     private const val DEFAULT_START_TIMEOUT_MILLIS = 15_000L
+    private const val GRANT_RUNTIME_PERMISSIONS = "android.permission.GRANT_RUNTIME_PERMISSIONS"
+    private const val ROOT_UID = 0
     private const val TAG = "PrivKit"
 
     private val serverLock = Any()
+    private val currentUserId: Int by lazy {
+        Process.myUserHandle().hashCode()
+    }
     private var currentServer: ServerConnection? = null
     private val disconnectedListeners = CopyOnWriteArraySet<() -> Unit>()
     private val userServiceClient = PrivilegeUserServiceClient(::getUserServiceManagerBinder)
@@ -61,7 +72,7 @@ public object Privilege {
             startupLogListener.emitStartupLog("runtime", "Waiting for Privileged Server handshake")
             val handshakeResult = pendingHandshake.await(timeoutMillis)
             startupLogListener.emitStartupLog("runtime", "Privileged Server handshake received")
-            return connectHandshake(handshakeResult)
+            return connectHandshake(handshakeResult, startupLogListener)
         } catch (e: PrivilegeStartupException) {
             startupLogListener.emitStartupLog("runtime", "Startup failed: ${e.message.orEmpty()}")
             if (rootProcess != null && !rootProcess.isAlive) {
@@ -158,7 +169,7 @@ public object Privilege {
             val handshakeResult = pendingHandshake.await(timeoutMillis)
             Log.i(TAG, "ADB Binder handshake received")
             startupLogListener.emitStartupLog("runtime", "Privileged Server handshake received")
-            return connectHandshake(handshakeResult)
+            return connectHandshake(handshakeResult, startupLogListener)
         } catch (e: PrivilegeStartupException) {
             Log.e(TAG, "ADB startup failed", e)
             startupLogListener.emitStartupLog("runtime", "ADB startup failed: ${e.message.orEmpty()}")
@@ -184,10 +195,38 @@ public object Privilege {
     public fun getServerInfo(): PrivilegeServerInfo =
         requireServerConnection().serverInfo
 
-    public fun checkPermission(permission: String): Int {
+    public fun checkServerPermission(permission: String): Int {
         require(permission.isNotBlank()) { "permission must not be blank" }
         return serverControlCall {
-            requireServerInterface().checkPermission(permission)
+            requireServerInterface().checkServerPermission(permission)
+        }
+    }
+
+    public fun checkPermission(
+        permName: String,
+        pkgName: String,
+        userId: Int = currentUserId,
+    ): Int {
+        return serverControlCall {
+            requireServerInterface().checkPermission(
+                permName,
+                pkgName,
+                userId,
+            )
+        }
+    }
+
+    public fun grantRuntimePermission(
+        packageName: String,
+        permissionName: String,
+        userId: Int = currentUserId,
+    ) {
+        serverControlCall {
+            requireServerInterface().grantRuntimePermission(
+                packageName,
+                permissionName,
+                userId,
+            )
         }
     }
 
@@ -232,16 +271,19 @@ public object Privilege {
 
     internal fun connectHandshake(
         handshakeResult: PrivilegeServerHandshakeResult,
+        startupLogListener: PrivilegeStartupLogListener? = null,
     ): PrivilegeServerInfo =
         connectServer(
             serverBinder = handshakeResult.serverBinder,
             serverInfo = handshakeResult.serverInfo,
+            startupLogListener = startupLogListener,
         )
 
     @Throws(PrivilegeStartupException::class)
     private fun connectServer(
         serverBinder: IBinder,
         serverInfo: PrivilegeServerInfo,
+        startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeServerInfo {
         val server = IPrivilegeServer.Stub.asInterface(serverBinder)
             ?: throw PrivilegeStartupException("Privileged Server returned an invalid Binder")
@@ -253,7 +295,74 @@ public object Privilege {
             )
         }
 
+        grantOwnerStartupPermissions(serverInfo, server, startupLogListener)
         return installCurrentServer(serverInfo, server)
+    }
+
+    private fun grantOwnerStartupPermissions(
+        serverInfo: PrivilegeServerInfo,
+        server: IPrivilegeServer,
+        startupLogListener: PrivilegeStartupLogListener?,
+    ) {
+        val context = runCatching { PrivilegeContext.require() }.getOrNull() ?: return
+        val userId = PrivilegeAndroidUsers.userIdFromUid(context.applicationInfo.uid)
+        OWNER_STARTUP_PERMISSIONS.forEach { permission ->
+            if (!context.hasPermissionDeclaration(permission)) {
+                Log.i(TAG, "Owner startup permission not declared; skipping grant: $permission")
+                return@forEach
+            }
+            if (context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
+                Log.i(TAG, "Owner startup permission already granted: $permission")
+                return@forEach
+            }
+            val granted = runCatching {
+                grantRuntimePermissionForRuntime(
+                    serverInfo = serverInfo,
+                    server = server,
+                    packageName = context.packageName,
+                    permissionName = permission,
+                    userId = userId,
+                )
+            }.getOrElse { throwable ->
+                Log.w(TAG, "Owner startup permission grant failed: $permission", throwable)
+                startupLogListener.emitStartupLog(
+                    source = "runtime",
+                    message = "Failed to grant owner permission $permission: ${throwable.message.orEmpty()}",
+                )
+                false
+            }
+            if (granted) {
+                Log.i(TAG, "Owner startup permission granted: $permission")
+                startupLogListener.emitStartupLog(
+                    source = "runtime",
+                    message = "Granted owner permission $permission",
+                )
+            } else {
+                Log.i(TAG, "Server cannot grant runtime permissions; skipping grant: $permission")
+                startupLogListener.emitStartupLog(
+                    source = "runtime",
+                    message = "Server cannot grant runtime permissions; skipped $permission",
+                )
+            }
+        }
+    }
+
+    internal fun grantRuntimePermissionForRuntime(
+        serverInfo: PrivilegeServerInfo,
+        server: IPrivilegeServer,
+        packageName: String,
+        permissionName: String,
+        userId: Int,
+    ): Boolean {
+        if (serverInfo.uid != ROOT_UID && !server.canGrantRuntimePermissions()) {
+            return false
+        }
+        server.grantRuntimePermission(
+            packageName,
+            permissionName,
+            userId,
+        )
+        return true
     }
 
     private fun installCurrentServer(
@@ -424,6 +533,27 @@ public object Privilege {
     private fun PrivilegeServerInfo.matchesCurrentRuntime(): Boolean =
         protocolVersion == PrivilegeProtocol.VERSION
 
+    private fun IPrivilegeServer.canGrantRuntimePermissions(): Boolean =
+        checkServerPermission(GRANT_RUNTIME_PERMISSIONS) ==
+            PackageManager.PERMISSION_GRANTED
+
+    private fun Context.hasPermissionDeclaration(permission: String): Boolean =
+        runCatching {
+            val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                packageManager.getPackageInfo(
+                    packageName,
+                    PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()),
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(
+                    packageName,
+                    PackageManager.GET_PERMISSIONS,
+                )
+            }
+            packageInfo.requestedPermissions?.contains(permission) == true
+        }.getOrDefault(false)
+
     private fun PrivilegeStartupLogListener?.emitStartupLog(
         source: String,
         message: String,
@@ -438,6 +568,10 @@ public object Privilege {
 
     private fun ownerTokenStore(): PrivilegeOwnerTokenStore =
         PrivilegeOwnerTokenStore
+
+    private val OWNER_STARTUP_PERMISSIONS: Set<String> = setOf(
+        Manifest.permission.WRITE_SECURE_SETTINGS,
+    )
 
     private data class ServerConnection(
         val serverInfo: PrivilegeServerInfo,

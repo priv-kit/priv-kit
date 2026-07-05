@@ -71,6 +71,16 @@ internal class PrivilegeUiRuntimeActions(
         }
     }
 
+    fun stopCurrentStart() {
+        when (store.state.value.runtimeStatus) {
+            PrivilegeUiRuntimeStatus.CONNECTED -> stopServer()
+            PrivilegeUiRuntimeStatus.STARTING -> stopServerStart()
+            PrivilegeUiRuntimeStatus.DISCONNECTED,
+            PrivilegeUiRuntimeStatus.FAILED,
+            -> Unit
+        }
+    }
+
     fun reportNoDirectStart() {
         val message = store.text(R.string.priv_ui_no_direct_start)
         store.updateState { it.copy(serviceMessage = message) }
@@ -129,18 +139,22 @@ internal class PrivilegeUiRuntimeActions(
     }
 
     fun runServerStart(attempt: PrivilegeUiRuntimeStartAttempt.Connect) {
-        if (store.state.value.busy) return
-        store.clearStartupLog()
-        store.updateState {
-            it.startingAttempt(attempt.message)
-        }
+        val generation = beginRuntimeStart(attempt.message) ?: return
         appendStartupSource(attempt.startupSource)
         store.appendStartupLog(attempt.message)
         store.executor.execute {
+            if (!markRuntimeStartThread(generation)) return@execute
             try {
-                connectServer(attempt.start())
+                val serverInfo = attempt.start()
+                if (isCurrentRuntimeStart(generation)) {
+                    connectServer(serverInfo, generation)
+                } else {
+                    stopServerAfterCancelledStart()
+                }
             } catch (throwable: Throwable) {
-                setRuntimeFailure(throwable)
+                setRuntimeFailure(throwable, startGeneration = generation)
+            } finally {
+                clearRuntimeStartThread(generation)
             }
         }
     }
@@ -162,22 +176,23 @@ internal class PrivilegeUiRuntimeActions(
     }
 
     fun runServerStartRequest(attempt: PrivilegeUiRuntimeStartAttempt.Request) {
-        if (store.state.value.busy) return
-        store.clearStartupLog()
-        store.updateState {
-            it.startingAttempt(attempt.message)
-        }
+        val generation = beginRuntimeStart(attempt.message) ?: return
         appendStartupSource(attempt.startupSource)
         store.appendStartupLog(attempt.message)
         store.executor.execute {
+            if (!markRuntimeStartThread(generation)) return@execute
             try {
                 attempt.start()
-                store.updateState {
+                updateCurrentRuntimeStartState(generation) {
                     it.startRequestSent(attempt.startedMessage)
                 }
-                store.appendStartupLog(attempt.startedMessage)
+                if (isCurrentRuntimeStart(generation)) {
+                    store.appendStartupLog(attempt.startedMessage)
+                }
             } catch (throwable: Throwable) {
-                setRuntimeFailure(throwable)
+                setRuntimeFailure(throwable, startGeneration = generation)
+            } finally {
+                clearRuntimeStartThread(generation)
             }
         }
     }
@@ -187,40 +202,54 @@ internal class PrivilegeUiRuntimeActions(
             reportNoDirectStart()
             return
         }
-        if (store.state.value.busy) return
-        store.clearStartupLog()
-        store.updateState {
-            it.startingAttempt(attempts.first().message)
-        }
+        val generation = beginRuntimeStart(attempts.first().message) ?: return
         store.executor.execute {
-            var lastFailure: Throwable? = null
-            attempts.forEach { attempt ->
-                store.updateState {
-                    it.startingAttempt(attempt.message)
-                }
-                appendStartupSource(attempt.startupSource)
-                store.appendStartupLog(attempt.message)
-                try {
-                    when (attempt) {
-                        is PrivilegeUiRuntimeStartAttempt.Connect -> {
-                            connectServer(attempt.start())
-                            return@execute
-                        }
-                        is PrivilegeUiRuntimeStartAttempt.Request -> {
-                            attempt.start()
-                            store.updateState {
-                                it.startRequestSent(attempt.startedMessage)
-                            }
-                            store.appendStartupLog(attempt.startedMessage)
-                            return@execute
-                        }
+            if (!markRuntimeStartThread(generation)) return@execute
+            try {
+                var lastFailure: Throwable? = null
+                attempts.forEach { attempt ->
+                    if (!isCurrentRuntimeStart(generation)) return@execute
+                    updateCurrentRuntimeStartState(generation) {
+                        it.startingAttempt(attempt.message)
                     }
-                } catch (throwable: Throwable) {
-                    lastFailure = throwable
-                    store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
+                    appendStartupSource(attempt.startupSource)
+                    store.appendStartupLog(attempt.message)
+                    try {
+                        when (attempt) {
+                            is PrivilegeUiRuntimeStartAttempt.Connect -> {
+                                val serverInfo = attempt.start()
+                                if (isCurrentRuntimeStart(generation)) {
+                                    connectServer(serverInfo, generation)
+                                } else {
+                                    stopServerAfterCancelledStart()
+                                }
+                                return@execute
+                            }
+                            is PrivilegeUiRuntimeStartAttempt.Request -> {
+                                attempt.start()
+                                updateCurrentRuntimeStartState(generation) {
+                                    it.startRequestSent(attempt.startedMessage)
+                                }
+                                if (isCurrentRuntimeStart(generation)) {
+                                    store.appendStartupLog(attempt.startedMessage)
+                                }
+                                return@execute
+                            }
+                        }
+                    } catch (throwable: Throwable) {
+                        if (!isCurrentRuntimeStart(generation)) return@execute
+                        lastFailure = throwable
+                        store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
+                    }
                 }
+                setRuntimeFailure(
+                    lastFailure ?: IllegalStateException(store.text(R.string.priv_ui_no_direct_start)),
+                    appendDiagnostic = false,
+                    startGeneration = generation,
+                )
+            } finally {
+                clearRuntimeStartThread(generation)
             }
-            setRuntimeFailure(lastFailure ?: IllegalStateException(store.text(R.string.priv_ui_no_direct_start)), false)
         }
     }
 
@@ -274,18 +303,112 @@ internal class PrivilegeUiRuntimeActions(
         store.appendStartupLog(store.text(R.string.priv_ui_startup_source, source))
     }
 
-    private fun connectServer(serverInfo: PrivilegeServerInfo) {
-        val shouldAppendLog = store.state.value.runtimeStatus == PrivilegeUiRuntimeStatus.STARTING
+    private fun beginRuntimeStart(message: String): Long? {
+        if (store.state.value.busy) return null
+        val generation = store.runtimeStartGeneration.incrementAndGet()
+        store.clearStartupLog()
+        updateCurrentRuntimeStartState(generation) {
+            it.startingAttempt(message)
+        }
+        return generation
+    }
+
+    private fun stopServerStart() {
+        if (store.state.value.runtimeStatus != PrivilegeUiRuntimeStatus.STARTING) return
+        val message = store.text(R.string.priv_ui_startup_stopped)
+        val thread = synchronized(store) {
+            store.runtimeStartGeneration.incrementAndGet()
+            store.runtimeStartThread.also {
+                store.runtimeStartThread = null
+            }
+        }
+        thread?.interrupt()
         store.updateState {
             it.copy(
                 busy = false,
-                runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
-                serverInfo = serverInfo,
-                serviceMessage = store.text(R.string.priv_ui_connected),
-                connectionSerial = it.connectionSerial + 1L,
+                runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                serverInfo = null,
+                serviceMessage = message,
             )
         }
-        if (shouldAppendLog) {
+        store.appendStartupLog(message)
+    }
+
+    private fun markRuntimeStartThread(generation: Long): Boolean =
+        synchronized(store) {
+            if (!isCurrentRuntimeStart(generation)) {
+                false
+            } else {
+                store.runtimeStartThread = Thread.currentThread()
+                true
+            }
+        }
+
+    private fun clearRuntimeStartThread(generation: Long) {
+        synchronized(store) {
+            if (
+                isCurrentRuntimeStart(generation) &&
+                store.runtimeStartThread === Thread.currentThread()
+            ) {
+                store.runtimeStartThread = null
+            }
+        }
+    }
+
+    private fun updateCurrentRuntimeStartState(
+        generation: Long,
+        transform: (PrivilegeUiState) -> PrivilegeUiState,
+    ) {
+        store.updateState {
+            if (isCurrentRuntimeStart(generation)) transform(it) else it
+        }
+    }
+
+    private fun isCurrentRuntimeStart(generation: Long): Boolean =
+        store.runtimeStartGeneration.get() == generation
+
+    private fun stopServerAfterCancelledStart() {
+        store.serverShutdownRequestedByOwner = true
+        try {
+            runCatching {
+                Privilege.shutdownServer()
+            }.onFailure { throwable ->
+                store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
+            }
+        } finally {
+            store.serverShutdownRequestedByOwner = false
+        }
+    }
+
+    private fun connectServer(
+        serverInfo: PrivilegeServerInfo,
+        startGeneration: Long? = null,
+    ) {
+        if (startGeneration != null && !isCurrentRuntimeStart(startGeneration)) {
+            stopServerAfterCancelledStart()
+            return
+        }
+        val shouldAppendLog = store.state.value.runtimeStatus == PrivilegeUiRuntimeStatus.STARTING
+        var connected = false
+        store.updateState {
+            if (startGeneration != null && !isCurrentRuntimeStart(startGeneration)) {
+                it
+            } else {
+                connected = true
+                it.copy(
+                    busy = false,
+                    runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
+                    serverInfo = serverInfo,
+                    serviceMessage = store.text(R.string.priv_ui_connected),
+                    connectionSerial = it.connectionSerial + 1L,
+                )
+            }
+        }
+        if (!connected) {
+            stopServerAfterCancelledStart()
+            return
+        }
+        if (shouldAppendLog && (startGeneration == null || isCurrentRuntimeStart(startGeneration))) {
             store.appendStartupLog(store.text(R.string.priv_ui_connected))
         }
     }
@@ -293,11 +416,17 @@ internal class PrivilegeUiRuntimeActions(
     private fun setRuntimeFailure(
         throwable: Throwable,
         appendDiagnostic: Boolean = true,
+        startGeneration: Long? = null,
     ) {
+        if (startGeneration != null && !isCurrentRuntimeStart(startGeneration)) return
         store.updateState {
-            it.startFailed(throwable.failureMessage())
+            if (startGeneration != null && !isCurrentRuntimeStart(startGeneration)) {
+                it
+            } else {
+                it.startFailed(throwable.failureMessage())
+            }
         }
-        if (appendDiagnostic) {
+        if (appendDiagnostic && (startGeneration == null || isCurrentRuntimeStart(startGeneration))) {
             store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
         }
     }

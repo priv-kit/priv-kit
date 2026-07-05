@@ -48,7 +48,9 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
                 val code = RemoteInput.getResultsFromIntent(intent)
                     ?.getCharSequence(PrivilegeAdbPairingIntentContract.REMOTE_INPUT_PAIRING_CODE)
                     ?.toString()
+                    ?.trim()
                     .orEmpty()
+                if (!code.isPrivilegeUiPairingCode()) return START_NOT_STICKY
                 val inputState = PrivilegeAdbPairingInputState.fromPairingCode(
                     code = code,
                     selectedIndex = 0,
@@ -165,7 +167,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         return null
     }
 
-    private fun submitPairingInput(): Notification {
+    private fun submitPairingInput(): Notification? {
         val state = pairingInputState ?: PrivilegeAdbPairingInputState()
         pairingInputState = state
         return startPairing(
@@ -187,19 +189,11 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
     private fun startPairing(
         pairingCode: String,
         inputState: PrivilegeAdbPairingInputState,
-    ): Notification {
-        val code = pairingCode.toPrivilegeAdbPairingCodeDigits()
+    ): Notification? {
+        val code = pairingCode.trim()
+        if (!code.isPrivilegeUiPairingCode()) return null
         val port = pairingPort?.takeIf { it in 1..65535 } ?: return restartSearchForUnavailablePairingPort()
         val adbDeviceName = requestedAdbDeviceName
-        if (code.isBlank()) {
-            val message = getString(R.string.priv_ui_pairing_code_required)
-            return restorePairingInputAfterFailure(
-                port = port,
-                adbDeviceName = adbDeviceName,
-                state = inputState,
-                message = message,
-            )
-        }
 
         val session = startNewSession()
         pairingInputState = inputState

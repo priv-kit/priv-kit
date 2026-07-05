@@ -76,11 +76,14 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         ) {
             return
         }
+        adbActions.refreshWifiConnected()
         val attempts = store.state.value
             .directStartTargets(
                 tcpModeEnabled = store.state.value.tcpModePort != null,
                 tcpPolicy = store.config.adbTcpPolicy,
                 wirelessAdbSupported = isPrivilegeUiWirelessAdbSupported(),
+                managedWirelessAdbEnabled = store.config.enableManagedWirelessAdb &&
+                    store.state.value.managedWirelessAdbStatus != PrivilegeUiManagedWirelessAdbStatus.UNDECLARED,
             )
             .mapNotNull { target ->
                 when (target) {
@@ -100,6 +103,10 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
     public open fun stopServer() {
         runtimeActions.stopServer()
+    }
+
+    public open fun stopCurrentStart() {
+        runtimeActions.stopCurrentStart()
     }
 
     public open fun copyManualCommand(context: Context) {

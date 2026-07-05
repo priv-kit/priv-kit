@@ -26,6 +26,7 @@
     <string name="priv_ui_connected">已连接</string>
     <string name="priv_ui_binder_died">Binder 已断开</string>
     <string name="priv_ui_starting_root">正在启动 Root 运行时...</string>
+    <string name="priv_ui_startup_stopped">已停止启动</string>
     <string name="priv_ui_startup_source">启动来源：%1$s</string>
     <string name="priv_ui_startup_log_title">启动日志</string>
     <string name="priv_ui_startup_log_copy_description">复制启动日志</string>
@@ -48,6 +49,8 @@
     <string name="priv_ui_adb_tab_static">静态端口</string>
     <string name="priv_ui_adb_unavailable">当前没有可用的 ADB 启动入口</string>
     <string name="priv_ui_adb_wireless_start_action">通过无线调试启动</string>
+    <string name="priv_ui_adb_wireless_wifi_required_action">连接 Wi-Fi 后启动</string>
+    <string name="priv_ui_adb_wireless_stop_action">停止</string>
     <string name="priv_ui_adb_static_port_status">静态端口 %1$d</string>
     <string name="priv_ui_adb_static_port_status_unavailable">静态端口</string>
     <string name="priv_ui_adb_static_port_ready">已开启</string>
@@ -71,6 +74,7 @@
     <string name="priv_ui_wireless_status_off">关闭</string>
     <string name="priv_ui_wireless_status_yes">是</string>
     <string name="priv_ui_wireless_status_no">否</string>
+    <string name="priv_ui_wifi_required_for_wireless_adb_start">请连接到 Wi-Fi 后再启动</string>
     <string name="priv_ui_wireless_pair_action">输入配对码完成配对</string>
     <string name="priv_ui_wireless_pair_searching_action">查找服务中，点击停止</string>
     <string name="priv_ui_checking_wireless_adb">正在确认无线调试是否已配对...</string>

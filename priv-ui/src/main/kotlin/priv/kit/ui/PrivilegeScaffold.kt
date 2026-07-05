@@ -172,6 +172,7 @@ private fun AuthorizationModePanel(
             state = state,
             selectedTab = selectedAdbStartupTab,
             tcpPolicy = viewModel.adbTcpPolicy,
+            managedWirelessAdbEnabled = viewModel.config.enableManagedWirelessAdb,
             configuredTcpPort = viewModel.config.tcpPort,
             onTabSelected = viewModel::selectAdbStartupTab,
             onPairingCodeChanged = viewModel::updatePairingCode,
@@ -182,6 +183,7 @@ private fun AuthorizationModePanel(
             },
             onEnableTcpMode = viewModel::enableTcpMode,
             onStartWirelessAdb = viewModel::startWirelessAdb,
+            onStopWirelessAdb = viewModel::stopCurrentStart,
             onStartStaticTcpAdb = viewModel::startStaticTcpAdb,
             onCopyStaticTcpCommand = onCopyStaticTcpCommand,
         )

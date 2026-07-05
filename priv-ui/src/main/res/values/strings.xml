@@ -26,6 +26,7 @@
     <string name="priv_ui_connected">Connected</string>
     <string name="priv_ui_binder_died">Binder died</string>
     <string name="priv_ui_starting_root">Starting Root Runtime...</string>
+    <string name="priv_ui_startup_stopped">Startup stopped</string>
     <string name="priv_ui_startup_source">Startup source: %1$s</string>
     <string name="priv_ui_startup_log_title">Startup log</string>
     <string name="priv_ui_startup_log_copy_description">Copy startup log</string>
@@ -48,6 +49,8 @@
     <string name="priv_ui_adb_tab_static">Static port</string>
     <string name="priv_ui_adb_unavailable">No ADB startup entry is available</string>
     <string name="priv_ui_adb_wireless_start_action">Start with wireless debugging</string>
+    <string name="priv_ui_adb_wireless_wifi_required_action">Connect Wi-Fi to start</string>
+    <string name="priv_ui_adb_wireless_stop_action">Stop</string>
     <string name="priv_ui_adb_static_port_status">Static port %1$d</string>
     <string name="priv_ui_adb_static_port_status_unavailable">Static port</string>
     <string name="priv_ui_adb_static_port_ready">Open</string>
@@ -71,6 +74,7 @@
     <string name="priv_ui_wireless_status_off">Off</string>
     <string name="priv_ui_wireless_status_yes">Yes</string>
     <string name="priv_ui_wireless_status_no">No</string>
+    <string name="priv_ui_wifi_required_for_wireless_adb_start">Connect to Wi-Fi before starting</string>
     <string name="priv_ui_wireless_pair_action">Pair with code</string>
     <string name="priv_ui_wireless_pair_searching_action">Searching, tap to stop</string>
     <string name="priv_ui_checking_wireless_adb">Checking whether Wireless debugging is paired...</string>

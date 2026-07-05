@@ -47,6 +47,9 @@ internal data class PrivilegeAdbPairingInputState(
 internal fun String.toPrivilegeAdbPairingCodeDigits(): String =
     filter(Char::isDigit).take(PAIRING_INPUT_CODE_LENGTH)
 
+internal fun String.isPrivilegeUiPairingCode(): Boolean =
+    length == PAIRING_INPUT_CODE_LENGTH && all(Char::isDigit)
+
 private fun String.replaceDigitAt(
     index: Int,
     transform: (Int) -> Int,

@@ -10,23 +10,33 @@ internal fun PrivilegeUiState.directStartTarget(
     tcpModeEnabled: Boolean,
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
     wirelessAdbSupported: Boolean = true,
+    managedWirelessAdbEnabled: Boolean = true,
 ): PrivilegeUiDirectStartTarget? =
     directStartTargets(
         tcpModeEnabled = tcpModeEnabled,
         tcpPolicy = tcpPolicy,
         wirelessAdbSupported = wirelessAdbSupported,
+        managedWirelessAdbEnabled = managedWirelessAdbEnabled,
     ).firstOrNull()
 
 internal fun PrivilegeUiState.directStartTargets(
     tcpModeEnabled: Boolean,
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
     wirelessAdbSupported: Boolean = true,
+    managedWirelessAdbEnabled: Boolean = true,
 ): List<PrivilegeUiDirectStartTarget> =
     buildList {
         directStartModeOrder().forEach { mode ->
             when (mode) {
                 PrivilegeUiStartupMode.ADB -> {
-                    if (canStartAdbDirectly(tcpModeEnabled, tcpPolicy, wirelessAdbSupported)) {
+                    if (
+                        canStartAdbDirectly(
+                            tcpModeEnabled,
+                            tcpPolicy,
+                            wirelessAdbSupported,
+                            managedWirelessAdbEnabled,
+                        )
+                    ) {
                         add(PrivilegeUiDirectStartTarget.Adb)
                     }
                 }
@@ -57,11 +67,19 @@ internal fun PrivilegeUiState.hasDirectStartTarget(
     tcpModeEnabled: Boolean,
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
     wirelessAdbSupported: Boolean = true,
+    managedWirelessAdbEnabled: Boolean = true,
 ): Boolean {
     directStartModeOrder().forEach { mode ->
         when (mode) {
             PrivilegeUiStartupMode.ADB -> {
-                if (canStartAdbDirectly(tcpModeEnabled, tcpPolicy, wirelessAdbSupported)) {
+                if (
+                    canStartAdbDirectly(
+                        tcpModeEnabled,
+                        tcpPolicy,
+                        wirelessAdbSupported,
+                        managedWirelessAdbEnabled,
+                    )
+                ) {
                     return true
                 }
             }
@@ -81,12 +99,17 @@ internal fun PrivilegeUiState.canStartAdbDirectly(
     tcpModeEnabled: Boolean,
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
     wirelessAdbSupported: Boolean = true,
+    managedWirelessAdbEnabled: Boolean = true,
 ): Boolean {
     val paired = wirelessAdbSupported && wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON
     val tcpAuthorized = tcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED &&
         tcpModeEnabled &&
         tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED
     val wirelessEndpointAvailable = wirelessAdbSupported &&
+        wifiConnected &&
         wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.ON
-    return paired || tcpAuthorized || wirelessEndpointAvailable
+    val managedWirelessAvailable = managedWirelessAdbEnabled &&
+        wifiConnected &&
+        managedWirelessAdbStatus == PrivilegeUiManagedWirelessAdbStatus.READY
+    return (paired && wifiConnected) || tcpAuthorized || wirelessEndpointAvailable || managedWirelessAvailable
 }

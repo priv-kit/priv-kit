@@ -139,6 +139,46 @@ class PrivilegeUiRuntimeActionsTest {
         }
     }
 
+    @Test
+    fun stopCurrentStartInterruptsRunningStartAndKeepsStoppedState() {
+        val context = RuntimeEnvironment.getApplication()
+        val store = PrivilegeUiViewModelStore(context)
+        val actions = PrivilegeUiRuntimeActions(store)
+        val started = CountDownLatch(1)
+        val interrupted = CountDownLatch(1)
+        try {
+            actions.runServerStart(
+                PrivilegeUiRuntimeStartAttempt.Connect(
+                    message = "adb",
+                    startupSource = null,
+                ) {
+                    started.countDown()
+                    try {
+                        Thread.sleep(TimeUnit.SECONDS.toMillis(30))
+                    } catch (e: InterruptedException) {
+                        interrupted.countDown()
+                        throw e
+                    }
+                    error("start was not stopped")
+                },
+            )
+
+            assertTrue(started.await(2, TimeUnit.SECONDS))
+            actions.stopCurrentStart()
+
+            assertTrue(interrupted.await(2, TimeUnit.SECONDS))
+            assertTrue(waitUntilIdle(store))
+            assertEquals(PrivilegeUiRuntimeStatus.DISCONNECTED, store.state.value.runtimeStatus)
+            assertEquals(
+                context.getString(R.string.priv_ui_startup_stopped),
+                store.state.value.serviceMessage,
+            )
+        } finally {
+            actions.close()
+            store.close()
+        }
+    }
+
     private fun waitUntilConnected(store: PrivilegeUiViewModelStore): Boolean {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
         while (System.nanoTime() < deadline) {

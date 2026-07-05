@@ -107,14 +107,16 @@ Gradle 模块必须使用 `priv-*` 命名：
 
 本项目不是 Android 系统 API 兼容层，也不能发展成兼容层。
 
-本项目不提供以下封装：
+本项目不提供以下高级封装：
 
 - ActivityManager
-- PackageManager
+- PackageManager 领域 facade
 - InputManager
 - Settings
 - AppOps
 - 其他高级 Android 系统能力
+
+少量高频 framework 方法可以作为显式参数的透传桥提供，例如权限检查和运行时权限授予；这类 API 不应发展出策略、发现、批处理或领域模型。
 
 以下风格的 API 明确不属于本项目范围：
 

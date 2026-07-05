@@ -1,17 +1,25 @@
 package priv.kit.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,18 +27,24 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+
+private val PairingInlineIconButtonSize = 56.dp
 
 @Composable
 internal fun AdbPanel(
     state: PrivilegeUiState,
     selectedTab: PrivilegeUiAdbStartupTab?,
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
+    managedWirelessAdbEnabled: Boolean,
     configuredTcpPort: Int,
     onTabSelected: (PrivilegeUiAdbStartupTab) -> Unit,
     onPairingCodeChanged: (String) -> Unit,
@@ -39,12 +53,18 @@ internal fun AdbPanel(
     onNotificationPairingClick: () -> Unit,
     onEnableTcpMode: () -> Unit,
     onStartWirelessAdb: () -> Unit,
+    onStopWirelessAdb: () -> Unit,
     onStartStaticTcpAdb: () -> Unit,
     onCopyStaticTcpCommand: () -> Unit,
 ) {
     Panel {
         val paired = state.wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON
-        val wirelessStartAvailable = paired || state.wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.ON
+        val managedWirelessReady = managedWirelessAdbEnabled &&
+            state.managedWirelessAdbStatus == PrivilegeUiManagedWirelessAdbStatus.READY
+        val wirelessStartPrerequisiteAvailable = paired ||
+            state.wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.ON ||
+            managedWirelessReady
+        val wirelessStartAvailable = state.wifiConnected && wirelessStartPrerequisiteAvailable
         val staticTcpActive = state.tcpModePort != null
         val tabs = privilegeUiAdbStartupTabs(
             wirelessAdbSupported = isPrivilegeUiWirelessAdbSupported(),
@@ -74,12 +94,14 @@ internal fun AdbPanel(
                 WirelessAdbSection(
                     state = state,
                     paired = paired,
+                    startPrerequisiteAvailable = wirelessStartPrerequisiteAvailable,
                     startAvailable = wirelessStartAvailable,
                     onPairingCodeChanged = onPairingCodeChanged,
                     onPairByCode = onPairByCode,
                     onCancelPairing = onCancelPairing,
                     onNotificationPairingClick = onNotificationPairingClick,
                     onStartWirelessAdb = onStartWirelessAdb,
+                    onStopWirelessAdb = onStopWirelessAdb,
                 )
             }
             PrivilegeUiAdbStartupTab.STATIC_TCP -> {
@@ -134,12 +156,14 @@ private fun AdbStartupTabRow(
 private fun WirelessAdbSection(
     state: PrivilegeUiState,
     paired: Boolean,
+    startPrerequisiteAvailable: Boolean,
     startAvailable: Boolean,
     onPairingCodeChanged: (String) -> Unit,
     onPairByCode: () -> Unit,
     onCancelPairing: () -> Unit,
     onNotificationPairingClick: () -> Unit,
     onStartWirelessAdb: () -> Unit,
+    onStopWirelessAdb: () -> Unit,
 ) {
     ItemPanel {
         RealtimeStatusRow(
@@ -165,56 +189,156 @@ private fun WirelessAdbSection(
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = state.pairingCode,
-                    onValueChange = onPairingCodeChanged,
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                    label = { Text(stringResource(R.string.priv_ui_pairing_code)) },
-                )
-                Button(
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !state.busy || state.wirelessPairingRunning,
-                    onClick = {
-                        if (state.wirelessPairingRunning) {
-                            onCancelPairing()
-                        } else {
-                            onPairByCode()
-                        }
+                val pairingActionEnabled = !state.busy || state.wirelessPairingRunning
+                val pairingActionLabel = stringResource(
+                    if (state.wirelessPairingRunning) {
+                        R.string.priv_ui_wireless_pair_searching_action
+                    } else {
+                        R.string.priv_ui_wireless_pair_action
                     },
+                )
+                val notificationActionEnabled = !state.busy || state.notificationPairingRunning
+                val notificationActionLabel = stringResource(
+                    if (state.notificationPairingRunning) {
+                        R.string.priv_ui_notification_pairing_waiting
+                    } else {
+                        R.string.priv_ui_pair_via_notification
+                    },
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Bottom,
                 ) {
-                    Text(
-                        stringResource(
-                            if (state.wirelessPairingRunning) {
-                                R.string.priv_ui_wireless_pair_searching_action
-                            } else {
-                                R.string.priv_ui_wireless_pair_action
+                    PairingSquareIconButton(
+                        enabled = notificationActionEnabled,
+                        primary = false,
+                        imageVector = if (state.notificationPairingRunning) {
+                            PrivilegeUiIcons.NotificationsActive
+                        } else {
+                            PrivilegeUiIcons.Notifications
+                        },
+                        contentDescription = notificationActionLabel,
+                        onClick = onNotificationPairingClick,
+                    )
+                    OutlinedTextField(
+                        modifier = Modifier.weight(1f),
+                        value = state.pairingCode,
+                        onValueChange = onPairingCodeChanged,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.NumberPassword,
+                            imeAction = ImeAction.Done,
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                if (pairingActionEnabled && !state.wirelessPairingRunning) {
+                                    onPairByCode()
+                                }
                             },
                         ),
+                        label = { Text(stringResource(R.string.priv_ui_pairing_code)) },
                     )
-                }
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !state.busy || state.notificationPairingRunning,
-                    onClick = onNotificationPairingClick,
-                ) {
-                    Text(
-                        if (state.notificationPairingRunning) {
-                            stringResource(R.string.priv_ui_notification_pairing_waiting)
+                    PairingSquareIconButton(
+                        enabled = pairingActionEnabled,
+                        primary = true,
+                        imageVector = if (state.wirelessPairingRunning) {
+                            PrivilegeUiIcons.Stop
                         } else {
-                            stringResource(R.string.priv_ui_pair_via_notification)
+                            PrivilegeUiIcons.Check
+                        },
+                        contentDescription = pairingActionLabel,
+                        onClick = {
+                            if (state.wirelessPairingRunning) {
+                                onCancelPairing()
+                            } else {
+                                onPairByCode()
+                            }
                         },
                     )
                 }
             }
         }
+        val startAction = privilegeUiWirelessAdbStartAction(
+            runtimeStatus = state.runtimeStatus,
+            wifiConnected = state.wifiConnected,
+            startPrerequisiteAvailable = startPrerequisiteAvailable,
+            startAvailable = startAvailable,
+        )
         Button(
             modifier = Modifier.fillMaxWidth(),
-            enabled = !state.busy && startAvailable,
-            onClick = onStartWirelessAdb,
+            enabled = privilegeUiWirelessAdbStartActionEnabled(
+                action = startAction,
+                busy = state.busy,
+                runtimeStatus = state.runtimeStatus,
+            ),
+            onClick = {
+                when (startAction) {
+                    PrivilegeUiWirelessAdbStartAction.START -> onStartWirelessAdb()
+                    PrivilegeUiWirelessAdbStartAction.WIFI_REQUIRED -> onStartWirelessAdb()
+                    PrivilegeUiWirelessAdbStartAction.STOP -> onStopWirelessAdb()
+                    PrivilegeUiWirelessAdbStartAction.NONE -> Unit
+                }
+            },
         ) {
-            Text(stringResource(R.string.priv_ui_adb_wireless_start_action))
+            Text(
+                stringResource(
+                    privilegeUiWirelessAdbStartActionLabel(startAction),
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PairingSquareIconButton(
+    enabled: Boolean,
+    primary: Boolean,
+    imageVector: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        modifier = Modifier
+            .size(PairingInlineIconButtonSize)
+            .clickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick,
+            ),
+        shape = MaterialTheme.shapes.small,
+        color = when {
+            !enabled -> colors.onSurface.copy(alpha = 0.08f)
+            primary -> colors.primary
+            else -> colors.surface
+        },
+        contentColor = when {
+            !enabled -> colors.onSurface.copy(alpha = 0.34f)
+            primary -> colors.onPrimary
+            else -> colors.primary
+        },
+        border = if (primary) {
+            null
+        } else {
+            BorderStroke(
+                width = 1.dp,
+                color = if (enabled) {
+                    colors.outline
+                } else {
+                    colors.onSurface.copy(alpha = 0.12f)
+                },
+            )
+        },
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = imageVector,
+                contentDescription = contentDescription,
+            )
         }
     }
 }
@@ -452,6 +576,56 @@ private fun PrivilegeUiAdbTcpAuthorizationStatus.displayColor(): Color =
         PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
         PrivilegeUiAdbTcpAuthorizationStatus.FAILED,
         -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+internal enum class PrivilegeUiWirelessAdbStartAction {
+    START,
+    WIFI_REQUIRED,
+    STOP,
+    NONE,
+}
+
+internal fun privilegeUiWirelessAdbStartAction(
+    runtimeStatus: PrivilegeUiRuntimeStatus,
+    wifiConnected: Boolean,
+    startPrerequisiteAvailable: Boolean,
+    startAvailable: Boolean,
+): PrivilegeUiWirelessAdbStartAction =
+    when (runtimeStatus) {
+        PrivilegeUiRuntimeStatus.CONNECTED,
+        PrivilegeUiRuntimeStatus.STARTING,
+        -> PrivilegeUiWirelessAdbStartAction.STOP
+        PrivilegeUiRuntimeStatus.DISCONNECTED,
+        PrivilegeUiRuntimeStatus.FAILED,
+        -> when {
+            startAvailable -> PrivilegeUiWirelessAdbStartAction.START
+            startPrerequisiteAvailable && !wifiConnected -> PrivilegeUiWirelessAdbStartAction.WIFI_REQUIRED
+            else -> PrivilegeUiWirelessAdbStartAction.NONE
+        }
+    }
+
+internal fun privilegeUiWirelessAdbStartActionEnabled(
+    action: PrivilegeUiWirelessAdbStartAction,
+    busy: Boolean,
+    runtimeStatus: PrivilegeUiRuntimeStatus,
+): Boolean =
+    when (action) {
+        PrivilegeUiWirelessAdbStartAction.START,
+        PrivilegeUiWirelessAdbStartAction.WIFI_REQUIRED,
+        -> !busy
+        PrivilegeUiWirelessAdbStartAction.STOP -> runtimeStatus == PrivilegeUiRuntimeStatus.STARTING || !busy
+        PrivilegeUiWirelessAdbStartAction.NONE -> false
+    }
+
+internal fun privilegeUiWirelessAdbStartActionLabel(
+    action: PrivilegeUiWirelessAdbStartAction,
+): Int =
+    when (action) {
+        PrivilegeUiWirelessAdbStartAction.STOP -> R.string.priv_ui_adb_wireless_stop_action
+        PrivilegeUiWirelessAdbStartAction.WIFI_REQUIRED -> R.string.priv_ui_adb_wireless_wifi_required_action
+        PrivilegeUiWirelessAdbStartAction.START,
+        PrivilegeUiWirelessAdbStartAction.NONE,
+        -> R.string.priv_ui_adb_wireless_start_action
     }
 
 internal fun staticTcpAuthorizationDisplayStatus(

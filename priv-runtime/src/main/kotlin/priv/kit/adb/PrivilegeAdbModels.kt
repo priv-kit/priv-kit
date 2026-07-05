@@ -57,6 +57,9 @@ public data class PrivilegeAdbStartOptions public constructor(
     public val discoverPort: Boolean = true,
     public val tcpMode: Boolean = false,
     public val tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
+    public val wirelessDebuggingControl: PrivilegeAdbWirelessDebuggingControl =
+        PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
+    public val disableWirelessDebuggingAfterStart: Boolean = true,
     public val portDiscoveryTimeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
     public val connectRetryCount: Int = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_COUNT,
     public val connectRetryDelayMillis: Long = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,

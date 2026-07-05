@@ -40,14 +40,32 @@ class PrivilegeAdbStarterTest {
             PrivilegeAdbIdentity::class.java,
             Function0::class.java,
             Function0::class.java,
+            Function0::class.java,
         )
         constructor.isAccessible = true
         return constructor.newInstance(
             PrivilegeAdbIdentity.default(),
             loadKeyBytes,
             nsdManagerProvider,
+            { fakeWirelessDebuggingController() },
         )
     }
+
+    private fun fakeWirelessDebuggingController(): PrivilegeAdbWirelessDebuggingController =
+        object : PrivilegeAdbWirelessDebuggingController {
+            override fun status(): PrivilegeAdbWirelessDebuggingControlStatus =
+                PrivilegeAdbWirelessDebuggingControlStatus(
+                    supported = true,
+                    permissionDeclared = true,
+                    permissionGranted = false,
+                    wirelessDebuggingEnabled = false,
+                    canManage = false,
+                )
+
+            override fun prepareAdb() = Unit
+
+            override fun setWirelessDebuggingEnabled(enabled: Boolean) = Unit
+        }
 
     private fun setSystemProperty(key: String, value: String) {
         systemPropertiesClass

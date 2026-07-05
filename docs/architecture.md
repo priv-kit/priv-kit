@@ -112,7 +112,7 @@ Privileged Server 是以特权运行的运行时端点。
 - 托管或协调 UserService 生命周期；
 - 报告服务端身份、协议版本和生命周期状态。
 
-服务端不得暴露项目定义的高级系统 API。它可以执行应用自定义的 UserService 逻辑，但这些逻辑不属于本项目的公开能力面。
+服务端不得暴露项目定义的高级系统 API。少量高频 framework 方法可以作为显式参数的透传桥存在，但不得加入策略、发现、批处理或领域 facade。服务端可以执行应用自定义的 UserService 逻辑，但这些逻辑不属于本项目的公开能力面。
 
 ## 启动策略
 
@@ -124,6 +124,8 @@ Privileged Server 是以特权运行的运行时端点。
 - Shizuku UserService 或其他能够在 shell/root 等兼容身份中托管应用代码并执行启动命令的外部启动入口。
 
 Root 和 ADB 策略把应用配置转换成服务端启动或连接尝试。手动 shell 和外部启动入口执行的是同一个 Shell Start Command，只是命令执行者不同；两者都复用同一条 Binder handoff。
+
+ADB 策略可以在内部托管 Wireless Debugging 开关：当最终 merged manifest 仍声明 `WRITE_SECURE_SETTINGS`、宿主应用已被授予该权限，且启动需要动态无线调试端口时，runtime 可以临时打开 `adb_wifi_enabled`、通过 mDNS 发现 `_adb-tls-connect._tcp` 端口、启动服务端，并在启动尝试结束后关闭 Wireless Debugging。Privileged Server 连接成功后，可以通过 server 侧 `IPackageManager` 透传调用为 owner package 补授这一个启动权限。如果宿主应用通过 manifest merge 移除该权限声明，该策略视为被宿主明确禁用。该能力仅服务于 ADB 启动策略，不构成 Settings 操作 API，也不得被扩展成通用系统设置封装。
 
 共享的 `app_process` 服务端启动命令由运行时根据内部启动值模型构造。供 shell/ADB 通道复用的 native starter 可执行文件也由 `:priv-runtime` 打包。Root 执行器只负责 `su` 执行通道和失败诊断；ADB 实现只负责 pairing/connect、ADB 命令执行通道和失败诊断。运行时负责 token、Root/ADB pending handshake、ready-server handoff、全局 server-binder 安装、Shell Start Command 和 death handling。
 

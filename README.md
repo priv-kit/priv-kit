@@ -41,6 +41,8 @@ Start through ADB Wireless Debugging or ADB TCP:
 val serverInfo = Privilege.startAdb()
 ```
 
+If the integrating app still declares and has been granted `WRITE_SECURE_SETTINGS`, ADB startup will temporarily enable Wireless Debugging when it needs a dynamic wireless debugging port, then turn it off after startup. After a Privileged Server is connected, the runtime attempts to grant that owner-app startup permission when the permission is still declared and the server is root or has `android.permission.GRANT_RUNTIME_PERMISSIONS`, so later starts can use the managed Wireless Debugging path. Without that manifest declaration, granted permission, or server grant capability, it falls back to the manual Wireless Debugging, pairing, or TCP-port paths. This is only an internal startup strategy and does not expose a general Settings API; PackageManager support is limited to explicit `checkPermission(...)` and `grantRuntimePermission(...)` pass-through calls.
+
 Have the user copy and run a command manually:
 
 ```kotlin

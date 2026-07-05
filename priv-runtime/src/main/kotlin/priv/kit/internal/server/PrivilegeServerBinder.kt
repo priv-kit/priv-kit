@@ -1,5 +1,6 @@
 package priv.kit.internal.server
 
+import android.content.pm.IPackageManager
 import android.os.IBinder
 import android.os.Parcel
 import android.os.Process as AndroidProcess
@@ -10,7 +11,6 @@ import priv.kit.internal.binder.IPrivilegeServer
 import priv.kit.internal.userservice.PrivilegeUserServiceLoader
 import priv.kit.internal.userservice.PrivilegeUserServiceManagerBinder
 import priv.kit.internal.userservice.PrivilegeUserServiceRegistry
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.system.exitProcess
 
 internal class PrivilegeServerBinder(
@@ -21,7 +21,10 @@ internal class PrivilegeServerBinder(
             host = PrivilegeServerUserServiceHost(config),
         ),
     )
-    private val systemServiceCache = ConcurrentHashMap<String, IBinder>()
+    private val packageManager by lazy {
+        IPackageManager.Stub.asInterface(getSystemService("package"))
+    }
+    private val systemServiceCache = HashMap<String, IBinder>()
     private val packageContext by lazy {
         PrivilegeUserServiceLoader.createPackageContext(
             packageName = config.packageName,
@@ -50,12 +53,26 @@ internal class PrivilegeServerBinder(
         return getSystemService(serviceName) != null
     }
 
-    override fun checkPermission(permission: String): Int {
+    override fun checkServerPermission(permission: String): Int {
         return packageContext.checkPermission(
             permission,
             AndroidProcess.myPid(),
             AndroidProcess.myUid(),
         )
+    }
+
+    override fun checkPermission(
+        permName: String,
+        pkgName: String,
+        userId: Int,
+    ): Int = packageManager.checkPermission(permName, pkgName, userId)
+
+    override fun grantRuntimePermission(
+        packageName: String,
+        permissionName: String,
+        userId: Int,
+    ) {
+        packageManager.grantRuntimePermission(packageName, permissionName, userId)
     }
 
     override fun shutdown() {
@@ -77,7 +94,11 @@ internal class PrivilegeServerBinder(
     ) {
         val targetBinder = when (val targetKind = data.readInt()) {
             PrivilegeBinderWrapper.TARGET_BINDER -> data.readStrongBinder()
-            PrivilegeBinderWrapper.TARGET_SYSTEM_SERVICE -> resolveSystemService(data.readString(), reply) ?: return
+            PrivilegeBinderWrapper.TARGET_SYSTEM_SERVICE -> resolveSystemService(
+                data.readString(),
+                reply
+            ) ?: return
+
             else -> error("Unknown remote Binder target kind: $targetKind")
         }
         val targetCode = data.readInt()
@@ -127,6 +148,7 @@ internal class PrivilegeServerBinder(
         return targetBinder
     }
 
+    @Synchronized
     private fun getSystemService(serviceName: String): IBinder? =
         systemServiceCache[serviceName] ?: ServiceManager.getService(serviceName)?.also {
             systemServiceCache[serviceName] = it

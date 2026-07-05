@@ -145,7 +145,7 @@ Maven Central 上存在某个 artifact，不等于该 artifact 的所有 public 
 - Android 系统 API 兼容层
 - AndroidX 风格的特权系统 API 封装
 - ActivityManager 封装
-- PackageManager 封装
+- PackageManager 高级封装或领域 facade
 - InputManager 封装
 - Settings 封装
 - AppOps 封装
@@ -174,6 +174,7 @@ Maven Central 上存在某个 artifact，不等于该 artifact 的所有 public 
 - 连接和重连 Privileged Server；
 - 以显式目标 Binder 创建 raw Binder transaction 桥；
 - 以显式系统服务名创建 raw Binder transaction 桥；
+- 少量高频 Android framework 调用的显式参数透传桥；
 - 启动、绑定、停止和观察 UserService 实例；
 - 报告运行时状态、启动错误、连接错误和服务端身份；
 - 可选 UI 状态帮助能力，用来呈现同一组运行时原语。
@@ -181,11 +182,11 @@ Maven Central 上存在某个 artifact，不等于该 artifact 的所有 public 
 禁止的 API 类型：
 
 - Android framework service 的类型化封装；
-- 系统操作便利 API；
+- 带策略、状态编排或领域语义的系统操作便利 API；
 - 针对包、输入、设置、app-ops 或 activity 管理的策略决策；
 - 用项目定义的领域 facade 隐藏应用自定义特权操作的 API。
 
-如果某个 API 名称暗示了具体 Android 系统服务领域，默认应视为可疑。除非它严格用于内部运行时操作，或明确停留在显式服务名的 raw Binder transaction 桥，否则必须拒绝。
+如果某个 API 名称暗示了具体 Android 系统服务领域，默认应视为可疑。除非它严格用于内部运行时操作、明确停留在显式服务名的 raw Binder transaction 桥，或只是显式参数原样转发的少量高频 framework 方法，否则必须拒绝。
 
 ## 6. 单应用运行时规则
 

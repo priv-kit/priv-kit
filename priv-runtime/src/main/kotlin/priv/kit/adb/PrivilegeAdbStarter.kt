@@ -18,6 +18,7 @@ public class PrivilegeAdbStarter private constructor(
     private val identity: PrivilegeAdbIdentity,
     private val loadKeyBytes: () -> ByteArray,
     private val nsdManagerProvider: () -> NsdManager,
+    private val wirelessDebuggingControllerProvider: () -> PrivilegeAdbWirelessDebuggingController,
 ) {
     @Throws(PrivilegeStartupException::class)
     internal fun start(
@@ -37,6 +38,7 @@ public class PrivilegeAdbStarter private constructor(
         startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeAdbStartResult {
         val output = PrivilegeAdbOutput(startupLogListener)
+        var managedWirelessDebuggingController: PrivilegeAdbWirelessDebuggingController? = null
         return try {
             val key = createKey()
             output.append("diag", "ADB identity name=${identity.adbDeviceName}, keySignature=<redacted>")
@@ -50,7 +52,8 @@ public class PrivilegeAdbStarter private constructor(
             output.append(
                 "diag",
                 "Port selection explicit=${options.port}, discover=${options.discoverPort}, " +
-                    "tcpMode=${options.tcpMode}, activeTcp=$activeTcpPort, targetTcp=${options.tcpPort}",
+                    "tcpMode=${options.tcpMode}, activeTcp=$activeTcpPort, targetTcp=${options.tcpPort}, " +
+                    "wirelessControl=${options.wirelessDebuggingControl}",
             )
             val shouldDiscoverPort = options.port == null &&
                 !(options.tcpMode && activeTcpPort > 0) &&
@@ -61,7 +64,9 @@ public class PrivilegeAdbStarter private constructor(
                 tcpMode = options.tcpMode,
                 targetTcpPort = options.tcpPort,
                 discoveredPort = if (shouldDiscoverPort) {
-                    discoverConnectPort(options.portDiscoveryTimeoutMillis)
+                    discoverConnectPortForStart(options, output) { controller ->
+                        managedWirelessDebuggingController = controller
+                    }
                 } else {
                     null
                 },
@@ -96,6 +101,17 @@ public class PrivilegeAdbStarter private constructor(
         } catch (throwable: Throwable) {
             if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to start Privileged Server with ADB: ${output.text()}", throwable)
+        } finally {
+            if (options.disableWirelessDebuggingAfterStart) {
+                managedWirelessDebuggingController?.let { controller ->
+                    runCatching {
+                        controller.setWirelessDebuggingEnabled(false)
+                        output.append("adb", "Wireless debugging disabled")
+                    }.onFailure { throwable ->
+                        output.append("diag", "Failed to disable Wireless debugging: ${throwable.toFailureMessage()}")
+                    }
+                }
+            }
         }
     }
 
@@ -114,6 +130,20 @@ public class PrivilegeAdbStarter private constructor(
 
     public fun getActiveTcpPort(): Int? =
         PrivilegeAdbEnvironment.getAdbTcpPort().takeIf { it > 0 }
+
+    public fun getWirelessDebuggingControlStatus(): PrivilegeAdbWirelessDebuggingControlStatus =
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            PrivilegeAdbWirelessDebuggingControlStatus(
+                supported = false,
+                permissionDeclared = false,
+                permissionGranted = false,
+                wirelessDebuggingEnabled = false,
+                canManage = false,
+                failureMessage = "Wireless ADB requires Android 11 or above",
+            )
+        } else {
+            wirelessDebuggingControllerProvider().status()
+        }
 
     @Throws(PrivilegeStartupException::class)
     public fun checkPairing(
@@ -246,6 +276,47 @@ public class PrivilegeAdbStarter private constructor(
             if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to discover ADB connect port", throwable)
         }
+    }
+
+    private fun discoverConnectPortForStart(
+        options: PrivilegeAdbStartOptions,
+        output: PrivilegeAdbOutput,
+        onManagedWirelessDebugging: (PrivilegeAdbWirelessDebuggingController) -> Unit,
+    ): Int {
+        val controller = wirelessDebuggingControllerProvider()
+        val status = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            PrivilegeAdbWirelessDebuggingControlStatus(
+                supported = false,
+                permissionDeclared = false,
+                permissionGranted = false,
+                wirelessDebuggingEnabled = false,
+                canManage = false,
+                failureMessage = "Wireless ADB requires Android 11 or above",
+            )
+        } else {
+            controller.status()
+        }
+        output.append(
+            "diag",
+            "Wireless debugging control supported=${status.supported}, " +
+                "declared=${status.permissionDeclared}, permission=${status.permissionGranted}, " +
+                "enabled=${status.wirelessDebuggingEnabled}",
+        )
+        if (options.wirelessDebuggingControl != PrivilegeAdbWirelessDebuggingControl.NEVER && status.canManage) {
+            output.append("adb", "Temporarily enabling Wireless debugging")
+            controller.prepareAdb()
+            controller.setWirelessDebuggingEnabled(true)
+            onManagedWirelessDebugging(controller)
+        } else if (options.wirelessDebuggingControl == PrivilegeAdbWirelessDebuggingControl.REQUIRE) {
+            throw PrivilegeAdbException(
+                status.failureMessage ?: if (!status.permissionDeclared) {
+                    "WRITE_SECURE_SETTINGS must be declared to manage Wireless debugging"
+                } else {
+                    "WRITE_SECURE_SETTINGS is required to manage Wireless debugging"
+                },
+            )
+        }
+        return discoverConnectPort(options.portDiscoveryTimeoutMillis)
     }
 
     @Throws(PrivilegeStartupException::class)
@@ -557,6 +628,9 @@ public class PrivilegeAdbStarter private constructor(
                     ),
                     loadKeyBytes = { PrivilegeAdbKeyStore.readOrCreate() },
                     nsdManagerProvider = { requireNsdManager(applicationContext) },
+                    wirelessDebuggingControllerProvider = {
+                        AndroidPrivilegeAdbWirelessDebuggingController(applicationContext)
+                    },
                 )
             }
 

@@ -33,6 +33,9 @@ internal class PrivilegeUiViewModelStore(
     @Volatile
     var serverShutdownRequestedByOwner: Boolean = false
     @Volatile
+    var runtimeStartThread: Thread? = null
+    val runtimeStartGeneration = AtomicLong(0L)
+    @Volatile
     var tcpAuthorizationRequest: Closeable? = null
     val tcpAuthorizationRequestGeneration = AtomicLong(0L)
     var wirelessPairingThread: Thread? = null
@@ -127,6 +130,9 @@ internal class PrivilegeUiViewModelStore(
 
     override fun close() {
         val request = tcpAuthorizationRequest
+        runtimeStartGeneration.incrementAndGet()
+        runtimeStartThread?.interrupt()
+        runtimeStartThread = null
         tcpAuthorizationRequestGeneration.incrementAndGet()
         tcpAuthorizationRequest = null
         request?.close()

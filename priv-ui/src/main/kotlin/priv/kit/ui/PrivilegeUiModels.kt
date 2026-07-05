@@ -45,6 +45,19 @@ public enum class PrivilegeUiWirelessAdbStatus {
     OFF,
 }
 
+public enum class PrivilegeUiManagedWirelessAdbStatus {
+    UNKNOWN,
+    CHECKING,
+    READY,
+    UNDECLARED,
+    PERMISSION_REQUIRED,
+    UNSUPPORTED,
+    FAILED,
+}
+
+internal fun PrivilegeUiManagedWirelessAdbStatus.isVisibleManagedWirelessAdbStatus(): Boolean =
+    this != PrivilegeUiManagedWirelessAdbStatus.UNDECLARED
+
 public enum class PrivilegeUiAdbTcpAuthorizationStatus {
     UNKNOWN,
     CHECKING,
@@ -65,6 +78,7 @@ public data class PrivilegeUiConfig public constructor(
     public val adbDeviceName: String? = null,
     public val tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     public val adbTcpPolicy: PrivilegeUiAdbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
+    public val enableManagedWirelessAdb: Boolean = true,
     public val adbAuthorizationTimeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_AUTHORIZATION_TIMEOUT_MILLIS,
     public val wirelessStatusPollIntervalMillis: Long = DEFAULT_WIRELESS_STATUS_POLL_INTERVAL_MILLIS,
     public val wirelessStatusDiscoveryTimeoutMillis: Long = DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS,
@@ -165,6 +179,9 @@ public data class PrivilegeUiState public constructor(
     public val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+    public val managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus =
+        PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
+    public val wifiConnected: Boolean = false,
     public val tcpModePort: Int? = null,
     public val tcpAuthorizationStatus: PrivilegeUiAdbTcpAuthorizationStatus =
         PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,

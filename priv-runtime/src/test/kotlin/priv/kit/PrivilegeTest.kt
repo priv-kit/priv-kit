@@ -92,7 +92,7 @@ class PrivilegeTest {
     }
 
     @Test
-    fun checkPermissionReturnsServerResult() {
+    fun checkServerPermissionReturnsServerResult() {
         val server = FakePrivilegeServer(
             permissionResult = PackageManager.PERMISSION_GRANTED,
         )
@@ -110,7 +110,140 @@ class PrivilegeTest {
 
         assertEquals(
             PackageManager.PERMISSION_GRANTED,
-            Privilege.checkPermission("android.permission.GRANT_RUNTIME_PERMISSIONS"),
+            Privilege.checkServerPermission("android.permission.GRANT_RUNTIME_PERMISSIONS"),
+        )
+    }
+
+    @Test
+    fun checkPermissionReturnsPackageManagerResult() {
+        val server = FakePrivilegeServer(
+            permissionResult = PackageManager.PERMISSION_GRANTED,
+        )
+        Privilege.connectHandshake(
+            PrivilegeServerHandshakeResult(
+                token = "token",
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                serverBinder = server.asBinder(),
+            ),
+        )
+
+        assertEquals(
+            PackageManager.PERMISSION_GRANTED,
+            Privilege.checkPermission(
+                permName = "android.permission.WRITE_SECURE_SETTINGS",
+                pkgName = "test.package",
+                userId = 10,
+            ),
+        )
+        assertEquals(
+            listOf(
+                PackagePermissionCheck(
+                    permName = "android.permission.WRITE_SECURE_SETTINGS",
+                    pkgName = "test.package",
+                    userId = 10,
+                ),
+            ),
+            server.packagePermissionChecks,
+        )
+    }
+
+    @Test
+    fun grantRuntimePermissionPassesThroughWithoutServerGrantCheck() {
+        val server = FakePrivilegeServer(
+            permissionResult = PackageManager.PERMISSION_DENIED,
+        )
+        Privilege.connectHandshake(
+            PrivilegeServerHandshakeResult(
+                token = "token",
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                serverBinder = server.asBinder(),
+            ),
+        )
+
+        Privilege.grantRuntimePermission(
+            packageName = "test.package",
+            permissionName = "android.permission.WRITE_SECURE_SETTINGS",
+            userId = 10,
+        )
+
+        assertEquals(
+            listOf(
+                RuntimePermissionGrant(
+                    packageName = "test.package",
+                    permissionName = "android.permission.WRITE_SECURE_SETTINGS",
+                    userId = 10,
+                ),
+            ),
+            server.runtimePermissionGrants,
+        )
+        assertTrue(server.serverPermissionChecks.isEmpty())
+    }
+
+    @Test
+    fun runtimeGrantRequiresGrantPermissionForNonRootServer() {
+        val server = FakePrivilegeServer(
+            permissionResult = PackageManager.PERMISSION_DENIED,
+        )
+
+        assertFalse(
+            Privilege.grantRuntimePermissionForRuntime(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                server = server,
+                packageName = "test.package",
+                permissionName = "android.permission.WRITE_SECURE_SETTINGS",
+                userId = 10,
+            ),
+        )
+
+        assertEquals(
+            listOf("android.permission.GRANT_RUNTIME_PERMISSIONS"),
+            server.serverPermissionChecks,
+        )
+        assertTrue(server.runtimePermissionGrants.isEmpty())
+    }
+
+    @Test
+    fun runtimeGrantSkipsGrantPermissionCheckForRootServer() {
+        val server = FakePrivilegeServer(
+            permissionResult = PackageManager.PERMISSION_DENIED,
+        )
+
+        assertTrue(
+            Privilege.grantRuntimePermissionForRuntime(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 0,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                server = server,
+                packageName = "test.package",
+                permissionName = "android.permission.WRITE_SECURE_SETTINGS",
+                userId = 10,
+            ),
+        )
+
+        assertTrue(server.serverPermissionChecks.isEmpty())
+        assertEquals(
+            listOf(
+                RuntimePermissionGrant(
+                    packageName = "test.package",
+                    permissionName = "android.permission.WRITE_SECURE_SETTINGS",
+                    userId = 10,
+                ),
+            ),
+            server.runtimePermissionGrants,
         )
     }
 
@@ -118,6 +251,9 @@ class PrivilegeTest {
         private val permissionResult: Int = PackageManager.PERMISSION_DENIED,
     ) : IPrivilegeServer {
         private val binder = FakeBinder(localInterface = this)
+        val serverPermissionChecks = mutableListOf<String>()
+        val packagePermissionChecks = mutableListOf<PackagePermissionCheck>()
+        val runtimePermissionGrants = mutableListOf<RuntimePermissionGrant>()
 
         fun killBinder() {
             binder.kill()
@@ -131,8 +267,48 @@ class PrivilegeTest {
 
         override fun hasSystemService(serviceName: String): Boolean = false
 
-        override fun checkPermission(permission: String): Int = permissionResult
+        override fun checkServerPermission(permission: String): Int {
+            serverPermissionChecks += permission
+            return permissionResult
+        }
+
+        override fun checkPermission(
+            permName: String,
+            pkgName: String,
+            userId: Int,
+        ): Int {
+            packagePermissionChecks += PackagePermissionCheck(
+                permName = permName,
+                pkgName = pkgName,
+                userId = userId,
+            )
+            return permissionResult
+        }
+
+        override fun grantRuntimePermission(
+            packageName: String,
+            permissionName: String,
+            userId: Int,
+        ) {
+            runtimePermissionGrants += RuntimePermissionGrant(
+                packageName = packageName,
+                permissionName = permissionName,
+                userId = userId,
+            )
+        }
     }
+
+    private data class PackagePermissionCheck(
+        val permName: String,
+        val pkgName: String,
+        val userId: Int,
+    )
+
+    private data class RuntimePermissionGrant(
+        val packageName: String,
+        val permissionName: String,
+        val userId: Int,
+    )
 
     private class FakeBinder(
         private val localInterface: IInterface? = null,

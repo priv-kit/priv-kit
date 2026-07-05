@@ -56,14 +56,16 @@ internal class PrivilegeUiAdbConnectionSessions {
         timeoutMillis: Long,
         stop: AtomicBoolean,
     ): PrivilegeAdbPairingCheckResult? {
+        if (connectPort == null) {
+            closeWirelessPairingCheckSession()
+            return null
+        }
         currentWirelessPairingCheckSession()?.let { session ->
             val result = session.check()
             if (result.paired) return result
             clearWirelessPairingCheckSession(session)
             if (stop.get()) return result
-            if (connectPort == null) return result
         }
-        if (connectPort == null) return null
         if (stop.get()) return null
 
         val session = starter.openPairingCheckSession(

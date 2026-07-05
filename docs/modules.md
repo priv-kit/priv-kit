@@ -78,6 +78,8 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 运行时状态、启动策略选择、服务端连接和重连；
 - Root 启动的 `su` 可用性检查、命令执行和启动诊断；
 - ADB pairing/connect、ADB 启动配置、ADB 启动诊断和 TCP 复用；
+- ADB 启动内部可选的 Wireless Debugging 临时开关管理；
+- Privileged Server 连接后为 owner package 补授启动自举所需的有限权限；
 - Shell Start Command、owner token store、运行时内存配置和 handshake provider；
 - 通用 native starter 可执行文件；
 - Privileged Server `app_process` 入口；
@@ -91,6 +93,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 作为原语暴露 Binder 和 UserService 入口；
 - 创建显式目标 Binder 的 raw Binder transaction 桥；
 - 创建显式系统服务名的 raw Binder transaction 桥；
+- 提供少量高频 Android framework 方法的显式参数透传桥；
 - 构造项目自有 Privileged Server 的 `app_process` 启动命令；
 - 打包供 shell/manual/ADB 通道复用的 native starter 可执行文件；
 - 通过 root 或 ADB 执行共享服务端启动命令；
@@ -99,7 +102,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 禁止：
 
 - 公开 root 命令库、ADB 命令库、shell helper 库或特权操作 helper；
-- 公开 package/input/settings/app-ops/activity API；
+- 公开 package/input/settings/app-ops/activity 领域 facade；
 - 高级 Android 操作 API；
 - 类型化 Android 系统服务 API；
 - UI toolkit 依赖；
@@ -185,7 +188,7 @@ package 分区：
 - 该 API 使用 `Privilege*` 完整单词命名，不使用 `Priv*` 缩写；
 - 该 API 所在源码 package 位于 `priv.kit.*`；
 - 该 API 没有命名某个高级 Android 系统服务领域，除非它只接受显式服务名并返回 raw Binder transaction 桥；
-- 该 API 没有把 Android framework manager 复制成项目 facade；
+- 该 API 没有把 Android framework manager 复制成项目 facade；若是高频 framework 方法透传，必须保留显式参数和原始返回语义；
 - 该 API 可被单应用用于管理自己的服务端；
 - 该 API 没有暗示本项目拥有下游特权操作。
 
