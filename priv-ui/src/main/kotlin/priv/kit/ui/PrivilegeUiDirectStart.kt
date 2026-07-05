@@ -102,14 +102,17 @@ internal fun PrivilegeUiState.canStartAdbDirectly(
     managedWirelessAdbEnabled: Boolean = true,
 ): Boolean {
     val paired = wirelessAdbSupported && wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON
+    val knownUnpaired = wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.OFF
     val tcpAuthorized = tcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED &&
         tcpModeEnabled &&
         tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED
     val wirelessEndpointAvailable = wirelessAdbSupported &&
         wifiConnected &&
-        wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.ON
+        wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.ON &&
+        !knownUnpaired
     val managedWirelessAvailable = managedWirelessAdbEnabled &&
         wifiConnected &&
-        managedWirelessAdbStatus == PrivilegeUiManagedWirelessAdbStatus.READY
+        managedWirelessAdbStatus == PrivilegeUiManagedWirelessAdbStatus.READY &&
+        !knownUnpaired
     return (paired && wifiConnected) || tcpAuthorized || wirelessEndpointAvailable || managedWirelessAvailable
 }

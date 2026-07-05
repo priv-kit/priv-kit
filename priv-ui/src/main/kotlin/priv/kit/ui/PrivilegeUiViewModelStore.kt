@@ -1,14 +1,15 @@
 package priv.kit.ui
 
 import android.content.Context
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
 import priv.kit.PrivilegeStartupLogLine
 import priv.kit.PrivilegeStartupLogListener
 import java.io.Closeable
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 internal class PrivilegeUiViewModelStore(
@@ -17,7 +18,8 @@ internal class PrivilegeUiViewModelStore(
     val state = MutableStateFlow(PrivilegeUiState())
     val tcpModeEnabled = MutableStateFlow(false)
     val selectedAdbStartupTab = MutableStateFlow<PrivilegeUiAdbStartupTab?>(null)
-    val executor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val snackbarMessageState = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val snackbarMessages: SharedFlow<String> = snackbarMessageState.asSharedFlow()
     val startupLogListener = PrivilegeStartupLogListener { line ->
         appendStartupLog(line)
     }
@@ -33,16 +35,13 @@ internal class PrivilegeUiViewModelStore(
     @Volatile
     var serverShutdownRequestedByOwner: Boolean = false
     @Volatile
-    var runtimeStartThread: Thread? = null
+    var runtimeStartJob: Job? = null
     val runtimeStartGeneration = AtomicLong(0L)
     @Volatile
     var tcpAuthorizationRequest: Closeable? = null
     val tcpAuthorizationRequestGeneration = AtomicLong(0L)
-    var wirelessPairingThread: Thread? = null
+    var wirelessPairingJob: Job? = null
     val wirelessPairingGeneration = AtomicLong(0L)
-    val wirelessStatusRefreshRunning = AtomicBoolean(false)
-    val tcpModeRefreshRunning = AtomicBoolean(false)
-    val externalStartStatusRefreshRunning = AtomicBoolean(false)
 
     fun initializeState(config: PrivilegeUiConfig) {
         val context = requireContext()
@@ -92,6 +91,10 @@ internal class PrivilegeUiViewModelStore(
         appendStartupLog(line)
     }
 
+    fun showSnackbar(message: String) {
+        snackbarMessageState.tryEmit(message)
+    }
+
     fun appendStartupLog(line: PrivilegeStartupLogLine) {
         appendStartupLogLines(
             line.message.toPrivilegeUiStartupLogLines()
@@ -131,15 +134,14 @@ internal class PrivilegeUiViewModelStore(
     override fun close() {
         val request = tcpAuthorizationRequest
         runtimeStartGeneration.incrementAndGet()
-        runtimeStartThread?.interrupt()
-        runtimeStartThread = null
+        runtimeStartJob?.cancel()
+        runtimeStartJob = null
         tcpAuthorizationRequestGeneration.incrementAndGet()
         tcpAuthorizationRequest = null
         request?.close()
         wirelessPairingGeneration.incrementAndGet()
-        wirelessPairingThread?.interrupt()
-        wirelessPairingThread = null
-        executor.shutdownNow()
+        wirelessPairingJob?.cancel()
+        wirelessPairingJob = null
     }
 
     fun idleMessage(state: PrivilegeUiState = this.state.value): String =

@@ -10,14 +10,25 @@ import org.robolectric.annotation.Config
 import priv.kit.PrivilegeServerInfo
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class PrivilegeUiRuntimeActionsTest {
     @Test
-    fun failedConnectStartKeepsExistingConnectionStatus() {
+    fun failedConnectStartKeepsExistingConnectionStatus() = runBlocking {
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
-        val actions = PrivilegeUiRuntimeActions(store)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val actions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+        )
         try {
             store.connectAsShell()
 
@@ -36,14 +47,57 @@ class PrivilegeUiRuntimeActionsTest {
             assertEquals("root unavailable", store.state.value.serviceMessage)
         } finally {
             actions.close()
+            scope.cancel()
             store.close()
         }
     }
 
     @Test
-    fun failedRequestStartKeepsExistingConnectionStatus() {
+    fun handledConnectStartFailureDoesNotMarkRuntimeFailed() = runBlocking {
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
-        val actions = PrivilegeUiRuntimeActions(store)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val actions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+        )
+        try {
+            actions.runServerStart(
+                PrivilegeUiRuntimeStartAttempt.Connect(
+                    message = "adb",
+                    startupSource = null,
+                    onFailure = {
+                        store.updateState { current ->
+                            current.copy(
+                                busy = false,
+                                runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                                serviceMessage = "handled",
+                            )
+                        }
+                        true
+                    },
+                ) {
+                    error("ADB key is not authorized")
+                },
+            )
+
+            assertTrue(waitUntilIdle(store))
+            assertEquals(PrivilegeUiRuntimeStatus.DISCONNECTED, store.state.value.runtimeStatus)
+            assertEquals("handled", store.state.value.serviceMessage)
+        } finally {
+            actions.close()
+            scope.cancel()
+            store.close()
+        }
+    }
+
+    @Test
+    fun failedRequestStartKeepsExistingConnectionStatus() = runBlocking {
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val actions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+        )
         try {
             store.connectAsShell()
 
@@ -63,14 +117,19 @@ class PrivilegeUiRuntimeActionsTest {
             assertEquals("external unavailable", store.state.value.serviceMessage)
         } finally {
             actions.close()
+            scope.cancel()
             store.close()
         }
     }
 
     @Test
-    fun failedFallbackStartKeepsExistingConnectionStatus() {
+    fun failedFallbackStartKeepsExistingConnectionStatus() = runBlocking {
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
-        val actions = PrivilegeUiRuntimeActions(store)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val actions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+        )
         try {
             store.connectAsShell()
 
@@ -97,14 +156,19 @@ class PrivilegeUiRuntimeActionsTest {
             assertEquals("adb unavailable", store.state.value.serviceMessage)
         } finally {
             actions.close()
+            scope.cancel()
             store.close()
         }
     }
 
     @Test
-    fun fallbackStartContinuesAfterFailedAttempt() {
+    fun fallbackStartContinuesAfterFailedAttempt() = runBlocking {
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
-        val actions = PrivilegeUiRuntimeActions(store)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val actions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+        )
         val secondAttemptStarted = CountDownLatch(1)
         try {
             actions.runServerStartFallback(
@@ -135,15 +199,20 @@ class PrivilegeUiRuntimeActionsTest {
             assertEquals(2000, store.state.value.serverInfo?.uid)
         } finally {
             actions.close()
+            scope.cancel()
             store.close()
         }
     }
 
     @Test
-    fun stopCurrentStartInterruptsRunningStartAndKeepsStoppedState() {
+    fun stopCurrentStartInterruptsRunningStartAndKeepsStoppedState() = runBlocking {
         val context = RuntimeEnvironment.getApplication()
         val store = PrivilegeUiViewModelStore(context)
-        val actions = PrivilegeUiRuntimeActions(store)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val actions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+        )
         val started = CountDownLatch(1)
         val interrupted = CountDownLatch(1)
         try {
@@ -154,7 +223,7 @@ class PrivilegeUiRuntimeActionsTest {
                 ) {
                     started.countDown()
                     try {
-                        Thread.sleep(TimeUnit.SECONDS.toMillis(30))
+                        CountDownLatch(1).await(30, TimeUnit.SECONDS)
                     } catch (e: InterruptedException) {
                         interrupted.countDown()
                         throw e
@@ -175,31 +244,26 @@ class PrivilegeUiRuntimeActionsTest {
             )
         } finally {
             actions.close()
+            scope.cancel()
             store.close()
         }
     }
 
-    private fun waitUntilConnected(store: PrivilegeUiViewModelStore): Boolean {
-        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
-        while (System.nanoTime() < deadline) {
-            if (store.state.value.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
-                return true
+    private suspend fun waitUntilConnected(store: PrivilegeUiViewModelStore): Boolean =
+        withTimeoutOrNull(TimeUnit.SECONDS.toMillis(2)) {
+            store.state.first {
+                it.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED
             }
-            Thread.sleep(10)
-        }
-        return false
-    }
+            true
+        } ?: false
 
-    private fun waitUntilIdle(store: PrivilegeUiViewModelStore): Boolean {
-        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
-        while (System.nanoTime() < deadline) {
-            if (!store.state.value.busy) {
-                return true
+    private suspend fun waitUntilIdle(store: PrivilegeUiViewModelStore): Boolean =
+        withTimeoutOrNull(TimeUnit.SECONDS.toMillis(2)) {
+            store.state.first {
+                !it.busy
             }
-            Thread.sleep(10)
-        }
-        return false
-    }
+            true
+        } ?: false
 
     private fun PrivilegeUiViewModelStore.connectAsShell() {
         updateState {

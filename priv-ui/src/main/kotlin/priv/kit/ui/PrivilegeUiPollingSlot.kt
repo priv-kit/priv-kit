@@ -1,5 +1,12 @@
 package priv.kit.ui
 
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal object PrivilegeUiNoopCloseable : AutoCloseable {
@@ -7,23 +14,25 @@ internal object PrivilegeUiNoopCloseable : AutoCloseable {
 }
 
 internal class PrivilegeUiPollingSlot(
-    private val threadName: String,
+    private val scope: CoroutineScope,
+    private val name: String,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val onStart: () -> Unit = {},
     private val onStop: () -> Unit = {},
-    private val poll: (AtomicBoolean) -> Unit,
+    private val poll: suspend (AtomicBoolean) -> Unit,
 ) {
     private val lock = Any()
     private var leaseCount = 0
     private var generation = 0L
     private var stop: AtomicBoolean? = null
-    private var thread: Thread? = null
+    private var job: Job? = null
 
     fun acquire(): AutoCloseable {
         val leaseGeneration: Long
         synchronized(lock) {
             leaseGeneration = generation
             leaseCount += 1
-            if (thread?.isAlive != true) {
+            if (job?.isActive != true) {
                 startLocked()
             }
         }
@@ -36,74 +45,74 @@ internal class PrivilegeUiPollingSlot(
         }
 
     fun stopAll() {
-        val threadToInterrupt = synchronized(lock) {
+        val jobToCancel = synchronized(lock) {
             leaseCount = 0
             generation += 1
-            stopThreadLocked()
+            stopJobLocked()
         }
-        if (threadToInterrupt != null) {
-            threadToInterrupt.interrupt()
+        if (jobToCancel != null) {
+            jobToCancel.cancel()
             onStop()
         }
     }
 
     private fun startLocked() {
         val currentStop = AtomicBoolean(false)
-        lateinit var currentThread: Thread
-        currentThread = Thread {
+        lateinit var currentJob: Job
+        currentJob = scope.launch(
+            context = dispatcher + CoroutineName(name),
+            start = CoroutineStart.LAZY,
+        ) {
             try {
                 poll(currentStop)
             } finally {
-                handleThreadExit(currentStop, currentThread)
+                handleJobExit(currentStop, currentJob)
             }
-        }.apply {
-            name = threadName
-            isDaemon = true
         }
         stop = currentStop
-        thread = currentThread
+        job = currentJob
         onStart()
-        currentThread.start()
+        currentJob.start()
     }
 
     private fun release(leaseGeneration: Long) {
-        val threadToInterrupt = synchronized(lock) {
+        val jobToCancel = synchronized(lock) {
             if (leaseGeneration != generation || leaseCount <= 0) {
                 return
             }
             leaseCount -= 1
             if (leaseCount == 0) {
                 generation += 1
-                stopThreadLocked()
+                stopJobLocked()
             } else {
                 null
             }
         }
-        if (threadToInterrupt != null) {
-            threadToInterrupt.interrupt()
+        if (jobToCancel != null) {
+            jobToCancel.cancel()
             onStop()
         }
     }
 
-    private fun stopThreadLocked(): Thread? {
+    private fun stopJobLocked(): Job? {
         stop?.set(true)
-        val currentThread = thread
+        val currentJob = job
         stop = null
-        thread = null
-        return currentThread
+        job = null
+        return currentJob
     }
 
-    private fun handleThreadExit(
+    private fun handleJobExit(
         exitedStop: AtomicBoolean,
-        exitedThread: Thread,
+        exitedJob: Job,
     ) {
         val shouldNotifyStopped = synchronized(lock) {
-            if (stop === exitedStop && thread === exitedThread) {
+            if (stop === exitedStop && job === exitedJob) {
                 val notifyStopped = !exitedStop.get()
                 leaseCount = 0
                 generation += 1
                 stop = null
-                thread = null
+                job = null
                 notifyStopped
             } else {
                 false

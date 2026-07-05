@@ -18,6 +18,16 @@ class PrivilegeUiAdbPanelStateTest {
                 expectedLabel = R.string.priv_ui_adb_wireless_stop_action,
             ),
             WirelessActionCase(
+                runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
+                wifiConnected = true,
+                startPrerequisiteAvailable = true,
+                startAvailable = true,
+                busy = false,
+                expectedAction = PrivilegeUiWirelessAdbStartAction.START,
+                expectedEnabled = true,
+                expectedLabel = R.string.priv_ui_adb_wireless_start_action,
+            ),
+            WirelessActionCase(
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
                 wifiConnected = true,
                 startPrerequisiteAvailable = true,
@@ -43,8 +53,18 @@ class PrivilegeUiAdbPanelStateTest {
                 startPrerequisiteAvailable = false,
                 startAvailable = false,
                 busy = false,
-                expectedAction = PrivilegeUiWirelessAdbStartAction.NONE,
-                expectedEnabled = false,
+                expectedAction = PrivilegeUiWirelessAdbStartAction.WIFI_REQUIRED,
+                expectedEnabled = true,
+                expectedLabel = R.string.priv_ui_adb_wireless_wifi_required_action,
+            ),
+            WirelessActionCase(
+                runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                wifiConnected = true,
+                startPrerequisiteAvailable = false,
+                startAvailable = false,
+                busy = false,
+                expectedAction = PrivilegeUiWirelessAdbStartAction.START,
+                expectedEnabled = true,
                 expectedLabel = R.string.priv_ui_adb_wireless_start_action,
             ),
         ).forEach { case ->
@@ -93,6 +113,14 @@ class PrivilegeUiAdbPanelStateTest {
                 expectedVisible = true,
                 expectedCommandHelpVisible = false,
                 expectedLabel = R.string.priv_ui_adb_static_start_action,
+            ),
+            StaticTcpActionCase(
+                tcpModeEnabled = true,
+                status = PrivilegeUiAdbTcpAuthorizationStatus.CHECKING,
+                expectedEnabled = true,
+                expectedVisible = true,
+                expectedCommandHelpVisible = false,
+                expectedLabel = R.string.priv_ui_wireless_status_checking,
             ),
         ).forEach { case ->
             assertEquals(

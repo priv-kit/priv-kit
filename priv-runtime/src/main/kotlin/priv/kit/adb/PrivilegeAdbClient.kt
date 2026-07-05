@@ -105,6 +105,7 @@ internal class PrivilegeAdbClient private constructor(
     }
 
     private fun connectSocket(output: PrivilegeAdbOutput? = null) {
+        closeTransport()
         output.diagnostic("Connecting to $PRIVILEGE_ADB_LOCAL_HOST:$port")
         val newSocket = Socket()
         newSocket.connect(InetSocketAddress(PRIVILEGE_ADB_LOCAL_HOST, port), CONNECT_TIMEOUT_MILLIS)
@@ -129,21 +130,29 @@ internal class PrivilegeAdbClient private constructor(
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
                     privilegeAdbError("ADB TLS is not supported before Android 10")
                 }
-                output.diagnostic("ADB requested TLS upgrade")
-                write(PrivilegeAdbProtocol.A_STLS, PrivilegeAdbProtocol.A_STLS_VERSION, 0)
-                tlsSocket = sslContextProvider()
-                    .socketFactory
-                    .createSocket(socket, PRIVILEGE_ADB_LOCAL_HOST, port, true) as SSLSocket
-                tlsSocket.soTimeout = socketReadTimeoutMillis
-                tlsSocket.startHandshake()
-                output.diagnostic("ADB TLS handshake succeeded")
-                tlsInputStream = DataInputStream(tlsSocket.inputStream)
-                tlsOutputStream = DataOutputStream(tlsSocket.outputStream)
-                useTls = true
-                message = read()
-                output.diagnostic("Post-TLS ADB response: ${message.toStringShort()}")
-                if (message.command == PrivilegeAdbProtocol.A_CNXN) {
-                    return PrivilegeAdbAuthorizationStatus.AUTHORIZED
+                try {
+                    output.diagnostic("ADB requested TLS upgrade")
+                    write(PrivilegeAdbProtocol.A_STLS, PrivilegeAdbProtocol.A_STLS_VERSION, 0)
+                    tlsSocket = sslContextProvider()
+                        .socketFactory
+                        .createSocket(socket, PRIVILEGE_ADB_LOCAL_HOST, port, true) as SSLSocket
+                    tlsSocket.soTimeout = socketReadTimeoutMillis
+                    tlsSocket.startHandshake()
+                    output.diagnostic("ADB TLS handshake succeeded")
+                    tlsInputStream = DataInputStream(tlsSocket.inputStream)
+                    tlsOutputStream = DataOutputStream(tlsSocket.outputStream)
+                    useTls = true
+                    message = read()
+                    output.diagnostic("Post-TLS ADB response: ${message.toStringShort()}")
+                    if (message.command == PrivilegeAdbProtocol.A_CNXN) {
+                        return PrivilegeAdbAuthorizationStatus.AUTHORIZED
+                    }
+                } catch (throwable: Throwable) {
+                    if (throwable.isAdbTlsCertificateUnknown()) {
+                        output.diagnostic("ADB TLS rejected client certificate")
+                        return PrivilegeAdbAuthorizationStatus.UNAUTHORIZED
+                    }
+                    throw throwable
                 }
             }
             PrivilegeAdbProtocol.A_AUTH -> {
@@ -277,14 +286,17 @@ internal class PrivilegeAdbClient private constructor(
     }
 
     override fun close() {
-        runCatching { plainInputStream.close() }
-        runCatching { plainOutputStream.close() }
-        runCatching { socket.close() }
-        if (useTls) {
-            runCatching { tlsInputStream.close() }
-            runCatching { tlsOutputStream.close() }
-            runCatching { tlsSocket.close() }
-        }
+        closeTransport()
+    }
+
+    private fun closeTransport() {
+        useTls = false
+        runCatching { if (::tlsInputStream.isInitialized) tlsInputStream.close() }
+        runCatching { if (::tlsOutputStream.isInitialized) tlsOutputStream.close() }
+        runCatching { if (::tlsSocket.isInitialized) tlsSocket.close() }
+        runCatching { if (::plainInputStream.isInitialized) plainInputStream.close() }
+        runCatching { if (::plainOutputStream.isInitialized) plainOutputStream.close() }
+        runCatching { if (::socket.isInitialized) socket.close() }
     }
 
     companion object {

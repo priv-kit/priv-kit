@@ -9,13 +9,13 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
     private val discoverPort: Boolean,
     private val portDiscoveryTimeoutMillis: Long,
     private val discoverConnectPort: (Long) -> Int,
-    private val clientFactory: (Int) -> PrivilegeAdbConnection,
+    private val clientFactory: (Int) -> PrivilegeAdbAuthorizationConnection,
 ) : Closeable {
     private val lock = Any()
 
     @Volatile
     private var closed = false
-    private var client: PrivilegeAdbConnection? = null
+    private var client: PrivilegeAdbAuthorizationConnection? = null
     private var connectedPort: Int? = null
 
     public val port: Int?
@@ -36,6 +36,7 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
                 port = port,
                 output = output,
                 failureMessage = "ADB pairing check session is closed",
+                status = PrivilegeAdbPairingCheckStatus.ERROR,
             )
         }
 
@@ -45,6 +46,7 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
                 port = port,
                 output = output,
                 failureMessage = "ADB pairing check session is closed",
+                status = PrivilegeAdbPairingCheckStatus.ERROR,
             )
         }
 
@@ -55,6 +57,7 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
             port = null,
             output = output,
             failureMessage = portResolution.failureMessage,
+            status = PrivilegeAdbPairingCheckStatus.UNAVAILABLE,
         )
     }
 
@@ -135,6 +138,7 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
                 port = activePort,
                 output = output,
                 failureMessage = "ADB pairing check session is closed",
+                status = PrivilegeAdbPairingCheckStatus.ERROR,
             )
         }
         return try {
@@ -142,26 +146,57 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
                 "diag",
                 "Opening persistent ADB pairing check connection on $PRIVILEGE_ADB_LOCAL_HOST:$activePort",
             )
-            newClient.connect(output)
-            output.append("diag", "ADB pairing check succeeded on $PRIVILEGE_ADB_LOCAL_HOST:$activePort")
-            successResult(
-                port = activePort,
-                output = output,
-            )
+            when (val status = newClient.checkAuthorization(output)) {
+                PrivilegeAdbAuthorizationStatus.AUTHORIZED -> {
+                    output.append("diag", "ADB pairing check succeeded on $PRIVILEGE_ADB_LOCAL_HOST:$activePort")
+                    successResult(
+                        port = activePort,
+                        output = output,
+                    )
+                }
+                PrivilegeAdbAuthorizationStatus.UNAUTHORIZED -> {
+                    output.append("diag", "ADB pairing check found unauthorized key on $PRIVILEGE_ADB_LOCAL_HOST:$activePort")
+                    closeClient(newClient)
+                    failureResult(
+                        port = activePort,
+                        output = output,
+                        failureMessage = "ADB key is not authorized",
+                        status = PrivilegeAdbPairingCheckStatus.UNPAIRED,
+                    )
+                }
+                PrivilegeAdbAuthorizationStatus.UNAVAILABLE,
+                PrivilegeAdbAuthorizationStatus.ERROR,
+                -> {
+                    output.append("diag", "ADB pairing check returned $status on $PRIVILEGE_ADB_LOCAL_HOST:$activePort")
+                    closeClient(newClient)
+                    failureResult(
+                        port = activePort,
+                        output = output,
+                        failureMessage = "ADB pairing check returned $status",
+                        status = status.toPairingCheckFailureStatus(),
+                    )
+                }
+            }
         } catch (throwable: Throwable) {
             val failureMessage = throwable.toFailureMessage()
+            val status = throwable.toPairingCheckFailureStatus()
             output.append("diag", "ADB pairing check failed on $PRIVILEGE_ADB_LOCAL_HOST:$activePort: $failureMessage")
             closeClient(newClient)
             failureResult(
                 port = activePort,
                 output = output,
-                failureMessage = failureMessage,
+                failureMessage = if (status == PrivilegeAdbPairingCheckStatus.UNPAIRED) {
+                    "ADB key is not authorized"
+                } else {
+                    failureMessage
+                },
+                status = status,
             )
         }
     }
 
     private fun setClient(
-        newClient: PrivilegeAdbConnection,
+        newClient: PrivilegeAdbAuthorizationConnection,
         activePort: Int,
     ): Boolean =
         synchronized(lock) {
@@ -174,7 +209,7 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
             }
         }
 
-    private fun closeClient(expected: PrivilegeAdbConnection) {
+    private fun closeClient(expected: PrivilegeAdbAuthorizationConnection) {
         val clientToClose = synchronized(lock) {
             if (client === expected) {
                 client = null
@@ -197,12 +232,14 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
             outputText = output.text(),
             identity = identity,
             publicKeyFingerprint = publicKeyFingerprint,
+            status = PrivilegeAdbPairingCheckStatus.PAIRED,
         )
 
     private fun failureResult(
         port: Int?,
         output: PrivilegeAdbOutput,
         failureMessage: String,
+        status: PrivilegeAdbPairingCheckStatus,
     ): PrivilegeAdbPairingCheckResult =
         PrivilegeAdbPairingCheckResult(
             port = port,
@@ -211,7 +248,16 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
             identity = identity,
             publicKeyFingerprint = publicKeyFingerprint,
             failureMessage = failureMessage,
+            status = status,
         )
+
+    private fun PrivilegeAdbAuthorizationStatus.toPairingCheckFailureStatus(): PrivilegeAdbPairingCheckStatus =
+        when (this) {
+            PrivilegeAdbAuthorizationStatus.AUTHORIZED -> PrivilegeAdbPairingCheckStatus.PAIRED
+            PrivilegeAdbAuthorizationStatus.UNAUTHORIZED -> PrivilegeAdbPairingCheckStatus.UNPAIRED
+            PrivilegeAdbAuthorizationStatus.UNAVAILABLE -> PrivilegeAdbPairingCheckStatus.UNAVAILABLE
+            PrivilegeAdbAuthorizationStatus.ERROR -> PrivilegeAdbPairingCheckStatus.ERROR
+        }
 
     private data class PortResolution(
         val port: Int?,

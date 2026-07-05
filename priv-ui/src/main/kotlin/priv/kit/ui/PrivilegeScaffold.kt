@@ -63,6 +63,15 @@ public fun PrivilegeScaffold(
             onConnected(serverInfo)
         }
     }
+    LaunchedEffect(viewModel) {
+        viewModel.snackbarMessages.collect { message ->
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short,
+            )
+        }
+    }
     DisposableEffect(viewModel, context) {
         val lifecycleOwner = context.findLifecycleOwner()
         val lifecycle = lifecycleOwner?.lifecycle

@@ -14,15 +14,14 @@ internal fun privilegeUiWirelessAdbStartAction(
     startAvailable: Boolean,
 ): PrivilegeUiWirelessAdbStartAction =
     when (runtimeStatus) {
+        PrivilegeUiRuntimeStatus.STARTING -> PrivilegeUiWirelessAdbStartAction.STOP
         PrivilegeUiRuntimeStatus.CONNECTED,
-        PrivilegeUiRuntimeStatus.STARTING,
-        -> PrivilegeUiWirelessAdbStartAction.STOP
         PrivilegeUiRuntimeStatus.DISCONNECTED,
         PrivilegeUiRuntimeStatus.FAILED,
         -> when {
             startAvailable -> PrivilegeUiWirelessAdbStartAction.START
-            startPrerequisiteAvailable && !wifiConnected -> PrivilegeUiWirelessAdbStartAction.WIFI_REQUIRED
-            else -> PrivilegeUiWirelessAdbStartAction.NONE
+            !wifiConnected -> PrivilegeUiWirelessAdbStartAction.WIFI_REQUIRED
+            else -> PrivilegeUiWirelessAdbStartAction.START
         }
     }
 
@@ -61,9 +60,7 @@ internal fun staticTcpActionEnabled(
     busy: Boolean,
     status: PrivilegeUiAdbTcpAuthorizationStatus,
 ): Boolean =
-    tcpModeEnabled &&
-        !busy &&
-        status != PrivilegeUiAdbTcpAuthorizationStatus.CHECKING
+    tcpModeEnabled && !busy
 
 internal fun staticTcpActionVisible(tcpModeEnabled: Boolean): Boolean =
     tcpModeEnabled

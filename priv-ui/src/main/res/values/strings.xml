@@ -74,7 +74,9 @@
     <string name="priv_ui_wireless_status_off">Off</string>
     <string name="priv_ui_wireless_status_yes">Yes</string>
     <string name="priv_ui_wireless_status_no">No</string>
-    <string name="priv_ui_wifi_required_for_wireless_adb_start">Connect to Wi-Fi before starting</string>
+    <string name="priv_ui_wifi_required_for_wireless_adb_start">Connect to any Wi-Fi before starting</string>
+    <string name="priv_ui_wireless_debugging_required_for_wireless_adb_start">Turn on Wireless debugging before starting</string>
+    <string name="priv_ui_wireless_pair_required_for_wireless_adb_start">Pair before starting</string>
     <string name="priv_ui_wireless_pair_action">Pair with code</string>
     <string name="priv_ui_wireless_pair_searching_action">Searching, tap to stop</string>
     <string name="priv_ui_checking_wireless_adb">Checking whether Wireless debugging is paired...</string>

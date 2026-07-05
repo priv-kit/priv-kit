@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import javax.net.ssl.SSLProtocolException
 
 class PrivilegeAdbPairingCheckSessionTest {
     @Test
@@ -21,8 +22,10 @@ class PrivilegeAdbPairingCheckSessionTest {
 
         assertTrue(first.paired)
         assertTrue(second.paired)
+        assertEquals(PrivilegeAdbPairingCheckStatus.PAIRED, first.status)
+        assertEquals(PrivilegeAdbPairingCheckStatus.PAIRED, second.status)
         assertEquals(1, connections.size)
-        assertEquals(1, connections.single().connectCount)
+        assertEquals(1, connections.single().checkAuthorizationCount)
         assertEquals(1, connections.single().keepAliveCount)
         assertEquals(0, connections.single().closeCount)
 
@@ -46,9 +49,10 @@ class PrivilegeAdbPairingCheckSessionTest {
         val result = session.check()
 
         assertTrue(result.paired)
+        assertEquals(PrivilegeAdbPairingCheckStatus.PAIRED, result.status)
         assertEquals(2, connections.size)
         assertEquals(1, connections.first().closeCount)
-        assertEquals(1, connections.last().connectCount)
+        assertEquals(1, connections.last().checkAuthorizationCount)
         assertEquals(0, connections.last().keepAliveCount)
     }
 
@@ -65,14 +69,61 @@ class PrivilegeAdbPairingCheckSessionTest {
         val result = session.check()
 
         assertFalse(result.paired)
+        assertEquals(PrivilegeAdbPairingCheckStatus.UNAVAILABLE, result.status)
         assertNull(result.port)
         assertEquals("ADB connect port is not available", result.failureMessage)
+    }
+
+    @Test
+    fun checkReportsUnpairedOnlyWhenAdbSaysUnauthorized() {
+        val session = session(
+            clientFactory = {
+                FakeAdbConnection(status = PrivilegeAdbAuthorizationStatus.UNAUTHORIZED)
+            },
+        )
+
+        val result = session.check()
+
+        assertFalse(result.paired)
+        assertEquals(PrivilegeAdbPairingCheckStatus.UNPAIRED, result.status)
+        assertEquals("ADB key is not authorized", result.failureMessage)
+    }
+
+    @Test
+    fun checkReportsErrorWhenPairingProbeFails() {
+        val session = session(
+            clientFactory = {
+                FakeAdbConnection(failCheckAuthorization = true)
+            },
+        )
+
+        val result = session.check()
+
+        assertFalse(result.paired)
+        assertEquals(PrivilegeAdbPairingCheckStatus.ERROR, result.status)
+    }
+
+    @Test
+    fun checkReportsUnpairedWhenTlsRejectsUnknownCertificate() {
+        val session = session(
+            clientFactory = {
+                FakeAdbConnection(
+                    authorizationFailure = SSLProtocolException("SSLV3_ALERT_CERTIFICATE_UNKNOWN"),
+                )
+            },
+        )
+
+        val result = session.check()
+
+        assertFalse(result.paired)
+        assertEquals(PrivilegeAdbPairingCheckStatus.UNPAIRED, result.status)
+        assertEquals("ADB key is not authorized", result.failureMessage)
     }
 
     private fun session(
         explicitPort: Int? = 37099,
         discoverPort: Boolean = false,
-        clientFactory: (Int) -> PrivilegeAdbConnection,
+        clientFactory: (Int) -> PrivilegeAdbAuthorizationConnection,
     ): PrivilegeAdbPairingCheckSession =
         PrivilegeAdbPairingCheckSession(
             identity = PrivilegeAdbIdentity.default(),
@@ -84,9 +135,13 @@ class PrivilegeAdbPairingCheckSessionTest {
             clientFactory = clientFactory,
         )
 
-    private class FakeAdbConnection : PrivilegeAdbConnection {
+    private class FakeAdbConnection(
+        private val status: PrivilegeAdbAuthorizationStatus = PrivilegeAdbAuthorizationStatus.AUTHORIZED,
+        private val failCheckAuthorization: Boolean = false,
+        private val authorizationFailure: Throwable? = null,
+    ) : PrivilegeAdbAuthorizationConnection {
         var failKeepAlive = false
-        var connectCount = 0
+        var checkAuthorizationCount = 0
             private set
         var keepAliveCount = 0
             private set
@@ -94,7 +149,16 @@ class PrivilegeAdbPairingCheckSessionTest {
             private set
 
         override fun connect(output: PrivilegeAdbOutput?) {
-            connectCount += 1
+            checkAuthorization(output)
+        }
+
+        override fun checkAuthorization(output: PrivilegeAdbOutput?): PrivilegeAdbAuthorizationStatus {
+            checkAuthorizationCount += 1
+            authorizationFailure?.let { throw it }
+            if (failCheckAuthorization) {
+                error("pairing probe failed")
+            }
+            return status
         }
 
         override fun keepAlive(output: PrivilegeAdbOutput) {

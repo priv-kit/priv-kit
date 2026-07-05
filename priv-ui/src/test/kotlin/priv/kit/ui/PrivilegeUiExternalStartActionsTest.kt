@@ -4,6 +4,10 @@ import android.content.Context
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -19,19 +23,25 @@ class PrivilegeUiExternalStartActionsTest {
     fun refreshBeforeAttachUsesConstructionContext() {
         val provider = CountingExternalStartProvider()
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val actions = PrivilegeUiExternalStartActions(
             store = store,
-            runtimeActions = PrivilegeUiRuntimeActions(store),
+            runtimeActions = PrivilegeUiRuntimeActions(
+                store = store,
+                coroutineScope = scope,
+            ),
+            coroutineScope = scope,
         )
         try {
             store.config = PrivilegeUiConfig(externalStartProviders = listOf(provider))
 
-            actions.refreshExternalStartStatusNow(stop = null, providerId = null)
+            val refreshed = actions.refreshExternalStartStatusNow(stop = null, providerId = null)
 
+            assertTrue(refreshed)
             assertEquals(1, provider.snapshotCalls.get())
-            assertEquals(false, store.externalStartStatusRefreshRunning.get())
         } finally {
             actions.close()
+            scope.cancel()
             store.close()
         }
     }
@@ -41,9 +51,14 @@ class PrivilegeUiExternalStartActionsTest {
         val provider = DeferredAuthorizationExternalStartProvider()
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
         val config = PrivilegeUiConfig(externalStartProviders = listOf(provider))
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val actions = PrivilegeUiExternalStartActions(
             store = store,
-            runtimeActions = PrivilegeUiRuntimeActions(store),
+            runtimeActions = PrivilegeUiRuntimeActions(
+                store = store,
+                coroutineScope = scope,
+            ),
+            coroutineScope = scope,
             createShellStartCommand = { "external command" },
         )
         try {
@@ -63,6 +78,7 @@ class PrivilegeUiExternalStartActionsTest {
             assertEquals("external command", provider.startedCommandLine)
         } finally {
             actions.close()
+            scope.cancel()
             store.close()
         }
     }

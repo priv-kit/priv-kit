@@ -1,27 +1,31 @@
 package priv.kit.ui
 
 import android.content.Context
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import priv.kit.Privilege
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class PrivilegeUiExternalStartActions(
     private val store: PrivilegeUiViewModelStore,
     private val runtimeActions: PrivilegeUiRuntimeActions,
+    private val coroutineScope: CoroutineScope,
     private val createShellStartCommand: () -> String = Privilege::createShellStartCommand,
 ) : AutoCloseable {
+    private val externalStartStatusRefresh = PrivilegeUiStatusRefreshController(
+        scope = coroutineScope,
+        name = "priv-ui-external-start-refresh",
+    )
     private val externalStartStatusPolling = PrivilegeUiPollingSlot(
-        threadName = "priv-ui-external-start-status",
+        scope = coroutineScope,
+        name = "priv-ui-external-start-status",
     ) { stop ->
         pollExternalStartStatus(stop)
     }
 
     fun refreshExternalStartStatus(providerId: String? = null) {
-        Thread {
-            refreshExternalStartStatusNow(stop = null, providerId = providerId)
-        }.apply {
-            name = "priv-ui-external-start-refresh"
-            isDaemon = true
-            start()
+        externalStartStatusRefresh.start {
+            refreshExternalStartStatusOnce(stop = null, providerId = providerId)
         }
     }
 
@@ -41,9 +45,11 @@ internal class PrivilegeUiExternalStartActions(
         stopExternalStartStatusPolling()
     }
 
-    private fun pollExternalStartStatus(stop: AtomicBoolean) {
+    private suspend fun pollExternalStartStatus(stop: AtomicBoolean) {
         while (!stop.get()) {
-            refreshExternalStartStatusNow(stop = stop, providerId = null)
+            externalStartStatusRefresh.run {
+                refreshExternalStartStatusOnce(stop = stop, providerId = null)
+            }
             if (!sleepExternalStartStatusPolling(stop)) return
         }
     }
@@ -51,15 +57,11 @@ internal class PrivilegeUiExternalStartActions(
     internal fun refreshExternalStartStatusNow(
         stop: AtomicBoolean?,
         providerId: String?,
-    ) {
-        if (!store.externalStartStatusRefreshRunning.compareAndSet(false, true)) return
-        try {
-            if (stop?.get() == true) return
+    ): Boolean =
+        externalStartStatusRefresh.run refresh@{
+            if (stop?.get() == true) return@refresh
             refreshExternalStartStatusOnce(stop = stop, providerId = providerId)
-        } finally {
-            store.externalStartStatusRefreshRunning.set(false)
         }
-    }
 
     private fun refreshExternalStartStatusOnce(
         stop: AtomicBoolean?,
@@ -182,11 +184,8 @@ internal class PrivilegeUiExternalStartActions(
             }
         }
 
-    private fun sleepExternalStartStatusPolling(stop: AtomicBoolean): Boolean =
-        try {
-            Thread.sleep(store.config.externalStartStatusPollIntervalMillis)
-            !stop.get()
-        } catch (_: InterruptedException) {
-            false
-        }
+    private suspend fun sleepExternalStartStatusPolling(stop: AtomicBoolean): Boolean {
+        delay(store.config.externalStartStatusPollIntervalMillis)
+        return !stop.get()
+    }
 }

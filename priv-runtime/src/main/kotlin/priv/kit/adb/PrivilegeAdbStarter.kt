@@ -58,7 +58,7 @@ public class PrivilegeAdbStarter private constructor(
             val shouldDiscoverPort = options.port == null &&
                 !(options.tcpMode && activeTcpPort > 0) &&
                 options.discoverPort
-            var activePort = PrivilegeAdbPortSelector.chooseStartPort(
+            val activePort = PrivilegeAdbPortSelector.chooseStartPort(
                 explicitPort = options.port,
                 activeTcpPort = activeTcpPort,
                 tcpMode = options.tcpMode,
@@ -71,25 +71,13 @@ public class PrivilegeAdbStarter private constructor(
                     null
                 },
             )
-
-            if (options.tcpMode && activePort != options.tcpPort) {
-                output.append("adb", "Switching ADB to TCP port ${options.tcpPort}")
-                PrivilegeAdbClient(activePort, key).use { client ->
-                    connectWithRetry(client, options, output)
-                    runCatching {
-                        client.command("tcpip:${options.tcpPort}", output)
-                    }.onFailure { throwable ->
-                        if (throwable !is EOFException && throwable !is SocketException) {
-                            throw throwable
-                        }
-                    }
-                }
-                activePort = options.tcpPort
-            }
+            output.append("diag", "Selected ADB command port $activePort")
 
             PrivilegeAdbClient(activePort, key).use { client ->
                 connectWithRetry(client, options, output)
+                output.append("diag", "Executing Privileged Server shell command on port $activePort")
                 client.command("shell:${command.commandLine}", output)
+                output.append("diag", "Privileged Server shell command stream completed on port $activePort")
             }
 
             PrivilegeAdbStartResult(
@@ -302,12 +290,16 @@ public class PrivilegeAdbStarter private constructor(
                 "declared=${status.permissionDeclared}, permission=${status.permissionGranted}, " +
                 "enabled=${status.wirelessDebuggingEnabled}",
         )
-        if (options.wirelessDebuggingControl != PrivilegeAdbWirelessDebuggingControl.NEVER && status.canManage) {
+        val managedWirelessDebuggingEnabled =
+            shouldEnableWirelessDebuggingForStart(options.wirelessDebuggingControl, status)
+        if (managedWirelessDebuggingEnabled) {
             output.append("adb", "Temporarily enabling Wireless debugging")
             controller.prepareAdb()
             controller.setWirelessDebuggingEnabled(true)
             onManagedWirelessDebugging(controller)
-        } else if (options.wirelessDebuggingControl == PrivilegeAdbWirelessDebuggingControl.REQUIRE) {
+        } else if (status.wirelessDebuggingEnabled) {
+            output.append("diag", "Wireless debugging already enabled")
+        } else if (shouldRejectWirelessDebuggingForStart(options.wirelessDebuggingControl, status)) {
             throw PrivilegeAdbException(
                 status.failureMessage ?: if (!status.permissionDeclared) {
                     "WRITE_SECURE_SETTINGS must be declared to manage Wireless debugging"
@@ -316,7 +308,39 @@ public class PrivilegeAdbStarter private constructor(
                 },
             )
         }
-        return discoverConnectPort(options.portDiscoveryTimeoutMillis)
+        return discoverConnectPortForStart(
+            options = options,
+            output = output,
+            managedWirelessDebuggingEnabled = managedWirelessDebuggingEnabled,
+        )
+    }
+
+    private fun discoverConnectPortForStart(
+        options: PrivilegeAdbStartOptions,
+        output: PrivilegeAdbOutput,
+        managedWirelessDebuggingEnabled: Boolean,
+    ): Int {
+        val attempts = managedWirelessConnectPortDiscoveryAttempts(
+            managedWirelessDebuggingEnabled = managedWirelessDebuggingEnabled,
+            connectRetryCount = options.connectRetryCount,
+        )
+        var lastFailure: Throwable? = null
+        repeat(attempts) { attemptIndex ->
+            if (attemptIndex > 0) {
+                output.append("diag", "Retrying ADB connect port discovery after enabling Wireless debugging")
+            }
+            runCatching {
+                discoverConnectPort(options.portDiscoveryTimeoutMillis)
+            }.onSuccess { port ->
+                return port
+            }.onFailure { throwable ->
+                lastFailure = throwable
+                if (attemptIndex < attempts - 1) {
+                    output.append("diag", "ADB connect port discovery failed: ${throwable.toFailureMessage()}")
+                }
+            }
+        }
+        throw lastFailure ?: PrivilegeStartupException("Failed to discover ADB connect port")
     }
 
     @Throws(PrivilegeStartupException::class)
@@ -607,7 +631,7 @@ public class PrivilegeAdbStarter private constructor(
                 return
             } catch (throwable: Throwable) {
                 output.append("diag", "ADB connect attempt $attempt failed: ${throwable.javaClass.simpleName}: ${throwable.message}")
-                if (attempt == options.connectRetryCount || throwable is SocketTimeoutException) {
+                if (!shouldRetryAdbConnectFailure(throwable, attempt, options.connectRetryCount)) {
                     throw throwable
                 }
                 nextDelay = options.connectRetryDelayMillis
@@ -639,3 +663,40 @@ public class PrivilegeAdbStarter private constructor(
                 ?: throw PrivilegeStartupException("NSD manager is unavailable")
     }
 }
+
+internal fun shouldEnableWirelessDebuggingForStart(
+    control: PrivilegeAdbWirelessDebuggingControl,
+    status: PrivilegeAdbWirelessDebuggingControlStatus,
+): Boolean =
+    control != PrivilegeAdbWirelessDebuggingControl.NEVER &&
+        !status.wirelessDebuggingEnabled &&
+        status.canManage
+
+internal fun shouldRejectWirelessDebuggingForStart(
+    control: PrivilegeAdbWirelessDebuggingControl,
+    status: PrivilegeAdbWirelessDebuggingControlStatus,
+): Boolean =
+    control == PrivilegeAdbWirelessDebuggingControl.REQUIRE &&
+        !status.wirelessDebuggingEnabled &&
+        !status.canManage
+
+internal fun managedWirelessConnectPortDiscoveryAttempts(
+    managedWirelessDebuggingEnabled: Boolean,
+    connectRetryCount: Int,
+): Int =
+    if (managedWirelessDebuggingEnabled) {
+        minOf(connectRetryCount, PRIVILEGE_ADB_MANAGED_WIRELESS_CONNECT_PORT_DISCOVERY_ATTEMPTS)
+    } else {
+        1
+    }
+
+internal fun shouldRetryAdbConnectFailure(
+    throwable: Throwable,
+    attempt: Int,
+    retryCount: Int,
+): Boolean =
+    attempt < retryCount &&
+        throwable !is SocketTimeoutException &&
+        !throwable.isAdbKeyNotAuthorized()
+
+private const val PRIVILEGE_ADB_MANAGED_WIRELESS_CONNECT_PORT_DISCOVERY_ATTEMPTS = 3

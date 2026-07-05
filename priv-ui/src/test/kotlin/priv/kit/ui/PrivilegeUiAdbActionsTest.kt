@@ -2,6 +2,7 @@ package priv.kit.ui
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PrivilegeUiAdbActionsTest {
@@ -75,13 +76,110 @@ class PrivilegeUiAdbActionsTest {
     }
 
     @Test
-    fun wirelessAdbStartOptionsEnableConfiguredTcpPortWhenPolicyAllowsTcp() {
+    fun wirelessAdbStartRequiresPairingOnlyWhenKnownUnpaired() {
+        assertEquals(
+            true,
+            shouldRequireWirelessPairingForStart(PrivilegeUiWirelessAdbStatus.OFF),
+        )
+        assertEquals(
+            false,
+            shouldRequireWirelessPairingForStart(PrivilegeUiWirelessAdbStatus.UNKNOWN),
+        )
+        assertEquals(
+            false,
+            shouldRequireWirelessPairingForStart(PrivilegeUiWirelessAdbStatus.ON),
+        )
+    }
+
+    @Test
+    fun wirelessDebuggingStatusUsesSettingInsteadOfDiscoveredServices() {
+        assertEquals(
+            PrivilegeUiWirelessAdbStatus.ON,
+            privilegeUiWirelessDebuggingStatus(
+                wirelessDebuggingEnabled = true,
+                connectPortAvailable = false,
+                pairingServiceOn = false,
+            ),
+        )
+        assertEquals(
+            PrivilegeUiWirelessAdbStatus.OFF,
+            privilegeUiWirelessDebuggingStatus(
+                wirelessDebuggingEnabled = false,
+                connectPortAvailable = true,
+                pairingServiceOn = true,
+            ),
+        )
+    }
+
+    @Test
+    fun adbKeyUnauthorizedFailureIsRecognizedFromStartupExceptionChain() {
+        val failure = RuntimeException(
+            "Failed to start Privileged Server with ADB",
+            IllegalStateException("ADB key is not authorized"),
+        )
+
+        assertTrue(failure.isAdbKeyNotAuthorizedFailure())
+    }
+
+    @Test
+    fun adbTlsCertificateUnknownFailureIsRecognizedAsUnauthorized() {
+        val failure = RuntimeException("SSLV3_ALERT_CERTIFICATE_UNKNOWN")
+
+        assertTrue(failure.isAdbKeyNotAuthorizedFailure())
+    }
+
+    @Test
+    fun wirelessAdbStartRequiresWirelessDebuggingWhenOffOrCannotBeManaged() {
+        listOf(
+            WirelessDebuggingRequirementCase(
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
+                managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.READY,
+                expected = false,
+            ),
+            WirelessDebuggingRequirementCase(
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
+                managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.PERMISSION_REQUIRED,
+                expected = true,
+            ),
+            WirelessDebuggingRequirementCase(
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+                managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.PERMISSION_REQUIRED,
+                expected = true,
+            ),
+            WirelessDebuggingRequirementCase(
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+                managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNDECLARED,
+                expected = true,
+            ),
+            WirelessDebuggingRequirementCase(
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
+                managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.PERMISSION_REQUIRED,
+                expected = false,
+            ),
+            WirelessDebuggingRequirementCase(
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+                managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.READY,
+                expected = false,
+            ),
+        ).forEach { case ->
+            assertEquals(
+                case.expected,
+                shouldRequireWirelessDebuggingForStart(
+                    wirelessDebuggingStatus = case.wirelessDebuggingStatus,
+                    managedWirelessAdbStatus = case.managedWirelessAdbStatus,
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun wirelessAdbStartOptionsDoNotEnableConfiguredTcpPortWithoutActiveTcp() {
         val options = privilegeUiWirelessAdbStartOptions(
             tcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
             tcpPort = 4567,
         )
 
-        assertEquals(true, options.tcpMode)
+        assertEquals(false, options.tcpMode)
         assertEquals(4567, options.tcpPort)
         assertEquals(true, options.discoverPort)
         assertEquals(true, options.disableWirelessDebuggingAfterStart)
@@ -164,4 +262,11 @@ class PrivilegeUiAdbActionsTest {
         val currentStatus: PrivilegeUiWirelessAdbStatus,
         val expected: PrivilegeUiWirelessAdbStatus,
     )
+
+    private data class WirelessDebuggingRequirementCase(
+        val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus,
+        val managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus,
+        val expected: Boolean,
+    )
+
 }

@@ -56,6 +56,19 @@ class PrivilegeAdbPortSelectorTest {
         assertEquals(PRIVILEGE_ADB_DEFAULT_TCP_PORT, port)
     }
 
+    @Test
+    fun discoveredPortIsUsedBeforeTargetTcpPortWhenTcpModeIsEnabled() {
+        val port = PrivilegeAdbPortSelector.chooseStartPort(
+            explicitPort = null,
+            activeTcpPort = -1,
+            tcpMode = true,
+            targetTcpPort = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
+            discoveredPort = 37100,
+        )
+
+        assertEquals(37100, port)
+    }
+
     @Test(expected = PrivilegeAdbException::class)
     fun missingPortFailsWithoutTcpMode() {
         PrivilegeAdbPortSelector.chooseStartPort(

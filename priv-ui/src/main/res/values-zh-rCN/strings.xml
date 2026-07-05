@@ -74,7 +74,9 @@
     <string name="priv_ui_wireless_status_off">关闭</string>
     <string name="priv_ui_wireless_status_yes">是</string>
     <string name="priv_ui_wireless_status_no">否</string>
-    <string name="priv_ui_wifi_required_for_wireless_adb_start">请连接到 Wi-Fi 后再启动</string>
+    <string name="priv_ui_wifi_required_for_wireless_adb_start">请先连接至任意 Wi-Fi</string>
+    <string name="priv_ui_wireless_debugging_required_for_wireless_adb_start">请先打开无线调试</string>
+    <string name="priv_ui_wireless_pair_required_for_wireless_adb_start">请先配对后再启动</string>
     <string name="priv_ui_wireless_pair_action">输入配对码完成配对</string>
     <string name="priv_ui_wireless_pair_searching_action">查找服务中，点击停止</string>
     <string name="priv_ui_checking_wireless_adb">正在确认无线调试是否已配对...</string>

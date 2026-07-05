@@ -100,7 +100,16 @@ public data class PrivilegeAdbPairingCheckResult public constructor(
     public val identity: PrivilegeAdbIdentity,
     public val publicKeyFingerprint: String = "",
     public val failureMessage: String? = null,
+    public val status: PrivilegeAdbPairingCheckStatus =
+        if (paired) PrivilegeAdbPairingCheckStatus.PAIRED else PrivilegeAdbPairingCheckStatus.UNPAIRED,
 )
+
+public enum class PrivilegeAdbPairingCheckStatus {
+    PAIRED,
+    UNPAIRED,
+    UNAVAILABLE,
+    ERROR,
+}
 
 public data class PrivilegeAdbTcpResult public constructor(
     public val port: Int,

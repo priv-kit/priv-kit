@@ -3,7 +3,9 @@ package priv.kit.ui
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -12,15 +14,27 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     public val config: PrivilegeUiConfig = PrivilegeUiConfig(),
 ) : AndroidViewModel(application) {
     private val store = PrivilegeUiViewModelStore(application).also(::addCloseable)
-    private val runtimeActions = PrivilegeUiRuntimeActions(store).also(::addCloseable)
+    private val runtimeActions = PrivilegeUiRuntimeActions(
+        store = store,
+        coroutineScope = viewModelScope,
+    ).also(::addCloseable)
     private val manualShellActions = PrivilegeUiManualShellActions(store)
-    private val adbActions = PrivilegeUiAdbActions(store, runtimeActions).also(::addCloseable)
-    private val externalStartActions = PrivilegeUiExternalStartActions(store, runtimeActions).also(::addCloseable)
+    private val adbActions = PrivilegeUiAdbActions(
+        store = store,
+        runtimeActions = runtimeActions,
+        coroutineScope = viewModelScope,
+    ).also(::addCloseable)
+    private val externalStartActions = PrivilegeUiExternalStartActions(
+        store = store,
+        runtimeActions = runtimeActions,
+        coroutineScope = viewModelScope,
+    ).also(::addCloseable)
     private var wirelessStatusPollingHandle: AutoCloseable? = null
     private var tcpModeStatusPollingHandle: AutoCloseable? = null
     private var externalStartStatusPollingHandle: AutoCloseable? = null
     public val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
     public open val tcpModeEnabled: MutableStateFlow<Boolean> = store.tcpModeEnabled
+    internal val snackbarMessages: SharedFlow<String> = store.snackbarMessages
     internal val selectedAdbStartupTab: StateFlow<PrivilegeUiAdbStartupTab?> =
         store.selectedAdbStartupTab.asStateFlow()
     public open val adbTcpPolicy: PrivilegeUiAdbTcpPolicy

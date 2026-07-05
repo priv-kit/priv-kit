@@ -3,6 +3,7 @@ package priv.kit.adb
 import android.net.nsd.NsdManager
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,6 +31,103 @@ class PrivilegeAdbStarterTest {
 
         assertEquals(5555, result.port)
         assertTrue(result.outputText.contains("ADB TCP port 5555 is already active"))
+    }
+
+    @Test
+    fun wirelessDebuggingAlreadyEnabledIsNotTemporarilyManagedForStart() {
+        val status = PrivilegeAdbWirelessDebuggingControlStatus(
+            supported = true,
+            permissionDeclared = true,
+            permissionGranted = true,
+            wirelessDebuggingEnabled = true,
+            canManage = true,
+        )
+
+        assertFalse(
+            shouldEnableWirelessDebuggingForStart(
+                PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
+                status,
+            ),
+        )
+        assertFalse(
+            shouldRejectWirelessDebuggingForStart(
+                PrivilegeAdbWirelessDebuggingControl.REQUIRE,
+                status.copy(
+                    permissionGranted = false,
+                    canManage = false,
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun wirelessDebuggingStartManagementOnlyChangesDisabledState() {
+        val disabledManageable = PrivilegeAdbWirelessDebuggingControlStatus(
+            supported = true,
+            permissionDeclared = true,
+            permissionGranted = true,
+            wirelessDebuggingEnabled = false,
+            canManage = true,
+        )
+        val disabledUnmanageable = disabledManageable.copy(
+            permissionGranted = false,
+            canManage = false,
+        )
+
+        assertTrue(
+            shouldEnableWirelessDebuggingForStart(
+                PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
+                disabledManageable,
+            ),
+        )
+        assertFalse(
+            shouldEnableWirelessDebuggingForStart(
+                PrivilegeAdbWirelessDebuggingControl.NEVER,
+                disabledManageable,
+            ),
+        )
+        assertTrue(
+            shouldRejectWirelessDebuggingForStart(
+                PrivilegeAdbWirelessDebuggingControl.REQUIRE,
+                disabledUnmanageable,
+            ),
+        )
+    }
+
+    @Test
+    fun managedWirelessDebuggingAddsLimitedConnectPortDiscoveryRetries() {
+        assertEquals(
+            1,
+            managedWirelessConnectPortDiscoveryAttempts(
+                managedWirelessDebuggingEnabled = false,
+                connectRetryCount = 5,
+            ),
+        )
+        assertEquals(
+            3,
+            managedWirelessConnectPortDiscoveryAttempts(
+                managedWirelessDebuggingEnabled = true,
+                connectRetryCount = 5,
+            ),
+        )
+        assertEquals(
+            1,
+            managedWirelessConnectPortDiscoveryAttempts(
+                managedWirelessDebuggingEnabled = true,
+                connectRetryCount = 1,
+            ),
+        )
+    }
+
+    @Test
+    fun adbKeyAuthorizationFailureIsNotRetried() {
+        assertFalse(
+            shouldRetryAdbConnectFailure(
+                throwable = PrivilegeAdbException("ADB key is not authorized"),
+                attempt = 1,
+                retryCount = 5,
+            ),
+        )
     }
 
     private fun starter(

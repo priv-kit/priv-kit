@@ -81,6 +81,25 @@ class PrivilegeUiDirectStartTest {
     }
 
     @Test
+    fun wirelessAdbDirectStartBlocksKnownUnpairedDevice() {
+        val state = PrivilegeUiState(
+            selectedStartupMode = PrivilegeUiStartupMode.ADB,
+            startupModes = listOf(PrivilegeUiStartupMode.ADB),
+            wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
+            wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.OFF,
+            managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.READY,
+            wifiConnected = true,
+        )
+
+        assertNull(
+            state.directStartTarget(
+                tcpModeEnabled = false,
+                tcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
+            ),
+        )
+    }
+
+    @Test
     fun externalStartTargetRequiresReadyProvider() {
         val state = PrivilegeUiState(
             selectedStartupMode = PrivilegeUiStartupMode.EXTERNAL,
