@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -234,6 +236,7 @@ internal fun StartupLogPanel(
 ) {
     Panel {
         val copyLogDescription = stringResource(R.string.priv_ui_startup_log_copy_description)
+        val logScrollState = rememberScrollState()
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -271,14 +274,18 @@ internal fun StartupLogPanel(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 96.dp)
+                .heightIn(min = 96.dp, max = 480.dp)
                 .background(
                     color = Color(0xFF101820),
                     shape = MaterialTheme.shapes.small,
                 )
                 .padding(12.dp),
         ) {
-            SelectionContainer {
+            SelectionContainer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(logScrollState),
+            ) {
                 Text(
                     modifier = Modifier.fillMaxWidth(),
                     text = lines.joinToString("\n"),

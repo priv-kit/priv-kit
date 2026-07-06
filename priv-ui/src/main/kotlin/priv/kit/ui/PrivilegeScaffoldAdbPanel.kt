@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -19,6 +21,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,6 +35,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 
 @Composable
@@ -393,6 +400,8 @@ private fun StaticTcpAdbSection(
 
 @Composable
 private fun AdbFingerprintRow(fingerprint: String?) {
+    val fingerprintTextStyle = MaterialTheme.typography.labelMedium
+    var fingerprintWrapped by remember(fingerprint) { mutableStateOf(false) }
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -402,13 +411,37 @@ private fun AdbFingerprintRow(fingerprint: String?) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Text(
-            modifier = Modifier.fillMaxWidth(),
-            text = fingerprint ?: stringResource(R.string.priv_ui_adb_key_fingerprint_unavailable),
-            style = MaterialTheme.typography.labelMedium,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        SelectionContainer {
+            Text(
+                modifier = Modifier.fillMaxWidth(),
+                text = fingerprint ?: stringResource(R.string.priv_ui_adb_key_fingerprint_unavailable),
+                style = if (fingerprintWrapped) {
+                    fingerprintTextStyle.copy(fontSize = 9.sp)
+                } else {
+                    fingerprintTextStyle
+                },
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = if (fingerprintWrapped) Int.MAX_VALUE else 1,
+                overflow = TextOverflow.Visible,
+                autoSize = if (fingerprintWrapped) {
+                    null
+                } else {
+                    TextAutoSize.StepBased(
+                        minFontSize = 9.sp,
+                        maxFontSize = fingerprintTextStyle.fontSize,
+                        stepSize = 0.5.sp,
+                    )
+                },
+                onTextLayout = { result ->
+                    fingerprintWrapped = if (fingerprintWrapped) {
+                        result.lineCount > 1
+                    } else {
+                        result.didOverflowWidth
+                    }
+                },
+            )
+        }
     }
 }
 
