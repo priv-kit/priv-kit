@@ -128,7 +128,7 @@ internal fun ServiceStatusPanel(
     } else {
         StatusUi(
             title = stringResource(R.string.priv_ui_service_not_started),
-            detail = state.serviceMessage.ifBlank { stringResource(R.string.priv_ui_ready) },
+            detail = state.runtimeStatusDetail(),
             background = MaterialTheme.colorScheme.surface,
             foreground = MaterialTheme.colorScheme.onSurface,
             icon = PrivilegeUiIcons.PlayArrow,
@@ -318,6 +318,18 @@ private data class StatusUi(
     val actionContainer: Color,
     val actionForeground: Color,
 )
+
+@Composable
+private fun PrivilegeUiState.runtimeStatusDetail(): String =
+    when (runtimeStatus) {
+        PrivilegeUiRuntimeStatus.STARTING -> runtimeProgressMessage
+            ?.takeIf { it.isNotBlank() }
+            ?: stringResource(R.string.priv_ui_ready)
+        PrivilegeUiRuntimeStatus.DISCONNECTED,
+        PrivilegeUiRuntimeStatus.FAILED,
+        PrivilegeUiRuntimeStatus.CONNECTED,
+        -> stringResource(R.string.priv_ui_ready)
+    }
 
 @Composable
 private fun PrivilegeServerInfo?.runtimeSourceText(): String =

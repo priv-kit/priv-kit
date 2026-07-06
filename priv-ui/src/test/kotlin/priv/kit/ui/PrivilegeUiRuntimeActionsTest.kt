@@ -1,6 +1,7 @@
 package priv.kit.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -13,6 +14,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -31,6 +33,7 @@ class PrivilegeUiRuntimeActionsTest {
         )
         try {
             store.connectAsShell()
+            val snackbar = async { waitForSnackbar(store) }
 
             actions.runServerStart(
                 PrivilegeUiRuntimeStartAttempt.Connect(
@@ -44,7 +47,8 @@ class PrivilegeUiRuntimeActionsTest {
             assertTrue(waitUntilIdle(store))
             assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, store.state.value.runtimeStatus)
             assertEquals(2000, store.state.value.serverInfo?.uid)
-            assertEquals("root unavailable", store.state.value.serviceMessage)
+            assertNull(store.state.value.runtimeProgressMessage)
+            assertEquals("root unavailable", snackbar.await())
         } finally {
             actions.close()
             scope.cancel()
@@ -61,6 +65,7 @@ class PrivilegeUiRuntimeActionsTest {
             coroutineScope = scope,
         )
         try {
+            val snackbar = async { waitForSnackbar(store) }
             actions.runServerStart(
                 PrivilegeUiRuntimeStartAttempt.Connect(
                     message = "adb",
@@ -70,9 +75,10 @@ class PrivilegeUiRuntimeActionsTest {
                             current.copy(
                                 busy = false,
                                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
-                                serviceMessage = "handled",
+                                runtimeProgressMessage = null,
                             )
                         }
+                        store.showFailure("handled")
                         true
                     },
                 ) {
@@ -82,7 +88,8 @@ class PrivilegeUiRuntimeActionsTest {
 
             assertTrue(waitUntilIdle(store))
             assertEquals(PrivilegeUiRuntimeStatus.DISCONNECTED, store.state.value.runtimeStatus)
-            assertEquals("handled", store.state.value.serviceMessage)
+            assertNull(store.state.value.runtimeProgressMessage)
+            assertEquals("handled", snackbar.await())
         } finally {
             actions.close()
             scope.cancel()
@@ -100,6 +107,7 @@ class PrivilegeUiRuntimeActionsTest {
         )
         try {
             store.connectAsShell()
+            val snackbar = async { waitForSnackbar(store) }
 
             actions.runServerStartRequest(
                 PrivilegeUiRuntimeStartAttempt.Request(
@@ -114,7 +122,8 @@ class PrivilegeUiRuntimeActionsTest {
             assertTrue(waitUntilIdle(store))
             assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, store.state.value.runtimeStatus)
             assertEquals(2000, store.state.value.serverInfo?.uid)
-            assertEquals("external unavailable", store.state.value.serviceMessage)
+            assertNull(store.state.value.runtimeProgressMessage)
+            assertEquals("external unavailable", snackbar.await())
         } finally {
             actions.close()
             scope.cancel()
@@ -132,6 +141,7 @@ class PrivilegeUiRuntimeActionsTest {
         )
         try {
             store.connectAsShell()
+            val snackbar = async { waitForSnackbar(store) }
 
             actions.runServerStartFallback(
                 listOf(
@@ -153,7 +163,8 @@ class PrivilegeUiRuntimeActionsTest {
             assertTrue(waitUntilIdle(store))
             assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, store.state.value.runtimeStatus)
             assertEquals(2000, store.state.value.serverInfo?.uid)
-            assertEquals("adb unavailable", store.state.value.serviceMessage)
+            assertNull(store.state.value.runtimeProgressMessage)
+            assertEquals("adb unavailable", snackbar.await())
         } finally {
             actions.close()
             scope.cancel()
@@ -238,9 +249,10 @@ class PrivilegeUiRuntimeActionsTest {
             assertTrue(interrupted.await(2, TimeUnit.SECONDS))
             assertTrue(waitUntilIdle(store))
             assertEquals(PrivilegeUiRuntimeStatus.DISCONNECTED, store.state.value.runtimeStatus)
+            assertNull(store.state.value.runtimeProgressMessage)
             assertEquals(
                 context.getString(R.string.priv_ui_startup_stopped),
-                store.state.value.serviceMessage,
+                store.state.value.startupLogLines.last(),
             )
         } finally {
             actions.close()
@@ -265,6 +277,11 @@ class PrivilegeUiRuntimeActionsTest {
             true
         } ?: false
 
+    private suspend fun waitForSnackbar(store: PrivilegeUiViewModelStore): String? =
+        withTimeoutOrNull(TimeUnit.SECONDS.toMillis(2)) {
+            store.snackbarMessages.first()
+        }
+
     private fun PrivilegeUiViewModelStore.connectAsShell() {
         updateState {
             it.copy(
@@ -274,7 +291,7 @@ class PrivilegeUiRuntimeActionsTest {
                     pid = 1234,
                     protocolVersion = 1,
                 ),
-                serviceMessage = "connected",
+                runtimeProgressMessage = null,
             )
         }
     }

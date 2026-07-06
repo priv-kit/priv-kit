@@ -320,7 +320,7 @@ internal class PrivilegeUiAdbActions(
             if (current.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
                 current.copy(
                     busy = false,
-                    serviceMessage = message,
+                    runtimeProgressMessage = null,
                     wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.OFF,
                 )
             } else {
@@ -328,7 +328,7 @@ internal class PrivilegeUiAdbActions(
                     busy = false,
                     runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
                     serverInfo = null,
-                    serviceMessage = store.text(R.string.priv_ui_ready),
+                    runtimeProgressMessage = null,
                     wirelessDebuggingStatus = wirelessDebuggingStatus,
                     wirelessPairingServiceStatus = if (wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.ON) {
                         current.wirelessPairingServiceStatus

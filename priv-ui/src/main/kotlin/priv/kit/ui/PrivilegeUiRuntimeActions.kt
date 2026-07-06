@@ -49,7 +49,6 @@ internal class PrivilegeUiRuntimeActions(
         store.updateState {
             it.copy(
                 busy = true,
-                serviceMessage = message,
             )
         }
         store.appendLog(message)
@@ -59,13 +58,12 @@ internal class PrivilegeUiRuntimeActions(
                 runInterruptible {
                     Privilege.shutdownServer()
                 }
-                val stoppedMessage = store.text(R.string.priv_ui_service_stopped)
                 store.updateState {
                     it.copy(
                         busy = false,
                         runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
                         serverInfo = null,
-                        serviceMessage = stoppedMessage,
+                        runtimeProgressMessage = null,
                     )
                 }
             } catch (_: CancellationException) {
@@ -74,9 +72,10 @@ internal class PrivilegeUiRuntimeActions(
                 store.updateState {
                     it.copy(
                         busy = false,
-                        serviceMessage = throwable.failureMessage(),
+                        runtimeProgressMessage = null,
                     )
                 }
+                store.showFailure(throwable)
                 store.appendLog(throwable.toPrivilegeUiDiagnosticString())
             } finally {
                 store.serverShutdownRequestedByOwner = false
@@ -96,7 +95,7 @@ internal class PrivilegeUiRuntimeActions(
 
     fun reportNoDirectStart() {
         val message = store.text(R.string.priv_ui_no_direct_start)
-        store.updateState { it.copy(serviceMessage = message) }
+        store.showFailure(message)
         store.appendLog(message)
     }
 
@@ -110,9 +109,7 @@ internal class PrivilegeUiRuntimeActions(
                         busy = false,
                         runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
                         serverInfo = null,
-                        serviceMessage = it.serviceMessage.ifBlank {
-                            store.text(R.string.priv_ui_ready)
-                        },
+                        runtimeProgressMessage = null,
                     )
                 }
             }
@@ -122,7 +119,7 @@ internal class PrivilegeUiRuntimeActions(
                     busy = false,
                     runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
                     serverInfo = null,
-                    serviceMessage = store.text(R.string.priv_ui_ready),
+                    runtimeProgressMessage = null,
                 )
             }
         }
@@ -287,7 +284,6 @@ internal class PrivilegeUiRuntimeActions(
         store.updateState {
             it.copy(
                 busy = true,
-                serviceMessage = message,
             )
         }
         store.appendLog(message)
@@ -300,7 +296,6 @@ internal class PrivilegeUiRuntimeActions(
                 store.updateState {
                     it.copy(
                         busy = false,
-                        serviceMessage = store.idleMessage(it),
                     )
                 }
                 store.appendLog(resultMessage)
@@ -311,9 +306,9 @@ internal class PrivilegeUiRuntimeActions(
                 store.updateState {
                     it.copy(
                         busy = false,
-                        serviceMessage = throwable.failureMessage(),
                     )
                 }
+                store.showFailure(throwable)
                 store.appendLog(throwable.toPrivilegeUiDiagnosticString())
             }
         }
@@ -356,7 +351,7 @@ internal class PrivilegeUiRuntimeActions(
                 busy = false,
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
                 serverInfo = null,
-                serviceMessage = message,
+                runtimeProgressMessage = null,
             )
         }
         store.appendStartupLog(message)
@@ -456,7 +451,7 @@ internal class PrivilegeUiRuntimeActions(
                     busy = false,
                     runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
                     serverInfo = serverInfo,
-                    serviceMessage = store.text(R.string.priv_ui_connected),
+                    runtimeProgressMessage = null,
                     connectionSerial = it.connectionSerial + 1L,
                 )
             }
@@ -476,13 +471,15 @@ internal class PrivilegeUiRuntimeActions(
         startGeneration: Long? = null,
     ) {
         if (startGeneration != null && !isCurrentRuntimeStart(startGeneration)) return
+        val failureMessage = throwable.failureMessage()
         store.updateState {
             if (startGeneration != null && !isCurrentRuntimeStart(startGeneration)) {
                 it
             } else {
-                it.startFailed(throwable.failureMessage())
+                it.startFailed()
             }
         }
+        store.showFailure(failureMessage)
         if (appendDiagnostic && (startGeneration == null || isCurrentRuntimeStart(startGeneration))) {
             store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
         }
@@ -499,7 +496,7 @@ internal class PrivilegeUiRuntimeActions(
                 busy = false,
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
                 serverInfo = null,
-                serviceMessage = message,
+                runtimeProgressMessage = null,
             )
         }
         store.appendLog(message)
@@ -509,14 +506,14 @@ internal class PrivilegeUiRuntimeActions(
         if (runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
             copy(
                 busy = true,
-                serviceMessage = message,
+                runtimeProgressMessage = message,
             )
         } else {
             copy(
                 busy = true,
                 runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
                 serverInfo = null,
-                serviceMessage = message,
+                runtimeProgressMessage = message,
             )
         }
 
@@ -524,28 +521,28 @@ internal class PrivilegeUiRuntimeActions(
         if (runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
             copy(
                 busy = false,
-                serviceMessage = message,
+                runtimeProgressMessage = message,
             )
         } else {
             copy(
                 busy = false,
                 runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
-                serviceMessage = message,
+                runtimeProgressMessage = message,
             )
         }
 
-    private fun PrivilegeUiState.startFailed(message: String): PrivilegeUiState =
+    private fun PrivilegeUiState.startFailed(): PrivilegeUiState =
         if (runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
             copy(
                 busy = false,
-                serviceMessage = message,
+                runtimeProgressMessage = null,
             )
         } else {
             copy(
                 busy = false,
                 runtimeStatus = PrivilegeUiRuntimeStatus.FAILED,
                 serverInfo = null,
-                serviceMessage = message,
+                runtimeProgressMessage = null,
             )
         }
 }

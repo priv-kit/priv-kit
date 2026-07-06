@@ -170,7 +170,7 @@ public data class PrivilegeUiState public constructor(
         PrivilegeUiStartupMode.ADB,
         PrivilegeUiStartupMode.MANUAL_SHELL,
     ),
-    public val serviceMessage: String = "",
+    public val runtimeProgressMessage: String? = null,
     public val manualShellCommandLine: String? = null,
     public val pairingCode: String = "",
     public val pairingStatus: PrivilegeUiAdbPairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,

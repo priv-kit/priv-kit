@@ -60,7 +60,6 @@ internal class PrivilegeUiAdbPairingActions(
                 pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
                 pairingMessage = store.text(R.string.priv_ui_searching_pairing_port),
                 wirelessPairingRunning = true,
-                serviceMessage = store.text(R.string.priv_ui_discovering_pairing_port),
             )
         }
         store.appendLog(store.text(R.string.priv_ui_discovering_pairing_port))
@@ -76,7 +75,6 @@ internal class PrivilegeUiAdbPairingActions(
                     it.copy(
                         pairingStatus = PrivilegeUiAdbPairingStatus.PAIRING,
                         pairingMessage = store.text(R.string.priv_ui_pairing_with_port),
-                        serviceMessage = store.text(R.string.priv_ui_pairing_with_port),
                     )
                 }
                 val pairingResult = starter.pair(
@@ -96,7 +94,6 @@ internal class PrivilegeUiAdbPairingActions(
                         wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
                         wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.ON,
                         adbKeyFingerprint = pairingResult.publicKeyFingerprint,
-                        serviceMessage = store.idleMessage(current),
                     )
                 }
                 store.appendLog(resultMessage)
@@ -109,9 +106,9 @@ internal class PrivilegeUiAdbPairingActions(
                         pairingStatus = PrivilegeUiAdbPairingStatus.FAILED,
                         pairingMessage = failureMessage,
                         wirelessPairingRunning = false,
-                        serviceMessage = failureMessage,
                     )
                 }
+                store.showFailure(failureMessage)
                 store.appendLog(throwable.toPrivilegeUiDiagnosticString())
             } finally {
                 if (store.isCurrentWirelessPairingGeneration(generation)) {
@@ -136,7 +133,6 @@ internal class PrivilegeUiAdbPairingActions(
                 pairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
                 pairingMessage = store.text(R.string.priv_ui_pairing_default_message),
                 wirelessPairingRunning = false,
-                serviceMessage = message,
             )
         }
         store.appendLog(message)
@@ -164,9 +160,9 @@ internal class PrivilegeUiAdbPairingActions(
                 it.copy(
                     pairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
                     pairingMessage = store.text(R.string.priv_ui_notification_permission_missing),
-                    serviceMessage = store.text(R.string.priv_ui_notification_permission_required),
                 )
             }
+            store.showFailure(store.text(R.string.priv_ui_notification_permission_required))
             onNotificationPermissionRequired()
             return
         }
@@ -176,7 +172,6 @@ internal class PrivilegeUiAdbPairingActions(
             it.copy(
                 pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
                 pairingMessage = message,
-                serviceMessage = message,
                 notificationPairingRunning = true,
             )
         }
@@ -205,9 +200,9 @@ internal class PrivilegeUiAdbPairingActions(
                 it.copy(
                     pairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
                     pairingMessage = store.text(R.string.priv_ui_notification_permission_missing),
-                    serviceMessage = store.text(R.string.priv_ui_notification_permission_required),
                 )
             }
+            store.showFailure(store.text(R.string.priv_ui_notification_permission_required))
         }
     }
 
@@ -261,14 +256,12 @@ internal class PrivilegeUiAdbPairingActions(
                     it.wirelessPairingCheckStatus
                 },
                 pairingCode = if (event.type == PrivilegeAdbPairingEventType.PAIRED) "" else it.pairingCode,
-                serviceMessage = if (event.running || event.type == PrivilegeAdbPairingEventType.FAILED) {
-                    event.message
-                } else {
-                    store.idleMessage(it)
-                },
             )
         }
         store.appendLog(event.message)
+        if (event.type == PrivilegeAdbPairingEventType.FAILED) {
+            store.showFailure(event.message)
+        }
         if (event.type == PrivilegeAdbPairingEventType.PAIRED) {
             store.notificationPairingStartedByOwner = false
             enableTcpModeAfterNotificationPairing()

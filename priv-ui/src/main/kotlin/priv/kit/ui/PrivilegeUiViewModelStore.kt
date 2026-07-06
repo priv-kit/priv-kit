@@ -53,9 +53,6 @@ internal class PrivilegeUiViewModelStore(
             current.copy(
                 selectedStartupMode = selected,
                 startupModes = modes,
-                serviceMessage = current.serviceMessage.ifBlank {
-                    context.getString(R.string.priv_ui_ready)
-                },
                 pairingMessage = current.pairingMessage.ifBlank {
                     context.getString(R.string.priv_ui_pairing_default_message)
                 },
@@ -93,6 +90,14 @@ internal class PrivilegeUiViewModelStore(
 
     fun showSnackbar(message: String) {
         snackbarMessageState.tryEmit(message)
+    }
+
+    fun showFailure(message: String) {
+        showSnackbar(message)
+    }
+
+    fun showFailure(throwable: Throwable) {
+        showFailure(throwable.failureMessage())
     }
 
     fun appendStartupLog(line: PrivilegeStartupLogLine) {
@@ -143,15 +148,6 @@ internal class PrivilegeUiViewModelStore(
         wirelessPairingJob?.cancel()
         wirelessPairingJob = null
     }
-
-    fun idleMessage(state: PrivilegeUiState = this.state.value): String =
-        when (state.runtimeStatus) {
-            PrivilegeUiRuntimeStatus.CONNECTED -> text(R.string.priv_ui_connected)
-            PrivilegeUiRuntimeStatus.DISCONNECTED,
-            PrivilegeUiRuntimeStatus.FAILED,
-            -> text(R.string.priv_ui_ready)
-            PrivilegeUiRuntimeStatus.STARTING -> state.serviceMessage
-        }
 
     private fun PrivilegeUiConfig.effectiveStartupModes(): List<PrivilegeUiStartupMode> {
         val modes = startupModes

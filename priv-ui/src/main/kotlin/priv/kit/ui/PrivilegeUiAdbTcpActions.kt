@@ -51,7 +51,6 @@ internal class PrivilegeUiAdbTcpActions(
         store.updateState {
             it.copy(
                 tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
-                serviceMessage = store.text(R.string.priv_ui_tcp_authorization_requesting),
             )
         }
         val starter = Privilege.createAdbStarter(
@@ -70,7 +69,6 @@ internal class PrivilegeUiAdbTcpActions(
                 store.updateState {
                     it.copy(
                         tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
-                        serviceMessage = message,
                     )
                 }
                 store.appendLog(message)
@@ -87,9 +85,9 @@ internal class PrivilegeUiAdbTcpActions(
                 store.updateState {
                     it.copy(
                         tcpAuthorizationStatus = status,
-                        serviceMessage = message,
                     )
                 }
+                store.showFailure(message)
                 store.appendLog(message)
             }
         }
@@ -156,7 +154,6 @@ internal class PrivilegeUiAdbTcpActions(
                 if (current.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING) {
                     current.copy(
                         tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
-                        serviceMessage = store.text(R.string.priv_ui_tcp_authorization_not_completed),
                     )
                 } else {
                     current
@@ -169,7 +166,6 @@ internal class PrivilegeUiAdbTcpActions(
             if (current.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING) {
                 current.copy(
                     tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
-                    serviceMessage = store.text(R.string.priv_ui_tcp_authorization_not_completed),
                 )
             } else {
                 current
