@@ -55,6 +55,8 @@
     <string name="priv_ui_adb_static_port_status_unavailable">Static port</string>
     <string name="priv_ui_adb_static_port_ready">Open</string>
     <string name="priv_ui_adb_static_port_unavailable">Unavailable</string>
+    <string name="priv_ui_adb_static_status_unauthorized">Unauthorized</string>
+    <string name="priv_ui_adb_static_status_authorized">Authorized</string>
     <string name="priv_ui_adb_static_authorization_status">Authorized</string>
     <string name="priv_ui_adb_static_use_other_method_action">Start another way first</string>
     <string name="priv_ui_adb_static_prepare_action">Open static port with wireless debugging</string>
@@ -72,6 +74,9 @@
     <string name="priv_ui_wireless_status_checking">Checking</string>
     <string name="priv_ui_wireless_status_on">On</string>
     <string name="priv_ui_wireless_status_off">Off</string>
+    <string name="priv_ui_wireless_status_unpaired">Unpaired</string>
+    <string name="priv_ui_wireless_status_pairable">Ready to pair</string>
+    <string name="priv_ui_wireless_status_paired">Paired</string>
     <string name="priv_ui_wireless_status_yes">Yes</string>
     <string name="priv_ui_wireless_status_no">No</string>
     <string name="priv_ui_wifi_required_for_wireless_adb_start">Connect to any Wi-Fi before starting</string>

@@ -11,6 +11,7 @@ import org.robolectric.annotation.Config
 import priv.kit.PrivilegeServerInfo
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,7 +34,7 @@ class PrivilegeUiRuntimeActionsTest {
         )
         try {
             store.connectAsShell()
-            val snackbar = async { waitForSnackbar(store) }
+            val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }
 
             actions.runServerStart(
                 PrivilegeUiRuntimeStartAttempt.Connect(
@@ -65,7 +66,7 @@ class PrivilegeUiRuntimeActionsTest {
             coroutineScope = scope,
         )
         try {
-            val snackbar = async { waitForSnackbar(store) }
+            val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }
             actions.runServerStart(
                 PrivilegeUiRuntimeStartAttempt.Connect(
                     message = "adb",
@@ -107,7 +108,7 @@ class PrivilegeUiRuntimeActionsTest {
         )
         try {
             store.connectAsShell()
-            val snackbar = async { waitForSnackbar(store) }
+            val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }
 
             actions.runServerStartRequest(
                 PrivilegeUiRuntimeStartAttempt.Request(
@@ -141,7 +142,7 @@ class PrivilegeUiRuntimeActionsTest {
         )
         try {
             store.connectAsShell()
-            val snackbar = async { waitForSnackbar(store) }
+            val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }
 
             actions.runServerStartFallback(
                 listOf(

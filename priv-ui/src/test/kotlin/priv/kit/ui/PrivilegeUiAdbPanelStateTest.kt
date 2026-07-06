@@ -5,6 +5,56 @@ import org.junit.Test
 
 class PrivilegeUiAdbPanelStateTest {
     @Test
+    fun wirelessAdbPanelStatusCollapsesProbeFacts() {
+        listOf(
+            WirelessPanelStatusCase(
+                wifiConnected = false,
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
+                wirelessPairingServiceStatus = PrivilegeUiWirelessAdbStatus.ON,
+                wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.ON,
+                expected = PrivilegeUiWirelessAdbPanelStatus.OFF,
+            ),
+            WirelessPanelStatusCase(
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
+                wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.OFF,
+                expected = PrivilegeUiWirelessAdbPanelStatus.UNPAIRED,
+            ),
+            WirelessPanelStatusCase(
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
+                wirelessPairingServiceStatus = PrivilegeUiWirelessAdbStatus.ON,
+                wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+                expected = PrivilegeUiWirelessAdbPanelStatus.PAIRABLE,
+            ),
+            WirelessPanelStatusCase(
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
+                wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.ON,
+                expected = PrivilegeUiWirelessAdbPanelStatus.PAIRED,
+            ),
+            WirelessPanelStatusCase(
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
+                wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+                expected = PrivilegeUiWirelessAdbPanelStatus.OFF,
+            ),
+            WirelessPanelStatusCase(
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.CHECKING,
+                wirelessPairingServiceStatus = PrivilegeUiWirelessAdbStatus.CHECKING,
+                wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.CHECKING,
+                expected = PrivilegeUiWirelessAdbPanelStatus.OFF,
+            ),
+        ).forEach { case ->
+            assertEquals(
+                case.expected,
+                wirelessAdbPanelStatus(
+                    wifiConnected = case.wifiConnected,
+                    wirelessDebuggingStatus = case.wirelessDebuggingStatus,
+                    wirelessPairingServiceStatus = case.wirelessPairingServiceStatus,
+                    wirelessPairingCheckStatus = case.wirelessPairingCheckStatus,
+                ),
+            )
+        }
+    }
+
+    @Test
     fun wirelessAdbStartActionFollowsRuntimeAndPrerequisites() {
         listOf(
             WirelessActionCase(
@@ -91,10 +141,24 @@ class PrivilegeUiAdbPanelStateTest {
     @Test
     fun staticTcpActionsFollowPortAndAuthorizationState() {
         assertEquals(
-            PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
-            staticTcpAuthorizationDisplayStatus(
+            PrivilegeUiStaticTcpPanelStatus.UNAVAILABLE,
+            staticTcpPanelStatus(
                 tcpModeEnabled = false,
                 status = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+            ),
+        )
+        assertEquals(
+            PrivilegeUiStaticTcpPanelStatus.UNAUTHORIZED,
+            staticTcpPanelStatus(
+                tcpModeEnabled = true,
+                status = PrivilegeUiAdbTcpAuthorizationStatus.CHECKING,
+            ),
+        )
+        assertEquals(
+            PrivilegeUiStaticTcpPanelStatus.AUTHORIZED,
+            staticTcpPanelStatus(
+                tcpModeEnabled = true,
+                status = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
             ),
         )
         listOf(
@@ -161,5 +225,13 @@ class PrivilegeUiAdbPanelStateTest {
         val expectedVisible: Boolean,
         val expectedCommandHelpVisible: Boolean,
         val expectedLabel: Int,
+    )
+
+    private data class WirelessPanelStatusCase(
+        val wifiConnected: Boolean = true,
+        val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.OFF,
+        val wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.OFF,
+        val wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+        val expected: PrivilegeUiWirelessAdbPanelStatus,
     )
 }

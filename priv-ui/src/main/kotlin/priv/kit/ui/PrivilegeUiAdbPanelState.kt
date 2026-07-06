@@ -7,6 +7,41 @@ internal enum class PrivilegeUiWirelessAdbStartAction {
     NONE,
 }
 
+internal enum class PrivilegeUiWirelessAdbPanelStatus {
+    OFF,
+    UNPAIRED,
+    PAIRABLE,
+    PAIRED,
+}
+
+internal enum class PrivilegeUiStaticTcpPanelStatus {
+    UNAVAILABLE,
+    UNAUTHORIZED,
+    AUTHORIZED,
+}
+
+internal fun wirelessAdbPanelStatus(
+    wifiConnected: Boolean,
+    wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus,
+    wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus,
+    wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus,
+): PrivilegeUiWirelessAdbPanelStatus {
+    return when {
+        !wifiConnected -> PrivilegeUiWirelessAdbPanelStatus.OFF
+        wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.OFF ->
+            PrivilegeUiWirelessAdbPanelStatus.OFF
+        wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON ->
+            PrivilegeUiWirelessAdbPanelStatus.PAIRED
+        wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.OFF ->
+            PrivilegeUiWirelessAdbPanelStatus.UNPAIRED
+        wirelessPairingServiceStatus == PrivilegeUiWirelessAdbStatus.ON ->
+            PrivilegeUiWirelessAdbPanelStatus.PAIRABLE
+        wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.ON ->
+            PrivilegeUiWirelessAdbPanelStatus.PAIRED
+        else -> PrivilegeUiWirelessAdbPanelStatus.OFF
+    }
+}
+
 internal fun privilegeUiWirelessAdbStartAction(
     runtimeStatus: PrivilegeUiRuntimeStatus,
     wifiConnected: Boolean,
@@ -49,11 +84,15 @@ internal fun privilegeUiWirelessAdbStartActionLabel(
         -> R.string.priv_ui_adb_wireless_start_action
     }
 
-internal fun staticTcpAuthorizationDisplayStatus(
+internal fun staticTcpPanelStatus(
     tcpModeEnabled: Boolean,
     status: PrivilegeUiAdbTcpAuthorizationStatus,
-): PrivilegeUiAdbTcpAuthorizationStatus =
-    if (tcpModeEnabled) status else PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN
+): PrivilegeUiStaticTcpPanelStatus =
+    when {
+        !tcpModeEnabled -> PrivilegeUiStaticTcpPanelStatus.UNAVAILABLE
+        status == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED -> PrivilegeUiStaticTcpPanelStatus.AUTHORIZED
+        else -> PrivilegeUiStaticTcpPanelStatus.UNAUTHORIZED
+    }
 
 internal fun staticTcpActionEnabled(
     tcpModeEnabled: Boolean,

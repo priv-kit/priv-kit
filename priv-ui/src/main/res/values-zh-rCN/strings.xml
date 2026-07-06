@@ -55,6 +55,8 @@
     <string name="priv_ui_adb_static_port_status_unavailable">静态端口</string>
     <string name="priv_ui_adb_static_port_ready">已开启</string>
     <string name="priv_ui_adb_static_port_unavailable">不可用</string>
+    <string name="priv_ui_adb_static_status_unauthorized">未授权</string>
+    <string name="priv_ui_adb_static_status_authorized">已授权</string>
     <string name="priv_ui_adb_static_authorization_status">已授权</string>
     <string name="priv_ui_adb_static_use_other_method_action">请先用其它方式启动</string>
     <string name="priv_ui_adb_static_prepare_action">通过无线调试打开静态端口</string>
@@ -72,6 +74,9 @@
     <string name="priv_ui_wireless_status_checking">正在检查</string>
     <string name="priv_ui_wireless_status_on">开启</string>
     <string name="priv_ui_wireless_status_off">关闭</string>
+    <string name="priv_ui_wireless_status_unpaired">未配对</string>
+    <string name="priv_ui_wireless_status_pairable">可配对</string>
+    <string name="priv_ui_wireless_status_paired">已配对</string>
     <string name="priv_ui_wireless_status_yes">是</string>
     <string name="priv_ui_wireless_status_no">否</string>
     <string name="priv_ui_wifi_required_for_wireless_adb_start">请先连接至任意 Wi-Fi</string>
