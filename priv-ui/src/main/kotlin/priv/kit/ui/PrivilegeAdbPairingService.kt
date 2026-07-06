@@ -176,6 +176,18 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         )
     }
 
+    private fun submitPairingCodeFromCaller(code: String) {
+        if (!code.isPrivilegeUiPairingCode()) return
+        val state = PrivilegeAdbPairingInputState.fromPairingCode(
+            code = code,
+            selectedIndex = 0,
+        )
+        startPairing(
+            pairingCode = code,
+            inputState = state,
+        )?.let(::startForegroundSafely)
+    }
+
     private fun restartSearchForUnavailablePairingPort(): Notification {
         val message = getString(R.string.priv_ui_pairing_port_unavailable)
         sendPairingEvent(
@@ -419,6 +431,24 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
             context.startService(
                 Intent(context, PrivilegeAdbPairingService::class.java)
                     .setAction(PrivilegeAdbPairingIntentContract.ACTION_STOP),
+            )
+        }
+
+        internal fun submitPairingCode(context: Context, pairingCode: String) {
+            val code = pairingCode.trim()
+            if (!code.isPrivilegeUiPairingCode()) return
+            activeService?.let { service ->
+                service.lifecycleScope.launch {
+                    service.submitPairingCodeFromCaller(code)
+                }
+                return
+            }
+            pairingEventState.tryEmit(
+                PrivilegeAdbPairingEvent(
+                    type = PrivilegeAdbPairingEventType.FAILED,
+                    message = context.getString(R.string.priv_ui_notification_permission_missing),
+                    running = false,
+                ),
             )
         }
 

@@ -160,6 +160,7 @@ internal class PrivilegeUiAdbPairingActions(
                 it.copy(
                     pairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
                     pairingMessage = store.text(R.string.priv_ui_notification_permission_missing),
+                    pairingDialogVisible = true,
                 )
             }
             store.showFailure(store.text(R.string.priv_ui_notification_permission_required))
@@ -172,6 +173,7 @@ internal class PrivilegeUiAdbPairingActions(
             it.copy(
                 pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
                 pairingMessage = message,
+                pairingDialogVisible = true,
                 notificationPairingRunning = true,
             )
         }
@@ -190,6 +192,46 @@ internal class PrivilegeUiAdbPairingActions(
         PrivilegeAdbPairingService.stop(context)
     }
 
+    fun closePairingDialog() {
+        store.updateState {
+            it.copy(
+                pairingCode = "",
+                pairingDialogVisible = false,
+            )
+        }
+    }
+
+    fun submitNotificationPairingCode() {
+        val code = store.state.value.pairingCode.trim()
+        if (!code.isPrivilegeUiPairingCode()) {
+            val message = store.text(R.string.priv_ui_pairing_code_required)
+            store.updateState {
+                it.copy(
+                    pairingStatus = PrivilegeUiAdbPairingStatus.FAILED,
+                    pairingMessage = message,
+                )
+            }
+            store.showFailure(message)
+            return
+        }
+        if (!PrivilegeAdbPairingService.running) {
+            val message = store.text(R.string.priv_ui_notification_permission_missing)
+            store.updateState {
+                it.copy(
+                    pairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
+                    pairingMessage = message,
+                    notificationPairingRunning = false,
+                )
+            }
+            store.showFailure(store.text(R.string.priv_ui_notification_permission_required))
+            return
+        }
+        PrivilegeAdbPairingService.submitPairingCode(
+            context = store.requireContext(),
+            pairingCode = code,
+        )
+    }
+
     fun handleNotificationPermissionResult(granted: Boolean) {
         if (granted && store.startNotificationPairingAfterPermission) {
             store.startNotificationPairingAfterPermission = false
@@ -200,6 +242,7 @@ internal class PrivilegeUiAdbPairingActions(
                 it.copy(
                     pairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
                     pairingMessage = store.text(R.string.priv_ui_notification_permission_missing),
+                    pairingDialogVisible = true,
                 )
             }
             store.showFailure(store.text(R.string.priv_ui_notification_permission_required))
@@ -249,6 +292,11 @@ internal class PrivilegeUiAdbPairingActions(
                 notificationPairingRunning = event.running,
                 pairingStatus = pairingStatus,
                 pairingMessage = event.message,
+                pairingDialogVisible = if (event.type == PrivilegeAdbPairingEventType.PAIRED) {
+                    false
+                } else {
+                    it.pairingDialogVisible
+                },
                 adbKeyFingerprint = event.fingerprint ?: it.adbKeyFingerprint,
                 wirelessPairingCheckStatus = if (event.type == PrivilegeAdbPairingEventType.PAIRED) {
                     PrivilegeUiWirelessAdbStatus.ON

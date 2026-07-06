@@ -185,11 +185,12 @@ private fun AuthorizationModePanel(
             configuredTcpPort = viewModel.config.tcpPort,
             onTabSelected = viewModel::selectAdbStartupTab,
             onPairingCodeChanged = viewModel::updatePairingCode,
-            onPairByCode = viewModel::pairWirelessAdb,
-            onCancelPairing = viewModel::cancelWirelessAdbPairing,
-            onNotificationPairingClick = {
-                viewModel.toggleNotificationPairing(onNotificationPermissionRequired)
+            onStartPairing = {
+                viewModel.startNotificationPairing(onNotificationPermissionRequired)
             },
+            onStopPairing = viewModel::stopNotificationPairing,
+            onClosePairing = viewModel::closePairingDialog,
+            onSubmitPairingCode = viewModel::submitNotificationPairingCode,
             onEnableTcpMode = viewModel::enableTcpMode,
             onStartWirelessAdb = viewModel::startWirelessAdb,
             onStopWirelessAdb = viewModel::stopCurrentStart,

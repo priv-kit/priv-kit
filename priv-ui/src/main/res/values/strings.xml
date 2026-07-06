@@ -38,10 +38,8 @@
     <string name="priv_ui_manual_copy_command">Copy Command</string>
     <string name="priv_ui_manual_command_copied">Manual command copied</string>
     <string name="priv_ui_manual_command_clip_label">Priv Kit manual command</string>
-    <string name="priv_ui_pairing_default_message">Enter the pairing code from Settings, or reply from the pairing notification</string>
+    <string name="priv_ui_pairing_default_message">Open Wireless debugging in Settings, choose pairing with code, then enter the code here</string>
     <string name="priv_ui_pairing_code">Pairing code</string>
-    <string name="priv_ui_pair_via_notification">Enter code in notification</string>
-    <string name="priv_ui_notification_pairing_waiting">Stop notification pairing</string>
     <string name="priv_ui_adb_authorization_action">Start with wireless debugging</string>
     <string name="priv_ui_adb_key_fingerprint">Device fingerprint</string>
     <string name="priv_ui_adb_key_fingerprint_unavailable">Not generated yet</string>
@@ -82,8 +80,8 @@
     <string name="priv_ui_wifi_required_for_wireless_adb_start">Connect to any Wi-Fi before starting</string>
     <string name="priv_ui_wireless_debugging_required_for_wireless_adb_start">Turn on Wireless debugging before starting</string>
     <string name="priv_ui_wireless_pair_required_for_wireless_adb_start">Pair before starting</string>
-    <string name="priv_ui_wireless_pair_action">Pair with code</string>
-    <string name="priv_ui_wireless_pair_searching_action">Searching, tap to stop</string>
+    <string name="priv_ui_wireless_pair_action">Pair</string>
+    <string name="priv_ui_wireless_pair_dialog_title">Pair wireless debugging</string>
     <string name="priv_ui_checking_wireless_adb">Checking whether Wireless debugging is paired...</string>
     <string name="priv_ui_pairing_code_required">Pairing code is required</string>
     <string name="priv_ui_searching_pairing_port">Looking for the pairing entry...</string>
@@ -102,8 +100,8 @@
     <string name="priv_ui_tcp_authorization_unauthorized">Not allowed</string>
     <string name="priv_ui_tcp_authorization_failed">Retry needed</string>
     <string name="priv_ui_notification_permission_required">Notification permission required</string>
-    <string name="priv_ui_notification_permission_missing">Allow notifications, then enter the pairing code from the notification without switching back and forth</string>
-    <string name="priv_ui_notification_pairing_started">Notification pairing is open</string>
+    <string name="priv_ui_notification_permission_missing">Allow notifications to keep the pairing service running while this dialog is open</string>
+    <string name="priv_ui_notification_pairing_started">Pairing is open</string>
     <string name="priv_ui_external_authorize_start">Authorize and Start</string>
     <string name="priv_ui_external_start">Start with %1$s</string>
     <string name="priv_ui_external_unavailable">Unavailable</string>
@@ -117,7 +115,7 @@
     <string name="priv_ui_pairing_search_text">Open Wireless debugging and choose Pair device with pairing code</string>
     <string name="priv_ui_pairing_search_attempt">Looking for the pairing entry...</string>
     <string name="priv_ui_pairing_service_found_title">Ready for the pairing code</string>
-    <string name="priv_ui_pairing_service_found_text">Enter the code shown in Settings from the notification</string>
+    <string name="priv_ui_pairing_service_found_text">Enter the code shown in Settings</string>
     <string name="priv_ui_pairing_notification_code_text">%1$s Code: %2$s</string>
     <string name="priv_ui_pairing_port_unavailable">The pairing entry is not available yet. Looking again...</string>
     <string name="priv_ui_pairing_working_title">Pairing</string>
@@ -125,7 +123,7 @@
     <string name="priv_ui_pairing_with_port">Connecting to Wireless debugging...</string>
     <string name="priv_ui_pairing_success_text">Wireless debugging paired</string>
     <string name="priv_ui_pairing_failed_text">Pairing failed: %1$s</string>
-    <string name="priv_ui_pairing_stopped">Notification pairing stopped</string>
+    <string name="priv_ui_pairing_stopped">Pairing stopped</string>
     <string name="priv_ui_pairing_reply_notification_title">Pairing code input</string>
     <string name="priv_ui_pairing_reply_notification_text">Reply here with the pairing code shown in Settings</string>
     <string name="priv_ui_pairing_reply_label">Pairing code</string>
@@ -142,6 +140,8 @@
     <string name="priv_ui_pairing_arrow_up_description">Increase selected digit</string>
     <string name="priv_ui_pairing_arrow_down_description">Decrease selected digit</string>
     <string name="priv_ui_pairing_arrow_right_description">Move to next digit</string>
+    <string name="priv_ui_pairing_cancel_action">Cancel</string>
+    <string name="priv_ui_pairing_submit_action">Pair</string>
     <string name="priv_ui_pairing_stop_action">Stop</string>
     <string name="priv_ui_pairing_foreground_failed">Unable to keep the pairing notification visible: %1$s</string>
 </resources>

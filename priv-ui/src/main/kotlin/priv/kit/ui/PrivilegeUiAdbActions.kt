@@ -66,6 +66,14 @@ internal class PrivilegeUiAdbActions(
         pairingActions.stopNotificationPairing()
     }
 
+    fun closePairingDialog() {
+        pairingActions.closePairingDialog()
+    }
+
+    fun submitNotificationPairingCode() {
+        pairingActions.submitNotificationPairingCode()
+    }
+
     fun handleNotificationPermissionResult(granted: Boolean) {
         pairingActions.handleNotificationPermissionResult(granted)
     }

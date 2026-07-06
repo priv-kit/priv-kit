@@ -167,6 +167,14 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         adbActions.stopNotificationPairing()
     }
 
+    public open fun closePairingDialog() {
+        adbActions.closePairingDialog()
+    }
+
+    public open fun submitNotificationPairingCode() {
+        adbActions.submitNotificationPairingCode()
+    }
+
     public open fun handleNotificationPermissionResult(granted: Boolean) {
         adbActions.handleNotificationPermissionResult(granted)
     }
