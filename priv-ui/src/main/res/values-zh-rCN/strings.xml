@@ -55,7 +55,7 @@
     <string name="priv_ui_adb_static_port_status_unavailable">静态端口</string>
     <string name="priv_ui_adb_static_port_ready">已开启</string>
     <string name="priv_ui_adb_static_port_unavailable">不可用</string>
-    <string name="priv_ui_adb_static_authorization_status">ADB 授权</string>
+    <string name="priv_ui_adb_static_authorization_status">已授权</string>
     <string name="priv_ui_adb_static_use_other_method_action">请先用其它方式启动</string>
     <string name="priv_ui_adb_static_prepare_action">通过无线调试打开静态端口</string>
     <string name="priv_ui_adb_static_command_desc">在连接到此设备的电脑上运行此命令，服务被关闭时也能自启动</string>
