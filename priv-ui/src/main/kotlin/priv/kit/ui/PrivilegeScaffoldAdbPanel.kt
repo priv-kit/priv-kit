@@ -334,8 +334,14 @@ private fun StaticTcpAdbSection(
             status = state.tcpAuthorizationStatus,
         )
         val staticTcpCommand = privilegeUiStaticTcpOpenCommand(configuredTcpPort)
-        val startActionVisible = staticTcpActionVisible(staticTcpActive)
-        val commandHelpVisible = staticTcpCommandHelpVisible(staticTcpActive)
+        val startActionVisible = staticTcpActionVisible(
+            tcpModeEnabled = staticTcpActive,
+            status = state.tcpAuthorizationStatus,
+        )
+        val commandHelpVisible = staticTcpCommandHelpVisible(
+            tcpModeEnabled = staticTcpActive,
+            status = state.tcpAuthorizationStatus,
+        )
         AdbStatusRow(
             label = stringResource(R.string.priv_ui_adb_tab_static),
             text = staticTcpStatus.displayText(),
@@ -493,6 +499,7 @@ private fun PrivilegeUiWirelessAdbPanelStatus.displayColor(): Color =
 private fun PrivilegeUiStaticTcpPanelStatus.displayText(): String =
     when (this) {
         PrivilegeUiStaticTcpPanelStatus.UNAVAILABLE -> stringResource(R.string.priv_ui_adb_static_port_unavailable)
+        PrivilegeUiStaticTcpPanelStatus.CHECKING -> stringResource(R.string.priv_ui_wireless_status_checking)
         PrivilegeUiStaticTcpPanelStatus.UNAUTHORIZED -> stringResource(R.string.priv_ui_adb_static_status_unauthorized)
         PrivilegeUiStaticTcpPanelStatus.AUTHORIZED -> stringResource(R.string.priv_ui_adb_static_status_authorized)
     }
@@ -501,6 +508,7 @@ private fun PrivilegeUiStaticTcpPanelStatus.displayText(): String =
 private fun PrivilegeUiStaticTcpPanelStatus.displayColor(): Color =
     when (this) {
         PrivilegeUiStaticTcpPanelStatus.AUTHORIZED -> MaterialTheme.colorScheme.tertiary
+        PrivilegeUiStaticTcpPanelStatus.CHECKING,
         PrivilegeUiStaticTcpPanelStatus.UNAVAILABLE,
         PrivilegeUiStaticTcpPanelStatus.UNAUTHORIZED,
         -> MaterialTheme.colorScheme.onSurfaceVariant

@@ -105,12 +105,6 @@ internal class PrivilegeUiAdbTcpActions(
         finishTcpAuthorizationRequest()
     }
 
-    fun finishPendingTcpAuthorizationOnHostResume() {
-        if (store.state.value.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING) {
-            finishTcpAuthorizationRequest()
-        }
-    }
-
     fun startTcpAdb(tcpPort: Int? = store.currentTcpModePort()) {
         if (tcpPort == null) {
             refreshTcpModeEnabled()

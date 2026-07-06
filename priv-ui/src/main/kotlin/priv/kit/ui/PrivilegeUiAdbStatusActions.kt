@@ -205,6 +205,9 @@ internal class PrivilegeUiAdbStatusActions(
     }
 
     private fun refreshTcpModeAndAuthorization(stop: AtomicBoolean?) {
+        if (shouldSkipTcpAuthorizationRefresh(store.state.value.tcpAuthorizationStatus)) {
+            return
+        }
         val starter = Privilege.createAdbStarter(
             adbDeviceName = store.currentAdbDeviceNameOverride(),
         )
@@ -229,10 +232,20 @@ internal class PrivilegeUiAdbStatusActions(
         } else {
             starter.checkTcpAuthorization(tcpPort = activeTcpPort)
         }
+        val previousStatus = store.state.value.tcpAuthorizationStatus
+        val nextStatus = authorization.status.toUiTcpAuthorizationStatus()
         store.updateState {
-            it.copy(tcpAuthorizationStatus = authorization.status.toUiTcpAuthorizationStatus())
+            it.copy(tcpAuthorizationStatus = nextStatus)
         }
-        authorization.failureMessage?.let(store::appendLog)
+        if (
+            shouldAppendTcpAuthorizationFailureLog(
+                previousStatus = previousStatus,
+                nextStatus = nextStatus,
+                failureMessage = authorization.failureMessage,
+            )
+        ) {
+            authorization.failureMessage?.let(store::appendLog)
+        }
     }
 
     private fun refreshWirelessAdbStatusNow(
@@ -448,5 +461,17 @@ private fun PrivilegeUiManagedWirelessAdbStatus.failedUnlessManagedWirelessAdbHi
         this == PrivilegeUiManagedWirelessAdbStatus.UNDECLARED -> this
         else -> PrivilegeUiManagedWirelessAdbStatus.FAILED
     }
+
+internal fun shouldAppendTcpAuthorizationFailureLog(
+    previousStatus: PrivilegeUiAdbTcpAuthorizationStatus,
+    nextStatus: PrivilegeUiAdbTcpAuthorizationStatus,
+    failureMessage: String?,
+): Boolean =
+    !failureMessage.isNullOrBlank() && previousStatus != nextStatus
+
+internal fun shouldSkipTcpAuthorizationRefresh(
+    status: PrivilegeUiAdbTcpAuthorizationStatus,
+): Boolean =
+    status == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING
 
 private const val STATUS_REFRESH_ACTION_WAIT_ATTEMPTS = 3L

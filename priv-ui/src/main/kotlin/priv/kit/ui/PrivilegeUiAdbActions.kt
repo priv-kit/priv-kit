@@ -158,10 +158,6 @@ internal class PrivilegeUiAdbActions(
         tcpActions.cancelTcpAuthorization()
     }
 
-    fun finishPendingTcpAuthorizationOnHostResume() {
-        tcpActions.finishPendingTcpAuthorizationOnHostResume()
-    }
-
     fun startTcpAdb(tcpPort: Int? = store.currentTcpModePort()) {
         tcpActions.startTcpAdb(tcpPort)
     }

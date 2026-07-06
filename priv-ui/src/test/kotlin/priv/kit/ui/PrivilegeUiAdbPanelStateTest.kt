@@ -148,10 +148,31 @@ class PrivilegeUiAdbPanelStateTest {
             ),
         )
         assertEquals(
-            PrivilegeUiStaticTcpPanelStatus.UNAUTHORIZED,
+            PrivilegeUiStaticTcpPanelStatus.UNAVAILABLE,
+            staticTcpPanelStatus(
+                tcpModeEnabled = true,
+                status = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+            ),
+        )
+        assertEquals(
+            PrivilegeUiStaticTcpPanelStatus.CHECKING,
             staticTcpPanelStatus(
                 tcpModeEnabled = true,
                 status = PrivilegeUiAdbTcpAuthorizationStatus.CHECKING,
+            ),
+        )
+        assertEquals(
+            PrivilegeUiStaticTcpPanelStatus.CHECKING,
+            staticTcpPanelStatus(
+                tcpModeEnabled = true,
+                status = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
+            ),
+        )
+        assertEquals(
+            PrivilegeUiStaticTcpPanelStatus.UNAUTHORIZED,
+            staticTcpPanelStatus(
+                tcpModeEnabled = true,
+                status = PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
             ),
         )
         assertEquals(
@@ -169,6 +190,14 @@ class PrivilegeUiAdbPanelStateTest {
                 expectedVisible = false,
                 expectedCommandHelpVisible = true,
                 expectedLabel = R.string.priv_ui_adb_static_use_other_method_action,
+            ),
+            StaticTcpActionCase(
+                tcpModeEnabled = true,
+                status = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+                expectedEnabled = false,
+                expectedVisible = false,
+                expectedCommandHelpVisible = true,
+                expectedLabel = R.string.priv_ui_adb_static_check_action,
             ),
             StaticTcpActionCase(
                 tcpModeEnabled = true,
@@ -195,8 +224,20 @@ class PrivilegeUiAdbPanelStateTest {
                     status = case.status,
                 ),
             )
-            assertEquals(case.expectedVisible, staticTcpActionVisible(case.tcpModeEnabled))
-            assertEquals(case.expectedCommandHelpVisible, staticTcpCommandHelpVisible(case.tcpModeEnabled))
+            assertEquals(
+                case.expectedVisible,
+                staticTcpActionVisible(
+                    tcpModeEnabled = case.tcpModeEnabled,
+                    status = case.status,
+                ),
+            )
+            assertEquals(
+                case.expectedCommandHelpVisible,
+                staticTcpCommandHelpVisible(
+                    tcpModeEnabled = case.tcpModeEnabled,
+                    status = case.status,
+                ),
+            )
             assertEquals(
                 case.expectedLabel,
                 staticTcpActionLabel(

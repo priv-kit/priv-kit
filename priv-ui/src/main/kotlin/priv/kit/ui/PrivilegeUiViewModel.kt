@@ -202,7 +202,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     public open fun onHostResume() {
-        adbActions.finishPendingTcpAuthorizationOnHostResume()
         syncWirelessAdbStatusPolling()
         syncTcpModeStatusPolling()
         syncExternalStartStatusPolling()

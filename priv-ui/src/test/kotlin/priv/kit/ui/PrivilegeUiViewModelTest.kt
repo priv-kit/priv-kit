@@ -10,6 +10,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import java.io.Closeable
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -84,6 +85,28 @@ class PrivilegeUiViewModelTest {
         viewModel.onHostResume()
 
         assertFalse(viewModel.state.value.wirelessStatusPollingActive)
+    }
+
+    @Test
+    fun hostResumeKeepsPendingTcpAuthorizationRequestAlive() {
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
+        val store = viewModel.storeForTest()
+        val request = CloseCounter()
+        store.tcpAuthorizationRequest = request
+        store.updateState {
+            it.copy(
+                tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
+            )
+        }
+
+        viewModel.onHostResume()
+
+        assertEquals(0, request.closeCount)
+        assertEquals(request, store.tcpAuthorizationRequest)
+        assertEquals(
+            PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
+            viewModel.state.value.tcpAuthorizationStatus,
+        )
     }
 
     @Test
@@ -241,5 +264,20 @@ class PrivilegeUiViewModelTest {
         val runtimeContext = Class.forName("priv.kit.internal.runtime.PrivilegeContext")
         val instance = runtimeContext.getField("INSTANCE").get(null)
         runtimeContext.getDeclaredMethod("install", Context::class.java).invoke(instance, context)
+    }
+
+    private fun PrivilegeUiViewModel.storeForTest(): PrivilegeUiViewModelStore {
+        val field = PrivilegeUiViewModel::class.java.getDeclaredField("store")
+        field.isAccessible = true
+        return field.get(this) as PrivilegeUiViewModelStore
+    }
+
+    private class CloseCounter : Closeable {
+        var closeCount = 0
+            private set
+
+        override fun close() {
+            closeCount += 1
+        }
     }
 }

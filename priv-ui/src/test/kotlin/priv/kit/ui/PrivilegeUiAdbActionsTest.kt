@@ -129,6 +129,41 @@ class PrivilegeUiAdbActionsTest {
     }
 
     @Test
+    fun tcpAuthorizationPollingLogsFailureOnlyWhenStatusChanges() {
+        assertTrue(
+            shouldAppendTcpAuthorizationFailureLog(
+                previousStatus = PrivilegeUiAdbTcpAuthorizationStatus.CHECKING,
+                nextStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+                failureMessage = "ConnectException: refused",
+            ),
+        )
+        assertFalse(
+            shouldAppendTcpAuthorizationFailureLog(
+                previousStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+                nextStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+                failureMessage = "ConnectException: refused",
+            ),
+        )
+        assertFalse(
+            shouldAppendTcpAuthorizationFailureLog(
+                previousStatus = PrivilegeUiAdbTcpAuthorizationStatus.CHECKING,
+                nextStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+                failureMessage = null,
+            ),
+        )
+    }
+
+    @Test
+    fun tcpAuthorizationRefreshPausesWhileWaitingForUserAuthorization() {
+        PrivilegeUiAdbTcpAuthorizationStatus.entries.forEach { status ->
+            assertEquals(
+                status == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
+                shouldSkipTcpAuthorizationRefresh(status),
+            )
+        }
+    }
+
+    @Test
     fun wirelessAdbStartRequiresWirelessDebuggingWhenOffOrCannotBeManaged() {
         listOf(
             WirelessDebuggingRequirementCase(

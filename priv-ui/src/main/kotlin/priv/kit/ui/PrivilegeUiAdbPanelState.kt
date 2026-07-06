@@ -16,6 +16,7 @@ internal enum class PrivilegeUiWirelessAdbPanelStatus {
 
 internal enum class PrivilegeUiStaticTcpPanelStatus {
     UNAVAILABLE,
+    CHECKING,
     UNAUTHORIZED,
     AUTHORIZED,
 }
@@ -89,8 +90,11 @@ internal fun staticTcpPanelStatus(
     status: PrivilegeUiAdbTcpAuthorizationStatus,
 ): PrivilegeUiStaticTcpPanelStatus =
     when {
-        !tcpModeEnabled -> PrivilegeUiStaticTcpPanelStatus.UNAVAILABLE
+        !tcpModeEnabled ||
+            status == PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE -> PrivilegeUiStaticTcpPanelStatus.UNAVAILABLE
         status == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED -> PrivilegeUiStaticTcpPanelStatus.AUTHORIZED
+        status == PrivilegeUiAdbTcpAuthorizationStatus.CHECKING ||
+            status == PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN -> PrivilegeUiStaticTcpPanelStatus.CHECKING
         else -> PrivilegeUiStaticTcpPanelStatus.UNAUTHORIZED
     }
 
@@ -99,13 +103,21 @@ internal fun staticTcpActionEnabled(
     busy: Boolean,
     status: PrivilegeUiAdbTcpAuthorizationStatus,
 ): Boolean =
-    tcpModeEnabled && !busy
+    tcpModeEnabled &&
+        !busy &&
+        status != PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE
 
-internal fun staticTcpActionVisible(tcpModeEnabled: Boolean): Boolean =
-    tcpModeEnabled
+internal fun staticTcpActionVisible(
+    tcpModeEnabled: Boolean,
+    status: PrivilegeUiAdbTcpAuthorizationStatus,
+): Boolean =
+    tcpModeEnabled && status != PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE
 
-internal fun staticTcpCommandHelpVisible(tcpModeEnabled: Boolean): Boolean =
-    !tcpModeEnabled
+internal fun staticTcpCommandHelpVisible(
+    tcpModeEnabled: Boolean,
+    status: PrivilegeUiAdbTcpAuthorizationStatus,
+): Boolean =
+    !tcpModeEnabled || status == PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE
 
 internal fun staticTcpActionLabel(
     tcpModeEnabled: Boolean,
