@@ -17,7 +17,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
@@ -37,7 +36,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private val PairingInlineIconButtonSize = 56.dp
+private val PairingInlineIconButtonSize = 40.dp
 
 @Composable
 internal fun AdbPanel(
@@ -221,11 +220,10 @@ private fun WirelessAdbSection(
                         contentDescription = notificationActionLabel,
                         onClick = onNotificationPairingClick,
                     )
-                    OutlinedTextField(
+                    PairingCodeTextField(
                         modifier = Modifier.weight(1f),
                         value = state.pairingCode,
                         onValueChange = onPairingCodeChanged,
-                        singleLine = true,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.NumberPassword,
                             imeAction = ImeAction.Done,
