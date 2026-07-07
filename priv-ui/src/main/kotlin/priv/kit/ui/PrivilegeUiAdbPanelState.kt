@@ -102,28 +102,52 @@ internal fun staticTcpActionEnabled(
     tcpModeEnabled: Boolean,
     busy: Boolean,
     status: PrivilegeUiAdbTcpAuthorizationStatus,
-): Boolean =
-    tcpModeEnabled &&
-        !busy &&
-        status != PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE
+    wirelessAdbSupported: Boolean,
+): Boolean {
+    val wirelessFallback = staticTcpWirelessFallbackAvailable(
+        tcpModeEnabled = tcpModeEnabled,
+        status = status,
+        wirelessAdbSupported = wirelessAdbSupported,
+    )
+    return !busy && (
+        wirelessFallback ||
+            (tcpModeEnabled && status != PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE)
+    )
+}
 
 internal fun staticTcpActionVisible(
     tcpModeEnabled: Boolean,
     status: PrivilegeUiAdbTcpAuthorizationStatus,
-): Boolean =
-    tcpModeEnabled && status != PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE
+    wirelessAdbSupported: Boolean,
+): Boolean {
+    val wirelessFallback = staticTcpWirelessFallbackAvailable(
+        tcpModeEnabled = tcpModeEnabled,
+        status = status,
+        wirelessAdbSupported = wirelessAdbSupported,
+    )
+    return wirelessFallback ||
+        (tcpModeEnabled && status != PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE)
+}
 
 internal fun staticTcpCommandHelpVisible(
     tcpModeEnabled: Boolean,
     status: PrivilegeUiAdbTcpAuthorizationStatus,
+    wirelessAdbSupported: Boolean,
 ): Boolean =
-    !tcpModeEnabled || status == PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE
+    !wirelessAdbSupported &&
+        (!tcpModeEnabled || status == PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE)
 
 internal fun staticTcpActionLabel(
     tcpModeEnabled: Boolean,
     status: PrivilegeUiAdbTcpAuthorizationStatus,
+    wirelessAdbSupported: Boolean,
 ): Int =
     when {
+        staticTcpWirelessFallbackAvailable(
+            tcpModeEnabled = tcpModeEnabled,
+            status = status,
+            wirelessAdbSupported = wirelessAdbSupported,
+        ) -> R.string.priv_ui_adb_wireless_start_action
         !tcpModeEnabled -> R.string.priv_ui_adb_static_use_other_method_action
         status == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED -> R.string.priv_ui_adb_static_start_action
         status == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING -> R.string.priv_ui_tcp_authorization_cancel_action
@@ -133,3 +157,11 @@ internal fun staticTcpActionLabel(
             R.string.priv_ui_adb_static_authorize_action
         else -> R.string.priv_ui_adb_static_check_action
     }
+
+private fun staticTcpWirelessFallbackAvailable(
+    tcpModeEnabled: Boolean,
+    status: PrivilegeUiAdbTcpAuthorizationStatus,
+    wirelessAdbSupported: Boolean,
+): Boolean =
+    wirelessAdbSupported &&
+        (!tcpModeEnabled || status == PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE)

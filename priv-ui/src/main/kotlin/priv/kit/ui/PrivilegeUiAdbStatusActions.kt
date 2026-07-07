@@ -434,14 +434,6 @@ internal class PrivilegeUiAdbStatusActions(
             else -> PrivilegeUiAdbTcpAuthorizationStatus.CHECKING
         }
 
-    private fun PrivilegeAdbAuthorizationStatus.toUiTcpAuthorizationStatus(): PrivilegeUiAdbTcpAuthorizationStatus =
-        when (this) {
-            PrivilegeAdbAuthorizationStatus.AUTHORIZED -> PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED
-            PrivilegeAdbAuthorizationStatus.UNAUTHORIZED -> PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED
-            PrivilegeAdbAuthorizationStatus.UNAVAILABLE -> PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE
-            PrivilegeAdbAuthorizationStatus.ERROR -> PrivilegeUiAdbTcpAuthorizationStatus.FAILED
-        }
-
     private fun priv.kit.adb.PrivilegeAdbPairingCheckResult.toKnownPairingCheckPaired(): Boolean? =
         when (status) {
             PrivilegeAdbPairingCheckStatus.PAIRED -> true
@@ -468,6 +460,14 @@ internal fun shouldAppendTcpAuthorizationFailureLog(
     failureMessage: String?,
 ): Boolean =
     !failureMessage.isNullOrBlank() && previousStatus != nextStatus
+
+internal fun PrivilegeAdbAuthorizationStatus.toUiTcpAuthorizationStatus(): PrivilegeUiAdbTcpAuthorizationStatus =
+    when (this) {
+        PrivilegeAdbAuthorizationStatus.AUTHORIZED -> PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED
+        PrivilegeAdbAuthorizationStatus.UNAUTHORIZED -> PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED
+        PrivilegeAdbAuthorizationStatus.UNAVAILABLE -> PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE
+        PrivilegeAdbAuthorizationStatus.ERROR -> PrivilegeUiAdbTcpAuthorizationStatus.FAILED
+    }
 
 internal fun shouldSkipTcpAuthorizationRefresh(
     status: PrivilegeUiAdbTcpAuthorizationStatus,

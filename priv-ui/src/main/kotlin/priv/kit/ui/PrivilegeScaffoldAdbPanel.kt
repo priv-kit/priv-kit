@@ -329,6 +329,7 @@ private fun StaticTcpAdbSection(
     ItemPanel {
         val activeTcpPort = state.tcpModePort
         val staticTcpActive = activeTcpPort != null
+        val wirelessAdbSupported = isPrivilegeUiWirelessAdbSupported()
         val staticTcpStatus = staticTcpPanelStatus(
             tcpModeEnabled = staticTcpActive,
             status = state.tcpAuthorizationStatus,
@@ -337,10 +338,12 @@ private fun StaticTcpAdbSection(
         val startActionVisible = staticTcpActionVisible(
             tcpModeEnabled = staticTcpActive,
             status = state.tcpAuthorizationStatus,
+            wirelessAdbSupported = wirelessAdbSupported,
         )
         val commandHelpVisible = staticTcpCommandHelpVisible(
             tcpModeEnabled = staticTcpActive,
             status = state.tcpAuthorizationStatus,
+            wirelessAdbSupported = wirelessAdbSupported,
         )
         AdbStatusRow(
             label = stringResource(R.string.priv_ui_adb_tab_static),
@@ -348,7 +351,8 @@ private fun StaticTcpAdbSection(
             color = staticTcpStatus.displayColor(),
         )
         AnimatedVisibility(
-            visible = paired &&
+            visible = !wirelessAdbSupported &&
+                paired &&
                 !staticTcpActive &&
                 tcpPolicy == PrivilegeUiAdbTcpPolicy.AUTO_ENABLE_AFTER_WIRELESS_PAIRED,
         ) {
@@ -367,6 +371,7 @@ private fun StaticTcpAdbSection(
                     tcpModeEnabled = staticTcpActive,
                     busy = state.busy,
                     status = state.tcpAuthorizationStatus,
+                    wirelessAdbSupported = wirelessAdbSupported,
                 ),
                 onClick = onStartStaticTcpAdb,
             ) {
@@ -375,6 +380,7 @@ private fun StaticTcpAdbSection(
                         staticTcpActionLabel(
                             tcpModeEnabled = staticTcpActive,
                             status = state.tcpAuthorizationStatus,
+                            wirelessAdbSupported = wirelessAdbSupported,
                         ),
                     ),
                 )

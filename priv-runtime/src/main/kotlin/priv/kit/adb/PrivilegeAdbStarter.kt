@@ -348,9 +348,35 @@ public class PrivilegeAdbStarter private constructor(
         currentPort: Int? = null,
         tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     ): PrivilegeAdbTcpResult {
+        return switchToTcpInternal(
+            currentPort = currentPort,
+            tcpPort = tcpPort,
+            options = null,
+        )
+    }
+
+    @Throws(PrivilegeStartupException::class)
+    public fun switchToTcp(
+        currentPort: Int? = null,
+        tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
+        options: PrivilegeAdbStartOptions,
+    ): PrivilegeAdbTcpResult {
+        return switchToTcpInternal(
+            currentPort = currentPort,
+            tcpPort = tcpPort,
+            options = options,
+        )
+    }
+
+    private fun switchToTcpInternal(
+        currentPort: Int?,
+        tcpPort: Int,
+        options: PrivilegeAdbStartOptions?,
+    ): PrivilegeAdbTcpResult {
         require(currentPort == null || currentPort in 1..65535) { "currentPort must be between 1 and 65535" }
         require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
         val output = PrivilegeAdbOutput()
+        var managedWirelessDebuggingController: PrivilegeAdbWirelessDebuggingController? = null
         return try {
             val activeTcpPort = getActiveTcpPort()
             output.append(
@@ -366,7 +392,15 @@ public class PrivilegeAdbStarter private constructor(
                 )
             }
 
-            val connectPort = currentPort ?: activeTcpPort ?: discoverConnectPort()
+            val connectPort = currentPort ?: activeTcpPort ?: options?.port ?: if (options == null) {
+                discoverConnectPort()
+            } else if (options.discoverPort) {
+                discoverConnectPortForStart(options, output) { controller ->
+                    managedWirelessDebuggingController = controller
+                }
+            } else {
+                throw PrivilegeAdbException("ADB connect port is not available")
+            }
             val key = createKey()
             output.append("diag", "ADB identity name=${identity.adbDeviceName}, keySignature=<redacted>")
             output.append("diag", "ADB public key fingerprint=${key.adbPublicKeyFingerprint}")
@@ -388,6 +422,17 @@ public class PrivilegeAdbStarter private constructor(
             )
         } catch (throwable: Throwable) {
             throw PrivilegeStartupException("Failed to switch ADB to TCP mode: ${output.text()}", throwable)
+        } finally {
+            if (options?.disableWirelessDebuggingAfterStart == true) {
+                managedWirelessDebuggingController?.let { controller ->
+                    runCatching {
+                        controller.setWirelessDebuggingEnabled(false)
+                        output.append("adb", "Wireless debugging disabled")
+                    }.onFailure { throwable ->
+                        output.append("diag", "Failed to disable Wireless debugging: ${throwable.toFailureMessage()}")
+                    }
+                }
+            }
         }
     }
 

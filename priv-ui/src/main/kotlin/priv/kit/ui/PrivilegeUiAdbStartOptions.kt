@@ -39,6 +39,19 @@ internal fun privilegeUiWirelessAdbStartOptions(
         )
     }
 
+internal fun privilegeUiStaticTcpSwitchOptions(
+    tcpPort: Int,
+    managedWirelessAdbEnabled: Boolean = true,
+    managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
+): PrivilegeAdbStartOptions =
+    PrivilegeAdbStartOptions(
+        tcpPort = tcpPort,
+        discoverPort = true,
+        wirelessDebuggingControl = managedWirelessAdbEnabled
+            .withDeclaredManagedWirelessAdbStatus(managedWirelessAdbStatus)
+            .toWirelessDebuggingControl(),
+    )
+
 private fun Boolean.withDeclaredManagedWirelessAdbStatus(
     status: PrivilegeUiManagedWirelessAdbStatus,
 ): Boolean =

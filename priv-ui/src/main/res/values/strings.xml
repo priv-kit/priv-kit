@@ -64,6 +64,7 @@
     <string name="priv_ui_adb_static_check_action">Check Static Port</string>
     <string name="priv_ui_adb_static_authorize_action">Allow Static Port Connection</string>
     <string name="priv_ui_adb_static_start_action">Start with Static Port</string>
+    <string name="priv_ui_adb_static_start_failed">Static ADB port is unavailable. Startup failed</string>
     <string name="priv_ui_wireless_realtime_status_title">Connection status</string>
     <string name="priv_ui_wireless_status_debugging">Wireless debugging</string>
     <string name="priv_ui_wireless_status_pairing_service">Pairing entry</string>

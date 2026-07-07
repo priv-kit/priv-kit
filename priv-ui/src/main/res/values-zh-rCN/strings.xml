@@ -64,6 +64,7 @@
     <string name="priv_ui_adb_static_check_action">检查静态端口</string>
     <string name="priv_ui_adb_static_authorize_action">允许静态端口连接</string>
     <string name="priv_ui_adb_static_start_action">通过静态端口启动</string>
+    <string name="priv_ui_adb_static_start_failed">静态 ADB 端口不可用，启动失败</string>
     <string name="priv_ui_wireless_realtime_status_title">连接状态</string>
     <string name="priv_ui_wireless_status_debugging">无线调试</string>
     <string name="priv_ui_wireless_status_pairing_service">配对入口</string>

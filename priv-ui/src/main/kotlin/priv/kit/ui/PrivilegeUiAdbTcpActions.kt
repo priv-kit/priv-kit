@@ -1,8 +1,10 @@
 package priv.kit.ui
 
 import priv.kit.Privilege
+import priv.kit.PrivilegeServerInfo
 import priv.kit.adb.PrivilegeAdbAuthorizationEndReason
 import priv.kit.adb.PrivilegeAdbStartOptions
+import priv.kit.adb.PrivilegeAdbStarter
 
 internal class PrivilegeUiAdbTcpActions(
     private val store: PrivilegeUiViewModelStore,
@@ -118,18 +120,58 @@ internal class PrivilegeUiAdbTcpActions(
             message = store.text(R.string.priv_ui_tcp_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
         ) {
-            val serverInfo = Privilege.startAdb(
-                options = PrivilegeAdbStartOptions(
-                    port = tcpPort,
-                    discoverPort = false,
-                ),
-                timeoutMillis = store.config.startTimeoutMillis,
+            val starter = Privilege.createAdbStarter(
                 adbDeviceName = store.currentAdbDeviceNameOverride(),
-                startupLogListener = store.startupLogListener,
             )
-            store.updateTcpModePort(tcpPort)
-            serverInfo
+            val ready = requireStaticTcpReady(starter)
+            startTcpAdbNow(ready.tcpPort)
         }
+    }
+
+    fun requireStaticTcpReady(
+        starter: PrivilegeAdbStarter,
+    ): PrivilegeUiStaticTcpStartCheck.Ready {
+        val activeTcpPort = starter.getActiveTcpPort()
+        store.updateTcpModePort(activeTcpPort)
+        if (activeTcpPort == null) {
+            store.updateState {
+                it.copy(tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN)
+            }
+            throwStaticTcpStartFailed()
+        }
+        val authorization = starter.checkTcpAuthorization(tcpPort = activeTcpPort)
+        store.updateState {
+            it.copy(tcpAuthorizationStatus = authorization.status.toUiTcpAuthorizationStatus())
+        }
+        val startCheck = privilegeUiStaticTcpStartCheck(
+            activeTcpPort = activeTcpPort,
+            authorizationStatus = authorization.status,
+        )
+        if (startCheck is PrivilegeUiStaticTcpStartCheck.Ready) return startCheck
+        authorization.failureMessage
+            ?.takeIf { it.isNotBlank() }
+            ?.let(store::appendStartupLog)
+        throwStaticTcpStartFailed()
+    }
+
+    fun startTcpAdbNow(tcpPort: Int): PrivilegeServerInfo {
+        val serverInfo = Privilege.startAdb(
+            options = PrivilegeAdbStartOptions(
+                port = tcpPort,
+                discoverPort = false,
+            ),
+            timeoutMillis = store.config.startTimeoutMillis,
+            adbDeviceName = store.currentAdbDeviceNameOverride(),
+            startupLogListener = store.startupLogListener,
+        )
+        store.updateTcpModePort(tcpPort)
+        return serverInfo
+    }
+
+    private fun throwStaticTcpStartFailed(): Nothing {
+        val message = store.text(R.string.priv_ui_adb_static_start_failed)
+        store.appendStartupLog(message)
+        throw IllegalStateException(message)
     }
 
     override fun close() {

@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import priv.kit.adb.PrivilegeAdbAuthorizationStatus
 
 class PrivilegeUiAdbActionsTest {
     @Test
@@ -275,6 +276,69 @@ class PrivilegeUiAdbActionsTest {
         assertEquals(
             priv.kit.adb.PrivilegeAdbWirelessDebuggingControl.NEVER,
             options.wirelessDebuggingControl,
+        )
+    }
+
+    @Test
+    fun staticTcpSwitchOptionsUseManagedWirelessDebuggingWhenAvailable() {
+        val options = privilegeUiStaticTcpSwitchOptions(
+            tcpPort = 4567,
+            managedWirelessAdbEnabled = true,
+            managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.READY,
+        )
+
+        assertEquals(4567, options.tcpPort)
+        assertEquals(true, options.discoverPort)
+        assertEquals(
+            priv.kit.adb.PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
+            options.wirelessDebuggingControl,
+        )
+    }
+
+    @Test
+    fun staticTcpSwitchOptionsDisableManagedWirelessDebuggingWhenPermissionIsUndeclared() {
+        val options = privilegeUiStaticTcpSwitchOptions(
+            tcpPort = 4567,
+            managedWirelessAdbEnabled = true,
+            managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNDECLARED,
+        )
+
+        assertEquals(
+            priv.kit.adb.PrivilegeAdbWirelessDebuggingControl.NEVER,
+            options.wirelessDebuggingControl,
+        )
+    }
+
+    @Test
+    fun staticTcpStartCheckFailsBeforeStartWhenTcpModeIsClosed() {
+        assertEquals(
+            PrivilegeUiStaticTcpStartCheck.Failed,
+            privilegeUiStaticTcpStartCheck(
+                activeTcpPort = null,
+                authorizationStatus = null,
+            ),
+        )
+    }
+
+    @Test
+    fun staticTcpStartCheckFailsBeforeStartWhenPortIsUnavailable() {
+        assertEquals(
+            PrivilegeUiStaticTcpStartCheck.Failed,
+            privilegeUiStaticTcpStartCheck(
+                activeTcpPort = 5555,
+                authorizationStatus = PrivilegeAdbAuthorizationStatus.UNAVAILABLE,
+            ),
+        )
+    }
+
+    @Test
+    fun staticTcpStartCheckUsesActiveAuthorizedPort() {
+        assertEquals(
+            PrivilegeUiStaticTcpStartCheck.Ready(5555),
+            privilegeUiStaticTcpStartCheck(
+                activeTcpPort = 5555,
+                authorizationStatus = PrivilegeAdbAuthorizationStatus.AUTHORIZED,
+            ),
         )
     }
 

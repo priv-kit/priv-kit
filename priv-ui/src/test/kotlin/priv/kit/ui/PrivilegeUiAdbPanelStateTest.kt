@@ -186,6 +186,16 @@ class PrivilegeUiAdbPanelStateTest {
             StaticTcpActionCase(
                 tcpModeEnabled = false,
                 status = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
+                wirelessAdbSupported = true,
+                expectedEnabled = true,
+                expectedVisible = true,
+                expectedCommandHelpVisible = false,
+                expectedLabel = R.string.priv_ui_adb_wireless_start_action,
+            ),
+            StaticTcpActionCase(
+                tcpModeEnabled = false,
+                status = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
+                wirelessAdbSupported = false,
                 expectedEnabled = false,
                 expectedVisible = false,
                 expectedCommandHelpVisible = true,
@@ -194,6 +204,16 @@ class PrivilegeUiAdbPanelStateTest {
             StaticTcpActionCase(
                 tcpModeEnabled = true,
                 status = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+                wirelessAdbSupported = true,
+                expectedEnabled = true,
+                expectedVisible = true,
+                expectedCommandHelpVisible = false,
+                expectedLabel = R.string.priv_ui_adb_wireless_start_action,
+            ),
+            StaticTcpActionCase(
+                tcpModeEnabled = true,
+                status = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+                wirelessAdbSupported = false,
                 expectedEnabled = false,
                 expectedVisible = false,
                 expectedCommandHelpVisible = true,
@@ -202,6 +222,7 @@ class PrivilegeUiAdbPanelStateTest {
             StaticTcpActionCase(
                 tcpModeEnabled = true,
                 status = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
+                wirelessAdbSupported = true,
                 expectedEnabled = true,
                 expectedVisible = true,
                 expectedCommandHelpVisible = false,
@@ -210,6 +231,7 @@ class PrivilegeUiAdbPanelStateTest {
             StaticTcpActionCase(
                 tcpModeEnabled = true,
                 status = PrivilegeUiAdbTcpAuthorizationStatus.CHECKING,
+                wirelessAdbSupported = true,
                 expectedEnabled = true,
                 expectedVisible = true,
                 expectedCommandHelpVisible = false,
@@ -222,6 +244,7 @@ class PrivilegeUiAdbPanelStateTest {
                     tcpModeEnabled = case.tcpModeEnabled,
                     busy = false,
                     status = case.status,
+                    wirelessAdbSupported = case.wirelessAdbSupported,
                 ),
             )
             assertEquals(
@@ -229,6 +252,7 @@ class PrivilegeUiAdbPanelStateTest {
                 staticTcpActionVisible(
                     tcpModeEnabled = case.tcpModeEnabled,
                     status = case.status,
+                    wirelessAdbSupported = case.wirelessAdbSupported,
                 ),
             )
             assertEquals(
@@ -236,6 +260,7 @@ class PrivilegeUiAdbPanelStateTest {
                 staticTcpCommandHelpVisible(
                     tcpModeEnabled = case.tcpModeEnabled,
                     status = case.status,
+                    wirelessAdbSupported = case.wirelessAdbSupported,
                 ),
             )
             assertEquals(
@@ -243,6 +268,7 @@ class PrivilegeUiAdbPanelStateTest {
                 staticTcpActionLabel(
                     tcpModeEnabled = case.tcpModeEnabled,
                     status = case.status,
+                    wirelessAdbSupported = case.wirelessAdbSupported,
                 ),
             )
         }
@@ -262,6 +288,7 @@ class PrivilegeUiAdbPanelStateTest {
     private data class StaticTcpActionCase(
         val tcpModeEnabled: Boolean,
         val status: PrivilegeUiAdbTcpAuthorizationStatus,
+        val wirelessAdbSupported: Boolean,
         val expectedEnabled: Boolean,
         val expectedVisible: Boolean,
         val expectedCommandHelpVisible: Boolean,
