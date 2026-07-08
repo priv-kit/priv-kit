@@ -21,6 +21,13 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import priv.kit.Privilege
+import priv.kit.ui.adb.pairing.PrivilegeAdbPairingEvent
+import priv.kit.ui.adb.pairing.PrivilegeAdbPairingEventType
+import priv.kit.ui.adb.pairing.PrivilegeAdbPairingInputState
+import priv.kit.ui.adb.pairing.PrivilegeAdbPairingIntentContract
+import priv.kit.ui.adb.pairing.PrivilegeAdbPairingNotificationFactory
+import priv.kit.ui.adb.pairing.isPrivilegeUiPairingCode
+import priv.kit.ui.adb.pairing.privilegeAdbRequestedDeviceName
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.milliseconds
 

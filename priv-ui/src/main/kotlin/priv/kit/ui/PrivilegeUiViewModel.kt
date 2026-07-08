@@ -8,6 +8,23 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import priv.kit.ui.adb.PrivilegeUiAdbActions
+import priv.kit.ui.adb.PrivilegeUiAdbStartupTab
+import priv.kit.ui.external.PrivilegeUiExternalStartActions
+import priv.kit.ui.runtime.PrivilegeUiDirectStartTarget
+import priv.kit.ui.runtime.PrivilegeUiManualShellActions
+import priv.kit.ui.runtime.PrivilegeUiRuntimeActions
+import priv.kit.ui.runtime.canStartAdbDirectly
+import priv.kit.ui.runtime.directStartTarget
+import priv.kit.ui.runtime.directStartTargets
+import priv.kit.ui.runtime.hasDirectStartTarget
+import priv.kit.ui.state.PrivilegeUiPollingSlot
+import priv.kit.ui.state.PrivilegeUiStatusRefreshController
+import priv.kit.ui.state.PrivilegeUiNoopCloseable
+import priv.kit.ui.state.PrivilegeUiViewModelStore
+import priv.kit.ui.state.copyToClipboard
+import priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported
+import priv.kit.ui.state.privilegeUiStaticTcpOpenCommand
 
 public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     application: Application,

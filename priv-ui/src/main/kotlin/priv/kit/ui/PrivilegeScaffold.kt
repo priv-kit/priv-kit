@@ -30,6 +30,15 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import priv.kit.PrivilegeServerInfo
+import priv.kit.ui.adb.PrivilegeUiAdbStartupTab
+import priv.kit.ui.component.AdbPanel
+import priv.kit.ui.component.AuthorizationModeTabs
+import priv.kit.ui.component.ExternalStartPanel
+import priv.kit.ui.component.ManualShellPanel
+import priv.kit.ui.component.PrivilegeTopBar
+import priv.kit.ui.component.RootPanel
+import priv.kit.ui.component.ServiceStatusPanel
+import priv.kit.ui.component.StartupLogPanel
 
 @Composable
 public fun PrivilegeScaffold(
