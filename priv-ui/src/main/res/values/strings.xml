@@ -26,7 +26,7 @@
     <string name="priv_ui_connected">Connected</string>
     <string name="priv_ui_binder_died">Binder died</string>
     <string name="priv_ui_starting_root">Starting Root Runtime...</string>
-    <string name="priv_ui_startup_stopped">Startup stopped</string>
+    <string name="priv_ui_startup_interrupted">Startup interrupted</string>
     <string name="priv_ui_startup_source">Startup source: %1$s</string>
     <string name="priv_ui_startup_log_title">Startup log</string>
     <string name="priv_ui_startup_log_copy_description">Copy startup log</string>
@@ -47,8 +47,7 @@
     <string name="priv_ui_adb_tab_static">Static port</string>
     <string name="priv_ui_adb_unavailable">No ADB startup entry is available</string>
     <string name="priv_ui_adb_wireless_start_action">Start</string>
-    <string name="priv_ui_adb_wireless_wifi_required_action">Connect Wi-Fi to start</string>
-    <string name="priv_ui_adb_wireless_stop_action">Stop</string>
+    <string name="priv_ui_start_interrupt_action">Interrupt</string>
     <string name="priv_ui_adb_static_port_status">Static port %1$d</string>
     <string name="priv_ui_adb_static_port_status_unavailable">Static port</string>
     <string name="priv_ui_adb_static_port_ready">Open</string>
@@ -56,12 +55,11 @@
     <string name="priv_ui_adb_static_status_unauthorized">Unauthorized</string>
     <string name="priv_ui_adb_static_status_authorized">Authorized</string>
     <string name="priv_ui_adb_static_authorization_status">Authorized</string>
-    <string name="priv_ui_adb_static_use_other_method_action">Start another way first</string>
     <string name="priv_ui_adb_static_prepare_action">Open static port with wireless debugging</string>
     <string name="priv_ui_adb_static_command_desc">Run this command from a computer connected to this device, it can restart itself after the service is closed</string>
     <string name="priv_ui_adb_static_command_copied">Static port command copied</string>
     <string name="priv_ui_adb_static_command_clip_label">Priv Kit static port command</string>
-    <string name="priv_ui_adb_static_check_action">Check Static Port</string>
+    <string name="priv_ui_adb_static_check_action">Checking static port</string>
     <string name="priv_ui_adb_static_authorize_action">Allow Static Port Connection</string>
     <string name="priv_ui_adb_static_start_action">Start</string>
     <string name="priv_ui_adb_static_start_failed">Static ADB port is unavailable. Startup failed</string>
@@ -72,6 +70,7 @@
     <string name="priv_ui_wireless_status_unknown">Unknown</string>
     <string name="priv_ui_wireless_status_checking">Checking</string>
     <string name="priv_ui_wireless_status_on">On</string>
+    <string name="priv_ui_wireless_status_wifi_required">Wi-Fi required</string>
     <string name="priv_ui_wireless_status_off">Off</string>
     <string name="priv_ui_wireless_status_unpaired">Unpaired</string>
     <string name="priv_ui_wireless_status_pairable">Ready to pair</string>
@@ -93,7 +92,6 @@
     <string name="priv_ui_tcp_starting">Continuing start...</string>
     <string name="priv_ui_tcp_authorization_requesting">Tap Allow in the system prompt...</string>
     <string name="priv_ui_tcp_authorization_waiting_action">Waiting for system prompt</string>
-    <string name="priv_ui_tcp_authorization_cancel_action">Cancel confirmation</string>
     <string name="priv_ui_tcp_authorization_allowed">This device is allowed</string>
     <string name="priv_ui_tcp_authorization_not_completed">System confirmation is not complete yet</string>
     <string name="priv_ui_tcp_authorization_waiting">Waiting for prompt</string>

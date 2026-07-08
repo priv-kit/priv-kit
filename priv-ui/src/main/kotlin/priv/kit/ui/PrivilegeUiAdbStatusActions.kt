@@ -137,30 +137,38 @@ internal class PrivilegeUiAdbStatusActions(
         adbConnectionSessions.closeWirelessPairingCheckSession()
     }
 
-    suspend fun forceWirelessAdbStatusRefreshForAction(): Boolean {
+    suspend fun forceWirelessAdbStatusRefreshForAction(
+        stop: AtomicBoolean? = null,
+    ): Boolean {
         val deadline = statusRefreshActionDeadlineMillis()
         while (true) {
+            if (stop?.get() == true) return false
             val remainingBeforeJoin = remainingStatusRefreshActionMillis(deadline)
             if (remainingBeforeJoin <= 0L) return false
             if (!wirelessAdbStatusRefresh.join(remainingBeforeJoin)) return false
-            val stop = wirelessAdbStatusPolling.currentStop()?.takeUnless { it.get() } ?: AtomicBoolean(false)
-            if (wirelessAdbStatusRefresh.start { refreshWirelessAdbStatusNow(stop = stop, markChecking = true) }) {
+            val refreshStop = stop
+                ?: wirelessAdbStatusPolling.currentStop()?.takeUnless { it.get() }
+                ?: AtomicBoolean(false)
+            if (wirelessAdbStatusRefresh.start { refreshWirelessAdbStatusNow(stop = refreshStop, markChecking = true) }) {
                 val remainingAfterStart = remainingStatusRefreshActionMillis(deadline)
                 return remainingAfterStart > 0L &&
                     wirelessAdbStatusRefresh.join(remainingAfterStart) &&
-                    !stop.get()
+                    !refreshStop.get()
             }
         }
     }
 
-    suspend fun forceTcpModeStatusRefreshForAction(): Boolean {
+    suspend fun forceTcpModeStatusRefreshForAction(
+        stop: AtomicBoolean? = null,
+    ): Boolean {
         val deadline = statusRefreshActionDeadlineMillis()
         while (true) {
+            if (stop?.get() == true) return false
             val remainingBeforeJoin = remainingStatusRefreshActionMillis(deadline)
             if (remainingBeforeJoin <= 0L) return false
             if (!tcpModeStatusRefresh.join(remainingBeforeJoin)) return false
-            val stop = tcpModeStatusPolling.currentStop()?.takeUnless { it.get() }
-            if (tcpModeStatusRefresh.start { refreshTcpModeEnabledNow(stop = stop, markChecking = true) }) {
+            val refreshStop = stop ?: tcpModeStatusPolling.currentStop()?.takeUnless { it.get() }
+            if (tcpModeStatusRefresh.start { refreshTcpModeEnabledNow(stop = refreshStop, markChecking = true) }) {
                 val remainingAfterStart = remainingStatusRefreshActionMillis(deadline)
                 return remainingAfterStart > 0L && tcpModeStatusRefresh.join(remainingAfterStart)
             }

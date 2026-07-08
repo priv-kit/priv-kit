@@ -119,6 +119,7 @@ internal fun AdbPanel(
                     configuredTcpPort = configuredTcpPort,
                     onEnableTcpMode = onEnableTcpMode,
                     onStartStaticTcpAdb = onStartStaticTcpAdb,
+                    onStopStaticTcpAdb = onStopWirelessAdb,
                     onCopyStaticTcpCommand = onCopyStaticTcpCommand,
                 )
             }
@@ -221,8 +222,7 @@ private fun WirelessAdbSection(
                 onClick = {
                     when (startAction) {
                         PrivilegeUiWirelessAdbStartAction.START -> onStartWirelessAdb()
-                        PrivilegeUiWirelessAdbStartAction.WIFI_REQUIRED -> onStartWirelessAdb()
-                        PrivilegeUiWirelessAdbStartAction.STOP -> onStopWirelessAdb()
+                        PrivilegeUiWirelessAdbStartAction.INTERRUPT -> onStopWirelessAdb()
                         PrivilegeUiWirelessAdbStartAction.NONE -> Unit
                     }
                 },
@@ -324,6 +324,7 @@ private fun StaticTcpAdbSection(
     configuredTcpPort: Int,
     onEnableTcpMode: () -> Unit,
     onStartStaticTcpAdb: () -> Unit,
+    onStopStaticTcpAdb: () -> Unit,
     onCopyStaticTcpCommand: () -> Unit,
 ) {
     ItemPanel {
@@ -337,6 +338,7 @@ private fun StaticTcpAdbSection(
         val staticTcpCommand = privilegeUiStaticTcpOpenCommand(configuredTcpPort)
         val startActionVisible = staticTcpActionVisible(
             tcpModeEnabled = staticTcpActive,
+            runtimeStatus = state.runtimeStatus,
             status = state.tcpAuthorizationStatus,
             wirelessAdbSupported = wirelessAdbSupported,
         )
@@ -370,17 +372,22 @@ private fun StaticTcpAdbSection(
                 enabled = startActionVisible && staticTcpActionEnabled(
                     tcpModeEnabled = staticTcpActive,
                     busy = state.busy,
+                    runtimeStatus = state.runtimeStatus,
                     status = state.tcpAuthorizationStatus,
                     wirelessAdbSupported = wirelessAdbSupported,
                 ),
-                onClick = onStartStaticTcpAdb,
+                onClick = {
+                    if (state.runtimeStatus == PrivilegeUiRuntimeStatus.STARTING) {
+                        onStopStaticTcpAdb()
+                    } else {
+                        onStartStaticTcpAdb()
+                    }
+                },
             ) {
                 Text(
                     stringResource(
                         staticTcpActionLabel(
-                            tcpModeEnabled = staticTcpActive,
-                            status = state.tcpAuthorizationStatus,
-                            wirelessAdbSupported = wirelessAdbSupported,
+                            runtimeStatus = state.runtimeStatus,
                         ),
                     ),
                 )
@@ -485,6 +492,8 @@ private fun AdbStatusRow(
 @Composable
 private fun PrivilegeUiWirelessAdbPanelStatus.displayText(): String =
     when (this) {
+        PrivilegeUiWirelessAdbPanelStatus.WIFI_REQUIRED ->
+            stringResource(R.string.priv_ui_wireless_status_wifi_required)
         PrivilegeUiWirelessAdbPanelStatus.OFF -> stringResource(R.string.priv_ui_wireless_status_off)
         PrivilegeUiWirelessAdbPanelStatus.UNPAIRED -> stringResource(R.string.priv_ui_wireless_status_unpaired)
         PrivilegeUiWirelessAdbPanelStatus.PAIRABLE -> stringResource(R.string.priv_ui_wireless_status_pairable)
@@ -496,6 +505,7 @@ private fun PrivilegeUiWirelessAdbPanelStatus.displayColor(): Color =
     when (this) {
         PrivilegeUiWirelessAdbPanelStatus.PAIRED -> MaterialTheme.colorScheme.tertiary
         PrivilegeUiWirelessAdbPanelStatus.PAIRABLE -> MaterialTheme.colorScheme.primary
+        PrivilegeUiWirelessAdbPanelStatus.WIFI_REQUIRED,
         PrivilegeUiWirelessAdbPanelStatus.OFF,
         PrivilegeUiWirelessAdbPanelStatus.UNPAIRED,
         -> MaterialTheme.colorScheme.onSurfaceVariant

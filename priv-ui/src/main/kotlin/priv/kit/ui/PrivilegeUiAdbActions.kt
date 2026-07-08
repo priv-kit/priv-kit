@@ -1,6 +1,7 @@
 package priv.kit.ui
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.runInterruptible
 import priv.kit.Privilege
 
 internal class PrivilegeUiAdbActions(
@@ -8,14 +9,6 @@ internal class PrivilegeUiAdbActions(
     private val runtimeActions: PrivilegeUiRuntimeActions,
     private val coroutineScope: CoroutineScope,
 ) : AutoCloseable {
-    private val wirelessAdbStartControl = PrivilegeUiStatusRefreshController(
-        scope = coroutineScope,
-        name = "priv-ui-wireless-adb-start-refresh-status",
-    )
-    private val staticTcpStartControl = PrivilegeUiStatusRefreshController(
-        scope = coroutineScope,
-        name = "priv-ui-static-tcp-start-refresh-status",
-    )
     private val adbConnectionSessions = PrivilegeUiAdbConnectionSessions()
     private val statusActions = PrivilegeUiAdbStatusActions(
         store = store,
@@ -79,15 +72,7 @@ internal class PrivilegeUiAdbActions(
     }
 
     fun startWirelessAdb() {
-        if (!ensureWifiConnectedForWirelessAdbStart()) return
-        refreshWirelessAdbStatusThenStart()
-    }
-
-    private fun refreshWirelessAdbStatusThenStart() {
-        wirelessAdbStartControl.start start@{
-            if (!prepareWirelessAdbCommand()) return@start
-            runtimeActions.runServerStart(wirelessAdbStartAttempt())
-        }
+        runtimeActions.runServerStartWorkflow(wirelessAdbStartWorkflow())
     }
 
     fun startAdb() {
@@ -104,66 +89,16 @@ internal class PrivilegeUiAdbActions(
 
     fun startStaticTcpAdb() {
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
-        val allowWirelessTcpSwitch = isPrivilegeUiWirelessAdbSupported()
-        val tcpPort = store.currentTcpModePort()
-        if (tcpPort == null) {
-            if (allowWirelessTcpSwitch) {
-                refreshTcpModeStatusThenStartStaticTcpAdb(allowWirelessTcpSwitch = true)
-            } else {
-                refreshTcpModeEnabled()
-            }
-            return
-        }
-        refreshTcpModeStatusThenStartStaticTcpAdb(allowWirelessTcpSwitch = allowWirelessTcpSwitch)
+        runtimeActions.runServerStartWorkflow(staticTcpAdbStartWorkflow())
     }
 
-    private fun refreshTcpModeStatusThenStartStaticTcpAdb(
-        allowWirelessTcpSwitch: Boolean = false,
-    ) {
-        staticTcpStartControl.start start@{
-            if (!statusActions.forceTcpModeStatusRefreshForAction()) return@start
-            startStaticTcpAdbAfterStatusReady(allowWirelessTcpSwitch)
-        }
-    }
-
-    private suspend fun startStaticTcpAdbAfterStatusReady(
-        allowWirelessTcpSwitch: Boolean,
-    ) {
-        if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
-        val tcpPort = store.currentTcpModePort()
-        if (tcpPort == null) {
-            if (allowWirelessTcpSwitch) {
-                startStaticTcpAdbThroughWirelessAfterStatusReady()
-            } else {
-                refreshTcpModeEnabled()
-            }
-            return
-        }
-        when (store.state.value.tcpAuthorizationStatus) {
-            PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED -> startTcpAdb(tcpPort)
-            PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
-            PrivilegeUiAdbTcpAuthorizationStatus.FAILED,
-            -> requestTcpAuthorization(tcpPort)
-            PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
-            PrivilegeUiAdbTcpAuthorizationStatus.CHECKING,
-            -> Unit
-            PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE -> {
-                if (allowWirelessTcpSwitch) {
-                    startStaticTcpAdbThroughWirelessAfterStatusReady()
-                }
-            }
-            PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING -> cancelTcpAuthorization()
-        }
-    }
-
-    private suspend fun startStaticTcpAdbThroughWirelessAfterStatusReady() {
-        if (!prepareWirelessAdbCommand()) return
-        runtimeActions.runServerStart(staticTcpAdbThroughWirelessStartAttempt())
-    }
-
-    private suspend fun prepareWirelessAdbCommand(): Boolean {
+    private suspend fun prepareWirelessAdbCommand(
+        session: PrivilegeUiRuntimeStartSession,
+    ): Boolean {
         if (!ensureWifiConnectedForWirelessAdbStart()) return false
-        if (!statusActions.forceWirelessAdbStatusRefreshForAction()) return false
+        store.appendStartupLog(store.text(R.string.priv_ui_checking_wireless_adb))
+        if (!statusActions.forceWirelessAdbStatusRefreshForAction(session.stop)) return false
+        session.checkActive()
         if (!ensureWifiConnectedForWirelessAdbStart()) return false
         if (!ensureWirelessDebuggingReadyForStart()) return false
         return ensureWirelessAdbPairedForStart()
@@ -263,6 +198,7 @@ internal class PrivilegeUiAdbActions(
             )
         }
         store.showSnackbar(message)
+        store.appendStartupLog(message)
         return false
     }
 
@@ -272,6 +208,7 @@ internal class PrivilegeUiAdbActions(
         }
         val message = store.text(R.string.priv_ui_wireless_pair_required_for_wireless_adb_start)
         store.showSnackbar(message)
+        store.appendStartupLog(message)
         return false
     }
 
@@ -288,6 +225,7 @@ internal class PrivilegeUiAdbActions(
         }
         val message = store.text(R.string.priv_ui_wireless_debugging_required_for_wireless_adb_start)
         store.showSnackbar(message)
+        store.appendStartupLog(message)
         return false
     }
 
@@ -308,6 +246,95 @@ internal class PrivilegeUiAdbActions(
             }
         }
         return refreshedStatus
+    }
+
+    private fun wirelessAdbStartWorkflow(): PrivilegeUiRuntimeStartAttempt.Workflow =
+        PrivilegeUiRuntimeStartAttempt.Workflow(
+            message = store.text(R.string.priv_ui_wireless_adb_starting),
+            startupSource = store.text(R.string.priv_ui_auth_method_adb),
+            onFailure = ::handleWirelessAdbStartFailure,
+        ) {
+            if (!prepareWirelessAdbCommand(this)) {
+                PrivilegeUiRuntimeStartResult.Finished
+            } else {
+                val serverInfo = runInterruptible {
+                    wirelessAdbStartAttempt().start(this)
+                }
+                PrivilegeUiRuntimeStartResult.Connected(serverInfo)
+            }
+        }
+
+    private fun staticTcpAdbStartWorkflow(): PrivilegeUiRuntimeStartAttempt.Workflow =
+        PrivilegeUiRuntimeStartAttempt.Workflow(
+            message = store.text(R.string.priv_ui_tcp_starting),
+            startupSource = store.text(R.string.priv_ui_auth_method_adb),
+        ) {
+            if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) {
+                return@Workflow PrivilegeUiRuntimeStartResult.Finished
+            }
+            val allowWirelessTcpSwitch = isPrivilegeUiWirelessAdbSupported()
+            store.appendStartupLog(store.text(R.string.priv_ui_adb_static_check_action))
+            if (!statusActions.forceTcpModeStatusRefreshForAction(stop)) {
+                return@Workflow PrivilegeUiRuntimeStartResult.Finished
+            }
+            checkActive()
+            val tcpPort = store.currentTcpModePort()
+            if (tcpPort == null) {
+                if (!allowWirelessTcpSwitch) {
+                    refreshTcpModeEnabled()
+                    return@Workflow PrivilegeUiRuntimeStartResult.Finished
+                }
+                return@Workflow startStaticTcpAdbThroughWireless(this)
+            }
+            when (store.state.value.tcpAuthorizationStatus) {
+                PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED -> {
+                    val serverInfo = runInterruptible {
+                        tcpActions.tcpAdbStartAttempt(tcpPort).start(this)
+                    }
+                    PrivilegeUiRuntimeStartResult.Connected(serverInfo)
+                }
+                PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
+                PrivilegeUiAdbTcpAuthorizationStatus.FAILED,
+                PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
+                PrivilegeUiAdbTcpAuthorizationStatus.CHECKING,
+                -> {
+                    if (!tcpActions.requestTcpAuthorizationForStart(this, tcpPort)) {
+                        return@Workflow PrivilegeUiRuntimeStartResult.Finished
+                    }
+                    val serverInfo = runInterruptible {
+                        tcpActions.tcpAdbStartAttempt(tcpPort).start(this)
+                    }
+                    PrivilegeUiRuntimeStartResult.Connected(serverInfo)
+                }
+                PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE -> {
+                    if (allowWirelessTcpSwitch) {
+                        startStaticTcpAdbThroughWireless(this)
+                    } else {
+                        PrivilegeUiRuntimeStartResult.Finished
+                    }
+                }
+                PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING -> {
+                    if (!tcpActions.requestTcpAuthorizationForStart(this, tcpPort)) {
+                        return@Workflow PrivilegeUiRuntimeStartResult.Finished
+                    }
+                    val serverInfo = runInterruptible {
+                        tcpActions.tcpAdbStartAttempt(tcpPort).start(this)
+                    }
+                    PrivilegeUiRuntimeStartResult.Connected(serverInfo)
+                }
+            }
+        }
+
+    private suspend fun startStaticTcpAdbThroughWireless(
+        session: PrivilegeUiRuntimeStartSession,
+    ): PrivilegeUiRuntimeStartResult {
+        if (!prepareWirelessAdbCommand(session)) {
+            return PrivilegeUiRuntimeStartResult.Finished
+        }
+        val serverInfo = runInterruptible {
+            staticTcpAdbThroughWirelessStartAttempt().start(session)
+        }
+        return PrivilegeUiRuntimeStartResult.Connected(serverInfo)
     }
 
     private fun wirelessAdbStartAttempt(): PrivilegeUiRuntimeStartAttempt.Connect {

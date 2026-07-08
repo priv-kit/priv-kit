@@ -36,6 +36,8 @@ internal class PrivilegeUiViewModelStore(
     var serverShutdownRequestedByOwner: Boolean = false
     @Volatile
     var runtimeStartJob: Job? = null
+    @Volatile
+    var runtimeStartSession: PrivilegeUiRuntimeStartSession? = null
     val runtimeStartGeneration = AtomicLong(0L)
     @Volatile
     var tcpAuthorizationRequest: Closeable? = null
@@ -138,9 +140,12 @@ internal class PrivilegeUiViewModelStore(
 
     override fun close() {
         val request = tcpAuthorizationRequest
+        val session = runtimeStartSession
         runtimeStartGeneration.incrementAndGet()
+        runtimeStartSession = null
         runtimeStartJob?.cancel()
         runtimeStartJob = null
+        session?.close()
         tcpAuthorizationRequestGeneration.incrementAndGet()
         tcpAuthorizationRequest = null
         request?.close()

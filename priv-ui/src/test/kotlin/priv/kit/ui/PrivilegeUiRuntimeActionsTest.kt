@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -252,9 +253,84 @@ class PrivilegeUiRuntimeActionsTest {
             assertEquals(PrivilegeUiRuntimeStatus.DISCONNECTED, store.state.value.runtimeStatus)
             assertNull(store.state.value.runtimeProgressMessage)
             assertEquals(
-                context.getString(R.string.priv_ui_startup_stopped),
+                context.getString(R.string.priv_ui_startup_interrupted),
                 store.state.value.startupLogLines.last(),
             )
+        } finally {
+            actions.close()
+            scope.cancel()
+            store.close()
+        }
+    }
+
+    @Test
+    fun stopCurrentStartClosesRuntimeStartSessionResources() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val store = PrivilegeUiViewModelStore(context)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val actions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+        )
+        val started = CountDownLatch(1)
+        val closed = CountDownLatch(1)
+        try {
+            actions.runServerStartWorkflow(
+                PrivilegeUiRuntimeStartAttempt.Workflow(
+                    message = "adb",
+                    startupSource = null,
+                ) {
+                    addCloseable(AutoCloseable { closed.countDown() })
+                    started.countDown()
+                    delay(TimeUnit.SECONDS.toMillis(30))
+                    PrivilegeUiRuntimeStartResult.Finished
+                },
+            )
+
+            assertTrue(started.await(2, TimeUnit.SECONDS))
+            actions.stopCurrentStart()
+
+            assertTrue(closed.await(2, TimeUnit.SECONDS))
+            assertTrue(waitUntilIdle(store))
+            assertEquals(PrivilegeUiRuntimeStatus.DISCONNECTED, store.state.value.runtimeStatus)
+            assertEquals(
+                context.getString(R.string.priv_ui_startup_interrupted),
+                store.state.value.startupLogLines.last(),
+            )
+        } finally {
+            actions.close()
+            scope.cancel()
+            store.close()
+        }
+    }
+
+    @Test
+    fun storeCloseClosesRuntimeStartSessionResources() = runBlocking {
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val actions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+        )
+        val started = CountDownLatch(1)
+        val closed = CountDownLatch(1)
+        try {
+            actions.runServerStartWorkflow(
+                PrivilegeUiRuntimeStartAttempt.Workflow(
+                    message = "adb",
+                    startupSource = null,
+                ) {
+                    addCloseable(AutoCloseable { closed.countDown() })
+                    started.countDown()
+                    delay(TimeUnit.SECONDS.toMillis(30))
+                    PrivilegeUiRuntimeStartResult.Finished
+                },
+            )
+
+            assertTrue(started.await(2, TimeUnit.SECONDS))
+            store.close()
+
+            assertTrue(closed.await(2, TimeUnit.SECONDS))
         } finally {
             actions.close()
             scope.cancel()

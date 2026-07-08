@@ -1,10 +1,14 @@
 package priv.kit.ui
 
+import kotlinx.coroutines.suspendCancellableCoroutine
 import priv.kit.Privilege
 import priv.kit.PrivilegeServerInfo
 import priv.kit.adb.PrivilegeAdbAuthorizationEndReason
+import priv.kit.adb.PrivilegeAdbAuthorizationRequestResult
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStarter
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.resume
 
 internal class PrivilegeUiAdbTcpActions(
     private val store: PrivilegeUiViewModelStore,
@@ -100,6 +104,107 @@ internal class PrivilegeUiAdbTcpActions(
             store.tcpAuthorizationRequest = request
         } else {
             request.close()
+        }
+    }
+
+    suspend fun requestTcpAuthorizationForStart(
+        session: PrivilegeUiRuntimeStartSession,
+        tcpPort: Int,
+    ): Boolean {
+        if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return false
+        store.appendStartupLog(store.text(R.string.priv_ui_adb_static_authorize_action))
+        return suspendCancellableCoroutine { continuation ->
+            val previousRequest = store.tcpAuthorizationRequest
+            store.tcpAuthorizationRequestGeneration.incrementAndGet()
+            store.tcpAuthorizationRequest = null
+            previousRequest?.close()
+
+            val requestGeneration = store.tcpAuthorizationRequestGeneration.incrementAndGet()
+            val completed = AtomicBoolean(false)
+            store.updateState {
+                it.copy(
+                    tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
+                )
+            }
+            val starter = Privilege.createAdbStarter(
+                adbDeviceName = store.currentAdbDeviceNameOverride(),
+            )
+            lateinit var request: AutoCloseable
+
+            fun finish(result: PrivilegeAdbAuthorizationRequestResult) {
+                if (!completed.compareAndSet(false, true)) return
+                if (store.tcpAuthorizationRequestGeneration.get() != requestGeneration) {
+                    if (continuation.isActive) continuation.resume(false)
+                    return
+                }
+                store.tcpAuthorizationRequest = null
+                if (result.authorized) {
+                    val message = store.text(R.string.priv_ui_tcp_authorization_allowed)
+                    store.updateState {
+                        it.copy(
+                            tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
+                        )
+                    }
+                    store.appendStartupLog(message)
+                    if (continuation.isActive) continuation.resume(true)
+                } else {
+                    val status = when (result.endReason) {
+                        PrivilegeAdbAuthorizationEndReason.FAILED -> PrivilegeUiAdbTcpAuthorizationStatus.FAILED
+                        PrivilegeAdbAuthorizationEndReason.AUTOMATIC_TIMEOUT,
+                        PrivilegeAdbAuthorizationEndReason.MANUAL_CANCELLED,
+                        null,
+                        -> PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED
+                    }
+                    val message = result.failureMessage
+                        ?: store.text(R.string.priv_ui_tcp_authorization_not_completed)
+                    store.updateState {
+                        it.copy(
+                            tcpAuthorizationStatus = status,
+                        )
+                    }
+                    if (!session.stop.get()) {
+                        store.showFailure(message)
+                        store.appendStartupLog(message)
+                    }
+                    if (continuation.isActive) continuation.resume(false)
+                }
+            }
+
+            request = starter.requestTcpAuthorization(
+                tcpPort = tcpPort,
+                timeoutMillis = store.config.adbAuthorizationTimeoutMillis,
+                callback = { result -> finish(result) },
+            )
+            val sessionRequest = AutoCloseable {
+                if (completed.compareAndSet(false, true)) {
+                    if (store.tcpAuthorizationRequestGeneration.get() == requestGeneration) {
+                        store.tcpAuthorizationRequestGeneration.incrementAndGet()
+                        store.tcpAuthorizationRequest = null
+                        store.updateState { current ->
+                            if (current.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING) {
+                                current.copy(
+                                    tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
+                                )
+                            } else {
+                                current
+                            }
+                        }
+                    }
+                    request.close()
+                }
+            }
+            continuation.invokeOnCancellation {
+                sessionRequest.close()
+            }
+            session.addCloseable(sessionRequest)
+            if (
+                store.tcpAuthorizationRequestGeneration.get() == requestGeneration &&
+                store.state.value.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING
+            ) {
+                store.tcpAuthorizationRequest = request
+            } else {
+                sessionRequest.close()
+            }
         }
     }
 
