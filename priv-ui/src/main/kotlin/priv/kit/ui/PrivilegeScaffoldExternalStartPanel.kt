@@ -42,7 +42,7 @@ internal fun ExternalStartPanel(
                 ) {
                     Text(
                         if (item.snapshot.canStart) {
-                            stringResource(R.string.priv_ui_external_start, item.label)
+                            stringResource(R.string.priv_ui_external_start)
                         } else {
                             stringResource(R.string.priv_ui_external_authorize_start)
                         },
