@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import priv.kit.ui.adb.PrivilegeUiAdbActions
-import priv.kit.ui.adb.PrivilegeUiAdbStartupTab
 import priv.kit.ui.external.PrivilegeUiExternalStartActions
 import priv.kit.ui.runtime.PrivilegeUiDirectStartTarget
 import priv.kit.ui.runtime.PrivilegeUiManualShellActions
@@ -52,8 +51,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     public val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
     public open val tcpModeEnabled: MutableStateFlow<Boolean> = store.tcpModeEnabled
     internal val snackbarMessages: SharedFlow<String> = store.snackbarMessages
-    internal val selectedAdbStartupTab: StateFlow<PrivilegeUiAdbStartupTab?> =
-        store.selectedAdbStartupTab.asStateFlow()
     public open val adbTcpPolicy: PrivilegeUiAdbTcpPolicy
         get() = store.config.adbTcpPolicy
 
@@ -81,10 +78,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
     public open fun updatePairingCode(value: String) {
         adbActions.updatePairingCode(value)
-    }
-
-    internal fun selectAdbStartupTab(tab: PrivilegeUiAdbStartupTab) {
-        store.selectedAdbStartupTab.value = tab
     }
 
     public open fun selectStartupMode(mode: PrivilegeUiStartupMode) {

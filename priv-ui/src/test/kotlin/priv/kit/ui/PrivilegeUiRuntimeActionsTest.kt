@@ -239,6 +239,7 @@ class PrivilegeUiRuntimeActionsTest {
                 PrivilegeUiRuntimeStartAttempt.Connect(
                     message = "adb",
                     startupSource = null,
+                    runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
                 ) {
                     started.countDown()
                     try {
@@ -252,11 +253,16 @@ class PrivilegeUiRuntimeActionsTest {
             )
 
             assertTrue(started.await(2, TimeUnit.SECONDS))
+            assertEquals(
+                PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
+                store.state.value.runtimeStartSource,
+            )
             actions.stopCurrentStart()
 
             assertTrue(interrupted.await(2, TimeUnit.SECONDS))
             assertTrue(waitUntilIdle(store))
             assertEquals(PrivilegeUiRuntimeStatus.DISCONNECTED, store.state.value.runtimeStatus)
+            assertNull(store.state.value.runtimeStartSource)
             assertNull(store.state.value.runtimeProgressMessage)
             assertEquals(
                 context.getString(R.string.priv_ui_startup_interrupted),

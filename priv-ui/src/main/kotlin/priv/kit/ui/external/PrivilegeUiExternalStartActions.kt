@@ -175,6 +175,7 @@ internal class PrivilegeUiExternalStartActions(
             message = store.text(R.string.priv_ui_external_starting),
             startedMessage = store.text(R.string.priv_ui_external_start_requested),
             startupSource = provider.label.toString(),
+            runtimeStartSource = PrivilegeUiRuntimeStartSource.EXTERNAL,
         ) {
             val commandLine = createShellStartCommand()
             if (provider is PrivilegeUiStreamingExternalStartProvider) {

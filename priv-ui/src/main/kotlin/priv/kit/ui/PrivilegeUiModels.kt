@@ -22,6 +22,13 @@ public enum class PrivilegeUiStartupMode {
     EXTERNAL,
 }
 
+public enum class PrivilegeUiRuntimeStartSource {
+    ROOT,
+    ADB_WIRELESS,
+    ADB_STATIC_TCP,
+    EXTERNAL,
+}
+
 public enum class PrivilegeUiAdbTcpPolicy {
     DISABLED,
     PREFER_EXISTING,
@@ -163,6 +170,7 @@ public data class PrivilegeUiExternalStartItemState public constructor(
 public data class PrivilegeUiState public constructor(
     public val busy: Boolean = false,
     public val runtimeStatus: PrivilegeUiRuntimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+    public val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
     public val serverInfo: PrivilegeServerInfo? = null,
     public val selectedStartupMode: PrivilegeUiStartupMode = PrivilegeUiStartupMode.ADB,
     public val startupModes: List<PrivilegeUiStartupMode> = listOf(

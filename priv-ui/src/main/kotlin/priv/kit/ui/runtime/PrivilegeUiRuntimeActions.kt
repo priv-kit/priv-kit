@@ -34,6 +34,7 @@ internal class PrivilegeUiRuntimeActions(
         PrivilegeUiRuntimeStartAttempt.Connect(
             message = store.text(R.string.priv_ui_starting_root),
             startupSource = store.text(R.string.priv_ui_auth_method_root),
+            runtimeStartSource = PrivilegeUiRuntimeStartSource.ROOT,
         ) {
             Privilege.startRoot(
                 timeoutMillis = store.config.startTimeoutMillis,
@@ -65,6 +66,7 @@ internal class PrivilegeUiRuntimeActions(
                     it.copy(
                         busy = false,
                         runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                        runtimeStartSource = null,
                         serverInfo = null,
                         runtimeProgressMessage = null,
                     )
@@ -75,6 +77,7 @@ internal class PrivilegeUiRuntimeActions(
                 store.updateState {
                     it.copy(
                         busy = false,
+                        runtimeStartSource = null,
                         runtimeProgressMessage = null,
                     )
                 }
@@ -111,6 +114,7 @@ internal class PrivilegeUiRuntimeActions(
                     it.copy(
                         busy = false,
                         runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                        runtimeStartSource = null,
                         serverInfo = null,
                         runtimeProgressMessage = null,
                     )
@@ -121,6 +125,7 @@ internal class PrivilegeUiRuntimeActions(
                 it.copy(
                     busy = false,
                     runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                    runtimeStartSource = null,
                     serverInfo = null,
                     runtimeProgressMessage = null,
                 )
@@ -140,12 +145,14 @@ internal class PrivilegeUiRuntimeActions(
     fun runServerStart(
         message: String,
         startupSource: String? = null,
+        runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
         start: () -> PrivilegeServerInfo,
     ) {
         runServerStart(
             PrivilegeUiRuntimeStartAttempt.Connect(
                 message = message,
                 startupSource = startupSource,
+                runtimeStartSource = runtimeStartSource,
             ) {
                 start()
             },
@@ -153,7 +160,7 @@ internal class PrivilegeUiRuntimeActions(
     }
 
     fun runServerStart(attempt: PrivilegeUiRuntimeStartAttempt.Connect) {
-        val session = beginRuntimeStart(attempt.message) ?: return
+        val session = beginRuntimeStart(attempt.message, attempt.runtimeStartSource) ?: return
         appendStartupSource(attempt.startupSource)
         store.appendStartupLog(attempt.message)
         launchRuntimeStart(session, "priv-ui-runtime-start") {
@@ -180,6 +187,7 @@ internal class PrivilegeUiRuntimeActions(
         message: String,
         startedMessage: String,
         startupSource: String? = null,
+        runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
         start: () -> Unit,
     ) {
         runServerStartRequest(
@@ -187,6 +195,7 @@ internal class PrivilegeUiRuntimeActions(
                 message = message,
                 startedMessage = startedMessage,
                 startupSource = startupSource,
+                runtimeStartSource = runtimeStartSource,
             ) {
                 start()
             },
@@ -194,7 +203,7 @@ internal class PrivilegeUiRuntimeActions(
     }
 
     fun runServerStartRequest(attempt: PrivilegeUiRuntimeStartAttempt.Request) {
-        val session = beginRuntimeStart(attempt.message) ?: return
+        val session = beginRuntimeStart(attempt.message, attempt.runtimeStartSource) ?: return
         appendStartupSource(attempt.startupSource)
         store.appendStartupLog(attempt.message)
         launchRuntimeStart(session, "priv-ui-runtime-start-request") {
@@ -217,7 +226,7 @@ internal class PrivilegeUiRuntimeActions(
     }
 
     fun runServerStartWorkflow(attempt: PrivilegeUiRuntimeStartAttempt.Workflow) {
-        val session = beginRuntimeStart(attempt.message) ?: return
+        val session = beginRuntimeStart(attempt.message, attempt.runtimeStartSource) ?: return
         appendStartupSource(attempt.startupSource)
         store.appendStartupLog(attempt.message)
         launchRuntimeStart(session, "priv-ui-runtime-start-workflow") {
@@ -257,13 +266,20 @@ internal class PrivilegeUiRuntimeActions(
             reportNoDirectStart()
             return
         }
-        val session = beginRuntimeStart(attempts.first().message) ?: return
+        val firstAttempt = attempts.first()
+        val session = beginRuntimeStart(
+            message = firstAttempt.message,
+            runtimeStartSource = firstAttempt.runtimeStartSource,
+        ) ?: return
         launchRuntimeStart(session, "priv-ui-runtime-start-fallback") {
             var lastFailure: Throwable? = null
             attempts.forEach { attempt ->
                 if (!isCurrentRuntimeStart(session)) return@launchRuntimeStart
                 updateCurrentRuntimeStartState(session) {
-                    it.startingAttempt(attempt.message)
+                    it.startingAttempt(
+                        message = attempt.message,
+                        runtimeStartSource = attempt.runtimeStartSource,
+                    )
                 }
                 appendStartupSource(attempt.startupSource)
                 store.appendStartupLog(attempt.message)
@@ -395,7 +411,10 @@ internal class PrivilegeUiRuntimeActions(
         store.appendStartupLog(store.text(R.string.priv_ui_startup_source, source))
     }
 
-    private fun beginRuntimeStart(message: String): PrivilegeUiRuntimeStartSession? {
+    private fun beginRuntimeStart(
+        message: String,
+        runtimeStartSource: PrivilegeUiRuntimeStartSource?,
+    ): PrivilegeUiRuntimeStartSession? {
         if (store.state.value.busy) return null
         val generation = store.runtimeStartGeneration.incrementAndGet()
         val session = PrivilegeUiRuntimeStartSession(generation)
@@ -405,7 +424,10 @@ internal class PrivilegeUiRuntimeActions(
             store.runtimeStartSession = session
         }
         updateCurrentRuntimeStartState(session) {
-            it.startingAttempt(message)
+            it.startingAttempt(
+                message = message,
+                runtimeStartSource = runtimeStartSource,
+            )
         }
         return session
     }
@@ -427,6 +449,7 @@ internal class PrivilegeUiRuntimeActions(
             it.copy(
                 busy = false,
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                runtimeStartSource = null,
                 serverInfo = null,
                 runtimeProgressMessage = null,
             )
@@ -531,6 +554,7 @@ internal class PrivilegeUiRuntimeActions(
                 it.copy(
                     busy = false,
                     runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
+                    runtimeStartSource = null,
                     serverInfo = serverInfo,
                     runtimeProgressMessage = null,
                     connectionSerial = it.connectionSerial + 1L,
@@ -571,12 +595,14 @@ internal class PrivilegeUiRuntimeActions(
             if (it.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
                 it.copy(
                     busy = false,
+                    runtimeStartSource = null,
                     runtimeProgressMessage = null,
                 )
             } else {
                 it.copy(
                     busy = false,
                     runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                    runtimeStartSource = null,
                     serverInfo = null,
                     runtimeProgressMessage = null,
                 )
@@ -594,6 +620,7 @@ internal class PrivilegeUiRuntimeActions(
             it.copy(
                 busy = false,
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                runtimeStartSource = null,
                 serverInfo = null,
                 runtimeProgressMessage = null,
             )
@@ -601,16 +628,21 @@ internal class PrivilegeUiRuntimeActions(
         store.appendLog(message)
     }
 
-    private fun PrivilegeUiState.startingAttempt(message: String): PrivilegeUiState =
+    private fun PrivilegeUiState.startingAttempt(
+        message: String,
+        runtimeStartSource: PrivilegeUiRuntimeStartSource?,
+    ): PrivilegeUiState =
         if (runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
             copy(
                 busy = true,
+                runtimeStartSource = runtimeStartSource,
                 runtimeProgressMessage = message,
             )
         } else {
             copy(
                 busy = true,
                 runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
+                runtimeStartSource = runtimeStartSource,
                 serverInfo = null,
                 runtimeProgressMessage = message,
             )
@@ -634,12 +666,14 @@ internal class PrivilegeUiRuntimeActions(
         if (runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
             copy(
                 busy = false,
+                runtimeStartSource = null,
                 runtimeProgressMessage = null,
             )
         } else {
             copy(
                 busy = false,
                 runtimeStatus = PrivilegeUiRuntimeStatus.FAILED,
+                runtimeStartSource = null,
                 serverInfo = null,
                 runtimeProgressMessage = null,
             )
@@ -649,10 +683,12 @@ internal class PrivilegeUiRuntimeActions(
 internal sealed interface PrivilegeUiRuntimeStartAttempt {
     val message: String
     val startupSource: String?
+    val runtimeStartSource: PrivilegeUiRuntimeStartSource?
 
     class Connect(
         override val message: String,
         override val startupSource: String?,
+        override val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
         val onFailure: ((Throwable) -> Boolean)? = null,
         val start: PrivilegeUiRuntimeStartSession.() -> PrivilegeServerInfo,
     ) : PrivilegeUiRuntimeStartAttempt
@@ -661,12 +697,14 @@ internal sealed interface PrivilegeUiRuntimeStartAttempt {
         override val message: String,
         val startedMessage: String,
         override val startupSource: String?,
+        override val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
         val start: PrivilegeUiRuntimeStartSession.() -> Unit,
     ) : PrivilegeUiRuntimeStartAttempt
 
     class Workflow(
         override val message: String,
         override val startupSource: String?,
+        override val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
         val onFailure: ((Throwable) -> Boolean)? = null,
         val start: suspend PrivilegeUiRuntimeStartSession.() -> PrivilegeUiRuntimeStartResult,
     ) : PrivilegeUiRuntimeStartAttempt

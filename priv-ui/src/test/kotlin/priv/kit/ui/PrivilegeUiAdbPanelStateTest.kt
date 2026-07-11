@@ -65,6 +65,7 @@ class PrivilegeUiAdbPanelStateTest {
         listOf(
             WirelessActionCase(
                 runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
+                ownsRuntimeStart = true,
                 wifiConnected = true,
                 startPrerequisiteAvailable = true,
                 startAvailable = true,
@@ -74,7 +75,19 @@ class PrivilegeUiAdbPanelStateTest {
                 expectedLabel = R.string.priv_ui_start_interrupt_action,
             ),
             WirelessActionCase(
+                runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
+                ownsRuntimeStart = false,
+                wifiConnected = true,
+                startPrerequisiteAvailable = true,
+                startAvailable = true,
+                busy = true,
+                expectedAction = PrivilegeUiWirelessAdbStartAction.NONE,
+                expectedEnabled = false,
+                expectedLabel = R.string.priv_ui_adb_wireless_start_action,
+            ),
+            WirelessActionCase(
                 runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
+                ownsRuntimeStart = false,
                 wifiConnected = true,
                 startPrerequisiteAvailable = true,
                 startAvailable = true,
@@ -85,6 +98,7 @@ class PrivilegeUiAdbPanelStateTest {
             ),
             WirelessActionCase(
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                ownsRuntimeStart = false,
                 wifiConnected = true,
                 startPrerequisiteAvailable = true,
                 startAvailable = true,
@@ -95,6 +109,7 @@ class PrivilegeUiAdbPanelStateTest {
             ),
             WirelessActionCase(
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                ownsRuntimeStart = false,
                 wifiConnected = false,
                 startPrerequisiteAvailable = true,
                 startAvailable = false,
@@ -105,6 +120,7 @@ class PrivilegeUiAdbPanelStateTest {
             ),
             WirelessActionCase(
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                ownsRuntimeStart = false,
                 wifiConnected = false,
                 startPrerequisiteAvailable = false,
                 startAvailable = false,
@@ -115,6 +131,7 @@ class PrivilegeUiAdbPanelStateTest {
             ),
             WirelessActionCase(
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                ownsRuntimeStart = false,
                 wifiConnected = true,
                 startPrerequisiteAvailable = false,
                 startAvailable = false,
@@ -126,6 +143,7 @@ class PrivilegeUiAdbPanelStateTest {
         ).forEach { case ->
             val action = privilegeUiWirelessAdbStartAction(
                 runtimeStatus = case.runtimeStatus,
+                ownsRuntimeStart = case.ownsRuntimeStart,
                 wifiConnected = case.wifiConnected,
                 startPrerequisiteAvailable = case.startPrerequisiteAvailable,
                 startAvailable = case.startAvailable,
@@ -194,8 +212,8 @@ class PrivilegeUiAdbPanelStateTest {
                 status = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
                 wirelessAdbSupported = true,
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                ownsRuntimeStart = false,
                 expectedEnabled = true,
-                expectedVisible = true,
                 expectedCommandHelpVisible = false,
                 expectedLabel = R.string.priv_ui_adb_static_start_action,
             ),
@@ -204,8 +222,8 @@ class PrivilegeUiAdbPanelStateTest {
                 status = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
                 wirelessAdbSupported = false,
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                ownsRuntimeStart = false,
                 expectedEnabled = false,
-                expectedVisible = false,
                 expectedCommandHelpVisible = true,
                 expectedLabel = R.string.priv_ui_adb_static_start_action,
             ),
@@ -214,8 +232,8 @@ class PrivilegeUiAdbPanelStateTest {
                 status = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
                 wirelessAdbSupported = true,
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                ownsRuntimeStart = false,
                 expectedEnabled = true,
-                expectedVisible = true,
                 expectedCommandHelpVisible = false,
                 expectedLabel = R.string.priv_ui_adb_static_start_action,
             ),
@@ -224,8 +242,8 @@ class PrivilegeUiAdbPanelStateTest {
                 status = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
                 wirelessAdbSupported = false,
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                ownsRuntimeStart = false,
                 expectedEnabled = false,
-                expectedVisible = false,
                 expectedCommandHelpVisible = true,
                 expectedLabel = R.string.priv_ui_adb_static_start_action,
             ),
@@ -234,9 +252,19 @@ class PrivilegeUiAdbPanelStateTest {
                 status = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
                 wirelessAdbSupported = true,
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                ownsRuntimeStart = false,
                 expectedEnabled = true,
-                expectedVisible = true,
                 expectedCommandHelpVisible = false,
+                expectedLabel = R.string.priv_ui_adb_static_start_action,
+            ),
+            StaticTcpActionCase(
+                tcpModeEnabled = true,
+                status = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
+                wirelessAdbSupported = false,
+                runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                ownsRuntimeStart = false,
+                expectedEnabled = true,
+                expectedCommandHelpVisible = true,
                 expectedLabel = R.string.priv_ui_adb_static_start_action,
             ),
             StaticTcpActionCase(
@@ -244,8 +272,8 @@ class PrivilegeUiAdbPanelStateTest {
                 status = PrivilegeUiAdbTcpAuthorizationStatus.CHECKING,
                 wirelessAdbSupported = true,
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                ownsRuntimeStart = false,
                 expectedEnabled = true,
-                expectedVisible = true,
                 expectedCommandHelpVisible = false,
                 expectedLabel = R.string.priv_ui_adb_static_start_action,
             ),
@@ -254,10 +282,30 @@ class PrivilegeUiAdbPanelStateTest {
                 status = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
                 wirelessAdbSupported = false,
                 runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
+                ownsRuntimeStart = true,
                 expectedEnabled = true,
-                expectedVisible = true,
                 expectedCommandHelpVisible = true,
                 expectedLabel = R.string.priv_ui_start_interrupt_action,
+            ),
+            StaticTcpActionCase(
+                tcpModeEnabled = true,
+                status = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
+                wirelessAdbSupported = true,
+                runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
+                ownsRuntimeStart = true,
+                expectedEnabled = true,
+                expectedCommandHelpVisible = false,
+                expectedLabel = R.string.priv_ui_start_interrupt_action,
+            ),
+            StaticTcpActionCase(
+                tcpModeEnabled = true,
+                status = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
+                wirelessAdbSupported = true,
+                runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
+                ownsRuntimeStart = false,
+                expectedEnabled = false,
+                expectedCommandHelpVisible = false,
+                expectedLabel = R.string.priv_ui_adb_static_start_action,
             ),
         ).forEach { case ->
             assertEquals(
@@ -266,15 +314,7 @@ class PrivilegeUiAdbPanelStateTest {
                     tcpModeEnabled = case.tcpModeEnabled,
                     busy = false,
                     runtimeStatus = case.runtimeStatus,
-                    status = case.status,
-                    wirelessAdbSupported = case.wirelessAdbSupported,
-                ),
-            )
-            assertEquals(
-                case.expectedVisible,
-                staticTcpActionVisible(
-                    tcpModeEnabled = case.tcpModeEnabled,
-                    runtimeStatus = case.runtimeStatus,
+                    ownsRuntimeStart = case.ownsRuntimeStart,
                     status = case.status,
                     wirelessAdbSupported = case.wirelessAdbSupported,
                 ),
@@ -282,8 +322,6 @@ class PrivilegeUiAdbPanelStateTest {
             assertEquals(
                 case.expectedCommandHelpVisible,
                 staticTcpCommandHelpVisible(
-                    tcpModeEnabled = case.tcpModeEnabled,
-                    status = case.status,
                     wirelessAdbSupported = case.wirelessAdbSupported,
                 ),
             )
@@ -291,6 +329,7 @@ class PrivilegeUiAdbPanelStateTest {
                 case.expectedLabel,
                 staticTcpActionLabel(
                     runtimeStatus = case.runtimeStatus,
+                    ownsRuntimeStart = case.ownsRuntimeStart,
                 ),
             )
         }
@@ -298,6 +337,7 @@ class PrivilegeUiAdbPanelStateTest {
 
     private data class WirelessActionCase(
         val runtimeStatus: PrivilegeUiRuntimeStatus,
+        val ownsRuntimeStart: Boolean,
         val wifiConnected: Boolean,
         val startPrerequisiteAvailable: Boolean,
         val startAvailable: Boolean,
@@ -312,8 +352,8 @@ class PrivilegeUiAdbPanelStateTest {
         val status: PrivilegeUiAdbTcpAuthorizationStatus,
         val wirelessAdbSupported: Boolean,
         val runtimeStatus: PrivilegeUiRuntimeStatus,
+        val ownsRuntimeStart: Boolean,
         val expectedEnabled: Boolean,
-        val expectedVisible: Boolean,
         val expectedCommandHelpVisible: Boolean,
         val expectedLabel: Int,
     )

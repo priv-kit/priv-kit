@@ -257,6 +257,7 @@ internal class PrivilegeUiAdbActions(
         PrivilegeUiRuntimeStartAttempt.Workflow(
             message = store.text(R.string.priv_ui_wireless_adb_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
+            runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
             onFailure = ::handleWirelessAdbStartFailure,
         ) {
             if (!prepareWirelessAdbCommand(this)) {
@@ -273,6 +274,7 @@ internal class PrivilegeUiAdbActions(
         PrivilegeUiRuntimeStartAttempt.Workflow(
             message = store.text(R.string.priv_ui_tcp_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
+            runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_STATIC_TCP,
         ) {
             if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) {
                 return@Workflow PrivilegeUiRuntimeStartResult.Finished
@@ -346,6 +348,7 @@ internal class PrivilegeUiAdbActions(
         return PrivilegeUiRuntimeStartAttempt.Connect(
             message = store.text(R.string.priv_ui_wireless_adb_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
+            runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
             onFailure = ::handleWirelessAdbStartFailure,
         ) {
             val adbDeviceName = store.currentAdbDeviceNameOverride()
@@ -374,6 +377,7 @@ internal class PrivilegeUiAdbActions(
         return PrivilegeUiRuntimeStartAttempt.Connect(
             message = store.text(R.string.priv_ui_wireless_adb_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
+            runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_STATIC_TCP,
             onFailure = ::handleWirelessAdbStartFailure,
         ) {
             val tcpPort = store.config.tcpPort
@@ -406,6 +410,7 @@ internal class PrivilegeUiAdbActions(
             if (current.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
                 current.copy(
                     busy = false,
+                    runtimeStartSource = null,
                     runtimeProgressMessage = null,
                     wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.OFF,
                 )
@@ -413,6 +418,7 @@ internal class PrivilegeUiAdbActions(
                 current.copy(
                     busy = false,
                     runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                    runtimeStartSource = null,
                     serverInfo = null,
                     runtimeProgressMessage = null,
                     wirelessDebuggingStatus = wirelessDebuggingStatus,

@@ -50,12 +50,17 @@ internal fun wirelessAdbPanelStatus(
 
 internal fun privilegeUiWirelessAdbStartAction(
     runtimeStatus: PrivilegeUiRuntimeStatus,
+    ownsRuntimeStart: Boolean,
     wifiConnected: Boolean,
     startPrerequisiteAvailable: Boolean,
     startAvailable: Boolean,
 ): PrivilegeUiWirelessAdbStartAction =
     when (runtimeStatus) {
-        PrivilegeUiRuntimeStatus.STARTING -> PrivilegeUiWirelessAdbStartAction.INTERRUPT
+        PrivilegeUiRuntimeStatus.STARTING -> if (ownsRuntimeStart) {
+            PrivilegeUiWirelessAdbStartAction.INTERRUPT
+        } else {
+            PrivilegeUiWirelessAdbStartAction.NONE
+        }
         PrivilegeUiRuntimeStatus.CONNECTED,
         PrivilegeUiRuntimeStatus.DISCONNECTED,
         PrivilegeUiRuntimeStatus.FAILED,
@@ -103,10 +108,11 @@ internal fun staticTcpActionEnabled(
     tcpModeEnabled: Boolean,
     busy: Boolean,
     runtimeStatus: PrivilegeUiRuntimeStatus,
+    ownsRuntimeStart: Boolean,
     status: PrivilegeUiAdbTcpAuthorizationStatus,
     wirelessAdbSupported: Boolean,
 ): Boolean {
-    if (runtimeStatus == PrivilegeUiRuntimeStatus.STARTING) return true
+    if (runtimeStatus == PrivilegeUiRuntimeStatus.STARTING) return ownsRuntimeStart
     val wirelessFallback = staticTcpWirelessFallbackAvailable(
         tcpModeEnabled = tcpModeEnabled,
         status = status,
@@ -118,39 +124,19 @@ internal fun staticTcpActionEnabled(
     )
 }
 
-internal fun staticTcpActionVisible(
-    tcpModeEnabled: Boolean,
-    runtimeStatus: PrivilegeUiRuntimeStatus,
-    status: PrivilegeUiAdbTcpAuthorizationStatus,
-    wirelessAdbSupported: Boolean,
-): Boolean {
-    if (runtimeStatus == PrivilegeUiRuntimeStatus.STARTING) return true
-    val wirelessFallback = staticTcpWirelessFallbackAvailable(
-        tcpModeEnabled = tcpModeEnabled,
-        status = status,
-        wirelessAdbSupported = wirelessAdbSupported,
-    )
-    return wirelessFallback ||
-        (tcpModeEnabled && status != PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE)
-}
-
 internal fun staticTcpCommandHelpVisible(
-    tcpModeEnabled: Boolean,
-    status: PrivilegeUiAdbTcpAuthorizationStatus,
     wirelessAdbSupported: Boolean,
 ): Boolean =
-    !wirelessAdbSupported &&
-        (!tcpModeEnabled || status == PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE)
+    !wirelessAdbSupported
 
 internal fun staticTcpActionLabel(
     runtimeStatus: PrivilegeUiRuntimeStatus,
+    ownsRuntimeStart: Boolean,
 ): Int =
-    when (runtimeStatus) {
-        PrivilegeUiRuntimeStatus.STARTING -> R.string.priv_ui_start_interrupt_action
-        PrivilegeUiRuntimeStatus.CONNECTED,
-        PrivilegeUiRuntimeStatus.DISCONNECTED,
-        PrivilegeUiRuntimeStatus.FAILED,
-        -> R.string.priv_ui_adb_static_start_action
+    if (runtimeStatus == PrivilegeUiRuntimeStatus.STARTING && ownsRuntimeStart) {
+        R.string.priv_ui_start_interrupt_action
+    } else {
+        R.string.priv_ui_adb_static_start_action
     }
 
 private fun staticTcpWirelessFallbackAvailable(

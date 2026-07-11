@@ -229,6 +229,7 @@ internal class PrivilegeUiAdbTcpActions(
         return PrivilegeUiRuntimeStartAttempt.Connect(
             message = store.text(R.string.priv_ui_tcp_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
+            runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_STATIC_TCP,
         ) {
             val starter = Privilege.createAdbStarter(
                 adbDeviceName = store.currentAdbDeviceNameOverride(),

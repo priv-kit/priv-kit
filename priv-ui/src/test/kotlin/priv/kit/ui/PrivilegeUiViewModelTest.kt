@@ -116,23 +116,6 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
-    fun adbStartupTabSelectionIsHeldByViewModel() {
-        val viewModel = configuredViewModel(
-            PrivilegeUiConfig(
-                adbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
-            ),
-        )
-
-        try {
-            viewModel.selectAdbStartupTab(PrivilegeUiAdbStartupTab.STATIC_TCP)
-
-            assertEquals(PrivilegeUiAdbStartupTab.STATIC_TCP, viewModel.selectedAdbStartupTab.value)
-        } finally {
-            viewModel.stopTcpModeStatusPolling()
-        }
-    }
-
-    @Test
     fun tcpModeStatusPollingFollowsAdbMode() {
         val viewModel = configuredViewModel(
             PrivilegeUiConfig(

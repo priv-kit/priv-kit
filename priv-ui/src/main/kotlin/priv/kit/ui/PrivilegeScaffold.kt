@@ -30,7 +30,6 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import priv.kit.PrivilegeServerInfo
-import priv.kit.ui.adb.PrivilegeUiAdbStartupTab
 import priv.kit.ui.component.AdbPanel
 import priv.kit.ui.component.AuthorizationModeTabs
 import priv.kit.ui.component.ExternalStartPanel
@@ -51,7 +50,6 @@ public fun PrivilegeScaffold(
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
-    val selectedAdbStartupTab by viewModel.selectedAdbStartupTab.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
     val manualCommandCopiedMessage = stringResource(R.string.priv_ui_manual_command_copied)
@@ -135,7 +133,6 @@ public fun PrivilegeScaffold(
                 mode = state.selectedStartupMode.takeIf { it in state.startupModes }
                     ?: state.startupModes.first(),
                 state = state,
-                selectedAdbStartupTab = selectedAdbStartupTab,
                 viewModel = viewModel,
                 onCopyManualCommand = {
                     viewModel.copyManualCommand(context)
@@ -171,7 +168,6 @@ private tailrec fun Context.findLifecycleOwner(): LifecycleOwner? =
 private fun AuthorizationModePanel(
     mode: PrivilegeUiStartupMode,
     state: PrivilegeUiState,
-    selectedAdbStartupTab: PrivilegeUiAdbStartupTab?,
     viewModel: PrivilegeUiViewModel,
     onCopyManualCommand: () -> Unit,
     onCopyStaticTcpCommand: () -> Unit,
@@ -188,11 +184,9 @@ private fun AuthorizationModePanel(
         )
         PrivilegeUiStartupMode.ADB -> AdbPanel(
             state = state,
-            selectedTab = selectedAdbStartupTab,
             tcpPolicy = viewModel.adbTcpPolicy,
             managedWirelessAdbEnabled = viewModel.config.enableManagedWirelessAdb,
             configuredTcpPort = viewModel.config.tcpPort,
-            onTabSelected = viewModel::selectAdbStartupTab,
             onPairingCodeChanged = viewModel::updatePairingCode,
             onStartPairing = {
                 viewModel.startNotificationPairing(onNotificationPermissionRequired)
