@@ -22,7 +22,7 @@ import java.nio.charset.StandardCharsets
 
 internal fun MainActivity.initializePrivilegeSample() {
     val adbDeviceNameOverride = loadAdbDeviceNameOverride()
-    val manualShellCommandResult = runCatching { manualShellCommandLine }
+    val manualShellCommandResult = runCatching { sampleViewModel.manualShellCommandLine }
     screenState = screenState.copy(
         adbDeviceNameText = adbDeviceNameOverride,
         adbDeviceName = adbDeviceNameOverride.ifBlank { defaultAdbDeviceName() },
@@ -65,21 +65,9 @@ internal fun MainActivity.clearLog() {
     screenState = screenState.copy(logText = "")
 }
 
-internal fun MainActivity.releasePrivilegeSample() {
-    sampleMqsNativeBinder = null
-    sampleUserManager = null
-    closeSampleUserServices()
-    releaseShizukuExternalStart()
-    serverConnectedListener?.close()
-    serverConnectedListener = null
-    serverDisconnectedWatcher?.close()
-    serverDisconnectedWatcher = null
-    executor.shutdownNow()
-}
-
 internal fun MainActivity.watchServerConnected() {
-    serverConnectedListener?.close()
-    serverConnectedListener = Privilege.addServerConnectedListener { serverInfo ->
+    sampleViewModel.serverConnectedListener?.close()
+    sampleViewModel.serverConnectedListener = Privilege.addServerConnectedListener { serverInfo ->
         runOnUiThread {
             connectServer(serverInfo, commandLine = null)
             appendLog(
@@ -91,8 +79,8 @@ internal fun MainActivity.watchServerConnected() {
 }
 
 internal fun MainActivity.watchServerDisconnected() {
-    serverDisconnectedWatcher?.close()
-    serverDisconnectedWatcher = Privilege.addServerDisconnectedListener {
+    sampleViewModel.serverDisconnectedWatcher?.close()
+    sampleViewModel.serverDisconnectedWatcher = Privilege.addServerDisconnectedListener {
         runOnUiThread {
             handleServerDisconnected()
         }
@@ -123,7 +111,7 @@ internal fun MainActivity.refreshAdbFingerprint() {
             screenState.pairingMessage
         },
     )
-    executor.execute {
+    sampleViewModel.executor.execute {
         try {
             val info = createAdbStarter(adbDeviceName).getIdentityInfo()
             runOnUiThread {
@@ -166,7 +154,7 @@ internal fun MainActivity.checkWirelessAdbPairing(showBusy: Boolean) {
     )
     appendLog(message)
 
-    executor.execute {
+    sampleViewModel.executor.execute {
         try {
             val result = createAdbStarter(adbDeviceName).checkPairing()
             runOnUiThread {
@@ -270,19 +258,19 @@ internal fun MainActivity.handleShizukuHostVisible() {
 }
 
 private fun MainActivity.continuePendingShizukuExternalStart(readiness: ShizukuReadiness) {
-    if (!startShizukuExternalAfterPermission) return
+    if (!sampleViewModel.startShizukuExternalAfterPermission) return
     if (readiness.ready) {
-        startShizukuExternalAfterPermission = false
+        sampleViewModel.startShizukuExternalAfterPermission = false
         startShizukuExternal()
     } else if (readiness.pendingStartTerminal) {
-        startShizukuExternalAfterPermission = false
+        sampleViewModel.startShizukuExternalAfterPermission = false
     }
 }
 
 internal fun MainActivity.handleShizukuBinderDead() {
-    startShizukuExternalAfterPermission = false
-    shizukuExternalStarter?.close()
-    shizukuExternalStarter = null
+    sampleViewModel.startShizukuExternalAfterPermission = false
+    sampleViewModel.shizukuExternalStarter?.close()
+    sampleViewModel.shizukuExternalStarter = null
     val message = "Shizuku binder died"
     screenState = screenState.copy(
         shizukuReady = false,
@@ -303,7 +291,7 @@ internal fun MainActivity.startShizukuExternal() {
     if (!readiness.ready) return
 
     val externalStarter = PrivilegeSampleShizukuExternalStarter(this)
-    shizukuExternalStarter = externalStarter
+    sampleViewModel.shizukuExternalStarter = externalStarter
     runServerStartRequest(
         message = "Starting through Shizuku...",
         startedMessage = "Shizuku command sent. Waiting for server handshake...",
@@ -314,8 +302,8 @@ internal fun MainActivity.startShizukuExternal() {
             externalStarter.start(commandLine)
         } finally {
             externalStarter.close()
-            if (shizukuExternalStarter === externalStarter) {
-                shizukuExternalStarter = null
+            if (sampleViewModel.shizukuExternalStarter === externalStarter) {
+                sampleViewModel.shizukuExternalStarter = null
             }
         }
     }
@@ -368,7 +356,7 @@ private fun MainActivity.checkShizukuReadiness(requestPermission: Boolean): Shiz
         }
 
         if (requestPermission) {
-            startShizukuExternalAfterPermission = true
+            sampleViewModel.startShizukuExternalAfterPermission = true
             Shizuku.requestPermission(SHIZUKU_PERMISSION_REQUEST_CODE)
             return ShizukuReadiness(
                 uid = uid,
@@ -407,9 +395,9 @@ private fun MainActivity.applyShizukuReadiness(readiness: ShizukuReadiness) {
 }
 
 private fun MainActivity.releaseShizukuExternalStart() {
-    shizukuExternalStarter?.close()
-    shizukuExternalStarter = null
-    startShizukuExternalAfterPermission = false
+    sampleViewModel.shizukuExternalStarter?.close()
+    sampleViewModel.shizukuExternalStarter = null
+    sampleViewModel.startShizukuExternalAfterPermission = false
 }
 
 internal fun MainActivity.pairWirelessAdb() {
@@ -458,7 +446,7 @@ internal fun MainActivity.startNotificationPairing() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
     ) {
-        startNotificationPairingAfterPermission = true
+        sampleViewModel.startNotificationPairingAfterPermission = true
         screenState = screenState.copy(
             notificationPairingRunning = false,
             pairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
@@ -567,12 +555,12 @@ internal fun MainActivity.stopServer() {
     )
     appendLog("Stopping Privileged Server...")
 
-    executor.execute {
+    sampleViewModel.executor.execute {
         try {
             Privilege.shutdownServer()
             runOnUiThread {
-                val serviceBinderCached = screenState.systemServiceBinderCached || sampleMqsNativeBinder != null
-                val userManagerCached = screenState.userManagerCached || sampleUserManager != null
+                val serviceBinderCached = screenState.systemServiceBinderCached || sampleViewModel.sampleMqsNativeBinder != null
+                val userManagerCached = screenState.userManagerCached || sampleViewModel.sampleUserManager != null
                 screenState = screenState.copy(
                     busy = false,
                     status = PrivilegeSampleStatus.DISCONNECTED,
@@ -595,7 +583,7 @@ internal fun MainActivity.stopServer() {
 
 internal fun MainActivity.getUserManagerBinder() {
     runBinderAction("Getting IUserManager...") {
-        sampleUserManager = PrivilegeSampleUserManager.createFromCurrentProcess()
+        sampleViewModel.sampleUserManager = PrivilegeSampleUserManager.createFromCurrentProcess()
         BinderActionResult(
             message = "IUserManager cached through current-process Binder + createRemoteBinderWrapper",
             userManagerCached = true,
@@ -604,13 +592,13 @@ internal fun MainActivity.getUserManagerBinder() {
 }
 
 internal fun MainActivity.getUserManagerUsers() {
-    val hasCachedUserManager = sampleUserManager != null
+    val hasCachedUserManager = sampleViewModel.sampleUserManager != null
     runBinderAction(
         message = "Calling IUserManager.getUsers...",
         requireConnected = !hasCachedUserManager,
     ) {
-        val userManager = sampleUserManager ?: PrivilegeSampleUserManager.createFromCurrentProcess().also {
-            sampleUserManager = it
+        val userManager = sampleViewModel.sampleUserManager ?: PrivilegeSampleUserManager.createFromCurrentProcess().also {
+            sampleViewModel.sampleUserManager = it
         }
         val users = userManager.getUsers()
         BinderActionResult(
@@ -621,13 +609,13 @@ internal fun MainActivity.getUserManagerUsers() {
 }
 
 internal fun MainActivity.runImqsNative() {
-    val hasCachedRemoteBinder = sampleMqsNativeBinder != null
+    val hasCachedRemoteBinder = sampleViewModel.sampleMqsNativeBinder != null
     runBinderAction(
         message = "Probing IMQSNative descriptors...",
         requireConnected = !hasCachedRemoteBinder,
     ) {
-        val remoteBinder = sampleMqsNativeBinder ?: PrivilegeSampleMqsNative.createRemoteBinder().also {
-            sampleMqsNativeBinder = it
+        val remoteBinder = sampleViewModel.sampleMqsNativeBinder ?: PrivilegeSampleMqsNative.createRemoteBinder().also {
+            sampleViewModel.sampleMqsNativeBinder = it
         }
         val result = PrivilegeSampleMqsNative.probeDescriptor(remoteBinder)
         BinderActionResult(
@@ -761,7 +749,7 @@ private fun MainActivity.runUserServiceAction(
     )
     appendLog(message)
 
-    executor.execute {
+    sampleViewModel.executor.execute {
         try {
             val result = action()
             runOnUiThread {
@@ -798,8 +786,8 @@ private fun MainActivity.setUserServiceFailure(throwable: Throwable) {
         serverInfo = if (disconnected) null else screenState.serverInfo,
         dedicatedUserServiceBound = if (disconnected) false else screenState.dedicatedUserServiceBound,
         embeddedUserServiceBound = if (disconnected) false else screenState.embeddedUserServiceBound,
-        dedicatedUserServiceCached = screenState.dedicatedUserServiceCached || dedicatedUserServiceConnection != null,
-        embeddedUserServiceCached = screenState.embeddedUserServiceCached || embeddedUserServiceConnection != null,
+        dedicatedUserServiceCached = screenState.dedicatedUserServiceCached || sampleViewModel.dedicatedUserServiceConnection != null,
+        embeddedUserServiceCached = screenState.embeddedUserServiceCached || sampleViewModel.embeddedUserServiceConnection != null,
         userServiceMessage = message,
         userServiceLastException = throwable.toDiagnosticString(),
         message = message,
@@ -843,7 +831,7 @@ private fun MainActivity.runBinderAction(
     )
     appendLog(message)
 
-    executor.execute {
+    sampleViewModel.executor.execute {
         try {
             val result = action()
             runOnUiThread {
@@ -893,8 +881,8 @@ private fun MainActivity.setBinderFailure(throwable: Throwable) {
         busy = false,
         status = if (disconnected) PrivilegeSampleStatus.DISCONNECTED else screenState.status,
         serverInfo = if (disconnected) null else screenState.serverInfo,
-        systemServiceBinderCached = screenState.systemServiceBinderCached || sampleMqsNativeBinder != null,
-        userManagerCached = screenState.userManagerCached || sampleUserManager != null,
+        systemServiceBinderCached = screenState.systemServiceBinderCached || sampleViewModel.sampleMqsNativeBinder != null,
+        userManagerCached = screenState.userManagerCached || sampleViewModel.sampleUserManager != null,
         binderMessage = message,
         binderLastException = throwable.toDiagnosticString(),
         message = message,
@@ -952,7 +940,7 @@ private fun MainActivity.runServerStart(
     appendStartupSource(startupSource)
     appendLog(message)
 
-    executor.execute {
+    sampleViewModel.executor.execute {
         try {
             val serverInfo = start()
             runOnUiThread {
@@ -982,7 +970,7 @@ private fun MainActivity.runServerStartRequest(
     appendStartupSource(startupSource)
     appendLog(message)
 
-    executor.execute {
+    sampleViewModel.executor.execute {
         try {
             val output = start()
             runOnUiThread {
@@ -1020,7 +1008,7 @@ private fun <T> MainActivity.runBusy(
     )
     appendLog(message)
 
-    executor.execute {
+    sampleViewModel.executor.execute {
         try {
             val result = action()
             runOnUiThread {
@@ -1044,8 +1032,8 @@ private fun MainActivity.connectServer(
     serverInfo: PrivilegeServerInfo,
     commandLine: String?,
 ) {
-    val serviceBinderCached = screenState.systemServiceBinderCached || sampleMqsNativeBinder != null
-    val userManagerCached = screenState.userManagerCached || sampleUserManager != null
+    val serviceBinderCached = screenState.systemServiceBinderCached || sampleViewModel.sampleMqsNativeBinder != null
+    val userManagerCached = screenState.userManagerCached || sampleViewModel.sampleUserManager != null
     screenState = screenState.copy(
         busy = false,
         status = PrivilegeSampleStatus.CONNECTED,
@@ -1061,10 +1049,10 @@ private fun MainActivity.connectServer(
 }
 
 private fun MainActivity.handleServerDisconnected() {
-    val serviceBinderCached = screenState.systemServiceBinderCached || sampleMqsNativeBinder != null
-    val userManagerCached = screenState.userManagerCached || sampleUserManager != null
-    val dedicatedCached = screenState.dedicatedUserServiceCached || dedicatedUserServiceConnection != null
-    val embeddedCached = screenState.embeddedUserServiceCached || embeddedUserServiceConnection != null
+    val serviceBinderCached = screenState.systemServiceBinderCached || sampleViewModel.sampleMqsNativeBinder != null
+    val userManagerCached = screenState.userManagerCached || sampleViewModel.sampleUserManager != null
+    val dedicatedCached = screenState.dedicatedUserServiceCached || sampleViewModel.dedicatedUserServiceConnection != null
+    val embeddedCached = screenState.embeddedUserServiceCached || sampleViewModel.embeddedUserServiceConnection != null
     screenState = screenState.copy(
         busy = false,
         status = PrivilegeSampleStatus.DISCONNECTED,
@@ -1093,8 +1081,8 @@ private fun MainActivity.setFailure(throwable: Throwable) {
         busy = false,
         status = PrivilegeSampleStatus.DISCONNECTED,
         serverInfo = null,
-        systemServiceBinderCached = screenState.systemServiceBinderCached || sampleMqsNativeBinder != null,
-        userManagerCached = screenState.userManagerCached || sampleUserManager != null,
+        systemServiceBinderCached = screenState.systemServiceBinderCached || sampleViewModel.sampleMqsNativeBinder != null,
+        userManagerCached = screenState.userManagerCached || sampleViewModel.sampleUserManager != null,
         binderMessage = "Connection failed",
         binderLastException = throwable.toDiagnosticString(),
         message = message,
@@ -1171,9 +1159,9 @@ private fun sampleUserServiceClassName(label: String): String =
 
 private fun MainActivity.sampleUserServiceConnection(label: String): PrivilegeUserServiceConnection {
     val connection = if (label == "embedded") {
-        embeddedUserServiceConnection
+        sampleViewModel.embeddedUserServiceConnection
     } else {
-        dedicatedUserServiceConnection
+        sampleViewModel.dedicatedUserServiceConnection
     }
     return connection ?: throw PrivilegeUserServiceException("$label UserService is not bound")
 }
@@ -1203,8 +1191,8 @@ private fun MainActivity.setSampleUserService(
         val message = connection.call {
             service.describe("$label bind")
         }
-        embeddedUserServiceConnection = connection
-        embeddedUserService = service
+        sampleViewModel.embeddedUserServiceConnection = connection
+        sampleViewModel.embeddedUserService = service
         message
     } else {
         val service = IPrivilegeSampleDedicatedUserService.Stub.asInterface(connection.binder)
@@ -1212,30 +1200,25 @@ private fun MainActivity.setSampleUserService(
         val message = connection.call {
             service.describe("$label bind")
         }
-        dedicatedUserServiceConnection = connection
-        dedicatedUserService = service
+        sampleViewModel.dedicatedUserServiceConnection = connection
+        sampleViewModel.dedicatedUserService = service
         message
     }
 
 private fun MainActivity.clearSampleUserService(label: String) {
     if (label == "embedded") {
-        embeddedUserService = null
+        sampleViewModel.embeddedUserService = null
         runCatching {
-            embeddedUserServiceConnection?.close()
+            sampleViewModel.embeddedUserServiceConnection?.close()
         }
-        embeddedUserServiceConnection = null
+        sampleViewModel.embeddedUserServiceConnection = null
     } else {
-        dedicatedUserService = null
+        sampleViewModel.dedicatedUserService = null
         runCatching {
-            dedicatedUserServiceConnection?.close()
+            sampleViewModel.dedicatedUserServiceConnection?.close()
         }
-        dedicatedUserServiceConnection = null
+        sampleViewModel.dedicatedUserServiceConnection = null
     }
-}
-
-private fun MainActivity.closeSampleUserServices() {
-    clearSampleUserService("dedicated")
-    clearSampleUserService("embedded")
 }
 
 internal fun MainActivity.copyManualShellCommand() {

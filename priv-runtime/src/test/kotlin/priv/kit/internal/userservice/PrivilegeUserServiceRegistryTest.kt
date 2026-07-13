@@ -7,7 +7,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import priv.kit.testing.TestBinder
-import priv.kit.testing.TestProcess
+import priv.kit.testing.TestDedicatedUserServiceHost
+import priv.kit.testing.TestEmbeddedUserServiceHost
 import priv.kit.testing.TestUserServiceProcess
 import priv.kit.userservice.*
 
@@ -23,7 +24,7 @@ class PrivilegeUserServiceRegistryTest {
     @Test
     fun nonDaemonServiceIsDestroyedWhenOwnerDies() {
         EmbeddedService.reset()
-        val registry = PrivilegeUserServiceRegistry(FakeHost())
+        val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
         val owner = TestBinder()
         val spec = embeddedSpec()
 
@@ -38,7 +39,7 @@ class PrivilegeUserServiceRegistryTest {
     @Test
     fun daemonServiceSurvivesOwnerDeath() {
         EmbeddedService.reset()
-        val registry = PrivilegeUserServiceRegistry(FakeHost())
+        val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
         val owner = TestBinder()
         val spec = embeddedSpec(daemon = true)
 
@@ -54,7 +55,7 @@ class PrivilegeUserServiceRegistryTest {
     @Test
     fun daemonBindKeepsServiceAfterUnbindUntilStop() {
         EmbeddedService.reset()
-        val registry = PrivilegeUserServiceRegistry(FakeHost())
+        val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
         val spec = embeddedSpec(daemon = true)
 
         val first = registry.bind(spec, TestBinder())
@@ -69,7 +70,7 @@ class PrivilegeUserServiceRegistryTest {
     @Test
     fun dedicatedProcessDeathClearsConnection() {
         val process = TestUserServiceProcess()
-        val registry = PrivilegeUserServiceRegistry(DedicatedFakeHost(process))
+        val registry = PrivilegeUserServiceRegistry(TestDedicatedUserServiceHost(process))
         val spec = dedicatedSpec()
 
         val result = registry.bind(spec, TestBinder())
@@ -83,7 +84,7 @@ class PrivilegeUserServiceRegistryTest {
     @Test
     fun dedicatedProcessDeathAllowsNextBindToCreateReplacement() {
         val firstProcess = TestUserServiceProcess()
-        val host = DedicatedFakeHost(firstProcess)
+        val host = TestDedicatedUserServiceHost(firstProcess)
         val registry = PrivilegeUserServiceRegistry(host)
         val spec = dedicatedSpec()
 
@@ -98,7 +99,7 @@ class PrivilegeUserServiceRegistryTest {
     @Test
     fun embeddedModeCreatesSeparateInstancesForDifferentTags() {
         EmbeddedService.reset()
-        val registry = PrivilegeUserServiceRegistry(FakeHost())
+        val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
         val client = TestBinder()
 
         val first = registry.bind(embeddedSpec(tag = "first"), client)
@@ -114,7 +115,7 @@ class PrivilegeUserServiceRegistryTest {
     @Test
     fun embeddedVersionChangeDestroysPreviousInstance() {
         EmbeddedService.reset()
-        val registry = PrivilegeUserServiceRegistry(FakeHost())
+        val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
         val client = TestBinder()
 
         val first = registry.bind(embeddedSpec(version = 1), client)
@@ -136,7 +137,7 @@ class PrivilegeUserServiceRegistryTest {
         val originalClassLoader = Thread.currentThread().contextClassLoader
         Thread.currentThread().contextClassLoader = object : ClassLoader(null) {}
         try {
-            val registry = PrivilegeUserServiceRegistry(FakeHost())
+            val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
             val client = TestBinder()
 
             val result = registry.bind(embeddedSpec(), client)
@@ -150,7 +151,7 @@ class PrivilegeUserServiceRegistryTest {
 
     @Test
     fun missingEmbeddedClassThrowsDeclarationException() {
-        val registry = PrivilegeUserServiceRegistry(FakeHost())
+        val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
 
         assertThrows(PrivilegeUserServiceException::class.java) {
             registry.bind(
@@ -275,50 +276,5 @@ class PrivilegeUserServiceRegistryTest {
         @Suppress("MemberVisibilityCanBePrivate")
         val mApplicationInfo: Any?,
     )
-
-    private class FakeHost : PrivilegeUserServiceHost {
-        override val uid: Int = 0
-        override val pid: Int = 1234
-        override val packageName: String = "priv.kit.test"
-        override val userId: Int = 0
-
-        override fun startDedicatedProcess(
-            spec: PrivilegeUserServiceSpec,
-            token: String,
-        ): Process {
-            error("Dedicated process is not used by this test")
-        }
-
-        override fun awaitDedicatedProcess(
-            token: String,
-            timeoutMillis: Long,
-        ): IPrivilegeUserServiceProcess {
-            error("Dedicated process is not used by this test")
-        }
-
-        override fun killDedicatedProcess(process: Process) = Unit
-    }
-
-    private class DedicatedFakeHost(
-        var process: TestUserServiceProcess,
-    ) : PrivilegeUserServiceHost {
-        override val uid: Int = 0
-        override val pid: Int = 1234
-        override val packageName: String = "priv.kit.test"
-        override val userId: Int = 0
-
-        override fun startDedicatedProcess(
-            spec: PrivilegeUserServiceSpec,
-            token: String,
-        ): Process =
-            TestProcess()
-
-        override fun awaitDedicatedProcess(
-            token: String,
-            timeoutMillis: Long,
-        ): IPrivilegeUserServiceProcess = process
-
-        override fun killDedicatedProcess(process: Process) = Unit
-    }
 
 }

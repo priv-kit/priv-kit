@@ -24,18 +24,7 @@ public class PrivilegeAdbStarter private constructor(
     internal fun start(
         command: PrivilegeServerLaunchCommand,
         options: PrivilegeAdbStartOptions = PrivilegeAdbStartOptions(),
-    ): PrivilegeAdbStartResult =
-        start(
-            command = command,
-            options = options,
-            startupLogListener = null,
-        )
-
-    @Throws(PrivilegeStartupException::class)
-    internal fun start(
-        command: PrivilegeServerLaunchCommand,
-        options: PrivilegeAdbStartOptions,
-        startupLogListener: PrivilegeStartupLogListener?,
+        startupLogListener: PrivilegeStartupLogListener? = null,
     ): PrivilegeAdbStartResult {
         val output = PrivilegeAdbOutput(startupLogListener)
         var managedWirelessDebuggingController: PrivilegeAdbWirelessDebuggingController? = null
@@ -189,16 +178,6 @@ public class PrivilegeAdbStarter private constructor(
         )
         return output.text()
     }
-
-    @Throws(PrivilegeStartupException::class)
-    public fun pair(
-        port: Int,
-        pairingCode: String,
-    ): PrivilegeAdbPairingResult = pair(
-        pairingCode = pairingCode,
-        port = port,
-        discoverPort = false,
-    )
 
     @Throws(PrivilegeStartupException::class)
     public fun pair(
@@ -361,31 +340,7 @@ public class PrivilegeAdbStarter private constructor(
     public fun switchToTcp(
         currentPort: Int? = null,
         tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
-    ): PrivilegeAdbTcpResult {
-        return switchToTcpInternal(
-            currentPort = currentPort,
-            tcpPort = tcpPort,
-            options = null,
-        )
-    }
-
-    @Throws(PrivilegeStartupException::class)
-    public fun switchToTcp(
-        currentPort: Int? = null,
-        tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
-        options: PrivilegeAdbStartOptions,
-    ): PrivilegeAdbTcpResult {
-        return switchToTcpInternal(
-            currentPort = currentPort,
-            tcpPort = tcpPort,
-            options = options,
-        )
-    }
-
-    private fun switchToTcpInternal(
-        currentPort: Int?,
-        tcpPort: Int,
-        options: PrivilegeAdbStartOptions?,
+        options: PrivilegeAdbStartOptions? = null,
     ): PrivilegeAdbTcpResult {
         require(currentPort == null || currentPort in 1..65535) { "currentPort must be between 1 and 65535" }
         require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }

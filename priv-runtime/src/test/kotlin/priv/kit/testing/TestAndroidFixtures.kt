@@ -5,6 +5,8 @@ import android.os.IInterface
 import android.os.Parcel
 import android.os.RemoteException
 import priv.kit.internal.userservice.IPrivilegeUserServiceProcess
+import priv.kit.internal.userservice.PrivilegeUserServiceHost
+import priv.kit.userservice.PrivilegeUserServiceSpec
 import java.io.ByteArrayInputStream
 import java.io.FileDescriptor
 import java.io.InputStream
@@ -101,4 +103,49 @@ open class TestUserServiceProcess : IPrivilegeUserServiceProcess {
     fun killBinder() {
         binder.killBinder()
     }
+}
+
+open class TestEmbeddedUserServiceHost : PrivilegeUserServiceHost {
+    override val uid: Int = 0
+    override val pid: Int = 1234
+    override val packageName: String = "priv.kit.test"
+    override val userId: Int = 0
+
+    open override fun startDedicatedProcess(
+        spec: PrivilegeUserServiceSpec,
+        token: String,
+    ): Process {
+        error("Dedicated process is not used by this test")
+    }
+
+    open override fun awaitDedicatedProcess(
+        token: String,
+        timeoutMillis: Long,
+    ): IPrivilegeUserServiceProcess {
+        error("Dedicated process is not used by this test")
+    }
+
+    open override fun killDedicatedProcess(process: Process) = Unit
+}
+
+open class TestDedicatedUserServiceHost(
+    var process: IPrivilegeUserServiceProcess = TestUserServiceProcess(),
+) : PrivilegeUserServiceHost {
+    override val uid: Int = 0
+    override val pid: Int = 1234
+    override val packageName: String = "priv.kit.test"
+    override val userId: Int = 0
+
+    open override fun startDedicatedProcess(
+        spec: PrivilegeUserServiceSpec,
+        token: String,
+    ): Process =
+        TestProcess()
+
+    open override fun awaitDedicatedProcess(
+        token: String,
+        timeoutMillis: Long,
+    ): IPrivilegeUserServiceProcess = process
+
+    open override fun killDedicatedProcess(process: Process) = Unit
 }

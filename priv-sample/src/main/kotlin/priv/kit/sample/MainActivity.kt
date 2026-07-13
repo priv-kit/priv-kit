@@ -3,33 +3,15 @@ package priv.kit.sample
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
-import android.os.IBinder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.ViewModelProvider
-import priv.kit.Privilege
-import priv.kit.PrivilegeUserServiceConnection
 import rikka.shizuku.Shizuku
-import java.io.Closeable
-import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
-    private lateinit var sampleViewModel: PrivilegeSampleViewModel
-    internal val executor = Executors.newSingleThreadExecutor()
-    internal var serverConnectedListener: Closeable? = null
-    internal var serverDisconnectedWatcher: Closeable? = null
-    internal var sampleMqsNativeBinder: IBinder? = null
-    internal var sampleUserManager: PrivilegeSampleUserManagerProxy? = null
-    internal var dedicatedUserServiceConnection: PrivilegeUserServiceConnection? = null
-    internal var embeddedUserServiceConnection: PrivilegeUserServiceConnection? = null
-    internal var dedicatedUserService: IPrivilegeSampleDedicatedUserService? = null
-    internal var embeddedUserService: IPrivilegeSampleEmbeddedUserService? = null
-    @Volatile
-    internal var shizukuExternalStarter: PrivilegeSampleShizukuExternalStarter? = null
+    internal lateinit var sampleViewModel: PrivilegeSampleViewModel
     private var notificationPermissionResultHandler: ((Boolean) -> Unit)? = null
-    internal var startNotificationPairingAfterPermission = false
-    internal var startShizukuExternalAfterPermission = false
     private val shizukuBinderReceivedListener = Shizuku.OnBinderReceivedListener {
         refreshShizukuStatus(append = false)
     }
@@ -40,14 +22,6 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             handleNotificationPermissionResult(granted)
     }
-    internal val manualShellCommandLine: String by lazy(LazyThreadSafetyMode.NONE) {
-        Privilege.createShellStartCommand().toSampleHostAdbShellCommand()
-    }
-    internal var screenState: PrivilegeSampleScreenState
-        get() = sampleViewModel.screenState
-        set(value) {
-            sampleViewModel.screenState = value
-        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,45 +35,7 @@ class MainActivity : ComponentActivity() {
                     state = screenState,
                     backStack = sampleViewModel.backStack,
                     selectedStartupTab = sampleViewModel.selectedStartupTab,
-                    onDestinationSelected = { sampleViewModel.selectDestination(it) },
-                    onStartupTabSelected = { sampleViewModel.selectStartupTab(it) },
-                    onOpenPrivilegeUi = { sampleViewModel.openPrivilegeUi() },
-                    onPrivilegeUiBack = { sampleViewModel.navigateBack() },
-                    onPrivilegeUiHelp = {},
-                    onPrivilegeUiConnected = { handlePrivilegeUiConnected(it) },
-                    onPrivilegeUiNotificationPermissionRequired = { handler ->
-                        requestPrivilegeUiNotificationPermission(handler)
-                    },
-                    onPrivilegeUiNotificationPermissionDisposed = { handler ->
-                        clearPrivilegeUiNotificationPermissionHandler(handler)
-                    },
-                    onAdbDeviceNameChanged = { updateAdbDeviceName(it) },
-                    onRefreshAdbFingerprint = { refreshAdbFingerprint() },
-                    onCheckAdbPairing = { checkWirelessAdbPairing(showBusy = true) },
-                    onPairingCodeChanged = { updatePairingCode(it) },
-                    onTcpPortChanged = { updateTcpPort(it) },
-                    onStartRootRuntime = { startRootRuntime() },
-                    onCopyManualCommand = { copyManualShellCommand() },
-                    onStartShizukuExternal = { startShizukuExternal() },
-                    onPairWirelessAdb = { pairWirelessAdb() },
-                    onStartNotificationPairing = { startNotificationPairing() },
-                    onStopNotificationPairing = { stopNotificationPairing() },
-                    onStartWirelessAdb = { startWirelessAdb() },
-                    onSwitchToTcp = { switchToTcp() },
-                    onRestartTcp = { restartTcp() },
-                    onStopTcp = { stopTcp() },
-                    onStopServer = { stopServer() },
-                    onGetUserManager = { getUserManagerBinder() },
-                    onGetUsers = { getUserManagerUsers() },
-                    onRunImqsNative = { runImqsNative() },
-                    onBindDedicatedUserService = { bindDedicatedUserService() },
-                    onCallDedicatedUserService = { callDedicatedUserService() },
-                    onStopDedicatedUserService = { stopDedicatedUserService() },
-                    onBindEmbeddedUserService = { bindEmbeddedUserService() },
-                    onCallEmbeddedUserService = { callEmbeddedUserService() },
-                    onStopEmbeddedUserService = { stopEmbeddedUserService() },
-                    onClearLog = { clearLog() },
-                    onCopyLog = { copySessionLog() },
+                    callbacks = createPrivilegeSampleCallbacks(),
                 )
             }
         }
@@ -115,8 +51,8 @@ class MainActivity : ComponentActivity() {
         notificationPermissionResultHandler = null
         pendingPrivilegeUiHandler?.invoke(granted)
 
-        val shouldStartSamplePairing = startNotificationPairingAfterPermission
-        startNotificationPairingAfterPermission = false
+        val shouldStartSamplePairing = sampleViewModel.startNotificationPairingAfterPermission
+        sampleViewModel.startNotificationPairingAfterPermission = false
         if (granted && shouldStartSamplePairing) {
             startNotificationPairing()
         } else if (!granted && shouldStartSamplePairing) {
@@ -139,7 +75,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        releasePrivilegeSample()
         Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
         Shizuku.removeBinderDeadListener(shizukuBinderDeadListener)
         super.onDestroy()
@@ -154,15 +89,61 @@ class MainActivity : ComponentActivity() {
             notificationPermissionResultHandler = null
         }
     }
+
+    private fun createPrivilegeSampleCallbacks(): PrivilegeSampleCallbacks =
+        PrivilegeSampleCallbacks(
+            navigation = PrivilegeSampleNavigationCallbacks(
+                destinationSelected = { sampleViewModel.selectDestination(it) },
+                startupTabSelected = { sampleViewModel.selectStartupTab(it) },
+            ),
+            privilegeUi = PrivilegeSamplePrivilegeUiCallbacks(
+                open = { sampleViewModel.openPrivilegeUi() },
+                back = { sampleViewModel.navigateBack() },
+                help = {},
+                connected = { handlePrivilegeUiConnected(it) },
+                notificationPermissionRequired = { requestPrivilegeUiNotificationPermission(it) },
+                notificationPermissionDisposed = { clearPrivilegeUiNotificationPermissionHandler(it) },
+            ),
+            connection = PrivilegeSampleConnectionCallbacks(
+                adbDeviceNameChanged = { updateAdbDeviceName(it) },
+                refreshAdbFingerprint = { refreshAdbFingerprint() },
+                checkAdbPairing = { checkWirelessAdbPairing(showBusy = true) },
+                pairingCodeChanged = { updatePairingCode(it) },
+                tcpPortChanged = { updateTcpPort(it) },
+                startRootRuntime = { startRootRuntime() },
+                copyManualCommand = { copyManualShellCommand() },
+                startShizukuExternal = { startShizukuExternal() },
+                pairWirelessAdb = { pairWirelessAdb() },
+                startNotificationPairing = { startNotificationPairing() },
+                stopNotificationPairing = { stopNotificationPairing() },
+                startWirelessAdb = { startWirelessAdb() },
+                switchToTcp = { switchToTcp() },
+                restartTcp = { restartTcp() },
+                stopTcp = { stopTcp() },
+                stopServer = { stopServer() },
+            ),
+            binder = PrivilegeSampleBinderCallbacks(
+                getUserManager = { getUserManagerBinder() },
+                getUsers = { getUserManagerUsers() },
+                runImqsNative = { runImqsNative() },
+            ),
+            userService = PrivilegeSampleUserServiceCallbacks(
+                bindDedicated = { bindDedicatedUserService() },
+                callDedicated = { callDedicatedUserService() },
+                stopDedicated = { stopDedicatedUserService() },
+                bindEmbedded = { bindEmbeddedUserService() },
+                callEmbedded = { callEmbeddedUserService() },
+                stopEmbedded = { stopEmbeddedUserService() },
+            ),
+            log = PrivilegeSampleLogCallbacks(
+                clear = { clearLog() },
+                copy = { copySessionLog() },
+            ),
+        )
 }
 
-private fun String.toSampleHostAdbShellCommand(): String {
-    val command = trim()
-    return if (command.startsWith(ADB_SHELL_PREFIX)) {
-        command
-    } else {
-        ADB_SHELL_PREFIX + command
+internal var MainActivity.screenState: PrivilegeSampleScreenState
+    get() = sampleViewModel.screenState
+    set(value) {
+        sampleViewModel.screenState = value
     }
-}
-
-private const val ADB_SHELL_PREFIX = "adb shell "

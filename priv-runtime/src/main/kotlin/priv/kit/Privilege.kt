@@ -47,16 +47,7 @@ public object Privilege {
     @Throws(PrivilegeStartupException::class)
     public fun startRoot(
         timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
-    ): PrivilegeServerInfo =
-        startRoot(
-            timeoutMillis = timeoutMillis,
-            startupLogListener = null,
-        )
-
-    @Throws(PrivilegeStartupException::class)
-    public fun startRoot(
-        timeoutMillis: Long,
-        startupLogListener: PrivilegeStartupLogListener?,
+        startupLogListener: PrivilegeStartupLogListener? = null,
     ): PrivilegeServerInfo {
         val token = ownerTokenStore().readOrCreate()
         val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
@@ -128,20 +119,7 @@ public object Privilege {
         options: PrivilegeAdbStartOptions = PrivilegeAdbStartOptions(),
         timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
         adbDeviceName: String? = null,
-    ): PrivilegeServerInfo =
-        startAdb(
-            options = options,
-            timeoutMillis = timeoutMillis,
-            adbDeviceName = adbDeviceName,
-            startupLogListener = null,
-        )
-
-    @Throws(PrivilegeStartupException::class)
-    public fun startAdb(
-        options: PrivilegeAdbStartOptions,
-        timeoutMillis: Long,
-        adbDeviceName: String?,
-        startupLogListener: PrivilegeStartupLogListener?,
+        startupLogListener: PrivilegeStartupLogListener? = null,
     ): PrivilegeServerInfo {
         val token = ownerTokenStore().readOrCreate()
         val adbStarter = buildAdbStarter(

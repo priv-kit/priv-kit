@@ -36,75 +36,55 @@ internal fun ConnectionTestPage(
     selectedDestination: PrivilegeSampleDestination,
     selectedStartupTab: PrivilegeStartupTab,
     notificationPairingRunning: Boolean,
-    onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
-    onStartupTabSelected: (PrivilegeStartupTab) -> Unit,
-    onOpenPrivilegeUi: () -> Unit,
-    onAdbDeviceNameChanged: (String) -> Unit,
-    onRefreshAdbFingerprint: () -> Unit,
-    onCheckAdbPairing: () -> Unit,
-    onPairingCodeChanged: (String) -> Unit,
-    onTcpPortChanged: (String) -> Unit,
-    onStartRootRuntime: () -> Unit,
-    onCopyManualCommand: () -> Unit,
-    onStartShizukuExternal: () -> Unit,
-    onPairWirelessAdb: () -> Unit,
-    onStartNotificationPairing: () -> Unit,
-    onStopNotificationPairing: () -> Unit,
-    onStartWirelessAdb: () -> Unit,
-    onSwitchToTcp: () -> Unit,
-    onRestartTcp: () -> Unit,
-    onStopTcp: () -> Unit,
-    onStopServer: () -> Unit,
-    onClearLog: () -> Unit,
-    onCopyLog: () -> Unit,
+    callbacks: PrivilegeSampleCallbacks,
 ) {
     SamplePageScaffold(
         title = "Test Authorization",
         selectedDestination = selectedDestination,
         busy = state.busy,
-        onDestinationSelected = onDestinationSelected,
+        onDestinationSelected = callbacks.navigation.destinationSelected,
         actions = {
             SampleTopBarAction(
                 label = stringResource(R.string.sample_open_privilege_ui),
                 enabled = !state.busy,
-                onClick = onOpenPrivilegeUi,
+                onClick = callbacks.privilegeUi.open,
             )
         },
     ) {
-        StatusPanel(state, onStopServer)
+        StatusPanel(state, callbacks.connection.stopServer)
         StartupTabs(
             selectedStartupTab = selectedStartupTab,
             busy = state.busy,
-            onStartupTabSelected = onStartupTabSelected,
+            onStartupTabSelected = callbacks.navigation.startupTabSelected,
         )
         when (selectedStartupTab) {
-            PrivilegeStartupTab.Root -> RootPage(state, onStartRootRuntime)
-            PrivilegeStartupTab.Manual -> ManualPage(state, onCopyManualCommand)
+            PrivilegeStartupTab.Root -> RootPage(state, callbacks.connection.startRootRuntime)
+            PrivilegeStartupTab.Manual -> ManualPage(state, callbacks.connection.copyManualCommand)
             PrivilegeStartupTab.Shizuku -> ShizukuPage(
                 state = state,
-                onStartShizukuExternal = onStartShizukuExternal,
+                onStartShizukuExternal = callbacks.connection.startShizukuExternal,
             )
             PrivilegeStartupTab.WirelessAdb -> WirelessAdbPage(
                 state = state,
                 notificationPairingRunning = notificationPairingRunning,
-                onAdbDeviceNameChanged = onAdbDeviceNameChanged,
-                onRefreshAdbFingerprint = onRefreshAdbFingerprint,
-                onCheckAdbPairing = onCheckAdbPairing,
-                onPairingCodeChanged = onPairingCodeChanged,
-                onCopyLog = onCopyLog,
-                onPairWirelessAdb = onPairWirelessAdb,
-                onStartNotificationPairing = onStartNotificationPairing,
-                onStopNotificationPairing = onStopNotificationPairing,
-                onStartWirelessAdb = onStartWirelessAdb,
+                onAdbDeviceNameChanged = callbacks.connection.adbDeviceNameChanged,
+                onRefreshAdbFingerprint = callbacks.connection.refreshAdbFingerprint,
+                onCheckAdbPairing = callbacks.connection.checkAdbPairing,
+                onPairingCodeChanged = callbacks.connection.pairingCodeChanged,
+                onCopyLog = callbacks.log.copy,
+                onPairWirelessAdb = callbacks.connection.pairWirelessAdb,
+                onStartNotificationPairing = callbacks.connection.startNotificationPairing,
+                onStopNotificationPairing = callbacks.connection.stopNotificationPairing,
+                onStartWirelessAdb = callbacks.connection.startWirelessAdb,
             )
             PrivilegeStartupTab.Tcp -> TcpPage(
                 state = state,
-                onTcpPortChanged = onTcpPortChanged,
-                onSwitchToTcp = onSwitchToTcp,
-                onRestartTcp = onRestartTcp,
-                onStopTcp = onStopTcp,
+                onTcpPortChanged = callbacks.connection.tcpPortChanged,
+                onSwitchToTcp = callbacks.connection.switchToTcp,
+                onRestartTcp = callbacks.connection.restartTcp,
+                onStopTcp = callbacks.connection.stopTcp,
             )
-            PrivilegeStartupTab.Log -> SessionPage(state, onClearLog, onCopyLog)
+            PrivilegeStartupTab.Log -> SessionPage(state, callbacks.log.clear, callbacks.log.copy)
         }
     }
 }

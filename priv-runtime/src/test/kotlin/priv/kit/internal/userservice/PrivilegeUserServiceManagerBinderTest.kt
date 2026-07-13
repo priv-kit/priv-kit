@@ -10,7 +10,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import priv.kit.testing.TestBinder
-import priv.kit.testing.TestProcess
+import priv.kit.testing.TestDedicatedUserServiceHost
+import priv.kit.testing.TestEmbeddedUserServiceHost
 import priv.kit.testing.TestUserServiceProcess
 import priv.kit.userservice.*
 
@@ -19,7 +20,7 @@ import priv.kit.userservice.*
 class PrivilegeUserServiceManagerBinderTest {
     @Test
     fun declarationExceptionMapsToErrorBundle() {
-        val manager = manager(EmbeddedHost())
+        val manager = manager(TestEmbeddedUserServiceHost())
         val request = PrivilegeUserServiceContract.requestBundle(
             PrivilegeUserServiceSpec(
                 serviceClassName = "missing.UserService",
@@ -39,7 +40,7 @@ class PrivilegeUserServiceManagerBinderTest {
 
     @Test
     fun malformedRequestMapsToDeclarationErrorBundle() {
-        val response = manager(EmbeddedHost()).startUserService(android.os.Bundle(), TestBinder())
+        val response = manager(TestEmbeddedUserServiceHost()).startUserService(android.os.Bundle(), TestBinder())
 
         assertError(response)
         assertTrue(
@@ -51,7 +52,7 @@ class PrivilegeUserServiceManagerBinderTest {
 
     @Test
     fun startExceptionMapsToErrorBundle() {
-        val host = DedicatedHost(
+        val host = TestDedicatedUserServiceHost(
             process = object : TestUserServiceProcess() {
                 override fun start() {
                     throw IllegalStateException("start exploded")
@@ -70,7 +71,7 @@ class PrivilegeUserServiceManagerBinderTest {
 
     @Test
     fun bindExceptionMapsToErrorBundle() {
-        val host = DedicatedHost(
+        val host = TestDedicatedUserServiceHost(
             process = object : TestUserServiceProcess() {
                 override fun bind(): IBinder {
                     throw IllegalStateException("bind exploded")
@@ -89,7 +90,7 @@ class PrivilegeUserServiceManagerBinderTest {
 
     @Test
     fun notRunningExceptionMapsToErrorBundle() {
-        val response = manager(EmbeddedHost()).unbindUserService("missing-connection")
+        val response = manager(TestEmbeddedUserServiceHost()).unbindUserService("missing-connection")
 
         assertError(response)
         assertTrue(
@@ -101,7 +102,7 @@ class PrivilegeUserServiceManagerBinderTest {
 
     @Test
     fun startProcessFailureMapsToStartErrorBundle() {
-        val host = object : DedicatedHost(TestUserServiceProcess()) {
+        val host = object : TestDedicatedUserServiceHost(TestUserServiceProcess()) {
             override fun startDedicatedProcess(
                 spec: PrivilegeUserServiceSpec,
                 token: String,
@@ -138,51 +139,6 @@ class PrivilegeUserServiceManagerBinderTest {
     private fun assertError(response: android.os.Bundle) {
         assertFalse(response.getBoolean(PrivilegeUserServiceContract.KEY_SUCCESS, true))
         assertNotNull(response.getString(PrivilegeUserServiceContract.KEY_ERROR_MESSAGE))
-    }
-
-    private open class EmbeddedHost : PrivilegeUserServiceHost {
-        override val uid: Int = 0
-        override val pid: Int = 1234
-        override val packageName: String = "priv.kit.test"
-        override val userId: Int = 0
-
-        override fun startDedicatedProcess(
-            spec: PrivilegeUserServiceSpec,
-            token: String,
-        ): Process {
-            error("Dedicated process is not used by this test")
-        }
-
-        override fun awaitDedicatedProcess(
-            token: String,
-            timeoutMillis: Long,
-        ): IPrivilegeUserServiceProcess {
-            error("Dedicated process is not used by this test")
-        }
-
-        override fun killDedicatedProcess(process: Process) = Unit
-    }
-
-    private open class DedicatedHost(
-        private val process: IPrivilegeUserServiceProcess,
-    ) : PrivilegeUserServiceHost {
-        override val uid: Int = 0
-        override val pid: Int = 1234
-        override val packageName: String = "priv.kit.test"
-        override val userId: Int = 0
-
-        override fun startDedicatedProcess(
-            spec: PrivilegeUserServiceSpec,
-            token: String,
-        ): Process =
-            TestProcess()
-
-        override fun awaitDedicatedProcess(
-            token: String,
-            timeoutMillis: Long,
-        ): IPrivilegeUserServiceProcess = process
-
-        override fun killDedicatedProcess(process: Process) = Unit
     }
 
 }
