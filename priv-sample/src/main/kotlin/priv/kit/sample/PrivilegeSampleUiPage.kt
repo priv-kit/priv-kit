@@ -1,6 +1,8 @@
 package priv.kit.sample
 
 import android.app.Application
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -30,6 +32,9 @@ internal fun PrivilegeUiAuthorizationPage(
     val permissionResultHandler = remember(viewModel) {
         { granted: Boolean -> viewModel.handleNotificationPermissionResult(granted) }
     }
+    val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) {}
     DisposableEffect(permissionResultHandler) {
         onDispose {
             onNotificationPermissionDisposed(permissionResultHandler)
@@ -44,6 +49,9 @@ internal fun PrivilegeUiAuthorizationPage(
         onConnected = onConnected,
         onNotificationPermissionRequired = {
             onNotificationPermissionRequired(permissionResultHandler)
+        },
+        onLocalNetworkPermissionRequired = { permission ->
+            localNetworkPermissionLauncher.launch(permission)
         },
     )
 }

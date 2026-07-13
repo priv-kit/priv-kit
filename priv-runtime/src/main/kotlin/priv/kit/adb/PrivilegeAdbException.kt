@@ -5,5 +5,13 @@ internal class PrivilegeAdbException : Exception {
     constructor(cause: Throwable) : super(cause)
 }
 
+internal class PrivilegeAdbLocalNetworkAccessException(
+    endpoint: PrivilegeAdbEndpoint,
+    cause: Throwable,
+) : Exception("ADB local network endpoint $endpoint is unavailable", cause)
+
+public fun Throwable.isPrivilegeAdbLocalNetworkAccessFailure(): Boolean =
+    generateSequence(this) { it.cause }.any { it is PrivilegeAdbLocalNetworkAccessException }
+
 internal fun privilegeAdbError(message: Any): Nothing =
     throw PrivilegeAdbException(message.toString())

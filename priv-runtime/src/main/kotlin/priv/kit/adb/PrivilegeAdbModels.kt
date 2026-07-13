@@ -80,12 +80,35 @@ internal const val PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_COUNT: Int = 5
 internal const val PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS: Long = 1_000L
 internal const val PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS: Long = 15_000L
 
-internal data class PrivilegeAdbStartResult(
+internal data class PrivilegeAdbEndpoint(
+    val host: String,
     val port: Int,
+) {
+    init {
+        require(host.isNotBlank()) { "host must not be blank" }
+        require(port in 1..65535) { "port must be between 1 and 65535" }
+    }
+
+    override fun toString(): String = "$host:$port"
+
+    val isLocalHost: Boolean
+        get() = host == PRIVILEGE_ADB_LOCAL_HOST
+
+    companion object {
+        fun local(port: Int): PrivilegeAdbEndpoint =
+            PrivilegeAdbEndpoint(PRIVILEGE_ADB_LOCAL_HOST, port)
+    }
+}
+
+internal data class PrivilegeAdbStartResult(
+    val endpoint: PrivilegeAdbEndpoint,
     val outputText: String,
     val identity: PrivilegeAdbIdentity,
     val publicKeyFingerprint: String = "",
-)
+) {
+    val port: Int
+        get() = endpoint.port
+}
 
 public data class PrivilegeAdbPairingResult public constructor(
     public val port: Int,
@@ -151,17 +174,18 @@ public fun interface PrivilegeAdbAuthorizationRequestCallback {
 }
 
 internal object PrivilegeAdbPortSelector {
-    fun chooseStartPort(
+    fun chooseStartEndpoint(
         explicitPort: Int?,
         activeTcpPort: Int,
         tcpMode: Boolean,
         targetTcpPort: Int,
-        discoveredPort: Int?,
-    ): Int {
-        explicitPort?.let { return it }
-        if (tcpMode && activeTcpPort > 0) return activeTcpPort
-        discoveredPort?.let { return it }
-        if (tcpMode) return targetTcpPort
+        discoveredEndpoint: PrivilegeAdbEndpoint?,
+    ): PrivilegeAdbEndpoint {
+        explicitPort?.let { return PrivilegeAdbEndpoint.local(it) }
+        if (tcpMode && activeTcpPort > 0) return PrivilegeAdbEndpoint.local(activeTcpPort)
+        discoveredEndpoint?.let { return it }
+        if (tcpMode) return PrivilegeAdbEndpoint.local(targetTcpPort)
         throw PrivilegeAdbException("ADB port is not available")
     }
+
 }

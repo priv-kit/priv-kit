@@ -1,5 +1,6 @@
 package priv.kit.ui
 
+import android.os.Build
 import priv.kit.ui.adb.*
 import priv.kit.ui.adb.pairing.*
 import priv.kit.ui.runtime.*
@@ -353,6 +354,12 @@ class PrivilegeUiAdbActionsTest {
         assertFalse(
             PrivilegeUiManagedWirelessAdbStatus.UNDECLARED.isVisibleManagedWirelessAdbStatus(),
         )
+    }
+
+    @Test
+    fun localNetworkPermissionOnlyAppliesFromAndroid17() {
+        assertFalse(privilegeUiRequiresLocalNetworkPermissionForSdk(Build.VERSION_CODES.BAKLAVA))
+        assertTrue(privilegeUiRequiresLocalNetworkPermissionForSdk(Build.VERSION_CODES.CINNAMON_BUN))
     }
 
     private data class PairingCheckCase(

@@ -47,6 +47,7 @@ public fun PrivilegeScaffold(
     onHelpClick: () -> Unit = {},
     onConnected: (PrivilegeServerInfo) -> Unit = {},
     onNotificationPermissionRequired: () -> Unit = {},
+    onLocalNetworkPermissionRequired: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
@@ -120,7 +121,9 @@ public fun PrivilegeScaffold(
         ) {
             ServiceStatusPanel(
                 state = state,
-                onStartClick = viewModel::startAvailable,
+                onStartClick = {
+                    viewModel.startAvailable(onLocalNetworkPermissionRequired)
+                },
                 onStopClick = viewModel::stopServer,
             )
             AuthorizationModeTabs(
@@ -143,6 +146,7 @@ public fun PrivilegeScaffold(
                     showFeedback(staticTcpCommandCopiedMessage)
                 },
                 onNotificationPermissionRequired = onNotificationPermissionRequired,
+                onLocalNetworkPermissionRequired = onLocalNetworkPermissionRequired,
             )
             if (state.startupLogLines.isNotEmpty()) {
                 StartupLogPanel(
@@ -172,6 +176,7 @@ private fun AuthorizationModePanel(
     onCopyManualCommand: () -> Unit,
     onCopyStaticTcpCommand: () -> Unit,
     onNotificationPermissionRequired: () -> Unit,
+    onLocalNetworkPermissionRequired: (String) -> Unit,
 ) {
     when (mode) {
         PrivilegeUiStartupMode.ROOT -> RootPanel(
@@ -189,15 +194,21 @@ private fun AuthorizationModePanel(
             configuredTcpPort = viewModel.config.tcpPort,
             onPairingCodeChanged = viewModel::updatePairingCode,
             onStartPairing = {
-                viewModel.startNotificationPairing(onNotificationPermissionRequired)
+                viewModel.startNotificationPairing(
+                    onNotificationPermissionRequired = onNotificationPermissionRequired,
+                )
             },
             onStopPairing = viewModel::stopNotificationPairing,
             onClosePairing = viewModel::closePairingDialog,
             onSubmitPairingCode = viewModel::submitNotificationPairingCode,
             onEnableTcpMode = viewModel::enableTcpMode,
-            onStartWirelessAdb = viewModel::startWirelessAdb,
+            onStartWirelessAdb = {
+                viewModel.startWirelessAdb(onLocalNetworkPermissionRequired)
+            },
             onStopWirelessAdb = viewModel::stopCurrentStart,
-            onStartStaticTcpAdb = viewModel::startStaticTcpAdb,
+            onStartStaticTcpAdb = {
+                viewModel.startStaticTcpAdb(onLocalNetworkPermissionRequired)
+            },
             onCopyStaticTcpCommand = onCopyStaticTcpCommand,
         )
         PrivilegeUiStartupMode.EXTERNAL -> ExternalStartPanel(

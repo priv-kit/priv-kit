@@ -8,6 +8,7 @@ import priv.kit.ui.state.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.runInterruptible
 import priv.kit.Privilege
+import priv.kit.adb.isPrivilegeAdbLocalNetworkAccessFailure
 
 internal class PrivilegeUiAdbActions(
     private val store: PrivilegeUiViewModelStore,
@@ -29,7 +30,6 @@ internal class PrivilegeUiAdbActions(
         store = store,
         coroutineScope = coroutineScope,
         enableTcpMode = { tcpActions.enableTcpMode() },
-        refreshTcpModeEnabled = { statusActions.refreshTcpModeEnabled() },
     )
 
     fun observePairingEvents() {
@@ -40,24 +40,12 @@ internal class PrivilegeUiAdbActions(
         pairingActions.updatePairingCode(value)
     }
 
-    fun pairWirelessAdb() {
-        pairingActions.pairWirelessAdb()
-    }
-
-    fun cancelWirelessAdbPairing() {
-        pairingActions.cancelWirelessAdbPairing()
-    }
-
-    fun toggleNotificationPairing(
-        onNotificationPermissionRequired: () -> Unit = {},
-    ) {
-        pairingActions.toggleNotificationPairing(onNotificationPermissionRequired)
-    }
-
     fun startNotificationPairing(
         onNotificationPermissionRequired: () -> Unit = {},
     ) {
-        pairingActions.startNotificationPairing(onNotificationPermissionRequired)
+        pairingActions.startNotificationPairing(
+            onNotificationPermissionRequired = onNotificationPermissionRequired,
+        )
     }
 
     fun stopNotificationPairing() {
@@ -76,25 +64,31 @@ internal class PrivilegeUiAdbActions(
         pairingActions.handleNotificationPermissionResult(granted)
     }
 
-    fun startWirelessAdb() {
-        runtimeActions.runServerStartWorkflow(wirelessAdbStartWorkflow())
+    fun startWirelessAdb(
+        onLocalNetworkPermissionRequired: (String) -> Unit = {},
+    ) {
+        runtimeActions.runServerStartWorkflow(wirelessAdbStartWorkflow(onLocalNetworkPermissionRequired))
     }
 
-    fun startAdb() {
+    fun startAdb(
+        onLocalNetworkPermissionRequired: (String) -> Unit = {},
+    ) {
         val tcpModePort = store.currentTcpModePort()
         if (
             store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED &&
             tcpModePort != null
         ) {
-            startStaticTcpAdb()
+            startStaticTcpAdb(onLocalNetworkPermissionRequired)
         } else {
-            startWirelessAdb()
+            startWirelessAdb(onLocalNetworkPermissionRequired)
         }
     }
 
-    fun startStaticTcpAdb() {
+    fun startStaticTcpAdb(
+        onLocalNetworkPermissionRequired: (String) -> Unit = {},
+    ) {
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
-        runtimeActions.runServerStartWorkflow(staticTcpAdbStartWorkflow())
+        runtimeActions.runServerStartWorkflow(staticTcpAdbStartWorkflow(onLocalNetworkPermissionRequired))
     }
 
     private suspend fun prepareWirelessAdbCommand(
@@ -113,19 +107,9 @@ internal class PrivilegeUiAdbActions(
         tcpActions.enableTcpMode()
     }
 
-    fun requestTcpAuthorization(tcpPort: Int? = store.currentTcpModePort()) {
-        tcpActions.requestTcpAuthorization(tcpPort)
-    }
-
-    fun cancelTcpAuthorization() {
-        tcpActions.cancelTcpAuthorization()
-    }
-
-    fun startTcpAdb(tcpPort: Int? = store.currentTcpModePort()) {
-        tcpActions.startTcpAdb(tcpPort)
-    }
-
-    fun directStartAttempt(): PrivilegeUiRuntimeStartAttempt.Connect? {
+    fun directStartAttempt(
+        onLocalNetworkPermissionRequired: (String) -> Unit = {},
+    ): PrivilegeUiRuntimeStartAttempt.Connect? {
         if (
             !store.state.value.canStartAdbDirectly(
                 tcpModeEnabled = store.currentTcpModePort() != null,
@@ -144,7 +128,7 @@ internal class PrivilegeUiAdbActions(
         ) {
             tcpActions.tcpAdbStartAttempt(tcpPort)
         } else {
-            wirelessAdbStartAttempt()
+            wirelessAdbStartAttempt(onLocalNetworkPermissionRequired)
         }
     }
 
@@ -195,11 +179,8 @@ internal class PrivilegeUiAdbActions(
         val message = store.text(R.string.priv_ui_wifi_required_for_wireless_adb_start)
         adbConnectionSessions.closeWirelessPairingCheckSession()
         store.updateState {
-            it.copy(
+            it.withWirelessAdbOffline(
                 wifiConnected = false,
-                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
-                wirelessPairingServiceStatus = PrivilegeUiWirelessAdbStatus.OFF,
-                wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
             )
         }
         store.showSnackbar(message)
@@ -253,28 +234,37 @@ internal class PrivilegeUiAdbActions(
         return refreshedStatus
     }
 
-    private fun wirelessAdbStartWorkflow(): PrivilegeUiRuntimeStartAttempt.Workflow =
+    private fun wirelessAdbStartWorkflow(
+        onLocalNetworkPermissionRequired: (String) -> Unit,
+    ): PrivilegeUiRuntimeStartAttempt.Workflow =
         PrivilegeUiRuntimeStartAttempt.Workflow(
             message = store.text(R.string.priv_ui_wireless_adb_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
             runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
-            onFailure = ::handleWirelessAdbStartFailure,
+            onFailure = { throwable ->
+                handleWirelessAdbStartFailure(throwable, onLocalNetworkPermissionRequired)
+            },
         ) {
             if (!prepareWirelessAdbCommand(this)) {
                 PrivilegeUiRuntimeStartResult.Finished
             } else {
                 val serverInfo = runInterruptible {
-                    wirelessAdbStartAttempt().start(this)
+                    wirelessAdbStartAttempt(onLocalNetworkPermissionRequired).start(this)
                 }
                 PrivilegeUiRuntimeStartResult.Connected(serverInfo)
             }
         }
 
-    private fun staticTcpAdbStartWorkflow(): PrivilegeUiRuntimeStartAttempt.Workflow =
+    private fun staticTcpAdbStartWorkflow(
+        onLocalNetworkPermissionRequired: (String) -> Unit,
+    ): PrivilegeUiRuntimeStartAttempt.Workflow =
         PrivilegeUiRuntimeStartAttempt.Workflow(
             message = store.text(R.string.priv_ui_tcp_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
             runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_STATIC_TCP,
+            onFailure = { throwable ->
+                handleWirelessAdbStartFailure(throwable, onLocalNetworkPermissionRequired)
+            },
         ) {
             if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) {
                 return@Workflow PrivilegeUiRuntimeStartResult.Finished
@@ -344,12 +334,16 @@ internal class PrivilegeUiAdbActions(
         return PrivilegeUiRuntimeStartResult.Connected(serverInfo)
     }
 
-    private fun wirelessAdbStartAttempt(): PrivilegeUiRuntimeStartAttempt.Connect {
+    private fun wirelessAdbStartAttempt(
+        onLocalNetworkPermissionRequired: (String) -> Unit,
+    ): PrivilegeUiRuntimeStartAttempt.Connect {
         return PrivilegeUiRuntimeStartAttempt.Connect(
             message = store.text(R.string.priv_ui_wireless_adb_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
             runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
-            onFailure = ::handleWirelessAdbStartFailure,
+            onFailure = { throwable ->
+                handleWirelessAdbStartFailure(throwable, onLocalNetworkPermissionRequired)
+            },
         ) {
             val adbDeviceName = store.currentAdbDeviceNameOverride()
             val activeTcpPort = activeTcpPortForWirelessAdbStart(adbDeviceName)
@@ -378,7 +372,6 @@ internal class PrivilegeUiAdbActions(
             message = store.text(R.string.priv_ui_wireless_adb_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
             runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_STATIC_TCP,
-            onFailure = ::handleWirelessAdbStartFailure,
         ) {
             val tcpPort = store.config.tcpPort
             val starter = Privilege.createAdbStarter(
@@ -401,7 +394,13 @@ internal class PrivilegeUiAdbActions(
         }
     }
 
-    private fun handleWirelessAdbStartFailure(throwable: Throwable): Boolean {
+    private fun handleWirelessAdbStartFailure(
+        throwable: Throwable,
+        onLocalNetworkPermissionRequired: (String) -> Unit,
+    ): Boolean {
+        if (handleLocalNetworkAdbStartFailure(throwable, onLocalNetworkPermissionRequired)) {
+            return true
+        }
         if (!throwable.isAdbKeyNotAuthorizedFailure()) return false
         val message = store.text(R.string.priv_ui_wireless_pair_required_for_wireless_adb_start)
         val wirelessDebuggingStatus = currentWirelessDebuggingStatus()
@@ -435,6 +434,29 @@ internal class PrivilegeUiAdbActions(
         store.showSnackbar(message)
         store.appendStartupLog(message)
         store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
+        return true
+    }
+
+    private fun handleLocalNetworkAdbStartFailure(
+        throwable: Throwable,
+        onLocalNetworkPermissionRequired: (String) -> Unit,
+    ): Boolean {
+        if (!throwable.isPrivilegeAdbLocalNetworkAccessFailure()) return false
+        val permission = privilegeUiRequiredLocalNetworkPermission(store.requireContext()) ?: return false
+        val message = store.text(R.string.priv_ui_local_network_permission_missing)
+        store.updateState { current ->
+            current.copy(
+                busy = false,
+                runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                runtimeStartSource = null,
+                serverInfo = null,
+                runtimeProgressMessage = null,
+            )
+        }
+        store.showSnackbar(store.text(R.string.priv_ui_local_network_permission_required))
+        store.appendStartupLog(message)
+        store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
+        onLocalNetworkPermissionRequired(permission)
         return true
     }
 

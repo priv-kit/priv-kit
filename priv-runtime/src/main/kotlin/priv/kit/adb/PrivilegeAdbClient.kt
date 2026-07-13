@@ -22,7 +22,7 @@ internal interface PrivilegeAdbAuthorizationConnection : PrivilegeAdbConnection 
 }
 
 internal class PrivilegeAdbClient private constructor(
-    private val port: Int,
+    private val endpoint: PrivilegeAdbEndpoint,
     private val signAuthToken: (ByteArray?) -> ByteArray,
     private val adbPublicKey: ByteArray,
     private val sslContextProvider: () -> SSLContext,
@@ -33,7 +33,17 @@ internal class PrivilegeAdbClient private constructor(
         key: PrivilegeAdbKey,
         socketReadTimeoutMillis: Int = DEFAULT_READ_TIMEOUT_MILLIS,
     ) : this(
-        port = port,
+        endpoint = PrivilegeAdbEndpoint.local(port),
+        key = key,
+        socketReadTimeoutMillis = socketReadTimeoutMillis,
+    )
+
+    constructor(
+        endpoint: PrivilegeAdbEndpoint,
+        key: PrivilegeAdbKey,
+        socketReadTimeoutMillis: Int = DEFAULT_READ_TIMEOUT_MILLIS,
+    ) : this(
+        endpoint = endpoint,
         signAuthToken = key::sign,
         adbPublicKey = key.adbPublicKey,
         sslContextProvider = { key.sslContext },
@@ -46,7 +56,7 @@ internal class PrivilegeAdbClient private constructor(
         adbPublicKey: ByteArray,
         socketReadTimeoutMillis: Int,
     ) : this(
-        port = port,
+        endpoint = PrivilegeAdbEndpoint.local(port),
         signAuthToken = signAuthToken,
         adbPublicKey = adbPublicKey,
         sslContextProvider = { SSLContext.getDefault() },
@@ -81,7 +91,7 @@ internal class PrivilegeAdbClient private constructor(
         if (status != PrivilegeAdbAuthorizationStatus.AUTHORIZED) {
             privilegeAdbError("ADB key is not authorized")
         }
-        output.diagnostic("ADB connection ready on $PRIVILEGE_ADB_LOCAL_HOST:$port, tls=$useTls")
+        output.diagnostic("ADB connection ready on $endpoint, tls=$useTls")
     }
 
     override fun keepAlive(output: PrivilegeAdbOutput) {
@@ -106,15 +116,15 @@ internal class PrivilegeAdbClient private constructor(
 
     private fun connectSocket(output: PrivilegeAdbOutput? = null) {
         closeTransport()
-        output.diagnostic("Connecting to $PRIVILEGE_ADB_LOCAL_HOST:$port")
+        output.diagnostic("Connecting to $endpoint")
         val newSocket = Socket()
-        newSocket.connect(InetSocketAddress(PRIVILEGE_ADB_LOCAL_HOST, port), CONNECT_TIMEOUT_MILLIS)
+        newSocket.connect(InetSocketAddress(endpoint.host, endpoint.port), CONNECT_TIMEOUT_MILLIS)
         newSocket.tcpNoDelay = true
         newSocket.soTimeout = socketReadTimeoutMillis
         socket = newSocket
         plainInputStream = DataInputStream(newSocket.getInputStream())
         plainOutputStream = DataOutputStream(newSocket.getOutputStream())
-        output.diagnostic("Socket connected to $PRIVILEGE_ADB_LOCAL_HOST:$port")
+        output.diagnostic("Socket connected to $endpoint")
     }
 
     private fun authenticate(
@@ -135,7 +145,7 @@ internal class PrivilegeAdbClient private constructor(
                     write(PrivilegeAdbProtocol.A_STLS, PrivilegeAdbProtocol.A_STLS_VERSION, 0)
                     tlsSocket = sslContextProvider()
                         .socketFactory
-                        .createSocket(socket, PRIVILEGE_ADB_LOCAL_HOST, port, true) as SSLSocket
+                        .createSocket(socket, endpoint.host, endpoint.port, true) as SSLSocket
                     tlsSocket.soTimeout = socketReadTimeoutMillis
                     tlsSocket.startHandshake()
                     output.diagnostic("ADB TLS handshake succeeded")

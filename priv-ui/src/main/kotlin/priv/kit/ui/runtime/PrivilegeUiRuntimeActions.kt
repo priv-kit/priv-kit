@@ -160,27 +160,7 @@ internal class PrivilegeUiRuntimeActions(
     }
 
     fun runServerStart(attempt: PrivilegeUiRuntimeStartAttempt.Connect) {
-        val session = beginRuntimeStart(attempt.message, attempt.runtimeStartSource) ?: return
-        appendStartupSource(attempt.startupSource)
-        store.appendStartupLog(attempt.message)
-        launchRuntimeStart(session, "priv-ui-runtime-start") {
-            try {
-                val serverInfo = runInterruptible {
-                    attempt.start(session)
-                }
-                if (isCurrentRuntimeStart(session)) {
-                    connectServer(serverInfo, session)
-                } else {
-                    stopServerAfterCancelledStart()
-                }
-            } catch (_: CancellationException) {
-                return@launchRuntimeStart
-            } catch (throwable: Throwable) {
-                if (attempt.onFailure?.invoke(throwable) != true) {
-                    setRuntimeFailure(throwable, startSession = session)
-                }
-            }
-        }
+        runServerStartAttempt(attempt, name = "priv-ui-runtime-start")
     }
 
     fun runServerStartRequest(
@@ -203,62 +183,11 @@ internal class PrivilegeUiRuntimeActions(
     }
 
     fun runServerStartRequest(attempt: PrivilegeUiRuntimeStartAttempt.Request) {
-        val session = beginRuntimeStart(attempt.message, attempt.runtimeStartSource) ?: return
-        appendStartupSource(attempt.startupSource)
-        store.appendStartupLog(attempt.message)
-        launchRuntimeStart(session, "priv-ui-runtime-start-request") {
-            try {
-                runInterruptible {
-                    attempt.start(session)
-                }
-                updateCurrentRuntimeStartState(session) {
-                    it.startRequestSent(attempt.startedMessage)
-                }
-                if (isCurrentRuntimeStart(session)) {
-                    store.appendStartupLog(attempt.startedMessage)
-                }
-            } catch (_: CancellationException) {
-                return@launchRuntimeStart
-            } catch (throwable: Throwable) {
-                setRuntimeFailure(throwable, startSession = session)
-            }
-        }
+        runServerStartAttempt(attempt, name = "priv-ui-runtime-start-request")
     }
 
     fun runServerStartWorkflow(attempt: PrivilegeUiRuntimeStartAttempt.Workflow) {
-        val session = beginRuntimeStart(attempt.message, attempt.runtimeStartSource) ?: return
-        appendStartupSource(attempt.startupSource)
-        store.appendStartupLog(attempt.message)
-        launchRuntimeStart(session, "priv-ui-runtime-start-workflow") {
-            try {
-                when (val result = attempt.start(session)) {
-                    is PrivilegeUiRuntimeStartResult.Connected -> {
-                        if (isCurrentRuntimeStart(session)) {
-                            connectServer(result.serverInfo, session)
-                        } else {
-                            stopServerAfterCancelledStart()
-                        }
-                    }
-                    is PrivilegeUiRuntimeStartResult.RequestSent -> {
-                        updateCurrentRuntimeStartState(session) {
-                            it.startRequestSent(result.message)
-                        }
-                        if (isCurrentRuntimeStart(session)) {
-                            store.appendStartupLog(result.message)
-                        }
-                    }
-                    PrivilegeUiRuntimeStartResult.Finished -> {
-                        finishRuntimeStartWithoutResult(session)
-                    }
-                }
-            } catch (_: CancellationException) {
-                return@launchRuntimeStart
-            } catch (throwable: Throwable) {
-                if (attempt.onFailure?.invoke(throwable) != true) {
-                    setRuntimeFailure(throwable, startSession = session)
-                }
-            }
-        }
+        runServerStartAttempt(attempt, name = "priv-ui-runtime-start-workflow")
     }
 
     fun runServerStartFallback(attempts: List<PrivilegeUiRuntimeStartAttempt>) {
@@ -284,61 +213,21 @@ internal class PrivilegeUiRuntimeActions(
                 appendStartupSource(attempt.startupSource)
                 store.appendStartupLog(attempt.message)
                 try {
-                    when (attempt) {
-                        is PrivilegeUiRuntimeStartAttempt.Connect -> {
-                            val serverInfo = runInterruptible {
-                                attempt.start(session)
-                            }
-                            if (isCurrentRuntimeStart(session)) {
-                                connectServer(serverInfo, session)
-                            } else {
-                                stopServerAfterCancelledStart()
-                            }
-                            return@launchRuntimeStart
-                        }
-                        is PrivilegeUiRuntimeStartAttempt.Request -> {
-                            runInterruptible {
-                                attempt.start(session)
-                            }
-                            updateCurrentRuntimeStartState(session) {
-                                it.startRequestSent(attempt.startedMessage)
-                            }
-                            if (isCurrentRuntimeStart(session)) {
-                                store.appendStartupLog(attempt.startedMessage)
-                            }
-                            return@launchRuntimeStart
-                        }
-                        is PrivilegeUiRuntimeStartAttempt.Workflow -> {
-                            when (val result = attempt.start(session)) {
-                                is PrivilegeUiRuntimeStartResult.Connected -> {
-                                    if (isCurrentRuntimeStart(session)) {
-                                        connectServer(result.serverInfo, session)
-                                    } else {
-                                        stopServerAfterCancelledStart()
-                                    }
-                                    return@launchRuntimeStart
-                                }
-                                is PrivilegeUiRuntimeStartResult.RequestSent -> {
-                                    updateCurrentRuntimeStartState(session) {
-                                        it.startRequestSent(result.message)
-                                    }
-                                    if (isCurrentRuntimeStart(session)) {
-                                        store.appendStartupLog(result.message)
-                                    }
-                                    return@launchRuntimeStart
-                                }
-                                PrivilegeUiRuntimeStartResult.Finished -> Unit
-                            }
-                        }
+                    val result = executeRuntimeStartAttempt(session, attempt)
+                    if (
+                        applyRuntimeStartResult(
+                            session = session,
+                            result = result,
+                            finishOnFinished = false,
+                        )
+                    ) {
+                        return@launchRuntimeStart
                     }
                 } catch (_: CancellationException) {
                     return@launchRuntimeStart
                 } catch (throwable: Throwable) {
                     if (!isCurrentRuntimeStart(session)) return@launchRuntimeStart
-                    if (
-                        attempt is PrivilegeUiRuntimeStartAttempt.Connect &&
-                        attempt.onFailure?.invoke(throwable) == true
-                    ) {
+                    if (attempt.handlesStartFailure(throwable, includeWorkflow = false)) {
                         return@launchRuntimeStart
                     }
                     lastFailure = throwable
@@ -410,6 +299,94 @@ internal class PrivilegeUiRuntimeActions(
         val source = startupSource?.trim()?.takeIf { it.isNotEmpty() } ?: return
         store.appendStartupLog(store.text(R.string.priv_ui_startup_source, source))
     }
+
+    private fun runServerStartAttempt(
+        attempt: PrivilegeUiRuntimeStartAttempt,
+        name: String,
+    ) {
+        val session = beginRuntimeStart(attempt.message, attempt.runtimeStartSource) ?: return
+        appendStartupSource(attempt.startupSource)
+        store.appendStartupLog(attempt.message)
+        launchRuntimeStart(session, name) {
+            try {
+                val result = executeRuntimeStartAttempt(session, attempt)
+                applyRuntimeStartResult(
+                    session = session,
+                    result = result,
+                    finishOnFinished = true,
+                )
+            } catch (_: CancellationException) {
+                return@launchRuntimeStart
+            } catch (throwable: Throwable) {
+                if (!attempt.handlesStartFailure(throwable, includeWorkflow = true)) {
+                    setRuntimeFailure(throwable, startSession = session)
+                }
+            }
+        }
+    }
+
+    private suspend fun executeRuntimeStartAttempt(
+        session: PrivilegeUiRuntimeStartSession,
+        attempt: PrivilegeUiRuntimeStartAttempt,
+    ): PrivilegeUiRuntimeStartResult =
+        when (attempt) {
+            is PrivilegeUiRuntimeStartAttempt.Connect -> {
+                val serverInfo = runInterruptible {
+                    attempt.start(session)
+                }
+                PrivilegeUiRuntimeStartResult.Connected(serverInfo)
+            }
+            is PrivilegeUiRuntimeStartAttempt.Request -> {
+                runInterruptible {
+                    attempt.start(session)
+                }
+                PrivilegeUiRuntimeStartResult.RequestSent(attempt.startedMessage)
+            }
+            is PrivilegeUiRuntimeStartAttempt.Workflow -> attempt.start(session)
+        }
+
+    private fun applyRuntimeStartResult(
+        session: PrivilegeUiRuntimeStartSession,
+        result: PrivilegeUiRuntimeStartResult,
+        finishOnFinished: Boolean,
+    ): Boolean {
+        when (result) {
+            is PrivilegeUiRuntimeStartResult.Connected -> {
+                if (isCurrentRuntimeStart(session)) {
+                    connectServer(result.serverInfo, session)
+                } else {
+                    stopServerAfterCancelledStart()
+                }
+                return true
+            }
+            is PrivilegeUiRuntimeStartResult.RequestSent -> {
+                updateCurrentRuntimeStartState(session) {
+                    it.startRequestSent(result.message)
+                }
+                if (isCurrentRuntimeStart(session)) {
+                    store.appendStartupLog(result.message)
+                }
+                return true
+            }
+            PrivilegeUiRuntimeStartResult.Finished -> {
+                if (finishOnFinished) {
+                    finishRuntimeStartWithoutResult(session)
+                }
+                return false
+            }
+        }
+    }
+
+    private fun PrivilegeUiRuntimeStartAttempt.handlesStartFailure(
+        throwable: Throwable,
+        includeWorkflow: Boolean,
+    ): Boolean =
+        when (this) {
+            is PrivilegeUiRuntimeStartAttempt.Connect -> onFailure?.invoke(throwable) == true
+            is PrivilegeUiRuntimeStartAttempt.Workflow ->
+                includeWorkflow && onFailure?.invoke(throwable) == true
+            is PrivilegeUiRuntimeStartAttempt.Request -> false
+        }
 
     private fun beginRuntimeStart(
         message: String,

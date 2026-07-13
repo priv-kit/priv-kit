@@ -13,12 +13,7 @@ import priv.kit.ui.external.PrivilegeUiExternalStartActions
 import priv.kit.ui.runtime.PrivilegeUiDirectStartTarget
 import priv.kit.ui.runtime.PrivilegeUiManualShellActions
 import priv.kit.ui.runtime.PrivilegeUiRuntimeActions
-import priv.kit.ui.runtime.canStartAdbDirectly
-import priv.kit.ui.runtime.directStartTarget
 import priv.kit.ui.runtime.directStartTargets
-import priv.kit.ui.runtime.hasDirectStartTarget
-import priv.kit.ui.state.PrivilegeUiPollingSlot
-import priv.kit.ui.state.PrivilegeUiStatusRefreshController
 import priv.kit.ui.state.PrivilegeUiNoopCloseable
 import priv.kit.ui.state.PrivilegeUiViewModelStore
 import priv.kit.ui.state.copyToClipboard
@@ -93,7 +88,9 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         runtimeActions.startRoot()
     }
 
-    public open fun startAvailable() {
+    public open fun startAvailable(
+        onLocalNetworkPermissionRequired: (String) -> Unit = {},
+    ) {
         if (
             store.state.value.busy ||
             store.state.value.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED
@@ -101,23 +98,22 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
             return
         }
         adbActions.refreshWifiConnected()
-        val attempts = store.state.value
-            .directStartTargets(
-                tcpModeEnabled = store.state.value.tcpModePort != null,
-                tcpPolicy = store.config.adbTcpPolicy,
-                wirelessAdbSupported = isPrivilegeUiWirelessAdbSupported(),
-                managedWirelessAdbEnabled = store.config.enableManagedWirelessAdb &&
-                    store.state.value.managedWirelessAdbStatus != PrivilegeUiManagedWirelessAdbStatus.UNDECLARED,
-            )
-            .mapNotNull { target ->
-                when (target) {
-                    PrivilegeUiDirectStartTarget.Adb -> adbActions.directStartAttempt()
-                    is PrivilegeUiDirectStartTarget.External -> {
-                        externalStartActions.directStartAttempt(target.providerId)
-                    }
-                    PrivilegeUiDirectStartTarget.Root -> runtimeActions.rootStartAttempt()
+        val directTargets = store.state.value.directStartTargets(
+            tcpModeEnabled = store.state.value.tcpModePort != null,
+            tcpPolicy = store.config.adbTcpPolicy,
+            wirelessAdbSupported = isPrivilegeUiWirelessAdbSupported(),
+            managedWirelessAdbEnabled = store.config.enableManagedWirelessAdb &&
+                store.state.value.managedWirelessAdbStatus != PrivilegeUiManagedWirelessAdbStatus.UNDECLARED,
+        )
+        val attempts = directTargets.mapNotNull { target ->
+            when (target) {
+                PrivilegeUiDirectStartTarget.Adb -> adbActions.directStartAttempt(onLocalNetworkPermissionRequired)
+                is PrivilegeUiDirectStartTarget.External -> {
+                    externalStartActions.directStartAttempt(target.providerId)
                 }
+                PrivilegeUiDirectStartTarget.Root -> runtimeActions.rootStartAttempt()
             }
+        }
         if (attempts.isEmpty()) {
             runtimeActions.reportNoDirectStart()
         } else {
@@ -153,24 +149,12 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         )
     }
 
-    public open fun pairWirelessAdb() {
-        adbActions.pairWirelessAdb()
-    }
-
-    public open fun cancelWirelessAdbPairing() {
-        adbActions.cancelWirelessAdbPairing()
-    }
-
-    public open fun toggleNotificationPairing(
-        onNotificationPermissionRequired: () -> Unit = {},
-    ) {
-        adbActions.toggleNotificationPairing(onNotificationPermissionRequired)
-    }
-
     public open fun startNotificationPairing(
         onNotificationPermissionRequired: () -> Unit = {},
     ) {
-        adbActions.startNotificationPairing(onNotificationPermissionRequired)
+        adbActions.startNotificationPairing(
+            onNotificationPermissionRequired = onNotificationPermissionRequired,
+        )
     }
 
     public open fun stopNotificationPairing() {
@@ -189,12 +173,16 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         adbActions.handleNotificationPermissionResult(granted)
     }
 
-    public open fun startWirelessAdb() {
-        adbActions.startWirelessAdb()
+    public open fun startWirelessAdb(
+        onLocalNetworkPermissionRequired: (String) -> Unit = {},
+    ) {
+        adbActions.startWirelessAdb(onLocalNetworkPermissionRequired)
     }
 
-    public open fun startAdb() {
-        adbActions.startAdb()
+    public open fun startAdb(
+        onLocalNetworkPermissionRequired: (String) -> Unit = {},
+    ) {
+        adbActions.startAdb(onLocalNetworkPermissionRequired)
     }
 
     public open fun startWirelessAdbStatusPolling(): AutoCloseable =
@@ -250,12 +238,10 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         adbActions.refreshTcpModeEnabled()
     }
 
-    public open fun startTcpAdb() {
-        adbActions.startTcpAdb()
-    }
-
-    public open fun startStaticTcpAdb() {
-        adbActions.startStaticTcpAdb()
+    public open fun startStaticTcpAdb(
+        onLocalNetworkPermissionRequired: (String) -> Unit = {},
+    ) {
+        adbActions.startStaticTcpAdb(onLocalNetworkPermissionRequired)
     }
 
     public open fun refreshExternalStartStatus(providerId: String? = null) {

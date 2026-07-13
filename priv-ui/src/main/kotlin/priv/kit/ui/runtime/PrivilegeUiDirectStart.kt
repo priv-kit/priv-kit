@@ -9,19 +9,6 @@ internal sealed interface PrivilegeUiDirectStartTarget {
     data class External(val providerId: String) : PrivilegeUiDirectStartTarget
 }
 
-internal fun PrivilegeUiState.directStartTarget(
-    tcpModeEnabled: Boolean,
-    tcpPolicy: PrivilegeUiAdbTcpPolicy,
-    wirelessAdbSupported: Boolean = true,
-    managedWirelessAdbEnabled: Boolean = true,
-): PrivilegeUiDirectStartTarget? =
-    directStartTargets(
-        tcpModeEnabled = tcpModeEnabled,
-        tcpPolicy = tcpPolicy,
-        wirelessAdbSupported = wirelessAdbSupported,
-        managedWirelessAdbEnabled = managedWirelessAdbEnabled,
-    ).firstOrNull()
-
 internal fun PrivilegeUiState.directStartTargets(
     tcpModeEnabled: Boolean,
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
@@ -65,38 +52,6 @@ internal fun PrivilegeUiState.directStartModeOrder(): List<PrivilegeUiStartupMod
             }
         }
     }
-
-internal fun PrivilegeUiState.hasDirectStartTarget(
-    tcpModeEnabled: Boolean,
-    tcpPolicy: PrivilegeUiAdbTcpPolicy,
-    wirelessAdbSupported: Boolean = true,
-    managedWirelessAdbEnabled: Boolean = true,
-): Boolean {
-    directStartModeOrder().forEach { mode ->
-        when (mode) {
-            PrivilegeUiStartupMode.ADB -> {
-                if (
-                    canStartAdbDirectly(
-                        tcpModeEnabled,
-                        tcpPolicy,
-                        wirelessAdbSupported,
-                        managedWirelessAdbEnabled,
-                    )
-                ) {
-                    return true
-                }
-            }
-            PrivilegeUiStartupMode.EXTERNAL -> {
-                if (externalStartItems.any { it.snapshot.canStart }) {
-                    return true
-                }
-            }
-            PrivilegeUiStartupMode.MANUAL_SHELL -> Unit
-            PrivilegeUiStartupMode.ROOT -> return true
-        }
-    }
-    return false
-}
 
 internal fun PrivilegeUiState.canStartAdbDirectly(
     tcpModeEnabled: Boolean,

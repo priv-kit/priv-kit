@@ -144,41 +144,33 @@ internal class PrivilegeUiAdbStatusActions(
 
     suspend fun forceWirelessAdbStatusRefreshForAction(
         stop: AtomicBoolean? = null,
-    ): Boolean {
-        val deadline = statusRefreshActionDeadlineMillis()
-        while (true) {
-            if (stop?.get() == true) return false
-            val remainingBeforeJoin = remainingStatusRefreshActionMillis(deadline)
-            if (remainingBeforeJoin <= 0L) return false
-            if (!wirelessAdbStatusRefresh.join(remainingBeforeJoin)) return false
-            val refreshStop = stop
-                ?: wirelessAdbStatusPolling.currentStop()?.takeUnless { it.get() }
-                ?: AtomicBoolean(false)
-            if (wirelessAdbStatusRefresh.start { refreshWirelessAdbStatusNow(stop = refreshStop, markChecking = true) }) {
-                val remainingAfterStart = remainingStatusRefreshActionMillis(deadline)
-                return remainingAfterStart > 0L &&
-                    wirelessAdbStatusRefresh.join(remainingAfterStart) &&
-                    !refreshStop.get()
-            }
-        }
-    }
+    ): Boolean =
+        forceStatusRefreshForAction(
+            controller = wirelessAdbStatusRefresh,
+            stop = stop,
+            refreshStop = {
+                wirelessAdbStatusPolling.currentStop()?.takeUnless { it.get() } ?: AtomicBoolean(false)
+            },
+            refresh = { refreshStop ->
+                refreshWirelessAdbStatusNow(
+                    stop = refreshStop ?: AtomicBoolean(false),
+                    markChecking = true,
+                )
+            },
+            activeAfterRefresh = { refreshStop -> refreshStop?.get() != true },
+        )
 
     suspend fun forceTcpModeStatusRefreshForAction(
         stop: AtomicBoolean? = null,
-    ): Boolean {
-        val deadline = statusRefreshActionDeadlineMillis()
-        while (true) {
-            if (stop?.get() == true) return false
-            val remainingBeforeJoin = remainingStatusRefreshActionMillis(deadline)
-            if (remainingBeforeJoin <= 0L) return false
-            if (!tcpModeStatusRefresh.join(remainingBeforeJoin)) return false
-            val refreshStop = stop ?: tcpModeStatusPolling.currentStop()?.takeUnless { it.get() }
-            if (tcpModeStatusRefresh.start { refreshTcpModeEnabledNow(stop = refreshStop, markChecking = true) }) {
-                val remainingAfterStart = remainingStatusRefreshActionMillis(deadline)
-                return remainingAfterStart > 0L && tcpModeStatusRefresh.join(remainingAfterStart)
-            }
-        }
-    }
+    ): Boolean =
+        forceStatusRefreshForAction(
+            controller = tcpModeStatusRefresh,
+            stop = stop,
+            refreshStop = { tcpModeStatusPolling.currentStop()?.takeUnless { it.get() } },
+            refresh = { refreshStop ->
+                refreshTcpModeEnabledNow(stop = refreshStop, markChecking = true)
+            },
+        )
 
     fun close() {
         stopTcpModeStatusPolling()
@@ -190,7 +182,7 @@ internal class PrivilegeUiAdbStatusActions(
             wirelessAdbStatusRefresh.run {
                 refreshWirelessAdbStatusNow(stop = stop, markChecking = false)
             }
-            if (!sleepWirelessAdbPolling(stop)) return
+            if (!sleepPolling(stop, store.config.wirelessStatusPollIntervalMillis)) return
         }
     }
 
@@ -201,7 +193,7 @@ internal class PrivilegeUiAdbStatusActions(
                 refreshTcpModeEnabledNow(stop = stop, markChecking = firstRefresh)
             }
             firstRefresh = false
-            if (!sleepTcpModeStatusPolling(stop)) return
+            if (!sleepPolling(stop, store.config.wirelessStatusPollIntervalMillis)) return
         }
     }
 
@@ -273,10 +265,7 @@ internal class PrivilegeUiAdbStatusActions(
         }.onFailure { throwable ->
             if (stop.get()) return@onFailure
             store.updateState {
-                it.copy(
-                    wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
-                    wirelessPairingServiceStatus = PrivilegeUiWirelessAdbStatus.OFF,
-                    wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+                it.withWirelessAdbOffline(
                     managedWirelessAdbStatus = it.managedWirelessAdbStatus.failedUnlessManagedWirelessAdbHidden(
                         enabled = store.config.enableManagedWirelessAdb,
                     ),
@@ -321,11 +310,8 @@ internal class PrivilegeUiAdbStatusActions(
         if (!wifiConnected) {
             adbConnectionSessions.closeWirelessPairingCheckSession()
             store.updateState {
-                it.copy(
+                it.withWirelessAdbOffline(
                     wifiConnected = false,
-                    wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
-                    wirelessPairingServiceStatus = PrivilegeUiWirelessAdbStatus.OFF,
-                    wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
                     managedWirelessAdbStatus = it.managedWirelessAdbStatus.failedUnlessManagedWirelessAdbHidden(
                         enabled = store.config.enableManagedWirelessAdb,
                     ),
@@ -347,11 +333,8 @@ internal class PrivilegeUiAdbStatusActions(
         if (!wirelessControlStatus.wirelessDebuggingEnabled) {
             adbConnectionSessions.closeWirelessPairingCheckSession()
             store.updateState {
-                it.copy(
+                it.withWirelessAdbOffline(
                     wifiConnected = true,
-                    wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
-                    wirelessPairingServiceStatus = PrivilegeUiWirelessAdbStatus.OFF,
-                    wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
                     managedWirelessAdbStatus = managedWirelessStatus,
                     notificationPairingRunning = PrivilegeAdbPairingService.running,
                 )
@@ -415,13 +398,31 @@ internal class PrivilegeUiAdbStatusActions(
     private fun remainingStatusRefreshActionMillis(deadline: Long): Long =
         deadline - System.currentTimeMillis()
 
-    private suspend fun sleepWirelessAdbPolling(stop: AtomicBoolean): Boolean {
-        delay(store.config.wirelessStatusPollIntervalMillis)
-        return !stop.get()
+    private suspend fun forceStatusRefreshForAction(
+        controller: PrivilegeUiStatusRefreshController,
+        stop: AtomicBoolean?,
+        refreshStop: () -> AtomicBoolean?,
+        refresh: (AtomicBoolean?) -> Unit,
+        activeAfterRefresh: (AtomicBoolean?) -> Boolean = { true },
+    ): Boolean {
+        val deadline = statusRefreshActionDeadlineMillis()
+        while (true) {
+            if (stop?.get() == true) return false
+            val remainingBeforeJoin = remainingStatusRefreshActionMillis(deadline)
+            if (remainingBeforeJoin <= 0L) return false
+            if (!controller.join(remainingBeforeJoin)) return false
+            val nextStop = stop ?: refreshStop()
+            if (controller.start { refresh(nextStop) }) {
+                val remainingAfterStart = remainingStatusRefreshActionMillis(deadline)
+                return remainingAfterStart > 0L &&
+                    controller.join(remainingAfterStart) &&
+                    activeAfterRefresh(nextStop)
+            }
+        }
     }
 
-    private suspend fun sleepTcpModeStatusPolling(stop: AtomicBoolean): Boolean {
-        delay(store.config.wirelessStatusPollIntervalMillis)
+    private suspend fun sleepPolling(stop: AtomicBoolean, intervalMillis: Long): Boolean {
+        delay(intervalMillis)
         return !stop.get()
     }
 

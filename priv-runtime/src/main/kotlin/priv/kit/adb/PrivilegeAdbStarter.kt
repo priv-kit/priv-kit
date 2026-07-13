@@ -55,33 +55,33 @@ public class PrivilegeAdbStarter private constructor(
                     "tcpMode=${options.tcpMode}, activeTcp=$activeTcpPort, targetTcp=${options.tcpPort}, " +
                     "wirelessControl=${options.wirelessDebuggingControl}",
             )
-            val shouldDiscoverPort = options.port == null &&
+            val shouldDiscoverEndpoint = options.port == null &&
                 !(options.tcpMode && activeTcpPort > 0) &&
                 options.discoverPort
-            val activePort = PrivilegeAdbPortSelector.chooseStartPort(
+            val activeEndpoint = PrivilegeAdbPortSelector.chooseStartEndpoint(
                 explicitPort = options.port,
                 activeTcpPort = activeTcpPort,
                 tcpMode = options.tcpMode,
                 targetTcpPort = options.tcpPort,
-                discoveredPort = if (shouldDiscoverPort) {
-                    discoverConnectPortForStart(options, output) { controller ->
+                discoveredEndpoint = if (shouldDiscoverEndpoint) {
+                    discoverConnectEndpointForStart(options, output) { controller ->
                         managedWirelessDebuggingController = controller
                     }
                 } else {
                     null
                 },
             )
-            output.append("diag", "Selected ADB command port $activePort")
+            output.append("diag", "Selected ADB command endpoint $activeEndpoint")
 
-            PrivilegeAdbClient(activePort, key).use { client ->
-                connectWithRetry(client, options, output)
-                output.append("diag", "Executing Privileged Server shell command on port $activePort")
+            PrivilegeAdbClient(activeEndpoint, key).use { client ->
+                connectWithRetry(client, activeEndpoint, options, output)
+                output.append("diag", "Executing Privileged Server shell command on $activeEndpoint")
                 client.command("shell:${command.commandLine}", output)
-                output.append("diag", "Privileged Server shell command stream completed on port $activePort")
+                output.append("diag", "Privileged Server shell command stream completed on $activeEndpoint")
             }
 
             PrivilegeAdbStartResult(
-                port = activePort,
+                endpoint = activeEndpoint,
                 outputText = output.text(),
                 identity = identity,
                 publicKeyFingerprint = key.adbPublicKeyFingerprint,
@@ -172,20 +172,18 @@ public class PrivilegeAdbStarter private constructor(
             explicitPort = port,
             discoverPort = discoverPort,
             portDiscoveryTimeoutMillis = portDiscoveryTimeoutMillis,
-            discoverConnectPort = ::discoverConnectPort,
-            clientFactory = { activePort -> PrivilegeAdbClient(activePort, key) },
+            discoverConnectEndpoint = ::discoverConnectEndpoint,
+            clientFactory = { activeEndpoint -> PrivilegeAdbClient(activeEndpoint, key) },
         )
     }
 
     internal fun readRuntimeDiagnostics(
-        port: Int,
+        endpoint: PrivilegeAdbEndpoint,
         startupLogListener: PrivilegeStartupLogListener?,
     ): String {
-        require(port in 1..65535) { "port must be between 1 and 65535" }
-
         val output = PrivilegeAdbOutput(startupLogListener)
         appendRuntimeDiagnostics(
-            port = port,
+            endpoint = endpoint,
             key = createKey(),
             output = output,
         )
@@ -219,18 +217,18 @@ public class PrivilegeAdbStarter private constructor(
 
         return try {
             val key = createKey()
-            val activePort = port ?: if (discoverPort) {
-                discoverPairingPort(portDiscoveryTimeoutMillis)
+            val activeEndpoint = port?.let(PrivilegeAdbEndpoint::local) ?: if (discoverPort) {
+                discoverPairingEndpoint(portDiscoveryTimeoutMillis)
             } else {
                 throw PrivilegeAdbException("ADB pairing port is not available")
             }
-            PrivilegeAdbPairingClient(activePort, normalizedPairingCode, key).use { client ->
+            PrivilegeAdbPairingClient(activeEndpoint, normalizedPairingCode, key).use { client ->
                 if (!client.start()) {
                     throw PrivilegeAdbException("ADB pairing failed")
                 }
             }
             PrivilegeAdbPairingResult(
-                port = activePort,
+                port = activeEndpoint.port,
                 identity = identity,
                 publicKeyFingerprint = key.adbPublicKeyFingerprint,
             )
@@ -242,11 +240,19 @@ public class PrivilegeAdbStarter private constructor(
 
     @Throws(PrivilegeStartupException::class)
     public fun discoverPairingPort(timeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS): Int {
+        return discoverPairingEndpoint(timeoutMillis).port
+    }
+
+    private fun discoverPairingEndpoint(
+        timeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
+    ): PrivilegeAdbEndpoint {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             throw PrivilegeStartupException("Wireless ADB pairing requires Android 11 or above")
         }
         return try {
-            PrivilegeAdbMdns(nsdManagerProvider(), PrivilegeAdbMdns.TLS_PAIRING).use { it.discoverPort(timeoutMillis) }
+            PrivilegeAdbMdns(nsdManagerProvider(), PrivilegeAdbMdns.TLS_PAIRING).use {
+                it.discoverEndpoint(timeoutMillis)
+            }
         } catch (throwable: Throwable) {
             if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to discover ADB pairing port", throwable)
@@ -255,22 +261,30 @@ public class PrivilegeAdbStarter private constructor(
 
     @Throws(PrivilegeStartupException::class)
     public fun discoverConnectPort(timeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS): Int {
+        return discoverConnectEndpoint(timeoutMillis).port
+    }
+
+    private fun discoverConnectEndpoint(
+        timeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
+    ): PrivilegeAdbEndpoint {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             throw PrivilegeStartupException("Wireless ADB requires Android 11 or above")
         }
         return try {
-            PrivilegeAdbMdns(nsdManagerProvider(), PrivilegeAdbMdns.TLS_CONNECT).use { it.discoverPort(timeoutMillis) }
+            PrivilegeAdbMdns(nsdManagerProvider(), PrivilegeAdbMdns.TLS_CONNECT).use {
+                it.discoverEndpoint(timeoutMillis)
+            }
         } catch (throwable: Throwable) {
             if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to discover ADB connect port", throwable)
         }
     }
 
-    private fun discoverConnectPortForStart(
+    private fun discoverConnectEndpointForStart(
         options: PrivilegeAdbStartOptions,
         output: PrivilegeAdbOutput,
         onManagedWirelessDebugging: (PrivilegeAdbWirelessDebuggingController) -> Unit,
-    ): Int {
+    ): PrivilegeAdbEndpoint {
         val controller = wirelessDebuggingControllerProvider()
         val status = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             PrivilegeAdbWirelessDebuggingControlStatus(
@@ -308,18 +322,18 @@ public class PrivilegeAdbStarter private constructor(
                 },
             )
         }
-        return discoverConnectPortForStart(
+        return discoverConnectEndpointForStart(
             options = options,
             output = output,
             managedWirelessDebuggingEnabled = managedWirelessDebuggingEnabled,
         )
     }
 
-    private fun discoverConnectPortForStart(
+    private fun discoverConnectEndpointForStart(
         options: PrivilegeAdbStartOptions,
         output: PrivilegeAdbOutput,
         managedWirelessDebuggingEnabled: Boolean,
-    ): Int {
+    ): PrivilegeAdbEndpoint {
         val attempts = managedWirelessConnectPortDiscoveryAttempts(
             managedWirelessDebuggingEnabled = managedWirelessDebuggingEnabled,
             connectRetryCount = options.connectRetryCount,
@@ -330,9 +344,9 @@ public class PrivilegeAdbStarter private constructor(
                 output.append("diag", "Retrying ADB connect port discovery after enabling Wireless debugging")
             }
             runCatching {
-                discoverConnectPort(options.portDiscoveryTimeoutMillis)
-            }.onSuccess { port ->
-                return port
+                discoverConnectEndpoint(options.portDiscoveryTimeoutMillis)
+            }.onSuccess { endpoint ->
+                return endpoint
             }.onFailure { throwable ->
                 lastFailure = throwable
                 if (attemptIndex < attempts - 1) {
@@ -392,20 +406,27 @@ public class PrivilegeAdbStarter private constructor(
                 )
             }
 
-            val connectPort = currentPort ?: activeTcpPort ?: options?.port ?: if (options == null) {
-                discoverConnectPort()
-            } else if (options.discoverPort) {
-                discoverConnectPortForStart(options, output) { controller ->
-                    managedWirelessDebuggingController = controller
+            val connectEndpoint = currentPort?.let(PrivilegeAdbEndpoint::local)
+                ?: activeTcpPort?.takeIf { it > 0 }?.let(PrivilegeAdbEndpoint::local)
+                ?: options?.port?.let(PrivilegeAdbEndpoint::local)
+                ?: if (options == null) {
+                    discoverConnectEndpoint()
+                } else if (options.discoverPort) {
+                    discoverConnectEndpointForStart(options, output) { controller ->
+                        managedWirelessDebuggingController = controller
+                    }
+                } else {
+                    throw PrivilegeAdbException("ADB connect port is not available")
                 }
-            } else {
-                throw PrivilegeAdbException("ADB connect port is not available")
-            }
             val key = createKey()
             output.append("diag", "ADB identity name=${identity.adbDeviceName}, keySignature=<redacted>")
             output.append("diag", "ADB public key fingerprint=${key.adbPublicKeyFingerprint}")
-            PrivilegeAdbClient(connectPort, key).use { client ->
-                client.connect(output)
+            PrivilegeAdbClient(connectEndpoint, key).use { client ->
+                try {
+                    client.connect(output)
+                } catch (throwable: Throwable) {
+                    throw throwable.toLocalNetworkAccessFailure(connectEndpoint)
+                }
                 runCatching {
                     client.command("tcpip:$tcpPort", output)
                 }.onFailure { throwable ->
@@ -618,14 +639,14 @@ public class PrivilegeAdbStarter private constructor(
         }
 
     private fun runDiagnosticShellCommand(
-        port: Int,
+        endpoint: PrivilegeAdbEndpoint,
         key: PrivilegeAdbKey,
         label: String,
         command: String,
         output: PrivilegeAdbOutput,
     ) {
         runCatching {
-            PrivilegeAdbClient(port, key).use { client ->
+            PrivilegeAdbClient(endpoint, key).use { client ->
                 client.connect(output)
                 client.command("shell:$command", output)
             }
@@ -638,13 +659,13 @@ public class PrivilegeAdbStarter private constructor(
     }
 
     private fun appendRuntimeDiagnostics(
-        port: Int,
+        endpoint: PrivilegeAdbEndpoint,
         key: PrivilegeAdbKey,
         output: PrivilegeAdbOutput,
     ) {
         output.append("diag", "Reading server process state")
         runDiagnosticShellCommand(
-            port = port,
+            endpoint = endpoint,
             key = key,
             label = "server process state",
             command = "ps -A | grep '[p]riv-kit-server' 2>&1 || true",
@@ -652,7 +673,7 @@ public class PrivilegeAdbStarter private constructor(
         )
         output.append("diag", "Reading PrivKit logcat")
         runDiagnosticShellCommand(
-            port = port,
+            endpoint = endpoint,
             key = key,
             label = "PrivKit logcat",
             command = "logcat -d -t 160 -s PrivKitServer:D PrivKit:D AndroidRuntime:E '*:S' 2>&1",
@@ -662,6 +683,7 @@ public class PrivilegeAdbStarter private constructor(
 
     private fun connectWithRetry(
         client: PrivilegeAdbClient,
+        endpoint: PrivilegeAdbEndpoint,
         options: PrivilegeAdbStartOptions,
         output: PrivilegeAdbOutput,
     ) {
@@ -677,7 +699,7 @@ public class PrivilegeAdbStarter private constructor(
             } catch (throwable: Throwable) {
                 output.append("diag", "ADB connect attempt $attempt failed: ${throwable.javaClass.simpleName}: ${throwable.message}")
                 if (!shouldRetryAdbConnectFailure(throwable, attempt, options.connectRetryCount)) {
-                    throw throwable
+                    throw throwable.toLocalNetworkAccessFailure(endpoint)
                 }
                 nextDelay = options.connectRetryDelayMillis
             }
@@ -745,3 +767,10 @@ internal fun shouldRetryAdbConnectFailure(
         !throwable.isAdbKeyNotAuthorized()
 
 private const val PRIVILEGE_ADB_MANAGED_WIRELESS_CONNECT_PORT_DISCOVERY_ATTEMPTS = 3
+
+private fun Throwable.toLocalNetworkAccessFailure(endpoint: PrivilegeAdbEndpoint): Throwable =
+    if (!endpoint.isLocalHost && !isAdbKeyNotAuthorized()) {
+        PrivilegeAdbLocalNetworkAccessException(endpoint, this)
+    } else {
+        this
+    }

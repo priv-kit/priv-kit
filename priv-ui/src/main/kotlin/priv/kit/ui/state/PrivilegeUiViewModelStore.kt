@@ -46,8 +46,6 @@ internal class PrivilegeUiViewModelStore(
     @Volatile
     var tcpAuthorizationRequest: Closeable? = null
     val tcpAuthorizationRequestGeneration = AtomicLong(0L)
-    var wirelessPairingJob: Job? = null
-    val wirelessPairingGeneration = AtomicLong(0L)
 
     fun initializeState(config: PrivilegeUiConfig) {
         val context = requireContext()
@@ -153,9 +151,6 @@ internal class PrivilegeUiViewModelStore(
         tcpAuthorizationRequestGeneration.incrementAndGet()
         tcpAuthorizationRequest = null
         request?.close()
-        wirelessPairingGeneration.incrementAndGet()
-        wirelessPairingJob?.cancel()
-        wirelessPairingJob = null
     }
 
     private fun PrivilegeUiConfig.effectiveStartupModes(): List<PrivilegeUiStartupMode> {

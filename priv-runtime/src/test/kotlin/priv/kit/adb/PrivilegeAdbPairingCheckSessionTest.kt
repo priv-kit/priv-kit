@@ -123,7 +123,7 @@ class PrivilegeAdbPairingCheckSessionTest {
     private fun session(
         explicitPort: Int? = 37099,
         discoverPort: Boolean = false,
-        clientFactory: (Int) -> PrivilegeAdbAuthorizationConnection,
+        clientFactory: (PrivilegeAdbEndpoint) -> PrivilegeAdbAuthorizationConnection,
     ): PrivilegeAdbPairingCheckSession =
         PrivilegeAdbPairingCheckSession(
             identity = PrivilegeAdbIdentity.default(),
@@ -131,7 +131,7 @@ class PrivilegeAdbPairingCheckSessionTest {
             explicitPort = explicitPort,
             discoverPort = discoverPort,
             portDiscoveryTimeoutMillis = 1_000L,
-            discoverConnectPort = { error("discovery should not be used") },
+            discoverConnectEndpoint = { error("discovery should not be used") },
             clientFactory = clientFactory,
         )
 

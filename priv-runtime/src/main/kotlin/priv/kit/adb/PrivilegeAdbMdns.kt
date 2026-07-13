@@ -15,7 +15,6 @@ import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 
 internal class PrivilegeAdbMdns(
     private val nsdManager: NsdManager,
@@ -25,11 +24,12 @@ internal class PrivilegeAdbMdns(
     private val callbackExecutor = Executor { command -> handler.post(command) }
     private val serviceInfoCallbacks = mutableSetOf<NsdManager.ServiceInfoCallback>()
     private var registered = false
-    private val port = AtomicInteger(-1)
+    @Volatile
+    private var endpoint: PrivilegeAdbEndpoint? = null
     private var latch: CountDownLatch? = null
     private val listener = DiscoveryListener()
 
-    fun discoverPort(timeoutMillis: Long): Int {
+    fun discoverEndpoint(timeoutMillis: Long): PrivilegeAdbEndpoint {
         val discoveryLatch = CountDownLatch(1)
         latch = discoveryLatch
         handler.post {
@@ -40,11 +40,9 @@ internal class PrivilegeAdbMdns(
         } finally {
             close()
         }
-        val discoveredPort = port.get()
-        if (discoveredPort <= 0) {
+        return endpoint ?: run {
             throw PrivilegeAdbException("Timed out discovering ADB service $serviceType")
         }
-        return discoveredPort
     }
 
     override fun close() {
@@ -63,23 +61,31 @@ internal class PrivilegeAdbMdns(
     }
 
     private fun onServiceResolved(info: NsdServiceInfo) {
-        if (isLocalService(info) && isPortListeningOnLocalhost(info.port)) {
-            port.compareAndSet(-1, info.port)
+        val localHost = localServiceHost(info) ?: return
+        val resolvedEndpoint = privilegeAdbReachableLocalEndpoint(
+            serviceHost = localHost,
+            port = info.port,
+            isPortListeningOnHost = ::isPortListeningOnHost,
+        )
+        if (resolvedEndpoint != null) {
+            endpoint = resolvedEndpoint
             latch?.countDown()
         }
     }
 
-    private fun isLocalService(info: NsdServiceInfo): Boolean {
+    private fun localServiceHost(info: NsdServiceInfo): String? {
         val hostAddresses = info.hostAddressesForCurrentApi()
         if (hostAddresses.isEmpty()) {
-            return false
+            return null
         }
-        return NetworkInterface.getNetworkInterfaces()
+        val localAddresses = NetworkInterface.getNetworkInterfaces()
             .asSequence()
             .flatMap { it.inetAddresses.asSequence() }
-            .any { localAddress ->
-                hostAddresses.any { it.hostAddress == localAddress.hostAddress }
-            }
+            .mapNotNull { it.hostAddress }
+            .toSet()
+        return hostAddresses.firstNotNullOfOrNull { hostAddress ->
+            hostAddress.hostAddress?.takeIf { it in localAddresses }
+        }
     }
 
     private fun NsdServiceInfo.hostAddressesForCurrentApi(): List<InetAddress> =
@@ -93,10 +99,10 @@ internal class PrivilegeAdbMdns(
     private fun NsdServiceInfo.preApi34HostAddresses(): List<InetAddress> =
         listOfNotNull(host)
 
-    private fun isPortListeningOnLocalhost(port: Int): Boolean =
+    private fun isPortListeningOnHost(host: String, port: Int): Boolean =
         try {
             ServerSocket().use {
-                it.bind(InetSocketAddress("127.0.0.1", port), 1)
+                it.bind(InetSocketAddress(host, port), 1)
                 false
             }
         } catch (_: IOException) {
@@ -171,5 +177,18 @@ internal class PrivilegeAdbMdns(
     companion object {
         const val TLS_CONNECT = "_adb-tls-connect._tcp"
         const val TLS_PAIRING = "_adb-tls-pairing._tcp"
+    }
+}
+
+internal fun privilegeAdbReachableLocalEndpoint(
+    serviceHost: String,
+    port: Int,
+    isPortListeningOnHost: (String, Int) -> Boolean,
+): PrivilegeAdbEndpoint? {
+    if (isPortListeningOnHost(PRIVILEGE_ADB_LOCAL_HOST, port)) {
+        return PrivilegeAdbEndpoint.local(port)
+    }
+    return PrivilegeAdbEndpoint(serviceHost, port).takeIf {
+        isPortListeningOnHost(serviceHost, port)
     }
 }

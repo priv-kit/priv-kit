@@ -44,74 +44,6 @@ internal class PrivilegeUiAdbTcpActions(
         )
     }
 
-    fun requestTcpAuthorization(tcpPort: Int? = store.currentTcpModePort()) {
-        if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
-        if (tcpPort == null) {
-            refreshTcpModeEnabled()
-            return
-        }
-        store.tcpAuthorizationRequest?.let { request ->
-            if (store.state.value.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING) {
-                return
-            }
-            store.tcpAuthorizationRequestGeneration.incrementAndGet()
-            store.tcpAuthorizationRequest = null
-            request.close()
-        }
-        val requestGeneration = store.tcpAuthorizationRequestGeneration.incrementAndGet()
-        store.updateState {
-            it.copy(
-                tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
-            )
-        }
-        val starter = Privilege.createAdbStarter(
-            adbDeviceName = store.currentAdbDeviceNameOverride(),
-        )
-        val request = starter.requestTcpAuthorization(
-            tcpPort = tcpPort,
-            timeoutMillis = store.config.adbAuthorizationTimeoutMillis,
-        ) { result ->
-            if (store.tcpAuthorizationRequestGeneration.get() != requestGeneration) {
-                return@requestTcpAuthorization
-            }
-            store.tcpAuthorizationRequest = null
-            if (result.authorized) {
-                val message = store.text(R.string.priv_ui_tcp_authorization_allowed)
-                store.updateState {
-                    it.copy(
-                        tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
-                    )
-                }
-                store.appendLog(message)
-            } else {
-                val status = when (result.endReason) {
-                    PrivilegeAdbAuthorizationEndReason.FAILED -> PrivilegeUiAdbTcpAuthorizationStatus.FAILED
-                    PrivilegeAdbAuthorizationEndReason.AUTOMATIC_TIMEOUT,
-                    PrivilegeAdbAuthorizationEndReason.MANUAL_CANCELLED,
-                    null,
-                    -> PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED
-                }
-                val message = result.failureMessage
-                    ?: store.text(R.string.priv_ui_tcp_authorization_not_completed)
-                store.updateState {
-                    it.copy(
-                        tcpAuthorizationStatus = status,
-                    )
-                }
-                store.showFailure(message)
-                store.appendLog(message)
-            }
-        }
-        if (
-            store.tcpAuthorizationRequestGeneration.get() == requestGeneration &&
-            store.state.value.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING
-        ) {
-            store.tcpAuthorizationRequest = request
-        } else {
-            request.close()
-        }
-    }
-
     suspend fun requestTcpAuthorizationForStart(
         session: PrivilegeUiRuntimeStartSession,
         tcpPort: Int,
@@ -143,36 +75,11 @@ internal class PrivilegeUiAdbTcpActions(
                     return
                 }
                 store.tcpAuthorizationRequest = null
-                if (result.authorized) {
-                    val message = store.text(R.string.priv_ui_tcp_authorization_allowed)
-                    store.updateState {
-                        it.copy(
-                            tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
-                        )
-                    }
-                    store.appendStartupLog(message)
-                    if (continuation.isActive) continuation.resume(true)
-                } else {
-                    val status = when (result.endReason) {
-                        PrivilegeAdbAuthorizationEndReason.FAILED -> PrivilegeUiAdbTcpAuthorizationStatus.FAILED
-                        PrivilegeAdbAuthorizationEndReason.AUTOMATIC_TIMEOUT,
-                        PrivilegeAdbAuthorizationEndReason.MANUAL_CANCELLED,
-                        null,
-                        -> PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED
-                    }
-                    val message = result.failureMessage
-                        ?: store.text(R.string.priv_ui_tcp_authorization_not_completed)
-                    store.updateState {
-                        it.copy(
-                            tcpAuthorizationStatus = status,
-                        )
-                    }
-                    if (!session.stop.get()) {
-                        store.showFailure(message)
-                        store.appendStartupLog(message)
-                    }
-                    if (continuation.isActive) continuation.resume(false)
-                }
+                val authorized = applyTcpAuthorizationResult(
+                    result = result,
+                    showFailure = !session.stop.get(),
+                )
+                if (continuation.isActive) continuation.resume(authorized)
             }
 
             request = starter.requestTcpAuthorization(
@@ -185,15 +92,7 @@ internal class PrivilegeUiAdbTcpActions(
                     if (store.tcpAuthorizationRequestGeneration.get() == requestGeneration) {
                         store.tcpAuthorizationRequestGeneration.incrementAndGet()
                         store.tcpAuthorizationRequest = null
-                        store.updateState { current ->
-                            if (current.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING) {
-                                current.copy(
-                                    tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
-                                )
-                            } else {
-                                current
-                            }
-                        }
+                        markTcpAuthorizationUnauthorizedIfAuthorizing()
                     }
                     request.close()
                 }
@@ -211,18 +110,6 @@ internal class PrivilegeUiAdbTcpActions(
                 sessionRequest.close()
             }
         }
-    }
-
-    fun cancelTcpAuthorization() {
-        finishTcpAuthorizationRequest()
-    }
-
-    fun startTcpAdb(tcpPort: Int? = store.currentTcpModePort()) {
-        if (tcpPort == null) {
-            refreshTcpModeEnabled()
-            return
-        }
-        runtimeActions.runServerStart(tcpAdbStartAttempt(tcpPort))
     }
 
     fun tcpAdbStartAttempt(tcpPort: Int): PrivilegeUiRuntimeStartAttempt.Connect {
@@ -292,31 +179,48 @@ internal class PrivilegeUiAdbTcpActions(
         request?.close()
     }
 
-    private fun finishTcpAuthorizationRequest() {
-        val request = store.tcpAuthorizationRequest
-        store.tcpAuthorizationRequestGeneration.incrementAndGet()
-        store.tcpAuthorizationRequest = null
-        if (request == null) {
-            store.updateState { current ->
-                if (current.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING) {
-                    current.copy(
-                        tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
-                    )
-                } else {
-                    current
-                }
-            }
-            return
+    private fun applyTcpAuthorizationResult(
+        result: PrivilegeAdbAuthorizationRequestResult,
+        showFailure: Boolean,
+    ): Boolean {
+        val status = if (result.authorized) {
+            PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED
+        } else {
+            result.endReason.toUiTcpAuthorizationStatus()
         }
-        request.close()
+        val message = if (result.authorized) {
+            store.text(R.string.priv_ui_tcp_authorization_allowed)
+        } else {
+            result.failureMessage ?: store.text(R.string.priv_ui_tcp_authorization_not_completed)
+        }
+        store.updateState { current ->
+            current.copy(tcpAuthorizationStatus = status)
+        }
+        if (result.authorized) {
+            store.appendStartupLog(message)
+        } else if (showFailure) {
+            store.showFailure(message)
+            store.appendStartupLog(message)
+        }
+        return result.authorized
+    }
+
+    private fun markTcpAuthorizationUnauthorizedIfAuthorizing() {
         store.updateState { current ->
             if (current.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING) {
-                current.copy(
-                    tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
-                )
+                current.copy(tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED)
             } else {
                 current
             }
         }
     }
 }
+
+private fun PrivilegeAdbAuthorizationEndReason?.toUiTcpAuthorizationStatus(): PrivilegeUiAdbTcpAuthorizationStatus =
+    when (this) {
+        PrivilegeAdbAuthorizationEndReason.FAILED -> PrivilegeUiAdbTcpAuthorizationStatus.FAILED
+        PrivilegeAdbAuthorizationEndReason.AUTOMATIC_TIMEOUT,
+        PrivilegeAdbAuthorizationEndReason.MANUAL_CANCELLED,
+        null,
+        -> PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED
+    }

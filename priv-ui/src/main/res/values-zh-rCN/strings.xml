@@ -100,6 +100,8 @@
     <string name="priv_ui_tcp_authorization_failed">需要重试</string>
     <string name="priv_ui_notification_permission_required">需要通知权限</string>
     <string name="priv_ui_notification_permission_missing">需要通知权限，才能在弹窗打开期间保持配对服务运行</string>
+    <string name="priv_ui_local_network_permission_required">需要本地网络权限</string>
+    <string name="priv_ui_local_network_permission_missing">需要允许本地网络访问，才能连接本机无线调试</string>
     <string name="priv_ui_notification_pairing_started">已打开配对入口</string>
     <string name="priv_ui_external_authorize_start">启动</string>
     <string name="priv_ui_external_start">启动</string>

@@ -80,3 +80,17 @@ internal fun PrivilegeAdbWirelessDebuggingControlStatus.toUiManagedWirelessAdbSt
         !permissionGranted -> PrivilegeUiManagedWirelessAdbStatus.PERMISSION_REQUIRED
         else -> PrivilegeUiManagedWirelessAdbStatus.UNKNOWN
     }
+
+internal fun PrivilegeUiState.withWirelessAdbOffline(
+    wifiConnected: Boolean = this.wifiConnected,
+    managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus = this.managedWirelessAdbStatus,
+    notificationPairingRunning: Boolean = this.notificationPairingRunning,
+): PrivilegeUiState =
+    copy(
+        wifiConnected = wifiConnected,
+        wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
+        wirelessPairingServiceStatus = PrivilegeUiWirelessAdbStatus.OFF,
+        wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+        managedWirelessAdbStatus = managedWirelessAdbStatus,
+        notificationPairingRunning = notificationPairingRunning,
+    )

@@ -66,6 +66,10 @@ PrivilegeScaffold(
         // Request android.permission.POST_NOTIFICATIONS on Android 13+,
         // then call viewModel.handleNotificationPermissionResult(granted).
     },
+    onLocalNetworkPermissionRequired = { permission ->
+        // Request the supplied local-network permission on Android 17+
+        // after Wireless debugging falls back to a LAN endpoint.
+    },
 )
 ```
 

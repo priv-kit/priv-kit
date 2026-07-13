@@ -229,3 +229,29 @@ class PrivilegeUiDirectStartTest {
         )
     }
 }
+
+private fun PrivilegeUiState.directStartTarget(
+    tcpModeEnabled: Boolean,
+    tcpPolicy: PrivilegeUiAdbTcpPolicy,
+    wirelessAdbSupported: Boolean = true,
+    managedWirelessAdbEnabled: Boolean = true,
+): PrivilegeUiDirectStartTarget? =
+    directStartTargets(
+        tcpModeEnabled = tcpModeEnabled,
+        tcpPolicy = tcpPolicy,
+        wirelessAdbSupported = wirelessAdbSupported,
+        managedWirelessAdbEnabled = managedWirelessAdbEnabled,
+    ).firstOrNull()
+
+private fun PrivilegeUiState.hasDirectStartTarget(
+    tcpModeEnabled: Boolean,
+    tcpPolicy: PrivilegeUiAdbTcpPolicy,
+    wirelessAdbSupported: Boolean = true,
+    managedWirelessAdbEnabled: Boolean = true,
+): Boolean =
+    directStartTargets(
+        tcpModeEnabled = tcpModeEnabled,
+        tcpPolicy = tcpPolicy,
+        wirelessAdbSupported = wirelessAdbSupported,
+        managedWirelessAdbEnabled = managedWirelessAdbEnabled,
+    ).isNotEmpty()

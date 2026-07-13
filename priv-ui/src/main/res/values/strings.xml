@@ -100,6 +100,8 @@
     <string name="priv_ui_tcp_authorization_failed">Retry needed</string>
     <string name="priv_ui_notification_permission_required">Notification permission required</string>
     <string name="priv_ui_notification_permission_missing">Allow notifications to keep the pairing service running while this dialog is open</string>
+    <string name="priv_ui_local_network_permission_required">Local network permission required</string>
+    <string name="priv_ui_local_network_permission_missing">Allow local network access so Wireless debugging can connect to this device</string>
     <string name="priv_ui_notification_pairing_started">Pairing is open</string>
     <string name="priv_ui_external_authorize_start">Start</string>
     <string name="priv_ui_external_start">Start</string>
