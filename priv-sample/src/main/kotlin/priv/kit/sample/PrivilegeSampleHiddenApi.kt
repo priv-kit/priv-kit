@@ -2,7 +2,6 @@ package priv.kit.sample
 
 import android.content.Context
 import android.content.pm.UserInfo
-import android.os.Build
 import android.os.IBinder
 import android.os.IUserManager
 import priv.kit.binder.PrivilegeBinderWrapper
@@ -12,6 +11,12 @@ internal data class PrivilegeSampleUserInfo(
     val id: Int,
     val name: String,
 )
+
+private val userManagerGetUsersParameterCount: Int by lazy {
+    IUserManager::class.java.declaredMethods
+        .first { it.name == "getUsers" }
+        .parameterCount
+}
 
 internal object PrivilegeSampleUserManager {
     fun createFromCurrentProcess(): PrivilegeSampleUserManagerProxy {
@@ -78,13 +83,12 @@ internal class PrivilegeSampleUserManagerProxy(
         }
 }
 
-private fun IUserManager.getUsersForCurrentPlatform(): List<UserInfo> =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        getUsers(true, true, true)
-    } else {
-        try {
-            getUsers(true)
-        } catch (_: NoSuchMethodError) {
-            getUsers(true, true, true)
-        }
+private fun IUserManager.getUsersForCurrentPlatform(): List<UserInfo> {
+    return when (userManagerGetUsersParameterCount) {
+        1 -> getUsers(true)
+        3 -> getUsers(true, true, true)
+        else -> error(
+            "Unsupported IUserManager.getUsers parameter count: $userManagerGetUsersParameterCount",
+        )
     }
+}
