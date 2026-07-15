@@ -15,6 +15,46 @@ import priv.kit.adb.PrivilegeAdbAuthorizationStatus
 
 class PrivilegeUiAdbActionsTest {
     @Test
+    fun developerModeSettingTreatsAnyNonZeroValueAsEnabled() {
+        assertFalse(privilegeUiDeveloperModeEnabledFromSetting(0))
+        assertTrue(privilegeUiDeveloperModeEnabledFromSetting(1))
+        assertTrue(privilegeUiDeveloperModeEnabledFromSetting(2))
+        assertTrue(privilegeUiDeveloperModeEnabledFromSetting(-1))
+    }
+
+    @Test
+    fun developerModeDetectionIsDisabledFromAndroid17() {
+        var reads = 0
+
+        assertEquals(
+            true,
+            privilegeUiDeveloperModeEnabled(Build.VERSION_CODES.BAKLAVA) {
+                reads += 1
+                true
+            },
+        )
+        assertEquals(1, reads)
+        assertEquals(
+            null,
+            privilegeUiDeveloperModeEnabled(Build.VERSION_CODES.CINNAMON_BUN) {
+                reads += 1
+                false
+            },
+        )
+        assertEquals(1, reads)
+    }
+
+    @Test
+    fun developerModeDetectionFailureIsUnknown() {
+        assertEquals(
+            null,
+            privilegeUiDeveloperModeEnabled(Build.VERSION_CODES.BAKLAVA) {
+                error("unavailable")
+            },
+        )
+    }
+
+    @Test
     fun pairingCheckStatusUsesWirelessAndRefreshResult() {
         listOf(
             PairingCheckCase(

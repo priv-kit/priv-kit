@@ -71,6 +71,7 @@
     <string name="priv_ui_wireless_status_checking">正在检查</string>
     <string name="priv_ui_wireless_status_on">开启</string>
     <string name="priv_ui_wireless_status_wifi_required">需要 Wi-Fi</string>
+    <string name="priv_ui_wireless_status_developer_options_required">请先开启开发者选项</string>
     <string name="priv_ui_wireless_status_off">关闭</string>
     <string name="priv_ui_wireless_status_unpaired">未配对</string>
     <string name="priv_ui_wireless_status_pairable">可配对</string>

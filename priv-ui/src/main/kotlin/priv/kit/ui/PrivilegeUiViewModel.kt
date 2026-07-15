@@ -45,6 +45,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     private var externalStartStatusPollingHandle: AutoCloseable? = null
     public val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
     public open val tcpModeEnabled: MutableStateFlow<Boolean> = store.tcpModeEnabled
+    internal val developerModeEnabled: StateFlow<Boolean?> = store.developerModeEnabled.asStateFlow()
     internal val snackbarMessages: SharedFlow<String> = store.snackbarMessages
     public open val adbTcpPolicy: PrivilegeUiAdbTcpPolicy
         get() = store.config.adbTcpPolicy
@@ -97,7 +98,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         ) {
             return
         }
-        adbActions.refreshWifiConnected()
+        adbActions.refreshAdbStartPrerequisites()
         val directTargets = store.state.value.directStartTargets(
             tcpModeEnabled = store.state.value.tcpModePort != null,
             tcpPolicy = store.config.adbTcpPolicy,

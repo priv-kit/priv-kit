@@ -67,6 +67,8 @@ internal class PrivilegeUiAdbActions(
     fun startWirelessAdb(
         onLocalNetworkPermissionRequired: (String) -> Unit = {},
     ) {
+        refreshAdbStartPrerequisites()
+        if (!ensureDeveloperOptionsReadyForWirelessAdbStart()) return
         runtimeActions.runServerStartWorkflow(wirelessAdbStartWorkflow(onLocalNetworkPermissionRequired))
     }
 
@@ -99,6 +101,7 @@ internal class PrivilegeUiAdbActions(
         if (!statusActions.forceWirelessAdbStatusRefreshForAction(session.stop)) return false
         session.checkActive()
         if (!ensureWifiConnectedForWirelessAdbStart()) return false
+        if (!ensureDeveloperOptionsReadyForWirelessAdbStart()) return false
         if (!ensureWirelessDebuggingReadyForStart()) return false
         return ensureWirelessAdbPairedForStart()
     }
@@ -127,6 +130,8 @@ internal class PrivilegeUiAdbActions(
             store.state.value.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED
         ) {
             tcpActions.tcpAdbStartAttempt(tcpPort)
+        } else if (developerOptionsRequiredForWirelessAdbStart()) {
+            null
         } else {
             wirelessAdbStartAttempt(onLocalNetworkPermissionRequired)
         }
@@ -155,8 +160,9 @@ internal class PrivilegeUiAdbActions(
         statusActions.refreshWirelessAdbStatus()
     }
 
-    fun refreshWifiConnected() {
+    fun refreshAdbStartPrerequisites() {
         statusActions.refreshWifiConnected()
+        statusActions.refreshDeveloperModeEnabled()
     }
 
     fun stopWirelessAdbStatusPolling() {
@@ -196,6 +202,25 @@ internal class PrivilegeUiAdbActions(
         store.showSnackbar(message)
         store.appendStartupLog(message)
         return false
+    }
+
+    private fun ensureDeveloperOptionsReadyForWirelessAdbStart(): Boolean {
+        if (!developerOptionsRequiredForWirelessAdbStart()) {
+            return true
+        }
+        val message = store.text(R.string.priv_ui_wireless_status_developer_options_required)
+        store.showSnackbar(message)
+        store.appendStartupLog(message)
+        return false
+    }
+
+    private fun developerOptionsRequiredForWirelessAdbStart(): Boolean {
+        val state = store.state.value
+        return requiresDeveloperOptionsForWirelessAdb(
+            wifiConnected = state.wifiConnected,
+            developerModeEnabled = store.developerModeEnabled.value,
+            wirelessDebuggingStatus = state.wirelessDebuggingStatus,
+        )
     }
 
     private fun ensureWirelessDebuggingReadyForStart(): Boolean {

@@ -71,6 +71,7 @@
     <string name="priv_ui_wireless_status_checking">Checking</string>
     <string name="priv_ui_wireless_status_on">On</string>
     <string name="priv_ui_wireless_status_wifi_required">Wi-Fi required</string>
+    <string name="priv_ui_wireless_status_developer_options_required">Enable Developer options</string>
     <string name="priv_ui_wireless_status_off">Off</string>
     <string name="priv_ui_wireless_status_unpaired">Unpaired</string>
     <string name="priv_ui_wireless_status_pairable">Ready to pair</string>

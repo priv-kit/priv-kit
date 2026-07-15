@@ -8,14 +8,20 @@ import priv.kit.ui.state.*
 
 import android.app.Application
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.provider.Settings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowNetwork
+import org.robolectric.shadows.ShadowNetworkCapabilities
 import java.io.Closeable
 
 @RunWith(RobolectricTestRunner::class)
@@ -91,6 +97,98 @@ class PrivilegeUiViewModelTest {
         viewModel.onHostResume()
 
         assertFalse(viewModel.state.value.wirelessStatusPollingActive)
+    }
+
+    @Test
+    fun wirelessAdbStartStopsBeforeWorkflowWhenDeveloperOptionsAreRequired() {
+        val app = application()
+        connectWifi(app)
+        Settings.Global.putInt(
+            app.contentResolver,
+            Settings.Global.DEVELOPMENT_SETTINGS_ENABLED,
+            0,
+        )
+        val viewModel = RootOnlyPrivilegeUiViewModel(app)
+        val store = viewModel.storeForTest()
+        store.developerModeEnabled.value = false
+        store.updateState {
+            it.copy(
+                wifiConnected = true,
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
+                managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.READY,
+                startupLogLines = emptyList(),
+            )
+        }
+
+        try {
+            viewModel.startWirelessAdb()
+
+            val state = viewModel.state.value
+            assertEquals(PrivilegeUiRuntimeStatus.DISCONNECTED, state.runtimeStatus)
+            assertFalse(state.busy)
+            assertTrue(
+                app.getString(R.string.priv_ui_wireless_status_developer_options_required) in
+                    state.startupLogLines,
+            )
+            assertFalse(
+                app.getString(R.string.priv_ui_wireless_adb_starting) in state.startupLogLines,
+            )
+            assertFalse(
+                app.getString(R.string.priv_ui_checking_wireless_adb) in state.startupLogLines,
+            )
+        } finally {
+            viewModel.stopCurrentStart()
+        }
+    }
+
+    @Test
+    fun directAdbStartSkipsBlockedWirelessButKeepsAuthorizedTcp() {
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
+        val store = viewModel.storeForTest()
+        val adbActions = viewModel.adbActionsForTest()
+        store.developerModeEnabled.value = false
+        store.updateState {
+            it.copy(
+                wifiConnected = true,
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
+                managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.READY,
+            )
+        }
+
+        assertEquals(null, adbActions.directStartAttempt())
+
+        store.config = store.config.copy(adbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING)
+        store.updateTcpModePort(5555)
+        store.updateState {
+            it.copy(tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED)
+        }
+
+        assertTrue(adbActions.directStartAttempt() != null)
+    }
+
+    @Test
+    fun adbStartPrerequisitesRefreshStaleDeveloperModeValue() {
+        val app = application()
+        val viewModel = RootOnlyPrivilegeUiViewModel(app)
+        val store = viewModel.storeForTest()
+        store.developerModeEnabled.value = false
+        Settings.Global.putInt(
+            app.contentResolver,
+            Settings.Global.DEVELOPMENT_SETTINGS_ENABLED,
+            2,
+        )
+
+        try {
+            viewModel.adbActionsForTest().refreshAdbStartPrerequisites()
+
+            assertEquals(true, store.developerModeEnabled.value)
+        } finally {
+            Settings.Global.putInt(
+                app.contentResolver,
+                Settings.Global.DEVELOPMENT_SETTINGS_ENABLED,
+                0,
+            )
+        }
     }
 
     @Test
@@ -255,10 +353,25 @@ class PrivilegeUiViewModelTest {
         runtimeContext.getDeclaredMethod("install", Context::class.java).invoke(instance, context)
     }
 
+    private fun connectWifi(context: Context) {
+        val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
+        val network = ShadowNetwork.newInstance(100)
+        val capabilities = ShadowNetworkCapabilities.newInstance()
+        shadowOf(capabilities).addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+        shadowOf(connectivityManager).addNetwork(network, null)
+        shadowOf(connectivityManager).setNetworkCapabilities(network, capabilities)
+    }
+
     private fun PrivilegeUiViewModel.storeForTest(): PrivilegeUiViewModelStore {
         val field = PrivilegeUiViewModel::class.java.getDeclaredField("store")
         field.isAccessible = true
         return field.get(this) as PrivilegeUiViewModelStore
+    }
+
+    private fun PrivilegeUiViewModel.adbActionsForTest(): PrivilegeUiAdbActions {
+        val field = PrivilegeUiViewModel::class.java.getDeclaredField("adbActions")
+        field.isAccessible = true
+        return field.get(this) as PrivilegeUiAdbActions
     }
 
     private class CloseCounter : Closeable {

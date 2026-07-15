@@ -5,7 +5,21 @@ import priv.kit.ui.adb.pairing.*
 import priv.kit.ui.runtime.*
 import priv.kit.ui.state.*
 
+import android.os.Build
 import priv.kit.adb.PrivilegeAdbWirelessDebuggingControlStatus
+
+internal fun privilegeUiDeveloperModeEnabledFromSetting(value: Int): Boolean =
+    value != 0
+
+internal fun privilegeUiDeveloperModeEnabled(
+    sdkInt: Int,
+    readEnabled: () -> Boolean,
+): Boolean? =
+    if (sdkInt >= Build.VERSION_CODES.CINNAMON_BUN) {
+        null
+    } else {
+        runCatching(readEnabled).getOrNull()
+    }
 
 internal fun privilegeUiPairingCheckStatus(
     wirelessDebuggingOn: Boolean,

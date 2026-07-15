@@ -13,6 +13,7 @@ internal enum class PrivilegeUiWirelessAdbStartAction {
 
 internal enum class PrivilegeUiWirelessAdbPanelStatus {
     WIFI_REQUIRED,
+    DEVELOPER_OPTIONS_REQUIRED,
     OFF,
     UNPAIRED,
     PAIRABLE,
@@ -26,14 +27,30 @@ internal enum class PrivilegeUiStaticTcpPanelStatus {
     AUTHORIZED,
 }
 
+internal fun requiresDeveloperOptionsForWirelessAdb(
+    wifiConnected: Boolean,
+    developerModeEnabled: Boolean?,
+    wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus,
+): Boolean =
+    wifiConnected &&
+        developerModeEnabled == false &&
+        wirelessDebuggingStatus != PrivilegeUiWirelessAdbStatus.ON
+
 internal fun wirelessAdbPanelStatus(
     wifiConnected: Boolean,
+    developerModeEnabled: Boolean?,
     wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus,
     wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus,
     wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus,
 ): PrivilegeUiWirelessAdbPanelStatus {
     return when {
         !wifiConnected -> PrivilegeUiWirelessAdbPanelStatus.WIFI_REQUIRED
+        requiresDeveloperOptionsForWirelessAdb(
+            wifiConnected = wifiConnected,
+            developerModeEnabled = developerModeEnabled,
+            wirelessDebuggingStatus = wirelessDebuggingStatus,
+        ) ->
+            PrivilegeUiWirelessAdbPanelStatus.DEVELOPER_OPTIONS_REQUIRED
         wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.OFF ->
             PrivilegeUiWirelessAdbPanelStatus.OFF
         wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON ->

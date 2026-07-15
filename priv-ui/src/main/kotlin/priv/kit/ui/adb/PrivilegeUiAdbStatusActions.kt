@@ -5,6 +5,8 @@ import priv.kit.ui.adb.pairing.*
 import priv.kit.ui.runtime.*
 import priv.kit.ui.state.*
 
+import android.os.Build
+import android.provider.Settings
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -135,6 +137,10 @@ internal class PrivilegeUiAdbStatusActions(
         store.updateState {
             it.copy(wifiConnected = store.isWifiConnected())
         }
+    }
+
+    fun refreshDeveloperModeEnabled() {
+        store.developerModeEnabled.value = currentDeveloperModeEnabled()
     }
 
     fun stopWirelessAdbStatusPolling() {
@@ -306,6 +312,8 @@ internal class PrivilegeUiAdbStatusActions(
     }
 
     private fun pollWirelessAdbStatusOnce(stop: AtomicBoolean) {
+        val developerModeEnabled = currentDeveloperModeEnabled()
+        store.developerModeEnabled.value = developerModeEnabled
         val wifiConnected = store.isWifiConnected()
         if (!wifiConnected) {
             adbConnectionSessions.closeWirelessPairingCheckSession()
@@ -390,6 +398,17 @@ internal class PrivilegeUiAdbStatusActions(
             )
         }
     }
+
+    private fun currentDeveloperModeEnabled(): Boolean? =
+        privilegeUiDeveloperModeEnabled(Build.VERSION.SDK_INT) {
+            privilegeUiDeveloperModeEnabledFromSetting(
+                Settings.Global.getInt(
+                    store.requireContext().contentResolver,
+                    Settings.Global.DEVELOPMENT_SETTINGS_ENABLED,
+                    0,
+                ),
+            )
+        }
 
     private fun statusRefreshActionDeadlineMillis(): Long =
         System.currentTimeMillis() +

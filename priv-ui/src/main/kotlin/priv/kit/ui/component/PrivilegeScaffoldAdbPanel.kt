@@ -60,6 +60,7 @@ import priv.kit.ui.state.privilegeUiStaticTcpOpenCommand
 @Composable
 internal fun AdbPanel(
     state: PrivilegeUiState,
+    developerModeEnabled: Boolean?,
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
     managedWirelessAdbEnabled: Boolean,
     configuredTcpPort: Int,
@@ -78,6 +79,7 @@ internal fun AdbPanel(
         val paired = state.wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON
         val wirelessStatus = wirelessAdbPanelStatus(
             wifiConnected = state.wifiConnected,
+            developerModeEnabled = developerModeEnabled,
             wirelessDebuggingStatus = state.wirelessDebuggingStatus,
             wirelessPairingServiceStatus = state.wirelessPairingServiceStatus,
             wirelessPairingCheckStatus = state.wirelessPairingCheckStatus,
@@ -463,6 +465,8 @@ private fun PrivilegeUiWirelessAdbPanelStatus.displayText(): String =
     when (this) {
         PrivilegeUiWirelessAdbPanelStatus.WIFI_REQUIRED ->
             stringResource(R.string.priv_ui_wireless_status_wifi_required)
+        PrivilegeUiWirelessAdbPanelStatus.DEVELOPER_OPTIONS_REQUIRED ->
+            stringResource(R.string.priv_ui_wireless_status_developer_options_required)
         PrivilegeUiWirelessAdbPanelStatus.OFF -> stringResource(R.string.priv_ui_wireless_status_off)
         PrivilegeUiWirelessAdbPanelStatus.UNPAIRED -> stringResource(R.string.priv_ui_wireless_status_unpaired)
         PrivilegeUiWirelessAdbPanelStatus.PAIRABLE -> stringResource(R.string.priv_ui_wireless_status_pairable)
@@ -475,6 +479,7 @@ private fun PrivilegeUiWirelessAdbPanelStatus.displayColor(): Color =
         PrivilegeUiWirelessAdbPanelStatus.PAIRED -> MaterialTheme.colorScheme.tertiary
         PrivilegeUiWirelessAdbPanelStatus.PAIRABLE -> MaterialTheme.colorScheme.primary
         PrivilegeUiWirelessAdbPanelStatus.WIFI_REQUIRED,
+        PrivilegeUiWirelessAdbPanelStatus.DEVELOPER_OPTIONS_REQUIRED,
         PrivilegeUiWirelessAdbPanelStatus.OFF,
         PrivilegeUiWirelessAdbPanelStatus.UNPAIRED,
         -> MaterialTheme.colorScheme.onSurfaceVariant

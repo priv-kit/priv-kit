@@ -22,6 +22,7 @@ internal class PrivilegeUiViewModelStore(
 ) : AutoCloseable {
     val state = MutableStateFlow(PrivilegeUiState())
     val tcpModeEnabled = MutableStateFlow(false)
+    val developerModeEnabled = MutableStateFlow<Boolean?>(null)
     private val snackbarMessageState = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val snackbarMessages: SharedFlow<String> = snackbarMessageState.asSharedFlow()
     val startupLogListener = PrivilegeStartupLogListener { line ->

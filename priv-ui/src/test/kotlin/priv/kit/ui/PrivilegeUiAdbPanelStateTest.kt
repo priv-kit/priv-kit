@@ -11,14 +11,72 @@ import org.junit.Test
 
 class PrivilegeUiAdbPanelStateTest {
     @Test
+    fun developerOptionsRequirementMatchesWirelessPanelPriority() {
+        listOf(
+            DeveloperOptionsRequirementCase(
+                wifiConnected = false,
+                developerModeEnabled = false,
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
+                expected = false,
+            ),
+            DeveloperOptionsRequirementCase(
+                developerModeEnabled = false,
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
+                expected = true,
+            ),
+            DeveloperOptionsRequirementCase(
+                developerModeEnabled = false,
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.CHECKING,
+                expected = true,
+            ),
+            DeveloperOptionsRequirementCase(
+                developerModeEnabled = false,
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
+                expected = false,
+            ),
+            DeveloperOptionsRequirementCase(
+                developerModeEnabled = true,
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
+                expected = false,
+            ),
+            DeveloperOptionsRequirementCase(
+                developerModeEnabled = null,
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
+                expected = false,
+            ),
+        ).forEach { case ->
+            assertEquals(
+                case.expected,
+                requiresDeveloperOptionsForWirelessAdb(
+                    wifiConnected = case.wifiConnected,
+                    developerModeEnabled = case.developerModeEnabled,
+                    wirelessDebuggingStatus = case.wirelessDebuggingStatus,
+                ),
+            )
+        }
+    }
+
+    @Test
     fun wirelessAdbPanelStatusCollapsesProbeFacts() {
         listOf(
             WirelessPanelStatusCase(
                 wifiConnected = false,
+                developerModeEnabled = false,
                 wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
                 wirelessPairingServiceStatus = PrivilegeUiWirelessAdbStatus.ON,
                 wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.ON,
                 expected = PrivilegeUiWirelessAdbPanelStatus.WIFI_REQUIRED,
+            ),
+            WirelessPanelStatusCase(
+                developerModeEnabled = false,
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
+                expected = PrivilegeUiWirelessAdbPanelStatus.DEVELOPER_OPTIONS_REQUIRED,
+            ),
+            WirelessPanelStatusCase(
+                developerModeEnabled = false,
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
+                wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.ON,
+                expected = PrivilegeUiWirelessAdbPanelStatus.PAIRED,
             ),
             WirelessPanelStatusCase(
                 wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
@@ -52,6 +110,7 @@ class PrivilegeUiAdbPanelStateTest {
                 case.expected,
                 wirelessAdbPanelStatus(
                     wifiConnected = case.wifiConnected,
+                    developerModeEnabled = case.developerModeEnabled,
                     wirelessDebuggingStatus = case.wirelessDebuggingStatus,
                     wirelessPairingServiceStatus = case.wirelessPairingServiceStatus,
                     wirelessPairingCheckStatus = case.wirelessPairingCheckStatus,
@@ -360,9 +419,17 @@ class PrivilegeUiAdbPanelStateTest {
 
     private data class WirelessPanelStatusCase(
         val wifiConnected: Boolean = true,
+        val developerModeEnabled: Boolean? = null,
         val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.OFF,
         val wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.OFF,
         val wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
         val expected: PrivilegeUiWirelessAdbPanelStatus,
+    )
+
+    private data class DeveloperOptionsRequirementCase(
+        val wifiConnected: Boolean = true,
+        val developerModeEnabled: Boolean?,
+        val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus,
+        val expected: Boolean,
     )
 }
