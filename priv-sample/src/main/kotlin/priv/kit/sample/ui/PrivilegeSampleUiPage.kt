@@ -1,4 +1,4 @@
-package priv.kit.sample
+package priv.kit.sample.ui
 
 import android.app.Application
 import androidx.activity.compose.rememberLauncherForActivityResult

@@ -1,10 +1,14 @@
-package priv.kit.sample
+package priv.kit.sample.ui
 
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
-import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeStartupLogListener
+import priv.kit.sample.PrivilegeSampleShizukuExternalStarter
+import priv.kit.sample.R
+import priv.kit.sample.SHIZUKU_PERMISSION_REQUEST_CODE
+import priv.kit.sample.toDiagnosticString
+import priv.kit.ui.PrivilegeAdbPairingService
 import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
 import priv.kit.ui.PrivilegeUiStreamingExternalStartProvider
@@ -32,13 +36,18 @@ internal fun createPrivilegeSampleUiConfig(context: Context): PrivilegeUiConfig 
         ),
     )
 
-internal fun MainActivity.handlePrivilegeUiConnected(serverInfo: PrivilegeServerInfo) {
-    screenState = screenState.copy(
-        busy = false,
-        status = PrivilegeSampleStatus.CONNECTED,
-        serverInfo = serverInfo,
-        message = "Connected",
+internal fun startPrivilegeSampleNotificationPairing(
+    context: Context,
+    adbDeviceName: String?,
+) {
+    PrivilegeAdbPairingService.start(
+        context = context,
+        adbDeviceName = adbDeviceName,
     )
+}
+
+internal fun stopPrivilegeSampleNotificationPairing(context: Context) {
+    PrivilegeAdbPairingService.stop(context)
 }
 
 private class PrivilegeSampleShizukuExternalStartProvider(

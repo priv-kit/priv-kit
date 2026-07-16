@@ -27,7 +27,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 | `:priv-runtime` | `priv-runtime` | `priv.kit`, `priv.kit.binder`, `priv.kit.userservice`, `priv.kit.adb`, `priv.kit.internal.*` |
 | `:priv-adb-crypto` | `priv-adb-crypto` | `priv.kit.adb.crypto.certificate`, `priv.kit.adb.crypto.pairing` |
 | `:priv-ui` | `priv-ui` | `priv.kit.ui` |
-| `:priv-sample` | 不作为发布 artifact | `priv.kit.sample` |
+| `:priv-sample` | 不作为发布 artifact | `priv.kit.sample`, `priv.kit.sample.ui` |
 | `:hidden-api` | 不作为发布 artifact | framework mirror/stub package |
 
 除 `:hidden-api` 中的 framework mirror/stub 外，所有源码 package 必须位于 `priv.kit.*`。公开 API 必须使用完整单词 `Privilege` 或 `Privilege*` 命名，禁止公开 API 使用 `Priv*` 缩写。
@@ -159,6 +159,12 @@ package 分区：
 
 - 演示项目支持的范围；
 - 使用 Jetpack Compose 实现示例界面。
+
+package 分区：
+
+- `priv.kit.sample` 承载应用自身的示例入口、状态、运行时操作、Binder/UserService 示例和自定义页面；
+- `priv.kit.sample.ui` 只承载对 `:priv-ui` 的页面、配置、ViewModel、外部启动 Provider 和通知配对服务适配；
+- `:priv-sample` 中直接导入 `priv.kit.ui.*` 的源码必须位于 `priv.kit.sample.ui`。
 
 允许演示：
 

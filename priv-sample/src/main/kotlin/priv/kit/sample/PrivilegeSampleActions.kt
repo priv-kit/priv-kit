@@ -13,9 +13,10 @@ import priv.kit.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStarter
 import priv.kit.binder.PrivilegeServerUnavailableException
+import priv.kit.sample.ui.startPrivilegeSampleNotificationPairing
+import priv.kit.sample.ui.stopPrivilegeSampleNotificationPairing
 import priv.kit.userservice.PrivilegeUserServiceException
 import priv.kit.userservice.PrivilegeUserServiceSpec
-import priv.kit.ui.PrivilegeAdbPairingService
 import rikka.shizuku.Shizuku
 import java.io.File
 import java.nio.charset.StandardCharsets
@@ -465,7 +466,7 @@ internal fun MainActivity.startNotificationPairing() {
         message = message,
     )
     appendLog(message)
-    PrivilegeAdbPairingService.start(
+    startPrivilegeSampleNotificationPairing(
         context = this,
         adbDeviceName = currentAdbDeviceNameOverride(),
     )
@@ -480,7 +481,7 @@ internal fun MainActivity.stopNotificationPairing() {
         message = message,
     )
     appendLog(message)
-    PrivilegeAdbPairingService.stop(this)
+    stopPrivilegeSampleNotificationPairing(this)
 }
 
 internal fun MainActivity.startWirelessAdb() {

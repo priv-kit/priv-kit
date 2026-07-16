@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import android.os.IBinder
 import priv.kit.Privilege
+import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeUserServiceConnection
 import java.io.Closeable
 import java.util.concurrent.Executors
@@ -54,6 +55,15 @@ internal class PrivilegeSampleViewModel : ViewModel() {
         if (backStack.size > 1) {
             backStack.removeAt(backStack.lastIndex)
         }
+    }
+
+    fun handlePrivilegeUiConnected(serverInfo: PrivilegeServerInfo) {
+        screenState = screenState.copy(
+            busy = false,
+            status = PrivilegeSampleStatus.CONNECTED,
+            serverInfo = serverInfo,
+            message = "Connected",
+        )
     }
 
     fun selectStartupTab(tab: PrivilegeStartupTab) {

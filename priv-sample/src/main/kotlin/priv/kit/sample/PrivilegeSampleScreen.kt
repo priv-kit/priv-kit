@@ -6,6 +6,7 @@ import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDe
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import priv.kit.sample.ui.PrivilegeUiAuthorizationPage
 
 @Composable
 internal fun PrivilegeSampleScreen(

@@ -100,7 +100,7 @@ class MainActivity : ComponentActivity() {
                 open = { sampleViewModel.openPrivilegeUi() },
                 back = { sampleViewModel.navigateBack() },
                 help = {},
-                connected = { handlePrivilegeUiConnected(it) },
+                connected = sampleViewModel::handlePrivilegeUiConnected,
                 notificationPermissionRequired = { requestPrivilegeUiNotificationPermission(it) },
                 notificationPermissionDisposed = { clearPrivilegeUiNotificationPermissionHandler(it) },
             ),

@@ -4,6 +4,12 @@ Sample Android app module for Priv Kit.
 
 Namespace and application id: `priv.kit.sample`.
 
+Source packages:
+
+- `priv.kit.sample` contains the app-owned sample entry points, state, runtime actions, Binder/UserService examples, and custom Compose pages.
+- `priv.kit.sample.ui` contains only the `priv-ui` page, configuration, ViewModel, external-start provider, and notification-pairing service integration.
+- Direct `priv.kit.ui.*` imports stay under `priv.kit.sample.ui`.
+
 Phase 1 contents:
 
 - A Compose-only sample surface backed by `PrivilegeSampleViewModel` and Navigation 3.
