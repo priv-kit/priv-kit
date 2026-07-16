@@ -22,7 +22,6 @@ internal class PrivilegeUiViewModelStore(
 ) : AutoCloseable {
     val state = MutableStateFlow(PrivilegeUiState())
     val tcpModeEnabled = MutableStateFlow(false)
-    val developerModeEnabled = MutableStateFlow<Boolean?>(null)
     private val snackbarMessageState = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val snackbarMessages: SharedFlow<String> = snackbarMessageState.asSharedFlow()
     val startupLogListener = PrivilegeStartupLogListener { line ->
@@ -45,7 +44,7 @@ internal class PrivilegeUiViewModelStore(
     var runtimeStartSession: PrivilegeUiRuntimeStartSession? = null
     val runtimeStartGeneration = AtomicLong(0L)
     @Volatile
-    var tcpAuthorizationRequest: Closeable? = null
+    var tcpAuthorizationRequest: AutoCloseable? = null
     val tcpAuthorizationRequestGeneration = AtomicLong(0L)
 
     fun initializeState(config: PrivilegeUiConfig) {
@@ -142,16 +141,13 @@ internal class PrivilegeUiViewModelStore(
             ?.ifBlank { null }
 
     override fun close() {
-        val request = tcpAuthorizationRequest
-        val session = runtimeStartSession
-        runtimeStartGeneration.incrementAndGet()
-        runtimeStartSession = null
-        runtimeStartJob?.cancel()
-        runtimeStartJob = null
-        session?.close()
-        tcpAuthorizationRequestGeneration.incrementAndGet()
-        tcpAuthorizationRequest = null
-        request?.close()
+        var request: AutoCloseable? = null
+        synchronized(this) {
+            request = tcpAuthorizationRequest
+            tcpAuthorizationRequestGeneration.incrementAndGet()
+            tcpAuthorizationRequest = null
+        }
+        runCatching { request?.close() }
     }
 
     private fun PrivilegeUiConfig.effectiveStartupModes(): List<PrivilegeUiStartupMode> {

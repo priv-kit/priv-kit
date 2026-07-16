@@ -4,21 +4,49 @@ import priv.kit.ui.*
 import priv.kit.ui.state.*
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import priv.kit.PrivilegeStartupLogLine
+import priv.kit.PrivilegeStartupLogListener
+import priv.kit.PrivilegeServerInfo
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 internal class PrivilegeUiRuntimeStartSession(
     val generation: Long,
-) : AutoCloseable {
+    val showAttemptFeedback: Boolean = true,
+    private val startupLogSink: (PrivilegeUiRuntimeStartSession, String) -> Unit = { _, _ -> },
+    private val structuredStartupLogSink: (PrivilegeUiRuntimeStartSession, PrivilegeStartupLogLine) -> Unit =
+        { session, line ->
+            startupLogSink(session, "[${line.source}] ${line.message}")
+        },
+) {
     private val lock = Any()
     private val closeables = mutableListOf<AutoCloseable>()
-    val stop = AtomicBoolean(false)
+    private val cancellationRequestedState = AtomicBoolean(false)
+    private val finishedState = AtomicBoolean(false)
+    private val connectionClaimedState = AtomicBoolean(false)
+    private val latestConnectedServerState = AtomicReference<PrivilegeServerInfo?>(null)
+    private val stopState = AtomicBoolean(false)
+    private val completionSignal = CompletableDeferred<Unit>()
+    private var resourceCleanupDone: CountDownLatch? = null
 
-    val active: Boolean
-        get() = !stop.get()
+    val startupLogListener = PrivilegeStartupLogListener { line ->
+        structuredStartupLogSink(this, line)
+    }
+
+    val cancellationRequested: Boolean
+        get() = cancellationRequestedState.get()
+
+    val finished: Boolean
+        get() = finishedState.get()
+
+    val stop: AtomicBoolean
+        get() = stopState
 
     fun addCloseable(closeable: AutoCloseable) {
         val closeNow = synchronized(lock) {
-            if (stop.get()) {
+            if (cancellationRequested || finished || connectionClaimed) {
                 true
             } else {
                 closeables += closeable
@@ -26,24 +54,111 @@ internal class PrivilegeUiRuntimeStartSession(
             }
         }
         if (closeNow) {
-            closeable.close()
+            runCatching { closeable.close() }
         }
     }
 
     fun checkActive() {
-        if (!active) {
-            throw CancellationException("Runtime start session was interrupted")
+        if (cancellationRequested || finished || connectionClaimed) {
+            throw CancellationException("Runtime start session was cancelled")
         }
     }
 
-    override fun close() {
-        val toClose = synchronized(lock) {
-            if (!stop.compareAndSet(false, true)) {
-                emptyList()
+    fun appendStartupLog(line: String) {
+        startupLogSink(this, line)
+    }
+
+    fun requestCancel(onCloseFailure: (Throwable) -> Unit = {}): Boolean {
+        if (!markCancellationRequested()) return false
+        closeCancellationResources(onCloseFailure)
+        return true
+    }
+
+    fun markCancellationRequested(): Boolean {
+        val changed = cancellationRequestedState.compareAndSet(false, true)
+        if (changed) stopState.set(true)
+        return changed
+    }
+
+    fun closeCancellationResources(onCloseFailure: (Throwable) -> Unit = {}) {
+        closeResources(onCloseFailure)
+    }
+
+    fun finish(onCloseFailure: (Throwable) -> Unit = {}): Boolean {
+        val firstFinish = finishedState.compareAndSet(false, true)
+        if (firstFinish) {
+            stopState.set(true)
+            completionSignal.complete(Unit)
+        }
+        closeResources(onCloseFailure)
+        return firstFinish
+    }
+
+    fun recordConnectedServer(serverInfo: PrivilegeServerInfo): Boolean {
+        latestConnectedServerState.set(serverInfo)
+        return connectionClaimedState.compareAndSet(false, true)
+    }
+
+    fun latestConnectedServer(): PrivilegeServerInfo? = latestConnectedServerState.get()
+
+    fun recordDisconnectedServer() {
+        latestConnectedServerState.set(null)
+    }
+
+    val connectionClaimed: Boolean
+        get() = connectionClaimedState.get()
+
+    fun signalCompletion() {
+        completionSignal.complete(Unit)
+    }
+
+    suspend fun awaitCompletionSignal() {
+        completionSignal.await()
+    }
+
+    private fun closeResources(onCloseFailure: (Throwable) -> Unit) {
+        var cleanupOwner = false
+        val cleanupDone: CountDownLatch
+        val toClose: List<AutoCloseable>
+        synchronized(lock) {
+            val currentCleanup = resourceCleanupDone
+            if (currentCleanup == null) {
+                cleanupOwner = true
+                cleanupDone = CountDownLatch(1)
+                resourceCleanupDone = cleanupDone
+                toClose = closeables.toList()
+                closeables.clear()
             } else {
-                closeables.toList().also { closeables.clear() }
+                cleanupDone = currentCleanup
+                toClose = emptyList()
             }
         }
-        toClose.forEach { it.close() }
+        if (!cleanupOwner) {
+            cleanupDone.awaitUninterruptibly()
+            return
+        }
+
+        try {
+            toClose.forEach { closeable ->
+                runCatching { closeable.close() }
+                    .exceptionOrNull()
+                    ?.let { throwable -> runCatching { onCloseFailure(throwable) } }
+            }
+        } finally {
+            cleanupDone.countDown()
+        }
+    }
+
+    private fun CountDownLatch.awaitUninterruptibly() {
+        var interrupted = false
+        while (true) {
+            try {
+                await()
+                break
+            } catch (_: InterruptedException) {
+                interrupted = true
+            }
+        }
+        if (interrupted) Thread.currentThread().interrupt()
     }
 }

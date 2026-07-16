@@ -19,33 +19,35 @@ import priv.kit.ui.state.PrivilegeUiViewModelStore
 import priv.kit.ui.state.copyToClipboard
 import priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported
 import priv.kit.ui.state.privilegeUiStaticTcpOpenCommand
+import java.util.concurrent.atomic.AtomicBoolean
 
 public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     application: Application,
     public val config: PrivilegeUiConfig = PrivilegeUiConfig(),
 ) : AndroidViewModel(application) {
-    private val store = PrivilegeUiViewModelStore(application).also(::addCloseable)
+    private val store = PrivilegeUiViewModelStore(application)
     private val runtimeActions = PrivilegeUiRuntimeActions(
         store = store,
         coroutineScope = viewModelScope,
-    ).also(::addCloseable)
+    )
     private val manualShellActions = PrivilegeUiManualShellActions(store)
     private val adbActions = PrivilegeUiAdbActions(
         store = store,
         runtimeActions = runtimeActions,
         coroutineScope = viewModelScope,
-    ).also(::addCloseable)
+    )
     private val externalStartActions = PrivilegeUiExternalStartActions(
         store = store,
         runtimeActions = runtimeActions,
         coroutineScope = viewModelScope,
-    ).also(::addCloseable)
+    )
+    private val ownerClosed = AtomicBoolean(false)
+    private val ownerCloseable = AutoCloseable { closeOwner() }.also(::addCloseable)
     private var wirelessStatusPollingHandle: AutoCloseable? = null
     private var tcpModeStatusPollingHandle: AutoCloseable? = null
     private var externalStartStatusPollingHandle: AutoCloseable? = null
     public val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
     public open val tcpModeEnabled: MutableStateFlow<Boolean> = store.tcpModeEnabled
-    internal val developerModeEnabled: StateFlow<Boolean?> = store.developerModeEnabled.asStateFlow()
     internal val snackbarMessages: SharedFlow<String> = store.snackbarMessages
     public open val adbTcpPolicy: PrivilegeUiAdbTcpPolicy
         get() = store.config.adbTcpPolicy
@@ -89,37 +91,50 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         runtimeActions.startRoot()
     }
 
+    /** Starts the first available provider sequence without showing provider-specific prompts. */
+    public open fun startAvailable() {
+        @Suppress("DEPRECATION")
+        startAvailable(onLocalNetworkPermissionRequired = {})
+    }
+
+    /**
+     * Compatibility overload. Unified startup is intentionally silent and never invokes
+     * [onLocalNetworkPermissionRequired]; use the dedicated ADB start methods for that prompt.
+     */
+    @Deprecated(
+        message = "Unified startup does not emit provider-specific permission prompts; use startAvailable()",
+        replaceWith = ReplaceWith("startAvailable()"),
+    )
+    @Suppress("UNUSED_PARAMETER")
     public open fun startAvailable(
         onLocalNetworkPermissionRequired: (String) -> Unit = {},
     ) {
+        startAvailableSilently()
+    }
+
+    private fun startAvailableSilently() {
         if (
             store.state.value.busy ||
+            store.state.value.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE ||
             store.state.value.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED
         ) {
             return
         }
         adbActions.refreshAdbStartPrerequisites()
         val directTargets = store.state.value.directStartTargets(
-            tcpModeEnabled = store.state.value.tcpModePort != null,
             tcpPolicy = store.config.adbTcpPolicy,
             wirelessAdbSupported = isPrivilegeUiWirelessAdbSupported(),
-            managedWirelessAdbEnabled = store.config.enableManagedWirelessAdb &&
-                store.state.value.managedWirelessAdbStatus != PrivilegeUiManagedWirelessAdbStatus.UNDECLARED,
         )
-        val attempts = directTargets.mapNotNull { target ->
+        val attempts = directTargets.flatMap { target ->
             when (target) {
-                PrivilegeUiDirectStartTarget.Adb -> adbActions.directStartAttempt(onLocalNetworkPermissionRequired)
+                PrivilegeUiDirectStartTarget.Adb -> adbActions.directStartAttempts()
                 is PrivilegeUiDirectStartTarget.External -> {
-                    externalStartActions.directStartAttempt(target.providerId)
+                    listOfNotNull(externalStartActions.directStartAttempt(target.providerId))
                 }
-                PrivilegeUiDirectStartTarget.Root -> runtimeActions.rootStartAttempt()
+                PrivilegeUiDirectStartTarget.Root -> listOf(runtimeActions.rootStartAttempt())
             }
         }
-        if (attempts.isEmpty()) {
-            runtimeActions.reportNoDirectStart()
-        } else {
-            runtimeActions.runServerStartFallback(attempts)
-        }
+        runtimeActions.runServerStartFallback(attempts)
     }
 
     public open fun stopServer() {
@@ -309,5 +324,18 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         ) {
             adbActions.refreshTcpModeEnabled()
         }
+    }
+
+    override fun onCleared() {
+        closeOwner()
+        super.onCleared()
+    }
+
+    private fun closeOwner() {
+        if (!ownerClosed.compareAndSet(false, true)) return
+        runtimeActions.close()
+        runCatching { externalStartActions.close() }
+        runCatching { adbActions.close() }
+        runCatching { store.close() }
     }
 }

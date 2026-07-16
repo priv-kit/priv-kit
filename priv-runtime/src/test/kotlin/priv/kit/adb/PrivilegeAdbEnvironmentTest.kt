@@ -17,11 +17,12 @@ class PrivilegeAdbEnvironmentTest {
     }
 
     @Test
-    fun serviceDisabledOverridesPersistedTcpPort() {
+    fun disabledServiceKeepsPersistedPortAsConfiguredCandidate() {
         setSystemProperty(SERVICE_ADB_TCP_PORT, "-1")
         setSystemProperty(PERSIST_ADB_TCP_PORT, "5555")
 
-        assertEquals(-1, PrivilegeAdbEnvironment.getAdbTcpPort())
+        assertEquals(-1, PrivilegeAdbEnvironment.getActiveAdbTcpPort())
+        assertEquals(5555, PrivilegeAdbEnvironment.getConfiguredAdbTcpPort())
     }
 
     @Test
@@ -29,7 +30,8 @@ class PrivilegeAdbEnvironmentTest {
         setSystemProperty(SERVICE_ADB_TCP_PORT, "")
         setSystemProperty(PERSIST_ADB_TCP_PORT, "5555")
 
-        assertEquals(5555, PrivilegeAdbEnvironment.getAdbTcpPort())
+        assertEquals(5555, PrivilegeAdbEnvironment.getActiveAdbTcpPort())
+        assertEquals(5555, PrivilegeAdbEnvironment.getConfiguredAdbTcpPort())
     }
 
     @Test
@@ -37,7 +39,52 @@ class PrivilegeAdbEnvironmentTest {
         setSystemProperty(SERVICE_ADB_TCP_PORT, "5555")
         setSystemProperty(PERSIST_ADB_TCP_PORT, "4444")
 
-        assertEquals(5555, PrivilegeAdbEnvironment.getAdbTcpPort())
+        assertEquals(5555, PrivilegeAdbEnvironment.getActiveAdbTcpPort())
+        assertEquals(5555, PrivilegeAdbEnvironment.getConfiguredAdbTcpPort())
+    }
+
+    @Test
+    fun malformedServiceFallsBackOnlyForConfiguredPort() {
+        setSystemProperty(SERVICE_ADB_TCP_PORT, "invalid")
+        setSystemProperty(PERSIST_ADB_TCP_PORT, "5555")
+
+        assertEquals(-1, PrivilegeAdbEnvironment.getActiveAdbTcpPort())
+        assertEquals(5555, PrivilegeAdbEnvironment.getConfiguredAdbTcpPort())
+    }
+
+    @Test
+    fun zeroServiceDoesNotFallBackToPersistedPort() {
+        setSystemProperty(SERVICE_ADB_TCP_PORT, "0")
+        setSystemProperty(PERSIST_ADB_TCP_PORT, "5555")
+
+        assertEquals(-1, PrivilegeAdbEnvironment.getActiveAdbTcpPort())
+        assertEquals(-1, PrivilegeAdbEnvironment.getConfiguredAdbTcpPort())
+    }
+
+    @Test
+    fun missingOrMalformedPersistedPortIsUnavailable() {
+        assertEquals(-1, PrivilegeAdbEnvironment.getActiveAdbTcpPort())
+        assertEquals(-1, PrivilegeAdbEnvironment.getConfiguredAdbTcpPort())
+
+        setSystemProperty(PERSIST_ADB_TCP_PORT, "invalid")
+
+        assertEquals(-1, PrivilegeAdbEnvironment.getActiveAdbTcpPort())
+        assertEquals(-1, PrivilegeAdbEnvironment.getConfiguredAdbTcpPort())
+    }
+
+    @Test
+    fun outOfRangePortsAreUnavailable() {
+        setSystemProperty(SERVICE_ADB_TCP_PORT, "65536")
+        setSystemProperty(PERSIST_ADB_TCP_PORT, "5555")
+
+        assertEquals(-1, PrivilegeAdbEnvironment.getActiveAdbTcpPort())
+        assertEquals(-1, PrivilegeAdbEnvironment.getConfiguredAdbTcpPort())
+
+        setSystemProperty(SERVICE_ADB_TCP_PORT, "-1")
+        setSystemProperty(PERSIST_ADB_TCP_PORT, "65536")
+
+        assertEquals(-1, PrivilegeAdbEnvironment.getActiveAdbTcpPort())
+        assertEquals(-1, PrivilegeAdbEnvironment.getConfiguredAdbTcpPort())
     }
 
     private fun setSystemProperty(key: String, value: String) {

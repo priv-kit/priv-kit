@@ -6,7 +6,8 @@ import priv.kit.ui.runtime.*
 import priv.kit.ui.state.*
 
 internal fun PrivilegeUiViewModelStore.currentTcpModePort(): Int? =
-    state.value.tcpModePort.takeIf { config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED }
+    state.value.configuredTcpModePort
+        .takeIf { config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED }
 
 internal fun PrivilegeUiViewModelStore.managedWirelessAdbEnabledForStart(): Boolean =
     config.enableManagedWirelessAdb &&
@@ -16,5 +17,11 @@ internal fun PrivilegeUiViewModelStore.updateTcpModePort(activeTcpPort: Int?) {
     tcpModeEnabled.value = activeTcpPort != null
     updateState {
         it.copy(tcpModePort = activeTcpPort)
+    }
+}
+
+internal fun PrivilegeUiViewModelStore.updateConfiguredTcpModePort(configuredTcpPort: Int?) {
+    updateState {
+        it.copy(configuredTcpModePort = configuredTcpPort)
     }
 }

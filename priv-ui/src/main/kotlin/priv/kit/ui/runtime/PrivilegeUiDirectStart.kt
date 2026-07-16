@@ -10,23 +10,14 @@ internal sealed interface PrivilegeUiDirectStartTarget {
 }
 
 internal fun PrivilegeUiState.directStartTargets(
-    tcpModeEnabled: Boolean,
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
     wirelessAdbSupported: Boolean = true,
-    managedWirelessAdbEnabled: Boolean = true,
 ): List<PrivilegeUiDirectStartTarget> =
     buildList {
         directStartModeOrder().forEach { mode ->
             when (mode) {
                 PrivilegeUiStartupMode.ADB -> {
-                    if (
-                        canStartAdbDirectly(
-                            tcpModeEnabled,
-                            tcpPolicy,
-                            wirelessAdbSupported,
-                            managedWirelessAdbEnabled,
-                        )
-                    ) {
+                    if (tcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED || wirelessAdbSupported) {
                         add(PrivilegeUiDirectStartTarget.Adb)
                     }
                 }
@@ -52,25 +43,3 @@ internal fun PrivilegeUiState.directStartModeOrder(): List<PrivilegeUiStartupMod
             }
         }
     }
-
-internal fun PrivilegeUiState.canStartAdbDirectly(
-    tcpModeEnabled: Boolean,
-    tcpPolicy: PrivilegeUiAdbTcpPolicy,
-    wirelessAdbSupported: Boolean = true,
-    managedWirelessAdbEnabled: Boolean = true,
-): Boolean {
-    val paired = wirelessAdbSupported && wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON
-    val knownUnpaired = wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.OFF
-    val tcpAuthorized = tcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED &&
-        tcpModeEnabled &&
-        tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED
-    val wirelessEndpointAvailable = wirelessAdbSupported &&
-        wifiConnected &&
-        wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.ON &&
-        !knownUnpaired
-    val managedWirelessAvailable = managedWirelessAdbEnabled &&
-        wifiConnected &&
-        managedWirelessAdbStatus == PrivilegeUiManagedWirelessAdbStatus.READY &&
-        !knownUnpaired
-    return (paired && wifiConnected) || tcpAuthorized || wirelessEndpointAvailable || managedWirelessAvailable
-}

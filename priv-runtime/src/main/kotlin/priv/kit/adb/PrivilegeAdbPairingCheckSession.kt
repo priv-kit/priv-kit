@@ -23,6 +23,7 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
             connectedEndpoint?.port ?: explicitPort
         }
 
+    @Throws(InterruptedException::class)
     public fun check(): PrivilegeAdbPairingCheckResult {
         val output = PrivilegeAdbOutput()
         output.append("diag", "ADB identity name=${identity.adbDeviceName}, keySignature=<redacted>")
@@ -93,12 +94,13 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
                 output = output,
             )
         } catch (throwable: Throwable) {
+            closeClient(activeClient)
+            throwable.rethrowIfInterrupted()
             val failureMessage = throwable.toFailureMessage()
             output.append(
                 "diag",
                 "ADB pairing check connection failed on $activeEndpoint: $failureMessage",
             )
-            closeClient(activeClient)
             null
         }
     }
@@ -117,6 +119,7 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
         }.fold(
             onSuccess = { endpoint -> EndpointResolution(endpoint = endpoint) },
             onFailure = { throwable ->
+                throwable.rethrowIfInterrupted()
                 val failureMessage = throwable.toFailureMessage()
                 output.append("diag", "ADB pairing check failed before connect: $failureMessage")
                 EndpointResolution(
@@ -178,10 +181,11 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
                 }
             }
         } catch (throwable: Throwable) {
+            closeClient(newClient)
+            throwable.rethrowIfInterrupted()
             val failureMessage = throwable.toFailureMessage()
             val status = throwable.toPairingCheckFailureStatus()
             output.append("diag", "ADB pairing check failed on $activeEndpoint: $failureMessage")
-            closeClient(newClient)
             failureResult(
                 port = activeEndpoint.port,
                 output = output,

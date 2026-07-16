@@ -5,8 +5,6 @@ import priv.kit.ui.adb.pairing.*
 import priv.kit.ui.runtime.*
 import priv.kit.ui.state.*
 
-import android.os.Build
-import android.provider.Settings
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -82,6 +80,7 @@ internal class PrivilegeUiAdbStatusActions(
     fun refreshTcpModeEnabled(markChecking: Boolean): Boolean {
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) {
             store.updateTcpModePort(null)
+            store.updateConfiguredTcpModePort(null)
             adbConnectionSessions.closeTcpAuthorizationCheckSession()
             store.updateState {
                 it.copy(tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN)
@@ -137,10 +136,6 @@ internal class PrivilegeUiAdbStatusActions(
         store.updateState {
             it.copy(wifiConnected = store.isWifiConnected())
         }
-    }
-
-    fun refreshDeveloperModeEnabled() {
-        store.developerModeEnabled.value = currentDeveloperModeEnabled()
     }
 
     fun stopWirelessAdbStatusPolling() {
@@ -222,11 +217,11 @@ internal class PrivilegeUiAdbStatusActions(
         val starter = Privilege.createAdbStarter(
             adbDeviceName = store.currentAdbDeviceNameOverride(),
         )
-        val activeTcpPort = runCatching {
-            starter.getActiveTcpPort()
-        }.getOrNull()
+        val activeTcpPort = runCatching { starter.getActiveTcpPort() }.getOrNull()
+        val configuredTcpPort = runCatching { starter.getConfiguredTcpPort() }.getOrNull()
         store.updateTcpModePort(activeTcpPort)
-        if (activeTcpPort == null) {
+        store.updateConfiguredTcpModePort(configuredTcpPort)
+        if (configuredTcpPort == null) {
             adbConnectionSessions.closeTcpAuthorizationCheckSession()
             store.updateState {
                 it.copy(tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN)
@@ -237,11 +232,11 @@ internal class PrivilegeUiAdbStatusActions(
         val authorization = if (stop != null) {
             adbConnectionSessions.checkTcpAuthorization(
                 starter = starter,
-                tcpPort = activeTcpPort,
+                tcpPort = configuredTcpPort,
                 stop = stop,
             ) ?: return
         } else {
-            starter.checkTcpAuthorization(tcpPort = activeTcpPort)
+            starter.checkTcpAuthorization(tcpPort = configuredTcpPort)
         }
         val previousStatus = store.state.value.tcpAuthorizationStatus
         val nextStatus = authorization.status.toUiTcpAuthorizationStatus()
@@ -312,8 +307,6 @@ internal class PrivilegeUiAdbStatusActions(
     }
 
     private fun pollWirelessAdbStatusOnce(stop: AtomicBoolean) {
-        val developerModeEnabled = currentDeveloperModeEnabled()
-        store.developerModeEnabled.value = developerModeEnabled
         val wifiConnected = store.isWifiConnected()
         if (!wifiConnected) {
             adbConnectionSessions.closeWirelessPairingCheckSession()
@@ -398,17 +391,6 @@ internal class PrivilegeUiAdbStatusActions(
             )
         }
     }
-
-    private fun currentDeveloperModeEnabled(): Boolean? =
-        privilegeUiDeveloperModeEnabled(Build.VERSION.SDK_INT) {
-            privilegeUiDeveloperModeEnabledFromSetting(
-                Settings.Global.getInt(
-                    store.requireContext().contentResolver,
-                    Settings.Global.DEVELOPMENT_SETTINGS_ENABLED,
-                    0,
-                ),
-            )
-        }
 
     private fun statusRefreshActionDeadlineMillis(): Long =
         System.currentTimeMillis() +

@@ -17,9 +17,14 @@ internal class PrivilegePendingHandshake internal constructor(
         latch.countDown()
     }
 
-    @Throws(PrivilegeStartupException::class)
+    @Throws(PrivilegeStartupException::class, InterruptedException::class)
     fun await(timeoutMillis: Long): PrivilegeServerHandshakeResult {
-        val completed = latch.await(timeoutMillis, TimeUnit.MILLISECONDS)
+        val completed = try {
+            latch.await(timeoutMillis, TimeUnit.MILLISECONDS)
+        } catch (exception: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw exception
+        }
         if (!completed) {
             throw PrivilegeStartupException("Timed out waiting for Privileged Server Binder")
         }

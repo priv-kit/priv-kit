@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import priv.kit.ui.PrivilegeUiRuntimeStartSource
 import priv.kit.ui.PrivilegeUiState
 import priv.kit.ui.R
 
@@ -18,6 +19,7 @@ import priv.kit.ui.R
 internal fun ExternalStartPanel(
     state: PrivilegeUiState,
     onAuthorizeOrStart: (String) -> Unit,
+    onCancelStart: () -> Unit,
 ) {
     Panel {
         if (state.externalStartItems.isEmpty()) {
@@ -25,6 +27,10 @@ internal fun ExternalStartPanel(
         }
         state.externalStartItems.forEach { item ->
             ItemPanel {
+                val action = state.startActionFor(
+                    source = PrivilegeUiRuntimeStartSource.EXTERNAL,
+                    providerId = item.id,
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -39,15 +45,31 @@ internal fun ExternalStartPanel(
                 }
                 Button(
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !state.busy && !item.busy,
-                    onClick = { onAuthorizeOrStart(item.id) },
+                    enabled = state.startActionEnabled(
+                        action = action,
+                        startAvailable = !item.busy,
+                    ),
+                    onClick = {
+                        when (action) {
+                            PrivilegeUiStartAction.START -> onAuthorizeOrStart(item.id)
+                            PrivilegeUiStartAction.CANCEL -> onCancelStart()
+                            PrivilegeUiStartAction.CANCELLING,
+                            PrivilegeUiStartAction.NONE,
+                            -> Unit
+                        }
+                    },
                 ) {
                     Text(
-                        if (item.snapshot.canStart) {
-                            stringResource(R.string.priv_ui_external_start)
-                        } else {
-                            stringResource(R.string.priv_ui_external_authorize_start)
-                        },
+                        stringResource(
+                            privilegeUiStartActionLabel(
+                                action = action,
+                                startLabel = if (item.snapshot.canStart) {
+                                    R.string.priv_ui_external_start
+                                } else {
+                                    R.string.priv_ui_external_authorize_start
+                                },
+                            ),
+                        ),
                     )
                 }
             }

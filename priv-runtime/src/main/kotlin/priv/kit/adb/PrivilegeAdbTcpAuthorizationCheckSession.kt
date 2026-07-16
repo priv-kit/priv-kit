@@ -14,6 +14,7 @@ public class PrivilegeAdbTcpAuthorizationCheckSession internal constructor(
     private var closed = false
     private var client: PrivilegeAdbAuthorizationConnection? = null
 
+    @Throws(InterruptedException::class)
     public fun check(): PrivilegeAdbAuthorizationCheckResult {
         val output = PrivilegeAdbOutput()
         output.append("diag", "ADB identity name=${identity.adbDeviceName}, keySignature=<redacted>")
@@ -63,12 +64,13 @@ public class PrivilegeAdbTcpAuthorizationCheckSession internal constructor(
             output.append("diag", "ADB TCP authorization check connection is still alive")
             successResult(output)
         } catch (throwable: Throwable) {
+            closeClient(activeClient)
+            throwable.rethrowIfInterrupted()
             val failureMessage = throwable.toFailureMessage()
             output.append(
                 "diag",
                 "ADB TCP authorization check connection failed on $PRIVILEGE_ADB_LOCAL_HOST:$tcpPort: $failureMessage",
             )
-            closeClient(activeClient)
             null
         }
     }
@@ -99,12 +101,13 @@ public class PrivilegeAdbTcpAuthorizationCheckSession internal constructor(
                 )
             }
         } catch (throwable: Throwable) {
+            closeClient(newClient)
+            throwable.rethrowIfInterrupted()
             val failureMessage = throwable.toFailureMessage()
             output.append(
                 "diag",
                 "ADB TCP authorization check failed on $PRIVILEGE_ADB_LOCAL_HOST:$tcpPort: $failureMessage",
             )
-            closeClient(newClient)
             throwable.toTcpAuthorizationCheckResult(
                 output = output,
                 identity = identity,

@@ -3,6 +3,7 @@ package priv.kit.adb
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import javax.net.ssl.SSLProtocolException
@@ -120,9 +121,30 @@ class PrivilegeAdbPairingCheckSessionTest {
         assertEquals("ADB key is not authorized", result.failureMessage)
     }
 
+    @Test
+    fun checkPropagatesDiscoveryInterruptionAndRestoresInterruptFlag() {
+        val session = session(
+            explicitPort = null,
+            discoverPort = true,
+            discoverConnectEndpoint = { throw InterruptedException("cancelled") },
+            clientFactory = { error("client should not be created after interruption") },
+        )
+
+        try {
+            assertThrows(InterruptedException::class.java) { session.check() }
+            assertTrue(Thread.currentThread().isInterrupted)
+        } finally {
+            Thread.interrupted()
+            session.close()
+        }
+    }
+
     private fun session(
         explicitPort: Int? = 37099,
         discoverPort: Boolean = false,
+        discoverConnectEndpoint: (Long) -> PrivilegeAdbEndpoint = {
+            error("discovery should not be used")
+        },
         clientFactory: (PrivilegeAdbEndpoint) -> PrivilegeAdbAuthorizationConnection,
     ): PrivilegeAdbPairingCheckSession =
         PrivilegeAdbPairingCheckSession(
@@ -131,7 +153,7 @@ class PrivilegeAdbPairingCheckSessionTest {
             explicitPort = explicitPort,
             discoverPort = discoverPort,
             portDiscoveryTimeoutMillis = 1_000L,
-            discoverConnectEndpoint = { error("discovery should not be used") },
+            discoverConnectEndpoint = discoverConnectEndpoint,
             clientFactory = clientFactory,
         )
 

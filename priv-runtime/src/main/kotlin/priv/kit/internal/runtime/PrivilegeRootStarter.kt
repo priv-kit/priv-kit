@@ -17,18 +17,10 @@ internal object PrivilegeRootStarter {
         } catch (_: Exception) {
             return false
         }
-
-        val finished = process.waitFor(3, TimeUnit.SECONDS)
-        if (!finished) {
-            process.destroy()
-            return false
-        }
-
-        val output = process.inputStream.bufferedReader().use { it.readText() }
-        return process.exitValue() == 0 && output.contains("uid=0")
+        return rootProbeReportsAvailable(process)
     }
 
-    @Throws(PrivilegeStartupException::class)
+    @Throws(PrivilegeStartupException::class, InterruptedException::class)
     internal fun start(
         commandLine: String,
         startupLogListener: PrivilegeStartupLogListener? = null,
@@ -70,12 +62,28 @@ internal object PrivilegeRootStarter {
     }
 }
 
+internal fun rootProbeReportsAvailable(process: Process): Boolean =
+    try {
+        val finished = process.waitFor(3, TimeUnit.SECONDS)
+        if (!finished) {
+            false
+        } else {
+            val output = process.inputStream.bufferedReader().use { it.readText() }
+            process.exitValue() == 0 && output.contains("uid=0")
+        }
+    } finally {
+        runCatching { process.destroy() }
+    }
+
 internal class PrivilegeRootProcess internal constructor(
     private val process: Process,
     private val output: Output,
 ) {
     internal val isAlive: Boolean
         get() = process.isAlive
+
+    internal val exitCodeOrNull: Int?
+        get() = runCatching { process.exitValue() }.getOrNull()
 
     internal fun destroy() {
         process.destroy()

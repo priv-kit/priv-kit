@@ -1,6 +1,7 @@
 package priv.kit.adb
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.net.ConnectException
@@ -87,6 +88,27 @@ class PrivilegeAdbTcpAuthorizationCheckSessionTest {
         assertEquals(1, connections.size)
         assertEquals(1, connections.single().closeCount)
         assertTrue(result.failureMessage.orEmpty().contains("ConnectException"))
+    }
+
+    @Test
+    fun checkPropagatesInterruptionAndRestoresInterruptFlag() {
+        val connections = mutableListOf<FakeAdbAuthorizationConnection>()
+        val session = session(
+            clientFactory = {
+                FakeAdbAuthorizationConnection(
+                    authorizationFailure = InterruptedException("cancelled"),
+                ).also(connections::add)
+            },
+        )
+
+        try {
+            assertThrows(InterruptedException::class.java) { session.check() }
+            assertTrue(Thread.currentThread().isInterrupted)
+            assertEquals(1, connections.single().closeCount)
+        } finally {
+            Thread.interrupted()
+            session.close()
+        }
     }
 
     private fun session(

@@ -31,6 +31,7 @@ The UI covers ordinary user-facing authorization only:
 - Manual shell command copy.
 - ADB authorization, including Wireless ADB pairing, notification pairing, status polling, startup, and optional TCP reuse.
 - Managed Wireless Debugging status when runtime can temporarily enable Wireless Debugging through `WRITE_SECURE_SETTINGS`.
+- Static-TCP status that distinguishes a missing port configuration from a configured port whose ADB listener is not running.
 - External startup through app-provided `PrivilegeUiExternalStartProvider` implementations, with status refreshed on foreground resume and while the External tab is selected.
 - Realtime startup transcript for Root, ADB, and streaming external startup providers.
 - Service started/not-started status.
@@ -38,6 +39,10 @@ The UI covers ordinary user-facing authorization only:
 It does not include built-in Shizuku integration, app-owned service management, stop-service controls, package management, input injection, settings, app-ops, a general diagnostic log console, or other high-level Android system operation UI. Shizuku-style support belongs in the app or an optional integration as a `PrivilegeUiExternalStartProvider`; the external privileged process can call `PrivilegeExternalStartup.runInCurrentProcess(...)`, while the main process can bridge returned source/message pairs into the UI through `PrivilegeExternalStartup.createReceiver(...)`.
 
 `PrivilegeUiConfig.enableManagedWirelessAdb` controls whether the UI treats runtime-managed Wireless Debugging as a startup path. The UI only displays status and passes startup options; it does not write `Settings.Global` itself. If the merged app manifest no longer declares `WRITE_SECURE_SETTINGS` (for example through `tools:node="remove"`), the managed Wireless Debugging row is hidden and the UI stops passing that startup path.
+
+When the user explicitly starts a configured static-TCP endpoint whose listener is unavailable, the UI asks `priv-runtime` to prepare that endpoint before falling back to Wireless Debugging. The runtime writes `ADB_ENABLED=1` only when `WRITE_SECURE_SETTINGS` is declared and granted, retries the listener, and never enables `adb_wifi_enabled` for this recovery path. Passive UI polling remains read-only.
+
+The top service action silently tries configured workflows in the order supplied by the UI before reporting a generic failure. If a Root or ADB command may have created a detached server but its Binder handshake does not complete, fallback stops and reports the generic failure because that server may still arrive later. An External request remains in the same start session while the runner waits for its Binder connection or timeout; a timeout also stops fallback because the requested server may still arrive later. Every start uses the same cooperative cancellation model: the first cancellation request changes the owning controls from Cancel to a disabled Cancelling state, Root and ADB observe cancellation at their internal checkpoints, and an External provider call with no checkpoints remains in Cancelling until that call returns. Other startup controls stay disabled while a start is running or cancelling.
 
 Basic usage:
 

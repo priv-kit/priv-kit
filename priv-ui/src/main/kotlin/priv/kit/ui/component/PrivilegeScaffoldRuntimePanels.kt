@@ -7,6 +7,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import priv.kit.ui.PrivilegeUiRuntimeStartSource
 import priv.kit.ui.PrivilegeUiState
 import priv.kit.ui.R
 
@@ -14,14 +15,31 @@ import priv.kit.ui.R
 internal fun RootPanel(
     state: PrivilegeUiState,
     onStartRoot: () -> Unit,
+    onCancelStart: () -> Unit,
 ) {
     Panel {
+        val action = state.startActionFor(PrivilegeUiRuntimeStartSource.ROOT)
         Button(
             modifier = Modifier.fillMaxWidth(),
-            enabled = !state.busy,
-            onClick = onStartRoot,
+            enabled = state.startActionEnabled(action),
+            onClick = {
+                when (action) {
+                    PrivilegeUiStartAction.START -> onStartRoot()
+                    PrivilegeUiStartAction.CANCEL -> onCancelStart()
+                    PrivilegeUiStartAction.CANCELLING,
+                    PrivilegeUiStartAction.NONE,
+                    -> Unit
+                }
+            },
         ) {
-            Text(stringResource(R.string.priv_ui_root_authorization_action))
+            Text(
+                stringResource(
+                    privilegeUiStartActionLabel(
+                        action = action,
+                        startLabel = R.string.priv_ui_root_authorization_action,
+                    ),
+                ),
+            )
         }
     }
 }

@@ -6,6 +6,7 @@ import android.os.Build
 import priv.kit.internal.core.PrivilegeServerLaunchCommand
 import priv.kit.PrivilegeStartupException
 import priv.kit.PrivilegeStartupLogListener
+import priv.kit.PrivilegeServerLaunchUncertainException
 import priv.kit.internal.runtime.PrivilegeContext
 import java.io.Closeable
 import java.io.EOFException
@@ -20,7 +21,7 @@ public class PrivilegeAdbStarter private constructor(
     private val nsdManagerProvider: () -> NsdManager,
     private val wirelessDebuggingControllerProvider: () -> PrivilegeAdbWirelessDebuggingController,
 ) {
-    @Throws(PrivilegeStartupException::class)
+    @Throws(PrivilegeStartupException::class, InterruptedException::class)
     internal fun start(
         command: PrivilegeServerLaunchCommand,
         options: PrivilegeAdbStartOptions = PrivilegeAdbStartOptions(),
@@ -37,7 +38,7 @@ public class PrivilegeAdbStarter private constructor(
                 "Launch command main=${command.mainClass}, provider=${command.providerAuthority}, " +
                     "classpathEntries=${command.classpath.split(':').size}, commandLength=${command.commandLine.length}",
             )
-            val activeTcpPort = PrivilegeAdbEnvironment.getAdbTcpPort()
+            val activeTcpPort = PrivilegeAdbEnvironment.getActiveAdbTcpPort()
             output.append(
                 "diag",
                 "Port selection explicit=${options.port}, discover=${options.discoverPort}, " +
@@ -65,7 +66,15 @@ public class PrivilegeAdbStarter private constructor(
             PrivilegeAdbClient(activeEndpoint, key).use { client ->
                 connectWithRetry(client, activeEndpoint, options, output)
                 output.append("diag", "Executing Privileged Server shell command on $activeEndpoint")
-                client.command("shell:${command.commandLine}", output)
+                try {
+                    client.command("shell:${command.commandLine}", output)
+                } catch (throwable: Throwable) {
+                    throwable.rethrowIfInterrupted()
+                    throw PrivilegeServerLaunchUncertainException(
+                        "ADB server launch command may have been delivered on $activeEndpoint: ${output.text()}",
+                        throwable,
+                    )
+                }
                 output.append("diag", "Privileged Server shell command stream completed on $activeEndpoint")
             }
 
@@ -76,6 +85,7 @@ public class PrivilegeAdbStarter private constructor(
                 publicKeyFingerprint = key.adbPublicKeyFingerprint,
             )
         } catch (throwable: Throwable) {
+            throwable.rethrowIfInterrupted()
             if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to start Privileged Server with ADB: ${output.text()}", throwable)
         } finally {
@@ -101,12 +111,40 @@ public class PrivilegeAdbStarter private constructor(
                 publicKeyFingerprint = key.adbPublicKeyFingerprint,
             )
         } catch (throwable: Throwable) {
+            throwable.rethrowIfInterrupted()
             if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to load ADB identity", throwable)
         }
 
     public fun getActiveTcpPort(): Int? =
-        PrivilegeAdbEnvironment.getAdbTcpPort().takeIf { it > 0 }
+        PrivilegeAdbEnvironment.getActiveAdbTcpPort().takeIf { it > 0 }
+
+    public fun getConfiguredTcpPort(): Int? =
+        PrivilegeAdbEnvironment.getConfiguredAdbTcpPort().takeIf { it > 0 }
+
+    @Throws(InterruptedException::class)
+    public fun prepareTcpForStart(
+        tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
+    ): PrivilegeAdbAuthorizationCheckResult {
+        require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
+        val initialResult = checkTcpAuthorization(tcpPort = tcpPort)
+        if (initialResult.status != PrivilegeAdbAuthorizationStatus.UNAVAILABLE) return initialResult
+
+        val controller = wirelessDebuggingControllerProvider()
+        val canManageAdb = runCatching { controller.status().canManage }.getOrElse { throwable ->
+            throwable.rethrowIfInterrupted()
+            false
+        }
+        return recoverTcpAuthorizationForStart(
+            initialResult = initialResult,
+            requestedTcpPort = tcpPort,
+            configuredTcpPort = getConfiguredTcpPort(),
+            canManageAdb = canManageAdb,
+            enableAdb = controller::enableAdb,
+            checkAuthorization = { checkTcpAuthorization(tcpPort = tcpPort) },
+            sleep = Thread::sleep,
+        )
+    }
 
     public fun getWirelessDebuggingControlStatus(): PrivilegeAdbWirelessDebuggingControlStatus =
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
@@ -122,7 +160,7 @@ public class PrivilegeAdbStarter private constructor(
             wirelessDebuggingControllerProvider().status()
         }
 
-    @Throws(PrivilegeStartupException::class)
+    @Throws(PrivilegeStartupException::class, InterruptedException::class)
     public fun checkPairing(
         port: Int? = null,
         discoverPort: Boolean = true,
@@ -152,6 +190,7 @@ public class PrivilegeAdbStarter private constructor(
         val key = try {
             createKey()
         } catch (throwable: Throwable) {
+            throwable.rethrowIfInterrupted()
             if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to check wireless ADB pairing", throwable)
         }
@@ -179,7 +218,7 @@ public class PrivilegeAdbStarter private constructor(
         return output.text()
     }
 
-    @Throws(PrivilegeStartupException::class)
+    @Throws(PrivilegeStartupException::class, InterruptedException::class)
     public fun pair(
         pairingCode: String,
         port: Int? = null,
@@ -212,12 +251,13 @@ public class PrivilegeAdbStarter private constructor(
                 publicKeyFingerprint = key.adbPublicKeyFingerprint,
             )
         } catch (throwable: Throwable) {
+            throwable.rethrowIfInterrupted()
             if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to pair with wireless ADB", throwable)
         }
     }
 
-    @Throws(PrivilegeStartupException::class)
+    @Throws(PrivilegeStartupException::class, InterruptedException::class)
     public fun discoverPairingPort(timeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS): Int {
         return discoverPairingEndpoint(timeoutMillis).port
     }
@@ -233,12 +273,13 @@ public class PrivilegeAdbStarter private constructor(
                 it.discoverEndpoint(timeoutMillis)
             }
         } catch (throwable: Throwable) {
+            throwable.rethrowIfInterrupted()
             if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to discover ADB pairing port", throwable)
         }
     }
 
-    @Throws(PrivilegeStartupException::class)
+    @Throws(PrivilegeStartupException::class, InterruptedException::class)
     public fun discoverConnectPort(timeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS): Int {
         return discoverConnectEndpoint(timeoutMillis).port
     }
@@ -254,6 +295,7 @@ public class PrivilegeAdbStarter private constructor(
                 it.discoverEndpoint(timeoutMillis)
             }
         } catch (throwable: Throwable) {
+            throwable.rethrowIfInterrupted()
             if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to discover ADB connect port", throwable)
         }
@@ -327,6 +369,7 @@ public class PrivilegeAdbStarter private constructor(
             }.onSuccess { endpoint ->
                 return endpoint
             }.onFailure { throwable ->
+                throwable.rethrowIfInterrupted()
                 lastFailure = throwable
                 if (attemptIndex < attempts - 1) {
                     output.append("diag", "ADB connect port discovery failed: ${throwable.toFailureMessage()}")
@@ -336,7 +379,7 @@ public class PrivilegeAdbStarter private constructor(
         throw lastFailure ?: PrivilegeStartupException("Failed to discover ADB connect port")
     }
 
-    @Throws(PrivilegeStartupException::class)
+    @Throws(PrivilegeStartupException::class, InterruptedException::class)
     public fun switchToTcp(
         currentPort: Int? = null,
         tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
@@ -380,11 +423,13 @@ public class PrivilegeAdbStarter private constructor(
                 try {
                     client.connect(output)
                 } catch (throwable: Throwable) {
+                    throwable.rethrowIfInterrupted()
                     throw throwable.toLocalNetworkAccessFailure(connectEndpoint)
                 }
                 runCatching {
                     client.command("tcpip:$tcpPort", output)
                 }.onFailure { throwable ->
+                    throwable.rethrowIfInterrupted()
                     if (throwable !is EOFException && throwable !is SocketException) {
                         throw throwable
                     }
@@ -397,6 +442,7 @@ public class PrivilegeAdbStarter private constructor(
                 publicKeyFingerprint = key.adbPublicKeyFingerprint,
             )
         } catch (throwable: Throwable) {
+            throwable.rethrowIfInterrupted()
             throw PrivilegeStartupException("Failed to switch ADB to TCP mode: ${output.text()}", throwable)
         } finally {
             if (options?.disableWirelessDebuggingAfterStart == true) {
@@ -433,10 +479,12 @@ public class PrivilegeAdbStarter private constructor(
                 publicKeyFingerprint = key.adbPublicKeyFingerprint,
             )
         } catch (throwable: Throwable) {
+            throwable.rethrowIfInterrupted()
             throw PrivilegeStartupException("Failed to stop ADB TCP mode: ${output.text()}", throwable)
         }
     }
 
+    @Throws(InterruptedException::class)
     public fun checkTcpAuthorization(
         tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     ): PrivilegeAdbAuthorizationCheckResult {
@@ -446,6 +494,7 @@ public class PrivilegeAdbStarter private constructor(
                 session.check()
             }
         } catch (throwable: Throwable) {
+            throwable.rethrowIfInterrupted()
             tcpAuthorizationKeyFailureResult(throwable)
         }
     }
@@ -457,6 +506,7 @@ public class PrivilegeAdbStarter private constructor(
         val key = try {
             createKey()
         } catch (throwable: Throwable) {
+            throwable.rethrowIfInterrupted()
             if (throwable is PrivilegeStartupException || throwable is PrivilegeAdbException) throw throwable
             throw PrivilegeAdbException("Failed to load ADB key", throwable)
         }
@@ -490,6 +540,7 @@ public class PrivilegeAdbStarter private constructor(
 
         val output = PrivilegeAdbOutput()
         val key = runCatching { createKey() }.getOrElse { throwable ->
+            throwable.rethrowIfInterrupted()
             val failureMessage = throwable.toFailureMessage()
             output.append("diag", "ADB TCP authorization request failed: $failureMessage")
             callback.onResult(
@@ -545,6 +596,7 @@ public class PrivilegeAdbStarter private constructor(
                 }
             } catch (throwable: Throwable) {
                 if (cancelled.get()) return@Thread
+                throwable.rethrowIfInterrupted()
                 val timedOut = throwable is SocketTimeoutException
                 complete(
                     PrivilegeAdbAuthorizationRequestResult(
@@ -590,6 +642,7 @@ public class PrivilegeAdbStarter private constructor(
                 name = identity.adbDeviceName,
             )
         } catch (throwable: Throwable) {
+            throwable.rethrowIfInterrupted()
             throw PrivilegeAdbException("Failed to load ADB key", throwable)
         }
 
@@ -606,6 +659,7 @@ public class PrivilegeAdbStarter private constructor(
                 client.command("shell:$command", output)
             }
         }.onFailure { throwable ->
+            throwable.rethrowIfInterrupted()
             output.append(
                 "diag",
                 "Failed to read $label: ${throwable.javaClass.simpleName}: ${throwable.message}",
@@ -652,6 +706,7 @@ public class PrivilegeAdbStarter private constructor(
                 client.connect(output)
                 return
             } catch (throwable: Throwable) {
+                throwable.rethrowIfInterrupted()
                 output.append("diag", "ADB connect attempt $attempt failed: ${throwable.javaClass.simpleName}: ${throwable.message}")
                 if (!shouldRetryAdbConnectFailure(throwable, attempt, options.connectRetryCount)) {
                     throw throwable.toLocalNetworkAccessFailure(endpoint)
@@ -718,10 +773,68 @@ internal fun shouldRetryAdbConnectFailure(
     retryCount: Int,
 ): Boolean =
     attempt < retryCount &&
+        throwable !is InterruptedException &&
         throwable !is SocketTimeoutException &&
         !throwable.isAdbKeyNotAuthorized()
 
+internal fun recoverTcpAuthorizationForStart(
+    initialResult: PrivilegeAdbAuthorizationCheckResult,
+    requestedTcpPort: Int,
+    configuredTcpPort: Int?,
+    canManageAdb: Boolean,
+    retryCount: Int = PRIVILEGE_ADB_TCP_PREPARATION_RETRY_COUNT,
+    retryDelayMillis: Long = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
+    enableAdb: () -> Unit,
+    checkAuthorization: () -> PrivilegeAdbAuthorizationCheckResult,
+    sleep: (Long) -> Unit,
+): PrivilegeAdbAuthorizationCheckResult {
+    if (
+        initialResult.status != PrivilegeAdbAuthorizationStatus.UNAVAILABLE ||
+        configuredTcpPort != requestedTcpPort ||
+        !canManageAdb
+    ) {
+        return initialResult
+    }
+    require(retryCount > 0) { "retryCount must be positive" }
+    require(retryDelayMillis >= 0L) { "retryDelayMillis must not be negative" }
+
+    return try {
+        enableAdb()
+        var result = initialResult
+        repeat(retryCount) {
+            if (retryDelayMillis > 0L) sleep(retryDelayMillis)
+            result = checkAuthorization()
+            if (result.status != PrivilegeAdbAuthorizationStatus.UNAVAILABLE) return result
+        }
+        result
+    } catch (throwable: Throwable) {
+        throwable.rethrowIfInterrupted()
+        initialResult.withTcpPreparationFailure(throwable)
+    }
+}
+
+private fun PrivilegeAdbAuthorizationCheckResult.withTcpPreparationFailure(
+    throwable: Throwable,
+): PrivilegeAdbAuthorizationCheckResult {
+    val message = "Failed to prepare ADB for static TCP: ${throwable.toFailureMessage()}"
+    val previousOutput = outputText.takeUnless { it == "<no output>" }.orEmpty()
+    return copy(
+        outputText = listOf(previousOutput, "[diag] $message")
+            .filter { it.isNotBlank() }
+            .joinToString("\n"),
+        failureMessage = message,
+    )
+}
+
 private const val PRIVILEGE_ADB_MANAGED_WIRELESS_CONNECT_PORT_DISCOVERY_ATTEMPTS = 3
+private const val PRIVILEGE_ADB_TCP_PREPARATION_RETRY_COUNT = 5
+
+internal fun Throwable.rethrowIfInterrupted() {
+    if (this is InterruptedException) {
+        Thread.currentThread().interrupt()
+        throw this
+    }
+}
 
 private fun Throwable.toLocalNetworkAccessFailure(endpoint: PrivilegeAdbEndpoint): Throwable =
     if (!endpoint.isLocalHost && !isAdbKeyNotAuthorized()) {

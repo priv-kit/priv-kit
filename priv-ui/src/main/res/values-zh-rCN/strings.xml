@@ -14,7 +14,7 @@
     <string name="priv_ui_service_source_unknown">未知</string>
     <string name="priv_ui_service_start_action_description">启动服务</string>
     <string name="priv_ui_service_stop_action_description">停止服务</string>
-    <string name="priv_ui_no_direct_start">无法直接启动</string>
+    <string name="priv_ui_start_failed">启动失败</string>
     <string name="priv_ui_stopping_service">正在停止特权服务...</string>
     <string name="priv_ui_service_stopped">特权服务已停止</string>
     <string name="priv_ui_stop_service_dialog_title">停止服务？</string>
@@ -26,7 +26,7 @@
     <string name="priv_ui_connected">已连接</string>
     <string name="priv_ui_binder_died">Binder 已断开</string>
     <string name="priv_ui_starting_root">正在启动 Root 运行时...</string>
-    <string name="priv_ui_startup_interrupted">已中断启动</string>
+    <string name="priv_ui_startup_interrupted">启动已取消</string>
     <string name="priv_ui_startup_source">启动来源：%1$s</string>
     <string name="priv_ui_startup_log_title">启动日志</string>
     <string name="priv_ui_startup_log_copy_description">复制启动日志</string>
@@ -47,11 +47,15 @@
     <string name="priv_ui_adb_tab_static">静态端口</string>
     <string name="priv_ui_adb_unavailable">当前没有可用的 ADB 启动入口</string>
     <string name="priv_ui_adb_wireless_start_action">启动</string>
-    <string name="priv_ui_start_interrupt_action">中断</string>
+    <string name="priv_ui_start_cancel_action">取消</string>
+    <string name="priv_ui_start_cancelling_action">取消中</string>
+    <string name="priv_ui_startup_cancelling">正在取消启动...</string>
     <string name="priv_ui_adb_static_port_status">静态端口 %1$d</string>
     <string name="priv_ui_adb_static_port_status_unavailable">静态端口</string>
     <string name="priv_ui_adb_static_port_ready">已开启</string>
-    <string name="priv_ui_adb_static_port_unavailable">不可用</string>
+    <string name="priv_ui_adb_static_port_unavailable">未配置静态端口</string>
+    <string name="priv_ui_adb_static_service_stopped">ADB 服务未运行</string>
+    <string name="priv_ui_adb_static_preparing">正在准备静态 ADB 连接</string>
     <string name="priv_ui_adb_static_status_unauthorized">未授权</string>
     <string name="priv_ui_adb_static_status_authorized">已授权</string>
     <string name="priv_ui_adb_static_authorization_status">已授权</string>
@@ -71,7 +75,6 @@
     <string name="priv_ui_wireless_status_checking">正在检查</string>
     <string name="priv_ui_wireless_status_on">开启</string>
     <string name="priv_ui_wireless_status_wifi_required">需要 Wi-Fi</string>
-    <string name="priv_ui_wireless_status_developer_options_required">请先开启开发者选项</string>
     <string name="priv_ui_wireless_status_off">关闭</string>
     <string name="priv_ui_wireless_status_unpaired">未配对</string>
     <string name="priv_ui_wireless_status_pairable">可配对</string>

@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import priv.kit.PrivilegeServerInfo
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
+import priv.kit.ui.PrivilegeUiRuntimeStartPhase
 import priv.kit.ui.PrivilegeUiRuntimeStatus
 import priv.kit.ui.PrivilegeUiState
 import priv.kit.ui.R
@@ -104,10 +105,14 @@ internal fun CommandBlock(commandLine: String) {
 internal fun ServiceStatusPanel(
     state: PrivilegeUiState,
     onStartClick: () -> Unit,
+    onCancelClick: () -> Unit,
     onStopClick: () -> Unit,
 ) {
     var showStopConfirmation by remember { mutableStateOf(false) }
-    val running = state.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED
+    val action = privilegeUiServiceStatusAction(
+        runtimeStatus = state.runtimeStatus,
+        runtimeStartPhase = state.runtimeStartPhase,
+    )
     val (
         title,
         detail,
@@ -117,7 +122,8 @@ internal fun ServiceStatusPanel(
         iconDescription,
         actionContainer,
         actionForeground,
-    ) = if (running) {
+    ) = when (action) {
+        PrivilegeUiServiceStatusAction.STOP ->
         StatusUi(
             title = stringResource(R.string.priv_ui_service_started),
             detail = stringResource(
@@ -131,7 +137,27 @@ internal fun ServiceStatusPanel(
             actionContainer = MaterialTheme.colorScheme.errorContainer,
             actionForeground = MaterialTheme.colorScheme.onErrorContainer,
         )
-    } else {
+        PrivilegeUiServiceStatusAction.CANCEL -> StatusUi(
+            title = stringResource(R.string.priv_ui_service_not_started),
+            detail = state.runtimeStatusDetail(),
+            background = MaterialTheme.colorScheme.surface,
+            foreground = MaterialTheme.colorScheme.onSurface,
+            icon = PrivilegeUiIcons.Stop,
+            iconDescription = stringResource(R.string.priv_ui_start_cancel_action),
+            actionContainer = MaterialTheme.colorScheme.errorContainer,
+            actionForeground = MaterialTheme.colorScheme.onErrorContainer,
+        )
+        PrivilegeUiServiceStatusAction.CANCELLING -> StatusUi(
+            title = stringResource(R.string.priv_ui_service_not_started),
+            detail = state.runtimeStatusDetail(),
+            background = MaterialTheme.colorScheme.surface,
+            foreground = MaterialTheme.colorScheme.onSurface,
+            icon = PrivilegeUiIcons.Stop,
+            iconDescription = stringResource(R.string.priv_ui_start_cancelling_action),
+            actionContainer = MaterialTheme.colorScheme.errorContainer,
+            actionForeground = MaterialTheme.colorScheme.onErrorContainer,
+        )
+        PrivilegeUiServiceStatusAction.START ->
         StatusUi(
             title = stringResource(R.string.priv_ui_service_not_started),
             detail = state.runtimeStatusDetail(),
@@ -207,7 +233,7 @@ internal fun ServiceStatusPanel(
             PrivilegeIconTooltip(text = iconDescription) {
                 FilledTonalIconButton(
                     modifier = Modifier.size(44.dp),
-                    enabled = !state.busy,
+                    enabled = privilegeUiServiceStatusActionEnabled(action, state.busy),
                     colors = IconButtonDefaults.filledTonalIconButtonColors(
                         containerColor = actionContainer,
                         contentColor = actionForeground,
@@ -215,10 +241,11 @@ internal fun ServiceStatusPanel(
                         disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.34f),
                     ),
                     onClick = {
-                        if (running) {
-                            showStopConfirmation = true
-                        } else {
-                            onStartClick()
+                        when (action) {
+                            PrivilegeUiServiceStatusAction.STOP -> showStopConfirmation = true
+                            PrivilegeUiServiceStatusAction.CANCEL -> onCancelClick()
+                            PrivilegeUiServiceStatusAction.CANCELLING -> Unit
+                            PrivilegeUiServiceStatusAction.START -> onStartClick()
                         }
                     },
                 ) {
@@ -232,6 +259,41 @@ internal fun ServiceStatusPanel(
         }
     }
 }
+
+internal enum class PrivilegeUiServiceStatusAction {
+    START,
+    CANCEL,
+    CANCELLING,
+    STOP,
+}
+
+internal fun privilegeUiServiceStatusAction(
+    runtimeStatus: PrivilegeUiRuntimeStatus,
+    runtimeStartPhase: PrivilegeUiRuntimeStartPhase,
+): PrivilegeUiServiceStatusAction =
+    when (runtimeStartPhase) {
+        PrivilegeUiRuntimeStartPhase.RUNNING -> PrivilegeUiServiceStatusAction.CANCEL
+        PrivilegeUiRuntimeStartPhase.CANCELLING -> PrivilegeUiServiceStatusAction.CANCELLING
+        PrivilegeUiRuntimeStartPhase.IDLE -> when (runtimeStatus) {
+            PrivilegeUiRuntimeStatus.CONNECTED -> PrivilegeUiServiceStatusAction.STOP
+            PrivilegeUiRuntimeStatus.STARTING,
+            PrivilegeUiRuntimeStatus.DISCONNECTED,
+            PrivilegeUiRuntimeStatus.FAILED,
+            -> PrivilegeUiServiceStatusAction.START
+        }
+    }
+
+internal fun privilegeUiServiceStatusActionEnabled(
+    action: PrivilegeUiServiceStatusAction,
+    busy: Boolean,
+): Boolean =
+    when (action) {
+        PrivilegeUiServiceStatusAction.CANCEL -> true
+        PrivilegeUiServiceStatusAction.CANCELLING -> false
+        PrivilegeUiServiceStatusAction.START,
+        PrivilegeUiServiceStatusAction.STOP,
+        -> !busy
+    }
 
 @Composable
 internal fun StartupLogPanel(
@@ -332,14 +394,20 @@ private data class StatusUi(
 
 @Composable
 private fun PrivilegeUiState.runtimeStatusDetail(): String =
-    when (runtimeStatus) {
-        PrivilegeUiRuntimeStatus.STARTING -> runtimeProgressMessage
+    when (runtimeStartPhase) {
+        PrivilegeUiRuntimeStartPhase.CANCELLING -> stringResource(R.string.priv_ui_startup_cancelling)
+        PrivilegeUiRuntimeStartPhase.RUNNING -> runtimeProgressMessage
             ?.takeIf { it.isNotBlank() }
             ?: stringResource(R.string.priv_ui_ready)
-        PrivilegeUiRuntimeStatus.DISCONNECTED,
-        PrivilegeUiRuntimeStatus.FAILED,
-        PrivilegeUiRuntimeStatus.CONNECTED,
-        -> stringResource(R.string.priv_ui_ready)
+        PrivilegeUiRuntimeStartPhase.IDLE -> when (runtimeStatus) {
+            PrivilegeUiRuntimeStatus.STARTING -> runtimeProgressMessage
+                ?.takeIf { it.isNotBlank() }
+                ?: stringResource(R.string.priv_ui_ready)
+            PrivilegeUiRuntimeStatus.DISCONNECTED,
+            PrivilegeUiRuntimeStatus.FAILED,
+            PrivilegeUiRuntimeStatus.CONNECTED,
+            -> stringResource(R.string.priv_ui_ready)
+        }
     }
 
 @Composable

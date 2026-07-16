@@ -4,7 +4,9 @@ import android.net.nsd.NsdManager
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -130,6 +132,28 @@ class PrivilegeAdbStarterTest {
         )
     }
 
+    @Test
+    fun interruptedAdbOperationIsNeverRetriedOrWrapped() {
+        val interrupted = InterruptedException("cancelled")
+        try {
+            assertFalse(
+                shouldRetryAdbConnectFailure(
+                    throwable = interrupted,
+                    attempt = 1,
+                    retryCount = 5,
+                ),
+            )
+
+            val thrown = assertThrows(InterruptedException::class.java) {
+                interrupted.rethrowIfInterrupted()
+            }
+            assertSame(interrupted, thrown)
+            assertTrue(Thread.currentThread().isInterrupted)
+        } finally {
+            Thread.interrupted()
+        }
+    }
+
     private fun starter(
         loadKeyBytes: () -> ByteArray = { ByteArray(0) },
         nsdManagerProvider: () -> NsdManager,
@@ -159,6 +183,8 @@ class PrivilegeAdbStarterTest {
                     wirelessDebuggingEnabled = false,
                     canManage = false,
                 )
+
+            override fun enableAdb() = Unit
 
             override fun prepareAdb() = Unit
 

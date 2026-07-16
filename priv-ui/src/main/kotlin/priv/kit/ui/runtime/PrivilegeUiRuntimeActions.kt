@@ -3,22 +3,40 @@ package priv.kit.ui.runtime
 import priv.kit.ui.*
 import priv.kit.ui.state.*
 
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
-import priv.kit.PrivilegeServerInfo
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import priv.kit.Privilege
 import priv.kit.PrivilegeConfig
+import priv.kit.PrivilegeServerInfo
+import priv.kit.PrivilegeServerLaunchUncertainException
+import priv.kit.PrivilegeStartupLogLine
 
 internal class PrivilegeUiRuntimeActions(
     private val store: PrivilegeUiViewModelStore,
     private val coroutineScope: CoroutineScope,
+    private val shutdownServer: () -> Unit = { Privilege.shutdownServer() },
 ) : AutoCloseable {
+    private val closed = AtomicBoolean(false)
+    private val runtimeStartScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var nextStopOperationId = 0L
+    private val activeStopOperationIds = mutableSetOf<Long>()
+
+    internal val isClosed: Boolean
+        get() = closed.get()
+
     fun configureOwnerDeathBehavior() {
         PrivilegeConfig.configure(
             followDeathDelayMillis = store.config.followDeathDelayMillis,
@@ -38,94 +56,131 @@ internal class PrivilegeUiRuntimeActions(
         ) {
             Privilege.startRoot(
                 timeoutMillis = store.config.startTimeoutMillis,
-                startupLogListener = store.startupLogListener,
+                startupLogListener = startupLogListener,
             )
         }
 
     fun stopServer() {
-        if (
-            store.state.value.busy ||
-            store.state.value.runtimeStatus != PrivilegeUiRuntimeStatus.CONNECTED
-        ) {
-            return
+        var operationId = 0L
+        var connectionSerial = 0L
+        synchronized(store) {
+            val current = store.state.value
+            if (
+                closed.get() ||
+                activeStopOperationIds.isNotEmpty() ||
+                current.busy ||
+                current.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE ||
+                current.runtimeStatus != PrivilegeUiRuntimeStatus.CONNECTED
+            ) {
+                return
+            }
+            operationId = ++nextStopOperationId
+            connectionSerial = current.connectionSerial
+            activeStopOperationIds += operationId
+            store.serverShutdownRequestedByOwner = true
+            store.updateState { it.copy(busy = true) }
         }
         val message = store.text(R.string.priv_ui_stopping_service)
-        store.updateState {
-            it.copy(
-                busy = true,
-            )
-        }
         store.appendLog(message)
-        coroutineScope.launch(Dispatchers.IO + CoroutineName("priv-ui-stop-server")) {
-            store.serverShutdownRequestedByOwner = true
+        val job = coroutineScope.launch(Dispatchers.IO + CoroutineName("priv-ui-stop-server")) {
             try {
-                runInterruptible {
-                    Privilege.shutdownServer()
-                }
-                store.updateState {
-                    it.copy(
-                        busy = false,
-                        runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
-                        runtimeStartSource = null,
-                        serverInfo = null,
-                        runtimeProgressMessage = null,
-                    )
+                runInterruptible { shutdownServer() }
+                synchronized(store) {
+                    if (!ownsStopOperationLocked(operationId, connectionSerial)) return@synchronized
+                    store.updateState {
+                        it.copy(
+                            busy = false,
+                            runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                            runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
+                            runtimeStartSource = null,
+                            runtimeStartProviderId = null,
+                            serverInfo = null,
+                            runtimeProgressMessage = null,
+                        )
+                    }
                 }
             } catch (_: CancellationException) {
                 return@launch
             } catch (throwable: Throwable) {
-                store.updateState {
-                    it.copy(
-                        busy = false,
-                        runtimeStartSource = null,
-                        runtimeProgressMessage = null,
-                    )
+                synchronized(store) {
+                    if (!ownsStopOperationLocked(operationId, connectionSerial)) return@synchronized
+                    store.updateState {
+                        it.copy(
+                            busy = false,
+                            runtimeStartSource = null,
+                            runtimeStartProviderId = null,
+                            runtimeProgressMessage = null,
+                        )
+                    }
+                    store.showFailure(throwable)
+                    store.appendLog(throwable.toPrivilegeUiDiagnosticString())
                 }
-                store.showFailure(throwable)
-                store.appendLog(throwable.toPrivilegeUiDiagnosticString())
-            } finally {
-                store.serverShutdownRequestedByOwner = false
+            }
+        }
+        job.invokeOnCompletion {
+            synchronized(store) {
+                activeStopOperationIds -= operationId
+                store.serverShutdownRequestedByOwner = activeStopOperationIds.isNotEmpty()
             }
         }
     }
 
+    private fun ownsStopOperationLocked(operationId: Long, connectionSerial: Long): Boolean =
+        !closed.get() &&
+            operationId in activeStopOperationIds &&
+            store.state.value.connectionSerial == connectionSerial
+
     fun stopCurrentStart() {
-        when (store.state.value.runtimeStatus) {
-            PrivilegeUiRuntimeStatus.CONNECTED -> stopServer()
-            PrivilegeUiRuntimeStatus.STARTING -> interruptServerStart()
-            PrivilegeUiRuntimeStatus.DISCONNECTED,
-            PrivilegeUiRuntimeStatus.FAILED,
-            -> Unit
+        if (store.state.value.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.RUNNING) {
+            requestRuntimeStartCancellation()
         }
     }
 
-    fun reportNoDirectStart() {
-        val message = store.text(R.string.priv_ui_no_direct_start)
-        store.showFailure(message)
-        store.appendLog(message)
+    private fun reportStartFailedIfIdle() {
+        synchronized(store) {
+            val current = store.state.value
+            if (
+                closed.get() ||
+                current.busy ||
+                current.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE ||
+                current.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED
+            ) {
+                return
+            }
+            val message = store.text(R.string.priv_ui_start_failed)
+            store.showFailure(message)
+            store.appendLog(message)
+        }
     }
 
     fun refreshRuntimeStatus() {
+        if (closed.get()) return
+        val observedConnectionSerial = store.state.value.connectionSerial
         try {
             if (Privilege.pingServer()) {
                 connectServer(Privilege.getServerInfo())
             } else {
-                store.updateState {
-                    it.copy(
-                        busy = false,
-                        runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
-                        runtimeStartSource = null,
-                        serverInfo = null,
-                        runtimeProgressMessage = null,
-                    )
-                }
+                updateDisconnectedIfIdle(observedConnectionSerial)
             }
         } catch (_: Throwable) {
-            store.updateState {
+            updateDisconnectedIfIdle(observedConnectionSerial)
+        }
+    }
+
+    private fun updateDisconnectedIfIdle(expectedConnectionSerial: Long) {
+        if (closed.get()) return
+        store.updateState {
+            if (
+                it.connectionSerial != expectedConnectionSerial ||
+                it.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE
+            ) {
+                it
+            } else {
                 it.copy(
                     busy = false,
                     runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
                     runtimeStartSource = null,
+                    runtimeStartProviderId = null,
                     serverInfo = null,
                     runtimeProgressMessage = null,
                 )
@@ -192,53 +247,17 @@ internal class PrivilegeUiRuntimeActions(
 
     fun runServerStartFallback(attempts: List<PrivilegeUiRuntimeStartAttempt>) {
         if (attempts.isEmpty()) {
-            reportNoDirectStart()
+            reportStartFailedIfIdle()
             return
         }
         val firstAttempt = attempts.first()
-        val session = beginRuntimeStart(
-            message = firstAttempt.message,
-            runtimeStartSource = firstAttempt.runtimeStartSource,
-        ) ?: return
-        launchRuntimeStart(session, "priv-ui-runtime-start-fallback") {
-            var lastFailure: Throwable? = null
-            attempts.forEach { attempt ->
-                if (!isCurrentRuntimeStart(session)) return@launchRuntimeStart
-                updateCurrentRuntimeStartState(session) {
-                    it.startingAttempt(
-                        message = attempt.message,
-                        runtimeStartSource = attempt.runtimeStartSource,
-                    )
-                }
-                appendStartupSource(attempt.startupSource)
-                store.appendStartupLog(attempt.message)
-                try {
-                    val result = executeRuntimeStartAttempt(session, attempt)
-                    if (
-                        applyRuntimeStartResult(
-                            session = session,
-                            result = result,
-                            finishOnFinished = false,
-                        )
-                    ) {
-                        return@launchRuntimeStart
-                    }
-                } catch (_: CancellationException) {
-                    return@launchRuntimeStart
-                } catch (throwable: Throwable) {
-                    if (!isCurrentRuntimeStart(session)) return@launchRuntimeStart
-                    if (attempt.handlesStartFailure(throwable, includeWorkflow = false)) {
-                        return@launchRuntimeStart
-                    }
-                    lastFailure = throwable
-                    store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
-                }
-            }
-            setRuntimeFailure(
-                lastFailure ?: IllegalStateException(store.text(R.string.priv_ui_no_direct_start)),
-                appendDiagnostic = false,
-                startSession = session,
-            )
+        launchRuntimeStart(
+            initialAttempt = firstAttempt,
+            showAttemptFeedback = false,
+            name = "priv-ui-runtime-start-fallback",
+            beforeStart = { store.clearStartupLog() },
+        ) { session ->
+            runFallbackAttempts(session, attempts)
         }
     }
 
@@ -248,81 +267,218 @@ internal class PrivilegeUiRuntimeActions(
         onFailure: ((Throwable) -> Unit)? = null,
         onSuccess: (T) -> String,
     ) {
-        if (store.state.value.busy) return
-        store.updateState {
-            it.copy(
-                busy = true,
-            )
+        val current = store.state.value
+        if (
+            closed.get() ||
+            current.busy ||
+            current.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE
+        ) {
+            return
         }
+        store.updateState { it.copy(busy = true) }
         store.appendLog(message)
         coroutineScope.launch(Dispatchers.IO + CoroutineName("priv-ui-runtime-busy")) {
             try {
-                val result = runInterruptible {
-                    action()
+                val result = runInterruptible { action() }
+                if (!closed.get()) {
+                    val resultMessage = onSuccess(result)
+                    store.updateState { it.copy(busy = false) }
+                    store.appendLog(resultMessage)
                 }
-                val resultMessage = onSuccess(result)
-                store.updateState {
-                    it.copy(
-                        busy = false,
-                    )
-                }
-                store.appendLog(resultMessage)
             } catch (_: CancellationException) {
                 return@launch
             } catch (throwable: Throwable) {
-                onFailure?.invoke(throwable)
-                store.updateState {
-                    it.copy(
-                        busy = false,
-                    )
+                if (!closed.get()) {
+                    onFailure?.invoke(throwable)
+                    store.updateState { it.copy(busy = false) }
+                    store.showFailure(throwable)
+                    store.appendLog(throwable.toPrivilegeUiDiagnosticString())
                 }
-                store.showFailure(throwable)
-                store.appendLog(throwable.toPrivilegeUiDiagnosticString())
             }
         }
     }
 
     override fun close() {
-        val session = store.runtimeStartSession
-        store.runtimeStartGeneration.incrementAndGet()
-        store.runtimeStartSession = null
-        store.runtimeStartJob?.cancel()
-        store.runtimeStartJob = null
-        session?.close()
-        store.serverConnectedListener?.close()
-        store.serverDisconnectedWatcher?.close()
+        if (!synchronized(store) { closed.compareAndSet(false, true) }) return
+        val hadRuntimeStart = requestRuntimeStartCancellation(ownerClosing = true)
+        runtimeStartScope.cancel()
+        if (!hadRuntimeStart) cleanupScope.cancel()
+        runCatching { store.serverConnectedListener?.close() }
+        runCatching { store.serverDisconnectedWatcher?.close() }
         store.serverConnectedListener = null
         store.serverDisconnectedWatcher = null
-    }
-
-    private fun appendStartupSource(startupSource: String?) {
-        val source = startupSource?.trim()?.takeIf { it.isNotEmpty() } ?: return
-        store.appendStartupLog(store.text(R.string.priv_ui_startup_source, source))
     }
 
     private fun runServerStartAttempt(
         attempt: PrivilegeUiRuntimeStartAttempt,
         name: String,
     ) {
-        val session = beginRuntimeStart(attempt.message, attempt.runtimeStartSource) ?: return
-        appendStartupSource(attempt.startupSource)
-        store.appendStartupLog(attempt.message)
-        launchRuntimeStart(session, name) {
-            try {
-                val result = executeRuntimeStartAttempt(session, attempt)
-                applyRuntimeStartResult(
-                    session = session,
-                    result = result,
-                    finishOnFinished = true,
-                )
+        launchRuntimeStart(
+            initialAttempt = attempt,
+            name = name,
+            beforeStart = { session ->
+                store.clearStartupLog()
+                appendStartupSource(session, attempt.startupSource)
+                session.appendStartupLog(attempt.message)
+            },
+        ) { session ->
+            runSingleAttempt(session, attempt)
+        }
+    }
+
+    private fun launchRuntimeStart(
+        initialAttempt: PrivilegeUiRuntimeStartAttempt,
+        showAttemptFeedback: Boolean = true,
+        name: String,
+        beforeStart: (PrivilegeUiRuntimeStartSession) -> Unit,
+        block: suspend (PrivilegeUiRuntimeStartSession) -> RuntimeStartCompletion,
+    ): Boolean = synchronized(store) {
+        val current = store.state.value
+        if (
+            closed.get() ||
+            current.busy ||
+            current.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE ||
+            store.runtimeStartSession != null ||
+            store.runtimeStartJob != null
+        ) {
+            return@synchronized false
+        }
+
+        val session = PrivilegeUiRuntimeStartSession(
+            generation = store.runtimeStartGeneration.incrementAndGet(),
+            showAttemptFeedback = showAttemptFeedback,
+            startupLogSink = ::appendSessionStartupLog,
+            structuredStartupLogSink = ::appendSessionStartupLog,
+        )
+        lateinit var job: Job
+        job = runtimeStartScope.launch(
+            context = CoroutineName(name),
+            start = CoroutineStart.LAZY,
+        ) {
+            val completion = try {
+                block(session)
             } catch (_: CancellationException) {
-                return@launchRuntimeStart
+                RuntimeStartCompletion.Cancelled
             } catch (throwable: Throwable) {
-                if (!attempt.handlesStartFailure(throwable, includeWorkflow = true)) {
-                    setRuntimeFailure(throwable, startSession = session)
+                RuntimeStartCompletion.Failure(throwable)
+            }
+            completeRuntimeStart(session, completion)
+        }
+        job.invokeOnCompletion { cause ->
+            if (cause != null) {
+                val completion = if (
+                    cause is CancellationException ||
+                    session.cancellationRequested
+                ) {
+                    RuntimeStartCompletion.Cancelled
+                } else {
+                    RuntimeStartCompletion.Failure(cause)
+                }
+                completeRuntimeStart(session, completion)
+            }
+        }
+
+        store.runtimeStartSession = session
+        store.runtimeStartJob = job
+        store.updateState {
+            it.startingAttempt(
+                attempt = initialAttempt,
+                phase = PrivilegeUiRuntimeStartPhase.RUNNING,
+            )
+        }
+        beforeStart(session)
+        job.start()
+        true
+    }
+
+    private suspend fun runSingleAttempt(
+        session: PrivilegeUiRuntimeStartSession,
+        attempt: PrivilegeUiRuntimeStartAttempt,
+    ): RuntimeStartCompletion {
+        return try {
+            session.checkActive()
+            when (val result = executeRuntimeStartAttempt(session, attempt)) {
+                is PrivilegeUiRuntimeStartResult.Connected ->
+                    RuntimeStartCompletion.Connected(result.serverInfo)
+                is PrivilegeUiRuntimeStartResult.RequestSent ->
+                    awaitExternalStartCompletion(session, result.message)
+                PrivilegeUiRuntimeStartResult.Finished -> RuntimeStartCompletion.Finished
+            }
+        } catch (_: CancellationException) {
+            RuntimeStartCompletion.Cancelled
+        } catch (throwable: Throwable) {
+            if (session.cancellationRequested) {
+                RuntimeStartCompletion.Cancelled
+            } else {
+                attempt.startFailureDisposition(throwable)
+                    ?.let(RuntimeStartCompletion::HandledFailure)
+                    ?: RuntimeStartCompletion.Failure(throwable)
+            }
+        }
+    }
+
+    private suspend fun runFallbackAttempts(
+        session: PrivilegeUiRuntimeStartSession,
+        attempts: List<PrivilegeUiRuntimeStartAttempt>,
+    ): RuntimeStartCompletion {
+        attempts.forEach { attempt ->
+            try {
+                session.checkActive()
+                if (!isCurrentRuntimeStart(session)) return RuntimeStartCompletion.Superseded
+                updateCurrentRuntimeStartAttempt(session, attempt)
+                appendStartupSource(session, attempt.startupSource)
+                session.appendStartupLog(attempt.message)
+                when (val result = executeRuntimeStartAttempt(session, attempt)) {
+                    is PrivilegeUiRuntimeStartResult.Connected ->
+                        return RuntimeStartCompletion.Connected(result.serverInfo)
+                    is PrivilegeUiRuntimeStartResult.RequestSent -> {
+                        return awaitExternalStartCompletion(session, result.message)
+                    }
+                    PrivilegeUiRuntimeStartResult.Finished -> Unit
+                }
+            } catch (_: CancellationException) {
+                return RuntimeStartCompletion.Cancelled
+            } catch (throwable: Throwable) {
+                if (session.cancellationRequested) return RuntimeStartCompletion.Cancelled
+                if (!isCurrentRuntimeStart(session)) return RuntimeStartCompletion.Superseded
+                attempt.startFailureDisposition(throwable)?.let { disposition ->
+                    applySilentFallbackFailureDisposition(session, disposition)
+                }
+                session.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
+                if (
+                    attempt is PrivilegeUiRuntimeStartAttempt.Request ||
+                    throwable is PrivilegeServerLaunchUncertainException
+                ) {
+                    return RuntimeStartCompletion.Failure(
+                        throwable = IllegalStateException(store.text(R.string.priv_ui_start_failed)),
+                        appendDiagnostic = false,
+                    )
                 }
             }
         }
+        return RuntimeStartCompletion.Failure(
+            throwable = IllegalStateException(store.text(R.string.priv_ui_start_failed)),
+            appendDiagnostic = false,
+        )
+    }
+
+    private fun applySilentFallbackFailureDisposition(
+        session: PrivilegeUiRuntimeStartSession,
+        disposition: PrivilegeUiRuntimeStartFailureDisposition,
+    ) {
+        var afterCommit: (() -> Unit)? = null
+        synchronized(store) {
+            if (
+                closed.get() ||
+                !isCurrentRuntimeStartLocked(session) ||
+                session.cancellationRequested
+            ) {
+                return
+            }
+            store.updateState(disposition.stateTransform)
+            afterCommit = disposition.afterCommit
+        }
+        afterCommit?.let { callback -> runCatching(callback) }
     }
 
     private suspend fun executeRuntimeStartAttempt(
@@ -331,159 +487,278 @@ internal class PrivilegeUiRuntimeActions(
     ): PrivilegeUiRuntimeStartResult =
         when (attempt) {
             is PrivilegeUiRuntimeStartAttempt.Connect -> {
-                val serverInfo = runInterruptible {
-                    attempt.start(session)
-                }
+                val serverInfo = runInterruptible { attempt.start(session) }
                 PrivilegeUiRuntimeStartResult.Connected(serverInfo)
             }
             is PrivilegeUiRuntimeStartAttempt.Request -> {
-                runInterruptible {
-                    attempt.start(session)
-                }
+                // External providers expose no cancellation hook. This call intentionally has
+                // zero coroutine cancellation points and is allowed to return on its own.
+                attempt.start(session)
                 PrivilegeUiRuntimeStartResult.RequestSent(attempt.startedMessage)
             }
             is PrivilegeUiRuntimeStartAttempt.Workflow -> attempt.start(session)
         }
 
-    private fun applyRuntimeStartResult(
+    private suspend fun awaitExternalStartCompletion(
         session: PrivilegeUiRuntimeStartSession,
-        result: PrivilegeUiRuntimeStartResult,
-        finishOnFinished: Boolean,
-    ): Boolean {
-        when (result) {
-            is PrivilegeUiRuntimeStartResult.Connected -> {
-                if (isCurrentRuntimeStart(session)) {
-                    connectServer(result.serverInfo, session)
-                } else {
-                    stopServerAfterCancelledStart()
-                }
-                return true
+        message: String,
+    ): RuntimeStartCompletion {
+        updateCurrentRuntimeStartState(session) {
+            if (it.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.RUNNING) {
+                it.copy(runtimeProgressMessage = message)
+            } else {
+                it
             }
-            is PrivilegeUiRuntimeStartResult.RequestSent -> {
-                updateCurrentRuntimeStartState(session) {
-                    it.startRequestSent(result.message)
-                }
-                if (isCurrentRuntimeStart(session)) {
-                    store.appendStartupLog(result.message)
-                }
-                return true
+        }
+        if (isCurrentRuntimeStart(session) && !closed.get()) {
+            session.appendStartupLog(message)
+        }
+
+        withContext(NonCancellable) {
+            withTimeoutOrNull(store.config.startTimeoutMillis) {
+                session.awaitCompletionSignal()
             }
-            PrivilegeUiRuntimeStartResult.Finished -> {
-                if (finishOnFinished) {
-                    finishRuntimeStartWithoutResult(session)
-                }
+        }
+
+        if (!isCurrentRuntimeStart(session)) return RuntimeStartCompletion.Superseded
+        if (session.cancellationRequested) return RuntimeStartCompletion.Cancelled
+        return RuntimeStartCompletion.Failure(
+            throwable = IllegalStateException(store.text(R.string.priv_ui_start_failed)),
+            appendDiagnostic = false,
+        )
+    }
+
+    private fun requestRuntimeStartCancellation(ownerClosing: Boolean = false): Boolean {
+        lateinit var session: PrivilegeUiRuntimeStartSession
+        var job: Job? = null
+        var firstRequest = false
+        synchronized(store) {
+            session = store.runtimeStartSession ?: return false
+            if (!ownerClosing && store.state.value.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.RUNNING) {
                 return false
             }
+            firstRequest = session.markCancellationRequested()
+            if (!ownerClosing && !firstRequest) return false
+            job = store.runtimeStartJob
+            if (ownerClosing) {
+                if (store.runtimeStartSession === session) {
+                    store.runtimeStartGeneration.incrementAndGet()
+                    store.runtimeStartSession = null
+                    store.runtimeStartJob = null
+                }
+            } else {
+                store.updateState {
+                    it.copy(
+                        busy = true,
+                        runtimeStartPhase = PrivilegeUiRuntimeStartPhase.CANCELLING,
+                        runtimeProgressMessage = store.text(R.string.priv_ui_startup_cancelling),
+                    )
+                }
+            }
         }
+
+        job?.cancel(CancellationException("Runtime start was cancelled"))
+        session.signalCompletion()
+        if (firstRequest || ownerClosing) {
+            cleanupScope.launch(CoroutineName("priv-ui-runtime-start-cleanup")) {
+                try {
+                    session.closeCancellationResources { throwable ->
+                        appendCleanupFailure(session, throwable)
+                    }
+                    if (ownerClosing) {
+                        session.finish { throwable ->
+                            appendCleanupFailure(session, throwable)
+                        }
+                    }
+                } finally {
+                    if (ownerClosing) cleanupScope.cancel()
+                }
+            }
+        }
+        return true
     }
 
-    private fun PrivilegeUiRuntimeStartAttempt.handlesStartFailure(
-        throwable: Throwable,
-        includeWorkflow: Boolean,
-    ): Boolean =
-        when (this) {
-            is PrivilegeUiRuntimeStartAttempt.Connect -> onFailure?.invoke(throwable) == true
-            is PrivilegeUiRuntimeStartAttempt.Workflow ->
-                includeWorkflow && onFailure?.invoke(throwable) == true
-            is PrivilegeUiRuntimeStartAttempt.Request -> false
-        }
-
-    private fun beginRuntimeStart(
-        message: String,
-        runtimeStartSource: PrivilegeUiRuntimeStartSource?,
-    ): PrivilegeUiRuntimeStartSession? {
-        if (store.state.value.busy) return null
-        val generation = store.runtimeStartGeneration.incrementAndGet()
-        val session = PrivilegeUiRuntimeStartSession(generation)
-        store.clearStartupLog()
-        synchronized(store) {
-            store.runtimeStartSession?.close()
-            store.runtimeStartSession = session
-        }
-        updateCurrentRuntimeStartState(session) {
-            it.startingAttempt(
-                message = message,
-                runtimeStartSource = runtimeStartSource,
+    private fun completeRuntimeStart(
+        session: PrivilegeUiRuntimeStartSession,
+        completion: RuntimeStartCompletion,
+    ) {
+        if (completion is RuntimeStartCompletion.Connected) {
+            connectServer(
+                serverInfo = completion.serverInfo,
+                expectedSession = session,
             )
+            return
         }
-        return session
-    }
 
-    private fun interruptServerStart() {
-        if (store.state.value.runtimeStatus != PrivilegeUiRuntimeStatus.STARTING) return
-        val message = store.text(R.string.priv_ui_startup_interrupted)
-        val sessionAndJob = synchronized(store) {
+        synchronized(store) {
+            if (!isCurrentRuntimeStartLocked(session)) return
+        }
+        session.finish { throwable ->
+            appendCleanupFailure(session, throwable)
+        }
+
+        var resolvedCompletion: RuntimeStartCompletion = completion
+        synchronized(store) {
+            if (!ownsRuntimeStartLocked(session)) return
+            if (session.cancellationRequested) {
+                resolvedCompletion = RuntimeStartCompletion.Cancelled
+            }
+        }
+        var afterCommit: (() -> Unit)? = null
+        var userAction: (() -> Unit)? = null
+        var committedGeneration: Long? = null
+        var committedConnectionSerial: Long? = null
+        synchronized(store) {
+            if (!ownsRuntimeStartLocked(session)) return
+            if (session.connectionClaimed) return
+            if (session.cancellationRequested) {
+                resolvedCompletion = RuntimeStartCompletion.Cancelled
+            }
             store.runtimeStartGeneration.incrementAndGet()
-            val session = store.runtimeStartSession
-            val job = store.runtimeStartJob
             store.runtimeStartSession = null
             store.runtimeStartJob = null
-            session to job
+            if (!closed.get()) {
+                when (val resolved = resolvedCompletion) {
+                    RuntimeStartCompletion.Cancelled -> {
+                        store.appendStartupLog(store.text(R.string.priv_ui_startup_interrupted))
+                    }
+                    is RuntimeStartCompletion.Failure -> {
+                        store.showFailure(resolved.throwable.failureMessage())
+                        if (resolved.appendDiagnostic) {
+                            store.appendStartupLog(resolved.throwable.toPrivilegeUiDiagnosticString())
+                        }
+                    }
+                    RuntimeStartCompletion.Finished,
+                    RuntimeStartCompletion.Superseded,
+                    is RuntimeStartCompletion.Connected,
+                    -> Unit
+                    is RuntimeStartCompletion.HandledFailure -> {
+                        resolved.disposition.snackbarMessage?.let(store::showSnackbar)
+                        resolved.disposition.startupLogLines.forEach(store::appendStartupLog)
+                    }
+                }
+            }
+            store.updateState { current ->
+                when (val resolved = resolvedCompletion) {
+                    RuntimeStartCompletion.Cancelled,
+                    RuntimeStartCompletion.Finished,
+                    -> current.finishRuntimeStartDisconnected()
+                    is RuntimeStartCompletion.HandledFailure ->
+                        resolved.disposition
+                            .stateTransform(current)
+                            .finishRuntimeStartDisconnected()
+                    is RuntimeStartCompletion.Failure -> current.finishRuntimeStartFailed()
+                    RuntimeStartCompletion.Superseded -> current.finishRuntimeStartPreservingStatus()
+                    is RuntimeStartCompletion.Connected -> current
+                }
+            }
+            if (resolvedCompletion is RuntimeStartCompletion.HandledFailure) {
+                val disposition = (resolvedCompletion as RuntimeStartCompletion.HandledFailure).disposition
+                afterCommit = disposition.afterCommit
+                userAction = disposition.onUserActionRequired
+                committedGeneration = store.runtimeStartGeneration.get()
+                committedConnectionSerial = store.state.value.connectionSerial
+            }
         }
-        sessionAndJob.first?.close()
-        sessionAndJob.second?.cancel()
+        afterCommit?.let { callback ->
+            synchronized(store) {
+                if (canDeliverPostCommitLocked(committedGeneration, committedConnectionSerial)) {
+                    runCatching(callback)
+                }
+            }
+        }
+        userAction?.let { callback ->
+            coroutineScope.launch(CoroutineName("priv-ui-runtime-user-action")) {
+                synchronized(store) {
+                    if (canDeliverPostCommitLocked(committedGeneration, committedConnectionSerial)) {
+                        runCatching(callback)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun canDeliverPostCommitLocked(
+        committedGeneration: Long?,
+        committedConnectionSerial: Long?,
+    ): Boolean =
+        !closed.get() &&
+            store.runtimeStartGeneration.get() == committedGeneration &&
+            store.state.value.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.IDLE &&
+            store.state.value.connectionSerial == committedConnectionSerial
+
+    private fun connectServer(serverInfo: PrivilegeServerInfo) {
+        connectServer(serverInfo, expectedSession = null)
+    }
+
+    private fun connectServer(
+        serverInfo: PrivilegeServerInfo,
+        expectedSession: PrivilegeUiRuntimeStartSession?,
+    ) {
+        if (closed.get()) return
+        var activeSession: PrivilegeUiRuntimeStartSession? = null
+        var activeStartJob: Job? = null
+        synchronized(store) {
+            if (closed.get()) return
+            if (expectedSession != null && !isCurrentRuntimeStartLocked(expectedSession)) return
+            activeSession = store.runtimeStartSession
+            val session = activeSession
+            if (session != null && !session.recordConnectedServer(serverInfo)) return
+            if (session == null) {
+                publishConnectedServerLocked(serverInfo)
+                return
+            }
+            activeStartJob = store.runtimeStartJob
+        }
+        val session = activeSession ?: return
+        activeStartJob?.cancel(CancellationException("Runtime server connected"))
+        session.signalCompletion()
+        session.finish { throwable ->
+            appendCleanupFailure(session, throwable)
+        }
+        synchronized(store) {
+            if (closed.get() || !ownsRuntimeStartLocked(session)) return
+            store.runtimeStartGeneration.incrementAndGet()
+            store.runtimeStartSession = null
+            store.runtimeStartJob = null
+            val connectedServer = session.latestConnectedServer()
+            if (connectedServer == null) {
+                store.updateState { it.finishRuntimeStartDisconnected() }
+            } else {
+                publishConnectedServerLocked(connectedServer)
+            }
+        }
+    }
+
+    private fun publishConnectedServerLocked(serverInfo: PrivilegeServerInfo) {
+        val shouldAppendLog = store.state.value.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE ||
+            store.state.value.runtimeStatus == PrivilegeUiRuntimeStatus.STARTING
         store.updateState {
             it.copy(
                 busy = false,
-                runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
+                runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
                 runtimeStartSource = null,
-                serverInfo = null,
+                runtimeStartProviderId = null,
+                serverInfo = serverInfo,
                 runtimeProgressMessage = null,
+                connectionSerial = it.connectionSerial + 1L,
             )
         }
-        store.appendStartupLog(message)
+        if (shouldAppendLog && !closed.get()) {
+            store.appendStartupLog(store.text(R.string.priv_ui_connected))
+        }
     }
 
-    private fun launchRuntimeStart(
+    private fun updateCurrentRuntimeStartAttempt(
         session: PrivilegeUiRuntimeStartSession,
-        name: String,
-        block: suspend () -> Unit,
+        attempt: PrivilegeUiRuntimeStartAttempt,
     ) {
-        lateinit var job: Job
-        job = coroutineScope.launch(
-            context = Dispatchers.IO + CoroutineName(name),
-            start = CoroutineStart.LAZY,
-        ) {
-            try {
-                block()
-            } finally {
-                clearRuntimeStartJob(session, job)
-            }
-        }
-        if (markRuntimeStartJob(session, job)) {
-            job.start()
-        } else {
-            job.cancel()
-        }
-    }
-
-    private fun markRuntimeStartJob(
-        session: PrivilegeUiRuntimeStartSession,
-        job: Job,
-    ): Boolean =
-        synchronized(store) {
-            if (!isCurrentRuntimeStart(session)) {
-                false
+        updateCurrentRuntimeStartState(session) {
+            if (it.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.RUNNING) {
+                it.startingAttempt(attempt, PrivilegeUiRuntimeStartPhase.RUNNING)
             } else {
-                store.runtimeStartJob = job
-                true
-            }
-        }
-
-    private fun clearRuntimeStartJob(
-        session: PrivilegeUiRuntimeStartSession,
-        job: Job,
-    ) {
-        synchronized(store) {
-            if (
-                isCurrentRuntimeStart(session) &&
-                store.runtimeStartJob === job
-            ) {
-                store.runtimeStartJob = null
-                store.runtimeStartSession
-                    ?.takeIf { it === session }
-                    ?.close()
-                store.runtimeStartSession = null
+                it
             }
         }
     }
@@ -492,165 +767,160 @@ internal class PrivilegeUiRuntimeActions(
         session: PrivilegeUiRuntimeStartSession,
         transform: (PrivilegeUiState) -> PrivilegeUiState,
     ) {
-        store.updateState {
-            if (isCurrentRuntimeStart(session)) transform(it) else it
+        synchronized(store) {
+            if (!isCurrentRuntimeStartLocked(session) || closed.get()) return
+            store.updateState(transform)
         }
     }
 
     private fun isCurrentRuntimeStart(session: PrivilegeUiRuntimeStartSession): Boolean =
-        store.runtimeStartGeneration.get() == session.generation && session.active
+        synchronized(store) { isCurrentRuntimeStartLocked(session) }
 
-    private fun stopServerAfterCancelledStart() {
-        store.serverShutdownRequestedByOwner = true
-        try {
-            runCatching {
-                Privilege.shutdownServer()
-            }.onFailure { throwable ->
+    private fun isCurrentRuntimeStartLocked(session: PrivilegeUiRuntimeStartSession): Boolean =
+        ownsRuntimeStartLocked(session) && !session.finished && !session.connectionClaimed
+
+    private fun ownsRuntimeStartLocked(session: PrivilegeUiRuntimeStartSession): Boolean =
+        store.runtimeStartGeneration.get() == session.generation &&
+            store.runtimeStartSession === session
+
+    private fun appendStartupSource(
+        session: PrivilegeUiRuntimeStartSession,
+        startupSource: String?,
+    ) {
+        val source = startupSource?.trim()?.takeIf { it.isNotEmpty() } ?: return
+        session.appendStartupLog(store.text(R.string.priv_ui_startup_source, source))
+    }
+
+    private fun appendSessionStartupLog(
+        session: PrivilegeUiRuntimeStartSession,
+        line: String,
+    ) {
+        synchronized(store) {
+            if (!closed.get() && isCurrentRuntimeStartLocked(session)) {
+                store.appendStartupLog(line)
+            }
+        }
+    }
+
+    private fun appendSessionStartupLog(
+        session: PrivilegeUiRuntimeStartSession,
+        line: PrivilegeStartupLogLine,
+    ) {
+        synchronized(store) {
+            if (!closed.get() && isCurrentRuntimeStartLocked(session)) {
+                store.appendStartupLog(line)
+            }
+        }
+    }
+
+    private fun appendCleanupFailure(
+        session: PrivilegeUiRuntimeStartSession,
+        throwable: Throwable,
+    ) {
+        synchronized(store) {
+            if (!closed.get() && ownsRuntimeStartLocked(session)) {
                 store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
             }
-        } finally {
-            store.serverShutdownRequestedByOwner = false
         }
     }
 
-    private fun connectServer(
-        serverInfo: PrivilegeServerInfo,
-        startSession: PrivilegeUiRuntimeStartSession? = null,
-    ) {
-        if (startSession != null && !isCurrentRuntimeStart(startSession)) {
-            stopServerAfterCancelledStart()
-            return
-        }
-        val shouldAppendLog = store.state.value.runtimeStatus == PrivilegeUiRuntimeStatus.STARTING
-        var connected = false
-        store.updateState {
-            if (startSession != null && !isCurrentRuntimeStart(startSession)) {
-                it
-            } else {
-                connected = true
-                it.copy(
-                    busy = false,
-                    runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
-                    runtimeStartSource = null,
-                    serverInfo = serverInfo,
-                    runtimeProgressMessage = null,
-                    connectionSerial = it.connectionSerial + 1L,
-                )
-            }
-        }
-        if (!connected) {
-            stopServerAfterCancelledStart()
-            return
-        }
-        if (shouldAppendLog && (startSession == null || isCurrentRuntimeStart(startSession))) {
-            store.appendStartupLog(store.text(R.string.priv_ui_connected))
-        }
-    }
-
-    private fun setRuntimeFailure(
+    private fun PrivilegeUiRuntimeStartAttempt.startFailureDisposition(
         throwable: Throwable,
-        appendDiagnostic: Boolean = true,
-        startSession: PrivilegeUiRuntimeStartSession? = null,
-    ) {
-        if (startSession != null && !isCurrentRuntimeStart(startSession)) return
-        val failureMessage = throwable.failureMessage()
-        store.updateState {
-            if (startSession != null && !isCurrentRuntimeStart(startSession)) {
-                it
-            } else {
-                it.startFailed()
-            }
+    ): PrivilegeUiRuntimeStartFailureDisposition? =
+        when (this) {
+            is PrivilegeUiRuntimeStartAttempt.Connect -> onFailure?.invoke(throwable)
+            is PrivilegeUiRuntimeStartAttempt.Workflow -> onFailure?.invoke(throwable)
+            is PrivilegeUiRuntimeStartAttempt.Request -> null
         }
-        store.showFailure(failureMessage)
-        if (appendDiagnostic && (startSession == null || isCurrentRuntimeStart(startSession))) {
-            store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
-        }
-    }
-
-    private fun finishRuntimeStartWithoutResult(session: PrivilegeUiRuntimeStartSession) {
-        updateCurrentRuntimeStartState(session) {
-            if (it.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
-                it.copy(
-                    busy = false,
-                    runtimeStartSource = null,
-                    runtimeProgressMessage = null,
-                )
-            } else {
-                it.copy(
-                    busy = false,
-                    runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
-                    runtimeStartSource = null,
-                    serverInfo = null,
-                    runtimeProgressMessage = null,
-                )
-            }
-        }
-    }
 
     private fun handleServerDisconnected() {
+        if (closed.get()) return
         val message = if (store.serverShutdownRequestedByOwner) {
             store.text(R.string.priv_ui_service_stopped)
         } else {
             store.text(R.string.priv_ui_binder_died)
         }
-        store.updateState {
-            it.copy(
-                busy = false,
-                runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
-                runtimeStartSource = null,
-                serverInfo = null,
-                runtimeProgressMessage = null,
-            )
+        synchronized(store) {
+            store.runtimeStartSession?.recordDisconnectedServer()
+            store.updateState {
+                if (it.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.IDLE) {
+                    it.copy(
+                        busy = false,
+                        runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                        runtimeStartSource = null,
+                        runtimeStartProviderId = null,
+                        serverInfo = null,
+                        runtimeProgressMessage = null,
+                    )
+                } else {
+                    it.copy(
+                        runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
+                        serverInfo = null,
+                    )
+                }
+            }
         }
         store.appendLog(message)
     }
 
     private fun PrivilegeUiState.startingAttempt(
-        message: String,
-        runtimeStartSource: PrivilegeUiRuntimeStartSource?,
+        attempt: PrivilegeUiRuntimeStartAttempt,
+        phase: PrivilegeUiRuntimeStartPhase,
     ): PrivilegeUiState =
         if (runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
             copy(
                 busy = true,
-                runtimeStartSource = runtimeStartSource,
-                runtimeProgressMessage = message,
+                runtimeStartPhase = phase,
+                runtimeStartSource = attempt.runtimeStartSource,
+                runtimeStartProviderId = attempt.runtimeStartProviderId,
+                runtimeProgressMessage = attempt.message,
             )
         } else {
             copy(
                 busy = true,
                 runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
-                runtimeStartSource = runtimeStartSource,
+                runtimeStartPhase = phase,
+                runtimeStartSource = attempt.runtimeStartSource,
+                runtimeStartProviderId = attempt.runtimeStartProviderId,
                 serverInfo = null,
-                runtimeProgressMessage = message,
+                runtimeProgressMessage = attempt.message,
             )
         }
 
-    private fun PrivilegeUiState.startRequestSent(message: String): PrivilegeUiState =
+    private fun PrivilegeUiState.finishRuntimeStartPreservingStatus(): PrivilegeUiState =
+        copy(
+            busy = false,
+            runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
+            runtimeStartSource = null,
+            runtimeStartProviderId = null,
+            runtimeProgressMessage = null,
+        )
+
+    private fun PrivilegeUiState.finishRuntimeStartDisconnected(): PrivilegeUiState =
         if (runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
-            copy(
-                busy = false,
-                runtimeProgressMessage = message,
-            )
+            finishRuntimeStartPreservingStatus()
         } else {
             copy(
                 busy = false,
-                runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
-                runtimeProgressMessage = message,
+                runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
+                runtimeStartSource = null,
+                runtimeStartProviderId = null,
+                serverInfo = null,
+                runtimeProgressMessage = null,
             )
         }
 
-    private fun PrivilegeUiState.startFailed(): PrivilegeUiState =
+    private fun PrivilegeUiState.finishRuntimeStartFailed(): PrivilegeUiState =
         if (runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
-            copy(
-                busy = false,
-                runtimeStartSource = null,
-                runtimeProgressMessage = null,
-            )
+            finishRuntimeStartPreservingStatus()
         } else {
             copy(
                 busy = false,
                 runtimeStatus = PrivilegeUiRuntimeStatus.FAILED,
+                runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
                 runtimeStartSource = null,
+                runtimeStartProviderId = null,
                 serverInfo = null,
                 runtimeProgressMessage = null,
             )
@@ -661,12 +931,14 @@ internal sealed interface PrivilegeUiRuntimeStartAttempt {
     val message: String
     val startupSource: String?
     val runtimeStartSource: PrivilegeUiRuntimeStartSource?
+    val runtimeStartProviderId: String?
 
     class Connect(
         override val message: String,
         override val startupSource: String?,
         override val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
-        val onFailure: ((Throwable) -> Boolean)? = null,
+        val onFailure: ((Throwable) -> PrivilegeUiRuntimeStartFailureDisposition?)? = null,
+        override val runtimeStartProviderId: String? = null,
         val start: PrivilegeUiRuntimeStartSession.() -> PrivilegeServerInfo,
     ) : PrivilegeUiRuntimeStartAttempt
 
@@ -675,6 +947,7 @@ internal sealed interface PrivilegeUiRuntimeStartAttempt {
         val startedMessage: String,
         override val startupSource: String?,
         override val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
+        override val runtimeStartProviderId: String? = null,
         val start: PrivilegeUiRuntimeStartSession.() -> Unit,
     ) : PrivilegeUiRuntimeStartAttempt
 
@@ -682,13 +955,37 @@ internal sealed interface PrivilegeUiRuntimeStartAttempt {
         override val message: String,
         override val startupSource: String?,
         override val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
-        val onFailure: ((Throwable) -> Boolean)? = null,
+        val onFailure: ((Throwable) -> PrivilegeUiRuntimeStartFailureDisposition?)? = null,
+        override val runtimeStartProviderId: String? = null,
         val start: suspend PrivilegeUiRuntimeStartSession.() -> PrivilegeUiRuntimeStartResult,
     ) : PrivilegeUiRuntimeStartAttempt
 }
+
+internal class PrivilegeUiRuntimeStartFailureDisposition(
+    val stateTransform: (PrivilegeUiState) -> PrivilegeUiState = { it },
+    val snackbarMessage: String? = null,
+    val startupLogLines: List<String> = emptyList(),
+    val afterCommit: (() -> Unit)? = null,
+    val onUserActionRequired: (() -> Unit)? = null,
+)
 
 internal sealed interface PrivilegeUiRuntimeStartResult {
     class Connected(val serverInfo: PrivilegeServerInfo) : PrivilegeUiRuntimeStartResult
     class RequestSent(val message: String) : PrivilegeUiRuntimeStartResult
     data object Finished : PrivilegeUiRuntimeStartResult
+}
+
+private sealed interface RuntimeStartCompletion {
+    class Connected(val serverInfo: PrivilegeServerInfo) : RuntimeStartCompletion
+    class Failure(
+        val throwable: Throwable,
+        val appendDiagnostic: Boolean = true,
+    ) : RuntimeStartCompletion
+
+    data object Cancelled : RuntimeStartCompletion
+    data object Finished : RuntimeStartCompletion
+    class HandledFailure(
+        val disposition: PrivilegeUiRuntimeStartFailureDisposition,
+    ) : RuntimeStartCompletion
+    data object Superseded : RuntimeStartCompletion
 }

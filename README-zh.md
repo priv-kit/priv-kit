@@ -41,7 +41,9 @@ val serverInfo = Privilege.startRoot()
 val serverInfo = Privilege.startAdb()
 ```
 
-如果接入应用仍然声明并已被授予 `WRITE_SECURE_SETTINGS`，默认 ADB 启动会在需要动态无线调试端口时临时打开 Wireless Debugging，完成启动后关闭它。Privileged Server 连接成功后，runtime 会在该权限仍被声明且 server 是 root 或拥有 `android.permission.GRANT_RUNTIME_PERMISSIONS` 时尝试为 owner app 补授这个启动权限，让后续启动可以走托管 Wireless Debugging 路径；未声明该权限、未被授予该权限或 server 不具备授权能力时会回落到手动打开无线调试、配对或 TCP 端口路径。该能力只属于启动策略，不提供通用 Settings API；PackageManager 能力只限显式参数的 `checkPermission(...)` 与 `grantRuntimePermission(...)` 透传调用。
+如果接入应用仍然声明并已被授予 `WRITE_SECURE_SETTINGS`，默认 ADB 启动会在需要动态无线调试端口时临时打开 Wireless Debugging，完成启动后关闭它。显式静态 TCP 启动前，`PrivilegeAdbStarter.prepareTcpForStart()` 还可以在持久化端口配置仍存在、但 `adbd` 已停止监听时只写入 `ADB_ENABLED=1` 恢复核心 ADB 服务，不打开无线调试，也不要求 Wi-Fi。Privileged Server 连接成功后，runtime 会在该权限仍被声明且 server 是 root 或拥有 `android.permission.GRANT_RUNTIME_PERMISSIONS` 时尝试为 owner app 补授这个启动权限，让后续启动可以走这些托管 ADB 路径；未声明该权限、未被授予该权限或 server 不具备授权能力时会回落到手动打开无线调试、配对或 TCP 端口路径。该能力只属于启动策略，不提供通用 Settings API；PackageManager 能力只限显式参数的 `checkPermission(...)` 与 `grantRuntimePermission(...)` 透传调用。
+
+阻塞式启动、发现和授权检查会保留线程中断标记并原样抛出 `InterruptedException`。Java 调用方需要处理这个受检异常；协程调用方可在可中断调度器中包装这些 API，以线程中断实现协作取消。
 
 用户复制命令手动执行：
 

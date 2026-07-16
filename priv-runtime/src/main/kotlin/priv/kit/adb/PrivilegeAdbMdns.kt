@@ -29,6 +29,7 @@ internal class PrivilegeAdbMdns(
     private var latch: CountDownLatch? = null
     private val listener = DiscoveryListener()
 
+    @Throws(InterruptedException::class)
     fun discoverEndpoint(timeoutMillis: Long): PrivilegeAdbEndpoint {
         val discoveryLatch = CountDownLatch(1)
         latch = discoveryLatch
@@ -36,7 +37,12 @@ internal class PrivilegeAdbMdns(
             nsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
         }
         try {
-            discoveryLatch.await(timeoutMillis, TimeUnit.MILLISECONDS)
+            try {
+                discoveryLatch.await(timeoutMillis, TimeUnit.MILLISECONDS)
+            } catch (exception: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw exception
+            }
         } finally {
             close()
         }

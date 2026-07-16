@@ -15,6 +15,12 @@ public enum class PrivilegeUiRuntimeStatus {
     FAILED,
 }
 
+public enum class PrivilegeUiRuntimeStartPhase {
+    IDLE,
+    RUNNING,
+    CANCELLING,
+}
+
 public enum class PrivilegeUiStartupMode {
     ROOT,
     MANUAL_SHELL,
@@ -200,6 +206,9 @@ public data class PrivilegeUiState public constructor(
     public val externalStartItems: List<PrivilegeUiExternalStartItemState> = emptyList(),
     public val startupLogLines: List<String> = emptyList(),
     public val connectionSerial: Long = 0L,
+    public val runtimeStartPhase: PrivilegeUiRuntimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
+    public val runtimeStartProviderId: String? = null,
+    public val configuredTcpModePort: Int? = null,
 )
 
 internal fun String.toPrivilegeUiPairingCodeDigits(): String =

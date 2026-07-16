@@ -51,7 +51,6 @@ public fun PrivilegeScaffold(
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
-    val developerModeEnabled by viewModel.developerModeEnabled.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
     val manualCommandCopiedMessage = stringResource(R.string.priv_ui_manual_command_copied)
@@ -123,8 +122,9 @@ public fun PrivilegeScaffold(
             ServiceStatusPanel(
                 state = state,
                 onStartClick = {
-                    viewModel.startAvailable(onLocalNetworkPermissionRequired)
+                    viewModel.startAvailable()
                 },
+                onCancelClick = viewModel::stopCurrentStart,
                 onStopClick = viewModel::stopServer,
             )
             AuthorizationModeTabs(
@@ -137,7 +137,6 @@ public fun PrivilegeScaffold(
                 mode = state.selectedStartupMode.takeIf { it in state.startupModes }
                     ?: state.startupModes.first(),
                 state = state,
-                developerModeEnabled = developerModeEnabled,
                 viewModel = viewModel,
                 onCopyManualCommand = {
                     viewModel.copyManualCommand(context)
@@ -174,7 +173,6 @@ private tailrec fun Context.findLifecycleOwner(): LifecycleOwner? =
 private fun AuthorizationModePanel(
     mode: PrivilegeUiStartupMode,
     state: PrivilegeUiState,
-    developerModeEnabled: Boolean?,
     viewModel: PrivilegeUiViewModel,
     onCopyManualCommand: () -> Unit,
     onCopyStaticTcpCommand: () -> Unit,
@@ -185,6 +183,7 @@ private fun AuthorizationModePanel(
         PrivilegeUiStartupMode.ROOT -> RootPanel(
             state = state,
             onStartRoot = viewModel::startRoot,
+            onCancelStart = viewModel::stopCurrentStart,
         )
         PrivilegeUiStartupMode.MANUAL_SHELL -> ManualShellPanel(
             state = state,
@@ -192,9 +191,7 @@ private fun AuthorizationModePanel(
         )
         PrivilegeUiStartupMode.ADB -> AdbPanel(
             state = state,
-            developerModeEnabled = developerModeEnabled,
             tcpPolicy = viewModel.adbTcpPolicy,
-            managedWirelessAdbEnabled = viewModel.config.enableManagedWirelessAdb,
             configuredTcpPort = viewModel.config.tcpPort,
             onPairingCodeChanged = viewModel::updatePairingCode,
             onStartPairing = {
@@ -218,6 +215,7 @@ private fun AuthorizationModePanel(
         PrivilegeUiStartupMode.EXTERNAL -> ExternalStartPanel(
             state = state,
             onAuthorizeOrStart = viewModel::authorizeOrStartExternal,
+            onCancelStart = viewModel::stopCurrentStart,
         )
     }
 }

@@ -2,18 +2,15 @@ package priv.kit.ui.adb
 
 import priv.kit.ui.*
 import priv.kit.ui.adb.pairing.*
+import priv.kit.ui.component.PrivilegeUiStartAction
+import priv.kit.ui.component.privilegeUiStartAction
+import priv.kit.ui.component.privilegeUiStartActionEnabled
+import priv.kit.ui.component.privilegeUiStartActionLabel
 import priv.kit.ui.runtime.*
 import priv.kit.ui.state.*
 
-internal enum class PrivilegeUiWirelessAdbStartAction {
-    START,
-    INTERRUPT,
-    NONE,
-}
-
 internal enum class PrivilegeUiWirelessAdbPanelStatus {
     WIFI_REQUIRED,
-    DEVELOPER_OPTIONS_REQUIRED,
     OFF,
     UNPAIRED,
     PAIRABLE,
@@ -21,36 +18,21 @@ internal enum class PrivilegeUiWirelessAdbPanelStatus {
 }
 
 internal enum class PrivilegeUiStaticTcpPanelStatus {
-    UNAVAILABLE,
+    PORT_NOT_CONFIGURED,
+    ADB_SERVICE_STOPPED,
     CHECKING,
     UNAUTHORIZED,
     AUTHORIZED,
 }
 
-internal fun requiresDeveloperOptionsForWirelessAdb(
-    wifiConnected: Boolean,
-    developerModeEnabled: Boolean?,
-    wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus,
-): Boolean =
-    wifiConnected &&
-        developerModeEnabled == false &&
-        wirelessDebuggingStatus != PrivilegeUiWirelessAdbStatus.ON
-
 internal fun wirelessAdbPanelStatus(
     wifiConnected: Boolean,
-    developerModeEnabled: Boolean?,
     wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus,
     wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus,
     wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus,
 ): PrivilegeUiWirelessAdbPanelStatus {
     return when {
         !wifiConnected -> PrivilegeUiWirelessAdbPanelStatus.WIFI_REQUIRED
-        requiresDeveloperOptionsForWirelessAdb(
-            wifiConnected = wifiConnected,
-            developerModeEnabled = developerModeEnabled,
-            wirelessDebuggingStatus = wirelessDebuggingStatus,
-        ) ->
-            PrivilegeUiWirelessAdbPanelStatus.DEVELOPER_OPTIONS_REQUIRED
         wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.OFF ->
             PrivilegeUiWirelessAdbPanelStatus.OFF
         wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON ->
@@ -66,80 +48,71 @@ internal fun wirelessAdbPanelStatus(
 }
 
 internal fun privilegeUiWirelessAdbStartAction(
-    runtimeStatus: PrivilegeUiRuntimeStatus,
+    runtimeStartPhase: PrivilegeUiRuntimeStartPhase,
     ownsRuntimeStart: Boolean,
-    wifiConnected: Boolean,
-    startPrerequisiteAvailable: Boolean,
-    startAvailable: Boolean,
-): PrivilegeUiWirelessAdbStartAction =
-    when (runtimeStatus) {
-        PrivilegeUiRuntimeStatus.STARTING -> if (ownsRuntimeStart) {
-            PrivilegeUiWirelessAdbStartAction.INTERRUPT
-        } else {
-            PrivilegeUiWirelessAdbStartAction.NONE
-        }
-        PrivilegeUiRuntimeStatus.CONNECTED,
-        PrivilegeUiRuntimeStatus.DISCONNECTED,
-        PrivilegeUiRuntimeStatus.FAILED,
-        -> when {
-            startAvailable -> PrivilegeUiWirelessAdbStartAction.START
-            else -> PrivilegeUiWirelessAdbStartAction.START
-        }
-    }
+): PrivilegeUiStartAction =
+    privilegeUiStartAction(runtimeStartPhase, ownsRuntimeStart)
 
+@Suppress("UNUSED_PARAMETER")
 internal fun privilegeUiWirelessAdbStartActionEnabled(
-    action: PrivilegeUiWirelessAdbStartAction,
+    action: PrivilegeUiStartAction,
     busy: Boolean,
     runtimeStatus: PrivilegeUiRuntimeStatus,
 ): Boolean =
-    when (action) {
-        PrivilegeUiWirelessAdbStartAction.START -> !busy
-        PrivilegeUiWirelessAdbStartAction.INTERRUPT -> runtimeStatus == PrivilegeUiRuntimeStatus.STARTING || !busy
-        PrivilegeUiWirelessAdbStartAction.NONE -> false
-    }
+    privilegeUiStartActionEnabled(
+        action,
+        startEnabled = !busy,
+    )
 
 internal fun privilegeUiWirelessAdbStartActionLabel(
-    action: PrivilegeUiWirelessAdbStartAction,
-): Int =
-    when (action) {
-        PrivilegeUiWirelessAdbStartAction.INTERRUPT -> R.string.priv_ui_start_interrupt_action
-        PrivilegeUiWirelessAdbStartAction.START,
-        PrivilegeUiWirelessAdbStartAction.NONE,
-        -> R.string.priv_ui_adb_wireless_start_action
-    }
+    action: PrivilegeUiStartAction,
+): Int = privilegeUiStartActionLabel(action, R.string.priv_ui_adb_wireless_start_action)
 
 internal fun staticTcpPanelStatus(
     tcpModeEnabled: Boolean,
     status: PrivilegeUiAdbTcpAuthorizationStatus,
 ): PrivilegeUiStaticTcpPanelStatus =
+    staticTcpPanelStatus(
+        tcpModeConfigured = tcpModeEnabled,
+        tcpModeActive = tcpModeEnabled,
+        status = status,
+    )
+
+internal fun staticTcpPanelStatus(
+    tcpModeConfigured: Boolean,
+    tcpModeActive: Boolean,
+    status: PrivilegeUiAdbTcpAuthorizationStatus,
+): PrivilegeUiStaticTcpPanelStatus =
     when {
-        !tcpModeEnabled ||
-            status == PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE -> PrivilegeUiStaticTcpPanelStatus.UNAVAILABLE
+        !tcpModeConfigured -> PrivilegeUiStaticTcpPanelStatus.PORT_NOT_CONFIGURED
+        !tcpModeActive || status == PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE ->
+            PrivilegeUiStaticTcpPanelStatus.ADB_SERVICE_STOPPED
         status == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED -> PrivilegeUiStaticTcpPanelStatus.AUTHORIZED
         status == PrivilegeUiAdbTcpAuthorizationStatus.CHECKING ||
             status == PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN -> PrivilegeUiStaticTcpPanelStatus.CHECKING
         else -> PrivilegeUiStaticTcpPanelStatus.UNAUTHORIZED
     }
 
+internal fun staticTcpStartAction(
+    runtimeStartPhase: PrivilegeUiRuntimeStartPhase,
+    ownsRuntimeStart: Boolean,
+): PrivilegeUiStartAction =
+    privilegeUiStartAction(runtimeStartPhase, ownsRuntimeStart)
+
+@Suppress("UNUSED_PARAMETER")
 internal fun staticTcpActionEnabled(
+    action: PrivilegeUiStartAction,
     tcpModeEnabled: Boolean,
     busy: Boolean,
     runtimeStatus: PrivilegeUiRuntimeStatus,
-    ownsRuntimeStart: Boolean,
-    status: PrivilegeUiAdbTcpAuthorizationStatus,
     wirelessAdbSupported: Boolean,
-): Boolean {
-    if (runtimeStatus == PrivilegeUiRuntimeStatus.STARTING) return ownsRuntimeStart
-    val wirelessFallback = staticTcpWirelessFallbackAvailable(
-        tcpModeEnabled = tcpModeEnabled,
-        status = status,
-        wirelessAdbSupported = wirelessAdbSupported,
+    tcpModeConfigured: Boolean = tcpModeEnabled,
+): Boolean =
+    privilegeUiStartActionEnabled(
+        action = action,
+        startEnabled = !busy &&
+            (tcpModeConfigured || wirelessAdbSupported),
     )
-    return !busy && (
-        wirelessFallback ||
-            (tcpModeEnabled && status != PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE)
-    )
-}
 
 internal fun staticTcpCommandHelpVisible(
     wirelessAdbSupported: Boolean,
@@ -147,19 +120,5 @@ internal fun staticTcpCommandHelpVisible(
     !wirelessAdbSupported
 
 internal fun staticTcpActionLabel(
-    runtimeStatus: PrivilegeUiRuntimeStatus,
-    ownsRuntimeStart: Boolean,
-): Int =
-    if (runtimeStatus == PrivilegeUiRuntimeStatus.STARTING && ownsRuntimeStart) {
-        R.string.priv_ui_start_interrupt_action
-    } else {
-        R.string.priv_ui_adb_static_start_action
-    }
-
-private fun staticTcpWirelessFallbackAvailable(
-    tcpModeEnabled: Boolean,
-    status: PrivilegeUiAdbTcpAuthorizationStatus,
-    wirelessAdbSupported: Boolean,
-): Boolean =
-    wirelessAdbSupported &&
-        (!tcpModeEnabled || status == PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE)
+    action: PrivilegeUiStartAction,
+): Int = privilegeUiStartActionLabel(action, R.string.priv_ui_adb_static_start_action)

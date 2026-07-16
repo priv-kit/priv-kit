@@ -64,6 +64,14 @@ class PrivilegeTest {
     }
 
     @Test
+    fun rootFallbackStopsWhenDetachedServerMayExist() {
+        assertTrue(rootServerLaunchMayHaveCompleted(processIsAlive = true, exitCode = null))
+        assertTrue(rootServerLaunchMayHaveCompleted(processIsAlive = false, exitCode = null))
+        assertTrue(rootServerLaunchMayHaveCompleted(processIsAlive = false, exitCode = 0))
+        assertFalse(rootServerLaunchMayHaveCompleted(processIsAlive = false, exitCode = 1))
+    }
+
+    @Test
     fun getServerInfoDoesNotPingServerUntilExplicitPing() {
         val server = FakePrivilegeServer()
         val serverInfo = PrivilegeServerInfo(

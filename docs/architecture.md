@@ -79,6 +79,7 @@ root executor       adb transport     external/manual command   binder/userservi
 
 - idle；
 - starting；
+- cancelling；
 - connecting；
 - connected；
 - reconnecting；
@@ -125,7 +126,7 @@ Privileged Server 是以特权运行的运行时端点。
 
 Root 和 ADB 策略把应用配置转换成服务端启动或连接尝试。手动 shell 和外部启动入口执行的是同一个 Shell Start Command，只是命令执行者不同；两者都复用同一条 Binder handoff。
 
-ADB 策略可以在内部托管 Wireless Debugging 开关：当最终 merged manifest 仍声明 `WRITE_SECURE_SETTINGS`、宿主应用已被授予该权限，且启动需要动态无线调试端口时，runtime 可以临时打开 `adb_wifi_enabled`、通过 mDNS 发现 `_adb-tls-connect._tcp` 端口、启动服务端，并在启动尝试结束后关闭 Wireless Debugging。Privileged Server 连接成功后，可以通过 server 侧 `IPackageManager` 透传调用为 owner package 补授这一个启动权限。如果宿主应用通过 manifest merge 移除该权限声明，该策略视为被宿主明确禁用。该能力仅服务于 ADB 启动策略，不构成 Settings 操作 API，也不得被扩展成通用系统设置封装。
+ADB 策略可以在内部托管 ADB 状态恢复：当最终 merged manifest 仍声明 `WRITE_SECURE_SETTINGS`、宿主应用已被授予该权限，且启动需要动态无线调试端口时，runtime 可以临时打开 `adb_wifi_enabled`、通过 mDNS 发现 `_adb-tls-connect._tcp` 端口、启动服务端，并在启动尝试结束后关闭 Wireless Debugging。显式静态 TCP 启动若仍有持久化端口配置但监听不可达，则只写入 `ADB_ENABLED=1` 唤醒 `adbd`，等待监听恢复后重新鉴权，不要求 Wi-Fi，也不打开 `adb_wifi_enabled`。被动状态轮询不得触发这项写入。Privileged Server 连接成功后，可以通过 server 侧 `IPackageManager` 透传调用为 owner package 补授这一个启动权限。如果宿主应用通过 manifest merge 移除该权限声明，该策略视为被宿主明确禁用。该能力仅服务于 ADB 启动策略，不构成 Settings 操作 API，也不得被扩展成通用系统设置封装。
 
 共享的 `app_process` 服务端启动命令由运行时根据内部启动值模型构造。供 shell/ADB 通道复用的 native starter 可执行文件也由 `:priv-runtime` 打包。Root 执行器只负责 `su` 执行通道和失败诊断；ADB 实现只负责 pairing/connect、ADB 命令执行通道和失败诊断。运行时负责 token、Root/ADB pending handshake、ready-server handoff、全局 server-binder 安装、Shell Start Command 和 death handling。
 

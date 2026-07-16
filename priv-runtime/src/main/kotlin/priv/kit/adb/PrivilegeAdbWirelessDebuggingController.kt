@@ -23,6 +23,7 @@ public data class PrivilegeAdbWirelessDebuggingControlStatus public constructor(
 
 internal interface PrivilegeAdbWirelessDebuggingController {
     fun status(): PrivilegeAdbWirelessDebuggingControlStatus
+    fun enableAdb()
     fun prepareAdb()
     fun setWirelessDebuggingEnabled(enabled: Boolean)
 }
@@ -60,9 +61,13 @@ internal class AndroidPrivilegeAdbWirelessDebuggingController(
         }
     }
 
-    override fun prepareAdb() {
+    override fun enableAdb() {
         enforceWriteSecureSettingsPermission()
         Settings.Global.putInt(contentResolver, Settings.Global.ADB_ENABLED, 1)
+    }
+
+    override fun prepareAdb() {
+        enableAdb()
         Settings.Global.putLong(contentResolver, ADB_ALLOWED_CONNECTION_TIME, 0L)
     }
 
@@ -95,10 +100,10 @@ internal class AndroidPrivilegeAdbWirelessDebuggingController(
 
     private fun enforceWriteSecureSettingsPermission() {
         if (!hasWriteSecureSettingsDeclaration()) {
-            throw PrivilegeAdbException("WRITE_SECURE_SETTINGS must be declared to manage Wireless debugging")
+            throw PrivilegeAdbException("WRITE_SECURE_SETTINGS must be declared to manage ADB")
         }
         if (!hasWriteSecureSettingsPermission()) {
-            throw PrivilegeAdbException("WRITE_SECURE_SETTINGS is required to manage Wireless debugging")
+            throw PrivilegeAdbException("WRITE_SECURE_SETTINGS is required to manage ADB")
         }
     }
 

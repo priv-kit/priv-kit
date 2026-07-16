@@ -44,7 +44,7 @@ public object Privilege {
     private val disconnectedListeners = CopyOnWriteArraySet<() -> Unit>()
     private val userServiceClient = PrivilegeUserServiceClient(::getUserServiceManagerBinder)
 
-    @Throws(PrivilegeStartupException::class)
+    @Throws(PrivilegeStartupException::class, InterruptedException::class)
     public fun startRoot(
         timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
         startupLogListener: PrivilegeStartupLogListener? = null,
@@ -52,6 +52,7 @@ public object Privilege {
         val token = ownerTokenStore().readOrCreate()
         val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
         var rootProcess: PrivilegeRootProcess? = null
+        var startupCompleted = false
 
         try {
             startupLogListener.emitStartupLog("runtime", "Starting with root")
@@ -62,19 +63,38 @@ public object Privilege {
             startupLogListener.emitStartupLog("runtime", "Waiting for Privileged Server handshake")
             val handshakeResult = pendingHandshake.await(timeoutMillis)
             startupLogListener.emitStartupLog("runtime", "Privileged Server handshake received")
-            return connectHandshake(handshakeResult, startupLogListener)
+            val serverInfo = connectHandshake(handshakeResult, startupLogListener)
+            startupCompleted = true
+            return serverInfo
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw e
         } catch (e: PrivilegeStartupException) {
             startupLogListener.emitStartupLog("runtime", "Startup failed: ${e.message.orEmpty()}")
-            if (rootProcess != null && !rootProcess.isAlive) {
-                throw PrivilegeStartupException(
-                    "Privileged Server command exited before handshake: ${rootProcess.outputText()}",
+            val process = rootProcess
+            if (process != null && rootServerLaunchMayHaveCompleted(
+                    processIsAlive = process.isAlive,
+                    exitCode = process.exitCodeOrNull,
+                )
+            ) {
+                throw PrivilegeServerLaunchUncertainException(
+                    "Root server launch may have completed before the Binder handshake",
                     e,
                 )
             }
-            rootProcess?.destroy()
+            if (process != null) {
+                throw PrivilegeStartupException(
+                    "Privileged Server command exited before handshake: ${process.outputText()}",
+                    e,
+                )
+            }
             throw e
         } finally {
             PrivilegeServerHandshakeRegistry.cancel(token)
+            cleanupRootProcessAfterStart(
+                process = rootProcess,
+                startupCompleted = startupCompleted,
+            )
         }
     }
 
@@ -114,7 +134,7 @@ public object Privilege {
         }
     }
 
-    @Throws(PrivilegeStartupException::class)
+    @Throws(PrivilegeStartupException::class, InterruptedException::class)
     public fun startAdb(
         options: PrivilegeAdbStartOptions = PrivilegeAdbStartOptions(),
         timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
@@ -157,7 +177,7 @@ public object Privilege {
                     adbStarter = adbStarter,
                     startupLogListener = startupLogListener,
                 )
-                throw PrivilegeStartupException(
+                throw PrivilegeServerLaunchUncertainException(
                     "ADB start did not complete the Privileged Server handshake on " +
                         "${adbResult.endpoint}: ${adbResult.outputText}$serverDiagnostics",
                     e,
@@ -561,5 +581,19 @@ public object Privilege {
             } catch (_: NoSuchElementException) {
             }
         }
+    }
+}
+
+internal fun rootServerLaunchMayHaveCompleted(
+    processIsAlive: Boolean,
+    exitCode: Int?,
+): Boolean = processIsAlive || exitCode == null || exitCode == 0
+
+internal fun cleanupRootProcessAfterStart(
+    process: PrivilegeRootProcess?,
+    startupCompleted: Boolean,
+) {
+    if (!startupCompleted) {
+        runCatching { process?.destroy() }
     }
 }
