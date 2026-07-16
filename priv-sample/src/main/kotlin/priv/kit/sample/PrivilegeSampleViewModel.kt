@@ -1,11 +1,12 @@
 package priv.kit.sample
 
+import android.annotation.SuppressLint
+import android.os.IBinder
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import android.os.IBinder
 import priv.kit.Privilege
 import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeUserServiceConnection
@@ -72,6 +73,7 @@ internal class PrivilegeSampleViewModel : ViewModel() {
         selectedStartupTab = tab
     }
 
+    @SuppressLint("EmptySuperCall")
     override fun onCleared() {
         clearRuntimeResources()
         executor.shutdownNow()
