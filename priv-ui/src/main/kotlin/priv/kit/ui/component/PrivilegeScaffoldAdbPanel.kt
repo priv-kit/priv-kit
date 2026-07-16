@@ -53,6 +53,7 @@ import priv.kit.ui.adb.staticTcpStartAction
 import priv.kit.ui.adb.staticTcpCommandHelpVisible
 import priv.kit.ui.adb.staticTcpPanelStatus
 import priv.kit.ui.adb.wirelessAdbPanelStatus
+import priv.kit.ui.adb.pairing.isPrivilegeUiPairingSessionActive
 import priv.kit.ui.adb.pairing.isPrivilegeUiPairingCode
 import priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported
 import priv.kit.ui.state.privilegeUiStaticTcpOpenCommand
@@ -89,11 +90,8 @@ private fun PrivilegeUiScreenScope.WirelessAdbSection() {
         val runtimeStartInProgress = state.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE
         val wirelessOwnsRuntimeStart = runtimeStartInProgress &&
             state.runtimeStartSource == PrivilegeUiRuntimeStartSource.ADB_WIRELESS
-        val wirelessAdbPaired = state.wirelessDebuggingStatus == PrivilegeUiWirelessAdbStatus.ON &&
-            state.wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON
         val pairingActionEnabled = !runtimeStartInProgress &&
-            !wirelessAdbPaired &&
-            (!state.busy || state.notificationPairingRunning)
+            (!state.busy || state.pairingStatus.isPrivilegeUiPairingSessionActive())
         AdbStatusRow(
             label = stringResource(R.string.priv_ui_adb_tab_wireless),
             text = wirelessStatus.displayText(),
@@ -147,19 +145,16 @@ private fun PrivilegeUiScreenScope.WirelessAdbSection() {
 @Composable
 private fun PrivilegeUiScreenScope.WirelessAdbPairingDialog() {
     val defaultPairingMessage = stringResource(R.string.priv_ui_pairing_default_message)
+    val pairingInputHint = stringResource(
+        privilegeUiPairingInputHint(state.notificationPairingRunning),
+    )
     val pairing = state.pairingStatus == PrivilegeUiAdbPairingStatus.PAIRING
-    val canSubmit = state.notificationPairingRunning &&
-        !pairing &&
-        state.pairingCode.isPrivilegeUiPairingCode()
+    val canSubmit = privilegeUiPairingCodeSubmitEnabled(
+        pairingStatus = state.pairingStatus,
+        pairingCode = state.pairingCode,
+    )
     fun dismissOrStop() {
-        if (pairing) {
-            viewModel.stopNotificationPairing()
-        } else {
-            if (state.notificationPairingRunning) {
-                viewModel.stopNotificationPairing()
-            }
-            viewModel.closePairingDialog()
-        }
+        viewModel.stopNotificationPairing()
     }
     AlertDialog(
         onDismissRequest = ::dismissOrStop,
@@ -169,10 +164,17 @@ private fun PrivilegeUiScreenScope.WirelessAdbPairingDialog() {
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = state.pairingMessage.ifBlank { defaultPairingMessage },
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = state.pairingMessage.ifBlank { defaultPairingMessage },
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        text = pairingInputHint,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = state.pairingCode,
@@ -216,6 +218,21 @@ private fun PrivilegeUiScreenScope.WirelessAdbPairingDialog() {
         },
     )
 }
+
+internal fun privilegeUiPairingCodeSubmitEnabled(
+    pairingStatus: PrivilegeUiAdbPairingStatus,
+    pairingCode: String,
+): Boolean =
+    pairingStatus != PrivilegeUiAdbPairingStatus.PAIRING &&
+        pairingStatus.isPrivilegeUiPairingSessionActive() &&
+        pairingCode.isPrivilegeUiPairingCode()
+
+internal fun privilegeUiPairingInputHint(notificationPairingRunning: Boolean): Int =
+    if (notificationPairingRunning) {
+        R.string.priv_ui_pairing_input_hint
+    } else {
+        R.string.priv_ui_pairing_split_screen_hint
+    }
 
 @Composable
 private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {

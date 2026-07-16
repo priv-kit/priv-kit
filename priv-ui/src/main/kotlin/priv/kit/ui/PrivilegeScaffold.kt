@@ -1,5 +1,6 @@
 package priv.kit.ui
 
+import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.activity.OnBackPressedDispatcher
@@ -47,11 +48,21 @@ public fun PrivilegeScaffold(
     viewModel: PrivilegeUiViewModel = viewModel(),
 ) {
     val context = LocalContext.current
+    val activity = context.findActivity()
     val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val state by viewModel.state.collectAsState()
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-        onResult = viewModel::handleNotificationPermissionResult,
+        onResult = { granted ->
+            val permissionState = activity?.let {
+                privilegeUiPermissionState(it, POST_NOTIFICATIONS_PERMISSION)
+            } ?: if (granted) {
+                PrivilegeUiPermissionState.Granted
+            } else {
+                PrivilegeUiPermissionState.NotGranted.Denied
+            }
+            viewModel.handleNotificationPermissionResult(permissionState)
+        },
     )
     val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -80,13 +91,27 @@ public fun PrivilegeScaffold(
             viewModel.dispatchConnected(state.connectionSerial, serverInfo)
         }
     }
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, activity) {
         viewModel.permissionRequests.collect { request ->
             when (request) {
-                PrivilegeUiPermissionRequest.Notification ->
-                    notificationPermissionLauncher.launch(POST_NOTIFICATIONS_PERMISSION)
-                is PrivilegeUiPermissionRequest.LocalNetwork ->
+                PrivilegeUiPermissionRequest.Notification -> {
+                    val permissionState = activity?.let {
+                        privilegeUiPermissionState(it, POST_NOTIFICATIONS_PERMISSION)
+                    }
+                    if (
+                        permissionState == null ||
+                        permissionState.shouldLaunchPermissionRequest()
+                    ) {
+                        markPrivilegeUiPermissionRequested(POST_NOTIFICATIONS_PERMISSION)
+                        notificationPermissionLauncher.launch(POST_NOTIFICATIONS_PERMISSION)
+                    } else {
+                        viewModel.handleNotificationPermissionResult(permissionState)
+                    }
+                }
+                is PrivilegeUiPermissionRequest.LocalNetwork -> {
+                    markPrivilegeUiPermissionRequested(request.permission)
                     localNetworkPermissionLauncher.launch(request.permission)
+                }
             }
         }
     }
@@ -158,6 +183,13 @@ private tailrec fun Context.findLifecycleOwner(): LifecycleOwner? =
     when (this) {
         is LifecycleOwner -> this
         is ContextWrapper -> baseContext.findLifecycleOwner()
+        else -> null
+    }
+
+private tailrec fun Context.findActivity(): Activity? =
+    when (this) {
+        is Activity -> this
+        is ContextWrapper -> baseContext.findActivity()
         else -> null
     }
 

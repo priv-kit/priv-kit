@@ -10,6 +10,7 @@ import priv.kit.Privilege
 import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeUserServiceConnection
 import java.io.Closeable
+import java.util.UUID
 import java.util.concurrent.Executors
 
 internal class PrivilegeSampleViewModel : ViewModel() {
@@ -27,6 +28,7 @@ internal class PrivilegeSampleViewModel : ViewModel() {
     @Volatile
     var shizukuExternalStarter: PrivilegeSampleShizukuExternalStarter? = null
     var startNotificationPairingAfterPermission = false
+    val notificationPairingOwnerId: String = UUID.randomUUID().toString()
     var startShizukuExternalAfterPermission = false
     val manualShellCommandLine: String by lazy(LazyThreadSafetyMode.NONE) {
         Privilege.createShellStartCommand().toSampleHostAdbShellCommand()

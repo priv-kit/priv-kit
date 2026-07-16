@@ -50,16 +50,17 @@ internal fun createPrivilegeSampleUiConfig(context: Context): PrivilegeUiConfig 
 
 internal fun startPrivilegeSampleNotificationPairing(
     context: Context,
-    adbDeviceName: String?,
-) {
+    ownerId: String,
+    statusText: String,
+): Boolean =
     PrivilegeAdbPairingService.start(
         context = context,
-        adbDeviceName = adbDeviceName,
+        ownerId = ownerId,
+        statusText = statusText,
     )
-}
 
-internal fun stopPrivilegeSampleNotificationPairing(context: Context) {
-    PrivilegeAdbPairingService.stop(context)
+internal fun stopPrivilegeSampleNotificationPairing(context: Context, ownerId: String) {
+    PrivilegeAdbPairingService.stop(context, ownerId)
 }
 
 private class PrivilegeSampleShizukuExternalStartProvider(

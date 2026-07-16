@@ -1,7 +1,6 @@
 package priv.kit.ui.adb.pairing
 
 import android.app.PendingIntent
-import android.content.Intent
 import android.os.Build
 
 internal object PrivilegeAdbPairingIntentContract {
@@ -14,8 +13,8 @@ internal object PrivilegeAdbPairingIntentContract {
     internal const val ACTION_INPUT_SUBMIT: String = "priv.kit.ui.action.ADB_PAIRING_INPUT_SUBMIT"
     internal const val ACTION_STOP: String = "priv.kit.ui.action.STOP_ADB_PAIRING_NOTIFICATION"
 
-    internal const val EXTRA_REQUESTED_ADB_DEVICE_NAME: String = "requested_adb_device_name"
     internal const val REMOTE_INPUT_PAIRING_CODE: String = "pairing_code"
+    internal const val EXTRA_NOTIFICATION_OWNER_ID: String = "notification_owner_id"
     internal const val NOTIFICATION_CHANNEL_ID: String = "priv_ui_adb_pairing"
     internal const val NOTIFICATION_ID: Int = 201
     internal const val INPUT_NOTIFICATION_ID: Int = 202
@@ -37,6 +36,3 @@ internal object PrivilegeAdbPairingIntentContract {
     internal fun immutablePendingIntentFlags(): Int =
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
 }
-
-internal val Intent.privilegeAdbRequestedDeviceName: String?
-    get() = getStringExtra(PrivilegeAdbPairingIntentContract.EXTRA_REQUESTED_ADB_DEVICE_NAME)

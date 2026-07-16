@@ -32,8 +32,8 @@ internal class PrivilegeUiAdbActions(
         enableTcpMode = { tcpActions.enableTcpMode() },
     )
 
-    fun observePairingEvents() {
-        pairingActions.observePairingEvents()
+    fun observePairingNotificationEvents() {
+        pairingActions.observePairingNotificationEvents()
     }
 
     fun updatePairingCode(value: String) {
@@ -60,8 +60,8 @@ internal class PrivilegeUiAdbActions(
         pairingActions.submitNotificationPairingCode()
     }
 
-    fun handleNotificationPermissionResult(granted: Boolean) {
-        pairingActions.handleNotificationPermissionResult(granted)
+    fun handleNotificationPermissionResult(permissionState: PrivilegeUiPermissionState) {
+        pairingActions.handleNotificationPermissionResult(permissionState)
     }
 
     fun startWirelessAdb(
@@ -431,7 +431,9 @@ internal class PrivilegeUiAdbActions(
         if (!throwable.isAdbKeyNotAuthorizedFailure()) return null
         val message = store.text(R.string.priv_ui_wireless_pair_required_for_wireless_adb_start)
         val wirelessDebuggingStatus = currentWirelessDebuggingStatus()
-        val notificationPairingRunning = PrivilegeAdbPairingService.running
+        val notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
+            store.notificationPairingOwnerId,
+        )
         return PrivilegeUiRuntimeStartFailureDisposition(
             stateTransform = { current ->
                 current.copy(

@@ -34,10 +34,6 @@ internal class PrivilegeAdbPairingNotificationFactory(
         )
     }
 
-    internal fun deleteNotificationChannel() {
-        notificationManager.deleteNotificationChannel(PrivilegeAdbPairingIntentContract.NOTIFICATION_CHANNEL_ID)
-    }
-
     internal fun statusNotification(
         text: String = context.getString(R.string.priv_ui_pairing_search_text),
     ): Notification =

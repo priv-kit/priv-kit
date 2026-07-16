@@ -460,16 +460,33 @@ internal fun MainActivity.startNotificationPairing() {
 
     val message = "Notification pairing started. Open Wireless debugging pairing and reply with the code from the notification."
     screenState = screenState.copy(
-        notificationPairingRunning = true,
+        notificationPairingRunning = false,
         pairingStatus = PrivilegeAdbPairingStatus.SEARCHING,
         pairingMessage = message,
         message = message,
     )
     appendLog(message)
-    startPrivilegeSampleNotificationPairing(
-        context = this,
-        adbDeviceName = currentAdbDeviceNameOverride(),
-    )
+    val started = runCatching {
+        startPrivilegeSampleNotificationPairing(
+            context = this,
+            ownerId = sampleViewModel.notificationPairingOwnerId,
+            statusText = message,
+        )
+    }.getOrElse { throwable ->
+        screenState = screenState.copy(
+            pairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
+            pairingMessage = throwable.message ?: throwable.javaClass.name,
+            message = throwable.message ?: throwable.javaClass.name,
+        )
+        false
+    }
+    screenState = screenState.copy(notificationPairingRunning = started)
+    if (!started && screenState.pairingStatus == PrivilegeAdbPairingStatus.SEARCHING) {
+        screenState = screenState.copy(
+            pairingMessage = "Notification input is unavailable. Use split screen to enter the pairing code.",
+            message = "Notification input unavailable",
+        )
+    }
 }
 
 internal fun MainActivity.stopNotificationPairing() {
@@ -481,7 +498,7 @@ internal fun MainActivity.stopNotificationPairing() {
         message = message,
     )
     appendLog(message)
-    stopPrivilegeSampleNotificationPairing(this)
+    stopPrivilegeSampleNotificationPairing(this, sampleViewModel.notificationPairingOwnerId)
 }
 
 internal fun MainActivity.startWirelessAdb() {

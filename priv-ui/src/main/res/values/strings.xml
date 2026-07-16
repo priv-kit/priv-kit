@@ -38,7 +38,9 @@
     <string name="priv_ui_manual_copy_command">Copy</string>
     <string name="priv_ui_manual_command_copied">Manual command copied</string>
     <string name="priv_ui_manual_command_clip_label">Priv Kit manual command</string>
-    <string name="priv_ui_pairing_default_message">Open Wireless debugging in Settings, choose pairing with code, then enter the code here</string>
+    <string name="priv_ui_pairing_default_message">Searching for the pairing service...</string>
+    <string name="priv_ui_pairing_input_hint">Use the notification shade or split screen to enter it</string>
+    <string name="priv_ui_pairing_split_screen_hint">Use split screen to enter it</string>
     <string name="priv_ui_pairing_code">Pairing code</string>
     <string name="priv_ui_adb_authorization_action">Start</string>
     <string name="priv_ui_adb_key_fingerprint">Device fingerprint</string>
@@ -103,7 +105,6 @@
     <string name="priv_ui_tcp_authorization_unauthorized">Not allowed</string>
     <string name="priv_ui_tcp_authorization_failed">Retry needed</string>
     <string name="priv_ui_notification_permission_required">Notification permission required</string>
-    <string name="priv_ui_notification_permission_missing">Allow notifications to keep the pairing service running while this dialog is open</string>
     <string name="priv_ui_local_network_permission_required">Local network permission required</string>
     <string name="priv_ui_local_network_permission_missing">Allow local network access so Wireless debugging can connect to this device</string>
     <string name="priv_ui_notification_pairing_started">Pairing is open</string>
@@ -117,10 +118,10 @@
     <string name="priv_ui_external_start_requested">External start requested. Waiting for connection</string>
     <string name="priv_ui_pairing_channel_name">Wireless debugging pairing</string>
     <string name="priv_ui_pairing_search_title">Waiting for pairing code</string>
-    <string name="priv_ui_pairing_search_text">Open Wireless debugging and choose Pair device with pairing code</string>
-    <string name="priv_ui_pairing_search_attempt">Looking for the pairing entry...</string>
+    <string name="priv_ui_pairing_search_text">Searching for the pairing service...</string>
+    <string name="priv_ui_pairing_search_attempt">Searching for the pairing service...</string>
     <string name="priv_ui_pairing_service_found_title">Ready for the pairing code</string>
-    <string name="priv_ui_pairing_service_found_text">Enter the code shown in Settings</string>
+    <string name="priv_ui_pairing_service_found_text">Pairing service found. Enter the pairing code</string>
     <string name="priv_ui_pairing_notification_code_text">%1$s Code: %2$s</string>
     <string name="priv_ui_pairing_port_unavailable">The pairing entry is not available yet. Looking again...</string>
     <string name="priv_ui_pairing_working_title">Pairing</string>

@@ -57,7 +57,9 @@ internal class PrivilegeUiAdbStatusActions(
                         currentStatus = it.wirelessPairingCheckStatus,
                     ),
                     managedWirelessAdbStatus = it.managedWirelessAdbStatus.checkingIfUnknown(),
-                    notificationPairingRunning = PrivilegeAdbPairingService.running,
+                    notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
+                        store.notificationPairingOwnerId,
+                    ),
                 )
             }
         },
@@ -65,7 +67,9 @@ internal class PrivilegeUiAdbStatusActions(
             adbConnectionSessions.closeWirelessPairingCheckSession()
             store.updateState {
                 it.copy(
-                    notificationPairingRunning = PrivilegeAdbPairingService.running,
+                    notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
+                        store.notificationPairingOwnerId,
+                    ),
                 )
             }
         },
@@ -270,7 +274,9 @@ internal class PrivilegeUiAdbStatusActions(
                     managedWirelessAdbStatus = it.managedWirelessAdbStatus.failedUnlessManagedWirelessAdbHidden(
                         enabled = store.config.enableManagedWirelessAdb,
                     ),
-                    notificationPairingRunning = PrivilegeAdbPairingService.running,
+                    notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
+                        store.notificationPairingOwnerId,
+                    ),
                 )
             }
             store.appendLog(throwable.toPrivilegeUiDiagnosticString())
@@ -301,7 +307,9 @@ internal class PrivilegeUiAdbStatusActions(
                     PrivilegeUiWirelessAdbStatus.UNKNOWN
                 },
                 managedWirelessAdbStatus = it.managedWirelessAdbStatus.checkingIfUnknown(),
-                notificationPairingRunning = PrivilegeAdbPairingService.running,
+                notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
+                    store.notificationPairingOwnerId,
+                ),
             )
         }
     }
@@ -316,7 +324,9 @@ internal class PrivilegeUiAdbStatusActions(
                     managedWirelessAdbStatus = it.managedWirelessAdbStatus.failedUnlessManagedWirelessAdbHidden(
                         enabled = store.config.enableManagedWirelessAdb,
                     ),
-                    notificationPairingRunning = PrivilegeAdbPairingService.running,
+                    notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
+                        store.notificationPairingOwnerId,
+                    ),
                 )
             }
             return
@@ -337,7 +347,9 @@ internal class PrivilegeUiAdbStatusActions(
                 it.withWirelessAdbOffline(
                     wifiConnected = true,
                     managedWirelessAdbStatus = managedWirelessStatus,
-                    notificationPairingRunning = PrivilegeAdbPairingService.running,
+                    notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
+                        store.notificationPairingOwnerId,
+                    ),
                 )
             }
             return
@@ -382,7 +394,9 @@ internal class PrivilegeUiAdbStatusActions(
                     ?.publicKeyFingerprint
                     ?.takeIf { fingerprint -> fingerprint.isNotBlank() }
                     ?: it.adbKeyFingerprint,
-                notificationPairingRunning = PrivilegeAdbPairingService.running,
+                notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
+                    store.notificationPairingOwnerId,
+                ),
             )
         }
     }

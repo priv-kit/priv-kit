@@ -61,7 +61,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     private fun configure(config: PrivilegeUiConfig) {
         store.config = config
 
-        adbActions.observePairingEvents()
+        adbActions.observePairingNotificationEvents()
         runtimeActions.installRuntimeWatchers()
         store.initializeState(config)
 
@@ -198,8 +198,8 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         adbActions.submitNotificationPairingCode()
     }
 
-    public open fun handleNotificationPermissionResult(granted: Boolean) {
-        adbActions.handleNotificationPermissionResult(granted)
+    internal fun handleNotificationPermissionResult(permissionState: PrivilegeUiPermissionState) {
+        adbActions.handleNotificationPermissionResult(permissionState)
     }
 
     public open fun startWirelessAdb() {

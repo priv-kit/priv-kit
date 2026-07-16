@@ -255,19 +255,33 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
-    fun missingNotificationPermissionEmitsComposePermissionRequest() = runBlocking {
+    fun missingNotificationPermissionKeepsViewModelPairingSessionAvailable() = runBlocking {
         val application = application()
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        try {
+            viewModel.startNotificationPairing()
 
-        viewModel.startNotificationPairing()
+            assertEquals(
+                PrivilegeUiPermissionRequest.Notification,
+                withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+                    viewModel.permissionRequests.first()
+                },
+            )
+            assertTrue(viewModel.state.value.pairingDialogVisible)
+            assertEquals(PrivilegeUiAdbPairingStatus.SEARCHING, viewModel.state.value.pairingStatus)
+            assertFalse(viewModel.state.value.notificationPairingRunning)
 
-        assertEquals(
-            PrivilegeUiPermissionRequest.Notification,
-            withTimeout(TimeUnit.SECONDS.toMillis(2)) {
-                viewModel.permissionRequests.first()
-            },
-        )
+            viewModel.handleNotificationPermissionResult(
+                PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
+            )
+
+            assertTrue(viewModel.state.value.pairingDialogVisible)
+            assertEquals(PrivilegeUiAdbPairingStatus.SEARCHING, viewModel.state.value.pairingStatus)
+            assertFalse(viewModel.state.value.notificationPairingRunning)
+        } finally {
+            viewModel.stopNotificationPairing()
+        }
     }
 
     private class RootOnlyPrivilegeUiViewModel(

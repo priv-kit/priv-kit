@@ -3,6 +3,8 @@ package priv.kit.ui
 import priv.kit.ui.adb.*
 import priv.kit.ui.adb.pairing.*
 import priv.kit.ui.component.PrivilegeUiStartAction
+import priv.kit.ui.component.privilegeUiPairingCodeSubmitEnabled
+import priv.kit.ui.component.privilegeUiPairingInputHint
 import priv.kit.ui.runtime.*
 import priv.kit.ui.external.*
 import priv.kit.ui.state.*
@@ -12,6 +14,35 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PrivilegeUiAdbPanelStateTest {
+    @Test
+    fun pairingCodeCanBeSubmittedWithoutNotificationUi() {
+        assertTrue(
+            privilegeUiPairingCodeSubmitEnabled(
+                pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
+                pairingCode = "123456",
+            ),
+        )
+        assertEquals(
+            false,
+            privilegeUiPairingCodeSubmitEnabled(
+                pairingStatus = PrivilegeUiAdbPairingStatus.PAIRING,
+                pairingCode = "123456",
+            ),
+        )
+    }
+
+    @Test
+    fun pairingInputHintReflectsNotificationUiAvailability() {
+        assertEquals(
+            R.string.priv_ui_pairing_input_hint,
+            privilegeUiPairingInputHint(notificationPairingRunning = true),
+        )
+        assertEquals(
+            R.string.priv_ui_pairing_split_screen_hint,
+            privilegeUiPairingInputHint(notificationPairingRunning = false),
+        )
+    }
+
     @Test
     fun wirelessAdbPanelStatusCollapsesProbeFacts() {
         listOf(

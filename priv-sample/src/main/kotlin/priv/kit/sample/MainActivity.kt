@@ -7,6 +7,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import priv.kit.sample.ui.stopPrivilegeSampleNotificationPairing
+import priv.kit.ui.PrivilegeAdbPairingService
+import priv.kit.ui.adb.pairing.PrivilegeAdbPairingNotificationEvent
 import rikka.shizuku.Shizuku
 
 class MainActivity : ComponentActivity() {
@@ -28,6 +33,7 @@ class MainActivity : ComponentActivity() {
         Shizuku.addBinderReceivedListenerSticky(shizukuBinderReceivedListener)
         Shizuku.addBinderDeadListener(shizukuBinderDeadListener)
         initializePrivilegeSample()
+        observeNotificationPairingEvents()
         setContent {
             PrivilegeSampleTheme {
                 PrivilegeSampleScreen(
@@ -36,6 +42,44 @@ class MainActivity : ComponentActivity() {
                     selectedStartupTab = sampleViewModel.selectedStartupTab,
                     callbacks = createPrivilegeSampleCallbacks(),
                 )
+            }
+        }
+    }
+
+    private fun observeNotificationPairingEvents() {
+        lifecycleScope.launch {
+            PrivilegeAdbPairingService.notificationEvents.collect { event ->
+                if (event.ownerId != sampleViewModel.notificationPairingOwnerId) return@collect
+                when (event) {
+                    is PrivilegeAdbPairingNotificationEvent.Submit -> {
+                        stopPrivilegeSampleNotificationPairing(
+                            this@MainActivity,
+                            sampleViewModel.notificationPairingOwnerId,
+                        )
+                        screenState = screenState.copy(notificationPairingRunning = false)
+                        updatePairingCode(event.pairingCode)
+                        pairWirelessAdb()
+                    }
+                    is PrivilegeAdbPairingNotificationEvent.Stop -> {
+                        val message = "Notification pairing stopped"
+                        screenState = screenState.copy(
+                            notificationPairingRunning = false,
+                            pairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
+                            pairingMessage = message,
+                            message = message,
+                        )
+                    }
+                    is PrivilegeAdbPairingNotificationEvent.Unavailable -> {
+                        screenState = screenState.copy(
+                            notificationPairingRunning = false,
+                            pairingMessage = event.message,
+                            message = event.message,
+                        )
+                    }
+                    is PrivilegeAdbPairingNotificationEvent.Detached -> {
+                        screenState = screenState.copy(notificationPairingRunning = false)
+                    }
+                }
             }
         }
     }

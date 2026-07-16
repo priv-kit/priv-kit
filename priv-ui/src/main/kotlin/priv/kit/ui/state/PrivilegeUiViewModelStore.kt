@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 import priv.kit.PrivilegeStartupLogLine
-import priv.kit.ui.PrivilegeAdbPairingService
 import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiExternalStartItemState
 import priv.kit.ui.PrivilegeUiStartupMode
@@ -16,6 +15,7 @@ import priv.kit.ui.PrivilegeUiState
 import priv.kit.ui.R
 import priv.kit.ui.runtime.PrivilegeUiRuntimeStartSession
 import java.io.Closeable
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 
 internal class PrivilegeUiViewModelStore(
@@ -31,7 +31,7 @@ internal class PrivilegeUiViewModelStore(
     var serverConnectedListener: Closeable? = null
     var serverDisconnectedWatcher: Closeable? = null
     var startNotificationPairingAfterPermission: Boolean = false
-    var notificationPairingStartedByOwner: Boolean = false
+    val notificationPairingOwnerId: String = UUID.randomUUID().toString()
     var pendingExternalStartProviderId: String? = null
     @Volatile
     var serverShutdownRequestedByOwner: Boolean = false
@@ -57,7 +57,7 @@ internal class PrivilegeUiViewModelStore(
                 pairingMessage = current.pairingMessage.ifBlank {
                     context.getString(R.string.priv_ui_pairing_default_message)
                 },
-                notificationPairingRunning = PrivilegeAdbPairingService.running,
+                notificationPairingRunning = false,
                 externalStartItems = config.externalStartProviders.map { provider ->
                     PrivilegeUiExternalStartItemState(
                         id = provider.id,

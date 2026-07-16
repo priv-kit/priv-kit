@@ -38,7 +38,9 @@
     <string name="priv_ui_manual_copy_command">复制</string>
     <string name="priv_ui_manual_command_copied">已复制手动命令</string>
     <string name="priv_ui_manual_command_clip_label">Priv Kit 手动命令</string>
-    <string name="priv_ui_pairing_default_message">打开设置里的无线调试，选择使用配对码配对设备，然后在这里输入配对码</string>
+    <string name="priv_ui_pairing_default_message">正在搜索配对服务...</string>
+    <string name="priv_ui_pairing_input_hint">可从通知栏输入，或使用分屏输入</string>
+    <string name="priv_ui_pairing_split_screen_hint">请使用分屏输入</string>
     <string name="priv_ui_pairing_code">配对码</string>
     <string name="priv_ui_adb_authorization_action">启动</string>
     <string name="priv_ui_adb_key_fingerprint">设备指纹</string>
@@ -103,7 +105,6 @@
     <string name="priv_ui_tcp_authorization_unauthorized">未允许</string>
     <string name="priv_ui_tcp_authorization_failed">需要重试</string>
     <string name="priv_ui_notification_permission_required">需要通知权限</string>
-    <string name="priv_ui_notification_permission_missing">需要通知权限，才能在弹窗打开期间保持配对服务运行</string>
     <string name="priv_ui_local_network_permission_required">需要本地网络权限</string>
     <string name="priv_ui_local_network_permission_missing">需要允许本地网络访问，才能连接本机无线调试</string>
     <string name="priv_ui_notification_pairing_started">已打开配对入口</string>
@@ -117,10 +118,10 @@
     <string name="priv_ui_external_start_requested">已发送外部启动请求，正在等待连接</string>
     <string name="priv_ui_pairing_channel_name">无线调试配对</string>
     <string name="priv_ui_pairing_search_title">等待配对码</string>
-    <string name="priv_ui_pairing_search_text">请打开无线调试，选择“使用配对码配对设备”</string>
-    <string name="priv_ui_pairing_search_attempt">正在查找配对入口...</string>
+    <string name="priv_ui_pairing_search_text">正在搜索配对服务...</string>
+    <string name="priv_ui_pairing_search_attempt">正在搜索配对服务...</string>
     <string name="priv_ui_pairing_service_found_title">可以输入配对码了</string>
-    <string name="priv_ui_pairing_service_found_text">输入设置页面显示的配对码</string>
+    <string name="priv_ui_pairing_service_found_text">已找到配对服务，请输入配对码</string>
     <string name="priv_ui_pairing_notification_code_text">%1$s 代码：%2$s</string>
     <string name="priv_ui_pairing_port_unavailable">暂时找不到配对入口，正在重新查找...</string>
     <string name="priv_ui_pairing_working_title">正在配对</string>
