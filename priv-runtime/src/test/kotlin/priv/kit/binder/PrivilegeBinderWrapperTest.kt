@@ -94,7 +94,6 @@ class PrivilegeBinderWrapperTest {
     ) {
         Privilege.connectHandshake(
             PrivilegeServerHandshakeResult(
-                token = "token",
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,

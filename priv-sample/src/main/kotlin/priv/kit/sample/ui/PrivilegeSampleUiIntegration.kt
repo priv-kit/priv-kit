@@ -3,7 +3,9 @@ package priv.kit.sample.ui
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
+import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeStartupLogListener
+import priv.kit.sample.PrivilegeSamplePrivilegeUiCallbacks
 import priv.kit.sample.PrivilegeSampleShizukuExternalStarter
 import priv.kit.sample.R
 import priv.kit.sample.SHIZUKU_PERMISSION_REQUEST_CODE
@@ -20,7 +22,17 @@ internal const val SAMPLE_SHIZUKU_EXTERNAL_START_ID = "shizuku"
 
 internal class PrivilegeSamplePrivilegeUiViewModel(
     application: Application,
-) : PrivilegeUiViewModel(application, createPrivilegeSampleUiConfig(application))
+    private val host: PrivilegeSamplePrivilegeUiCallbacks,
+) : PrivilegeUiViewModel(application, createPrivilegeSampleUiConfig(application)) {
+    override fun onBackClick(): Boolean {
+        host.back()
+        return true
+    }
+
+    override fun onConnected(serverInfo: PrivilegeServerInfo) {
+        host.connected(serverInfo)
+    }
+}
 
 internal fun createPrivilegeSampleUiConfig(context: Context): PrivilegeUiConfig =
     PrivilegeUiConfig(

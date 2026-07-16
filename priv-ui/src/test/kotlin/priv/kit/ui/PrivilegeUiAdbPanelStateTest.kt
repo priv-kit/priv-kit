@@ -124,7 +124,6 @@ class PrivilegeUiAdbPanelStateTest {
             ),
             WirelessActionCase(
                 runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
-                runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
                 ownsRuntimeStart = false,
                 busy = false,
                 expectedAction = PrivilegeUiStartAction.START,
@@ -143,7 +142,6 @@ class PrivilegeUiAdbPanelStateTest {
                 privilegeUiWirelessAdbStartActionEnabled(
                     action = action,
                     busy = case.busy,
-                    runtimeStatus = case.runtimeStatus,
                 ),
             )
             assertEquals(case.expectedLabel, privilegeUiWirelessAdbStartActionLabel(action))
@@ -155,48 +153,54 @@ class PrivilegeUiAdbPanelStateTest {
         assertEquals(
             PrivilegeUiStaticTcpPanelStatus.PORT_NOT_CONFIGURED,
             staticTcpPanelStatus(
-                tcpModeEnabled = false,
+                tcpModeConfigured = false,
+                tcpModeActive = false,
                 status = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
             ),
         )
         assertEquals(
             PrivilegeUiStaticTcpPanelStatus.ADB_SERVICE_STOPPED,
             staticTcpPanelStatus(
-                tcpModeEnabled = true,
+                tcpModeConfigured = true,
+                tcpModeActive = true,
                 status = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
             ),
         )
         assertEquals(
             PrivilegeUiStaticTcpPanelStatus.CHECKING,
             staticTcpPanelStatus(
-                tcpModeEnabled = true,
+                tcpModeConfigured = true,
+                tcpModeActive = true,
                 status = PrivilegeUiAdbTcpAuthorizationStatus.CHECKING,
             ),
         )
         assertEquals(
             PrivilegeUiStaticTcpPanelStatus.CHECKING,
             staticTcpPanelStatus(
-                tcpModeEnabled = true,
+                tcpModeConfigured = true,
+                tcpModeActive = true,
                 status = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
             ),
         )
         assertEquals(
             PrivilegeUiStaticTcpPanelStatus.UNAUTHORIZED,
             staticTcpPanelStatus(
-                tcpModeEnabled = true,
+                tcpModeConfigured = true,
+                tcpModeActive = true,
                 status = PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
             ),
         )
         assertEquals(
             PrivilegeUiStaticTcpPanelStatus.AUTHORIZED,
             staticTcpPanelStatus(
-                tcpModeEnabled = true,
+                tcpModeConfigured = true,
+                tcpModeActive = true,
                 status = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
             ),
         )
         listOf(
             StaticTcpActionCase(
-                tcpModeEnabled = false,
+                tcpModeConfigured = false,
                 wirelessAdbSupported = true,
                 runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
                 ownsRuntimeStart = false,
@@ -206,7 +210,7 @@ class PrivilegeUiAdbPanelStateTest {
                 expectedLabel = R.string.priv_ui_adb_static_start_action,
             ),
             StaticTcpActionCase(
-                tcpModeEnabled = false,
+                tcpModeConfigured = false,
                 wirelessAdbSupported = false,
                 runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
                 ownsRuntimeStart = false,
@@ -216,7 +220,7 @@ class PrivilegeUiAdbPanelStateTest {
                 expectedLabel = R.string.priv_ui_adb_static_start_action,
             ),
             StaticTcpActionCase(
-                tcpModeEnabled = true,
+                tcpModeConfigured = true,
                 wirelessAdbSupported = false,
                 runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
                 ownsRuntimeStart = false,
@@ -226,10 +230,9 @@ class PrivilegeUiAdbPanelStateTest {
                 expectedLabel = R.string.priv_ui_adb_static_start_action,
             ),
             StaticTcpActionCase(
-                tcpModeEnabled = true,
+                tcpModeConfigured = true,
                 wirelessAdbSupported = true,
                 runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
-                runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
                 ownsRuntimeStart = false,
                 expectedAction = PrivilegeUiStartAction.START,
                 expectedEnabled = true,
@@ -237,7 +240,7 @@ class PrivilegeUiAdbPanelStateTest {
                 expectedLabel = R.string.priv_ui_adb_static_start_action,
             ),
             StaticTcpActionCase(
-                tcpModeEnabled = false,
+                tcpModeConfigured = false,
                 wirelessAdbSupported = false,
                 runtimeStartPhase = PrivilegeUiRuntimeStartPhase.RUNNING,
                 ownsRuntimeStart = true,
@@ -247,7 +250,7 @@ class PrivilegeUiAdbPanelStateTest {
                 expectedLabel = R.string.priv_ui_start_cancel_action,
             ),
             StaticTcpActionCase(
-                tcpModeEnabled = true,
+                tcpModeConfigured = true,
                 wirelessAdbSupported = true,
                 runtimeStartPhase = PrivilegeUiRuntimeStartPhase.CANCELLING,
                 ownsRuntimeStart = true,
@@ -257,7 +260,7 @@ class PrivilegeUiAdbPanelStateTest {
                 expectedLabel = R.string.priv_ui_start_cancelling_action,
             ),
             StaticTcpActionCase(
-                tcpModeEnabled = true,
+                tcpModeConfigured = true,
                 wirelessAdbSupported = true,
                 runtimeStartPhase = PrivilegeUiRuntimeStartPhase.RUNNING,
                 ownsRuntimeStart = false,
@@ -276,10 +279,9 @@ class PrivilegeUiAdbPanelStateTest {
                 case.expectedEnabled,
                 staticTcpActionEnabled(
                     action = action,
-                    tcpModeEnabled = case.tcpModeEnabled,
                     busy = case.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE,
-                    runtimeStatus = case.runtimeStatus,
                     wirelessAdbSupported = case.wirelessAdbSupported,
+                    tcpModeConfigured = case.tcpModeConfigured,
                 ),
             )
             assertEquals(
@@ -308,9 +310,7 @@ class PrivilegeUiAdbPanelStateTest {
         assertTrue(
             staticTcpActionEnabled(
                 action = PrivilegeUiStartAction.START,
-                tcpModeEnabled = false,
                 busy = false,
-                runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
                 wirelessAdbSupported = false,
                 tcpModeConfigured = true,
             ),
@@ -326,12 +326,10 @@ class PrivilegeUiAdbPanelStateTest {
 
         assertEquals(5555, store.state.value.configuredTcpModePort)
         assertEquals(null, store.state.value.tcpModePort)
-        assertEquals(false, store.tcpModeEnabled.value)
     }
 
     private data class WirelessActionCase(
         val runtimeStartPhase: PrivilegeUiRuntimeStartPhase,
-        val runtimeStatus: PrivilegeUiRuntimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
         val ownsRuntimeStart: Boolean,
         val busy: Boolean,
         val expectedAction: PrivilegeUiStartAction,
@@ -340,10 +338,9 @@ class PrivilegeUiAdbPanelStateTest {
     )
 
     private data class StaticTcpActionCase(
-        val tcpModeEnabled: Boolean,
+        val tcpModeConfigured: Boolean,
         val wirelessAdbSupported: Boolean,
         val runtimeStartPhase: PrivilegeUiRuntimeStartPhase,
-        val runtimeStatus: PrivilegeUiRuntimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
         val ownsRuntimeStart: Boolean,
         val expectedAction: PrivilegeUiStartAction,
         val expectedEnabled: Boolean,

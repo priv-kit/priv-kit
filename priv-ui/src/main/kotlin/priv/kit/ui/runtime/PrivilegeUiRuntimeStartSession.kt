@@ -1,13 +1,10 @@
 package priv.kit.ui.runtime
 
-import priv.kit.ui.*
-import priv.kit.ui.state.*
-
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeStartupLogLine
 import priv.kit.PrivilegeStartupLogListener
-import priv.kit.PrivilegeServerInfo
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -66,12 +63,6 @@ internal class PrivilegeUiRuntimeStartSession(
 
     fun appendStartupLog(line: String) {
         startupLogSink(this, line)
-    }
-
-    fun requestCancel(onCloseFailure: (Throwable) -> Unit = {}): Boolean {
-        if (!markCancellationRequested()) return false
-        closeCancellationResources(onCloseFailure)
-        return true
     }
 
     fun markCancellationRequested(): Boolean {

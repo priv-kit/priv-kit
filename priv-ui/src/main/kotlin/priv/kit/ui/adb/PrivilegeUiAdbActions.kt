@@ -306,8 +306,7 @@ internal class PrivilegeUiAdbActions(
         authorizationStatus: PrivilegeUiAdbTcpAuthorizationStatus,
         allowWirelessTcpSwitch: Boolean,
     ): PrivilegeUiRuntimeStartResult {
-        val preparedTcpPort = tcpPort
-        if (preparedTcpPort == null) {
+        if (tcpPort == null) {
             if (allowWirelessTcpSwitch) {
                 return startStaticTcpAdbThroughWireless(session)
             }
@@ -317,7 +316,7 @@ internal class PrivilegeUiAdbActions(
         return when (authorizationStatus) {
             PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED -> {
                 val serverInfo = runInterruptible {
-                    tcpActions.tcpAdbStartAttempt(preparedTcpPort).start(session)
+                    tcpActions.tcpAdbStartAttempt(tcpPort).start(session)
                 }
                 PrivilegeUiRuntimeStartResult.Connected(serverInfo)
             }
@@ -330,12 +329,12 @@ internal class PrivilegeUiAdbActions(
                 !shouldRequestStaticTcpAuthorizationForStart(
                     authorizationStatus = authorizationStatus,
                     showAttemptFeedback = session.showAttemptFeedback,
-                ) || !tcpActions.requestTcpAuthorizationForStart(session, preparedTcpPort)
+                ) || !tcpActions.requestTcpAuthorizationForStart(session, tcpPort)
             ) {
                 PrivilegeUiRuntimeStartResult.Finished
             } else {
                 val serverInfo = runInterruptible {
-                    tcpActions.tcpAdbStartAttempt(preparedTcpPort).start(session)
+                    tcpActions.tcpAdbStartAttempt(tcpPort).start(session)
                 }
                 PrivilegeUiRuntimeStartResult.Connected(serverInfo)
             }

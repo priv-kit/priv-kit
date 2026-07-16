@@ -105,16 +105,12 @@ class PrivilegeUiAdbActionsTest {
             PrivilegeUiWirelessAdbStatus.ON,
             privilegeUiWirelessDebuggingStatus(
                 wirelessDebuggingEnabled = true,
-                connectPortAvailable = false,
-                pairingServiceOn = false,
             ),
         )
         assertEquals(
             PrivilegeUiWirelessAdbStatus.OFF,
             privilegeUiWirelessDebuggingStatus(
                 wirelessDebuggingEnabled = false,
-                connectPortAvailable = true,
-                pairingServiceOn = true,
             ),
         )
     }

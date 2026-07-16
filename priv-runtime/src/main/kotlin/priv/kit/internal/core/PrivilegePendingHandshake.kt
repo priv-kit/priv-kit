@@ -4,9 +4,7 @@ import priv.kit.PrivilegeStartupException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-internal class PrivilegePendingHandshake internal constructor(
-    val token: String,
-) {
+internal class PrivilegePendingHandshake {
     private val latch = CountDownLatch(1)
 
     @Volatile

@@ -1,10 +1,5 @@
 package priv.kit.ui.adb.pairing
 
-import priv.kit.ui.*
-import priv.kit.ui.adb.*
-import priv.kit.ui.runtime.*
-import priv.kit.ui.state.*
-
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Build

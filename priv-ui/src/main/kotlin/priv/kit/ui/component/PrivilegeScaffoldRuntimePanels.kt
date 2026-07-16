@@ -6,17 +6,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
-import priv.kit.ui.PrivilegeUiState
+import priv.kit.ui.PrivilegeUiScreenScope
 import priv.kit.ui.R
 
 @Composable
-internal fun RootPanel(
-    state: PrivilegeUiState,
-    onStartRoot: () -> Unit,
-    onCancelStart: () -> Unit,
-) {
+internal fun PrivilegeUiScreenScope.RootPanel() {
     Panel {
         val action = state.startActionFor(PrivilegeUiRuntimeStartSource.ROOT)
         Button(
@@ -24,8 +21,8 @@ internal fun RootPanel(
             enabled = state.startActionEnabled(action),
             onClick = {
                 when (action) {
-                    PrivilegeUiStartAction.START -> onStartRoot()
-                    PrivilegeUiStartAction.CANCEL -> onCancelStart()
+                    PrivilegeUiStartAction.START -> viewModel.startRoot()
+                    PrivilegeUiStartAction.CANCEL -> viewModel.stopCurrentStart()
                     PrivilegeUiStartAction.CANCELLING,
                     PrivilegeUiStartAction.NONE,
                     -> Unit
@@ -45,10 +42,9 @@ internal fun RootPanel(
 }
 
 @Composable
-internal fun ManualShellPanel(
-    state: PrivilegeUiState,
-    onCopyCommand: () -> Unit,
-) {
+internal fun PrivilegeUiScreenScope.ManualShellPanel() {
+    val context = LocalContext.current
+    val copiedMessage = stringResource(R.string.priv_ui_manual_command_copied)
     Panel {
         Text(
             text = stringResource(R.string.priv_ui_manual_authorization_desc),
@@ -67,7 +63,10 @@ internal fun ManualShellPanel(
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !state.busy,
-                onClick = onCopyCommand,
+                onClick = {
+                    viewModel.copyManualCommand(context)
+                    showFeedback(copiedMessage)
+                },
             ) {
                 Text(stringResource(R.string.priv_ui_manual_copy_command))
             }

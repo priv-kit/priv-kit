@@ -12,6 +12,15 @@ Public entry points:
 - `PrivilegeUiViewModel`, an `open` `AndroidViewModel` state manager that callers may subclass.
 - `PrivilegeUiConfig`, used to enable startup modes, polling intervals, and external start providers.
 
+Process-wide owner-death behavior remains a runtime concern. Configure it through
+`PrivilegeConfig` before starting a server; `PrivilegeUiConfig` does not mirror or
+override that global runtime state.
+
+The module keeps Compose Foundation, Material 3, and lifecycle Compose adapters as
+implementation dependencies. Host apps using the examples below should declare
+their own `androidx.compose.material3:material3` and
+`androidx.lifecycle:lifecycle-viewmodel-compose` dependencies.
+
 `PrivilegeScaffold` consumes the caller's Compose `MaterialTheme` colors. Apps that need light, dark, dynamic, or branded authorization UI should wrap it in their own Material 3 theme instead of configuring colors through `PrivilegeUiConfig`.
 
 `PrivilegeUiViewModel.startWirelessAdbStatusPolling()`, `startTcpModeStatusPolling()`,
@@ -54,28 +63,28 @@ class MyPrivilegeUiViewModel(
     PrivilegeUiConfig(
         externalStartProviders = listOf(myShizukuProvider),
     ),
-)
+) {
+    override fun onBackClick(): Boolean {
+        // Update app navigation state or emit a host event.
+        return true
+    }
+
+    override fun onConnected(serverInfo: PrivilegeServerInfo) {
+        // Update the app after a new privileged-server connection.
+    }
+}
 
 PrivilegeScaffold(
     viewModel = viewModel<MyPrivilegeUiViewModel>(),
-    onBackClick = {
-        // Return to the host app page.
-    },
-    onHelpClick = {
-        // Open app-owned authorization help.
-    },
-    onConnected = {
-        // Return to the app page that needs privileged access.
-    },
-    onNotificationPermissionRequired = {
-        // Request android.permission.POST_NOTIFICATIONS on Android 13+,
-        // then call viewModel.handleNotificationPermissionResult(granted).
-    },
-    onLocalNetworkPermissionRequired = { permission ->
-        // Request the supplied local-network permission on Android 17+
-        // after Wireless debugging falls back to a LAN endpoint.
-    },
 )
 ```
+
+`PrivilegeScaffold` owns its Activity Result launchers for notification and local-network
+permissions and returns the notification result to the ViewModel. Host subclasses may
+override `onBackClick()`, `onConnected(...)`, and the optional help hooks. These hooks
+should update host state or emit host events; a ViewModel must not retain an `Activity`,
+`NavController`, Compose state holder, or Activity Result launcher. Returning `false`
+from `onBackClick()` delegates to the system back dispatcher. The help action is hidden
+unless the subclass overrides `hasHelpAction` with `true`.
 
 All static UI and notification text lives in `src/main/res/values/strings.xml` with the `priv_ui_` prefix so apps can override or localize it.

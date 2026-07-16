@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import priv.kit.Privilege
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration.Companion.milliseconds
 
 internal class PrivilegeUiExternalStartActions(
     private val store: PrivilegeUiViewModelStore,
@@ -85,7 +86,7 @@ internal class PrivilegeUiExternalStartActions(
                 }
             if (stop?.get() == true) return
             store.updateExternalStartItem(provider.id) {
-                it.copy(snapshot = snapshot, busy = false)
+                it.copy(snapshot = snapshot)
             }
             if (snapshot.exceptionText.isNotBlank()) store.appendLog(snapshot.exceptionText)
             continuePendingExternalStart(
@@ -191,7 +192,7 @@ internal class PrivilegeUiExternalStartActions(
         }
 
     private suspend fun sleepExternalStartStatusPolling(stop: AtomicBoolean): Boolean {
-        delay(store.config.externalStartStatusPollIntervalMillis)
+        delay(store.config.externalStartStatusPollIntervalMillis.milliseconds)
         return !stop.get()
     }
 }

@@ -7,6 +7,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import priv.kit.sample.ui.PrivilegeUiAuthorizationPage
+import priv.kit.sample.ui.rememberPrivilegeSampleUiViewModel
 
 @Composable
 internal fun PrivilegeSampleScreen(
@@ -57,12 +58,9 @@ internal fun PrivilegeSampleScreen(
                 )
             }
             entry<PrivilegeSampleDestination.PrivilegeUi> {
+                val viewModel = rememberPrivilegeSampleUiViewModel(callbacks.privilegeUi)
                 PrivilegeUiAuthorizationPage(
-                    onBackClick = callbacks.privilegeUi.back,
-                    onHelpClick = callbacks.privilegeUi.help,
-                    onConnected = callbacks.privilegeUi.connected,
-                    onNotificationPermissionRequired = callbacks.privilegeUi.notificationPermissionRequired,
-                    onNotificationPermissionDisposed = callbacks.privilegeUi.notificationPermissionDisposed,
+                    viewModel = viewModel,
                 )
             }
         },

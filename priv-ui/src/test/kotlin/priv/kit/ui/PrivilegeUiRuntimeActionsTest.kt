@@ -1051,11 +1051,12 @@ class PrivilegeUiRuntimeActionsTest {
         session.addCloseable(AutoCloseable { closed += "second" })
         session.addCloseable(AutoCloseable { closed += "third" })
 
-        assertTrue(session.requestCancel(failures::add))
+        assertTrue(session.markCancellationRequested())
+        session.closeCancellationResources(failures::add)
 
         assertEquals(listOf("throwing", "second", "third"), closed)
         assertEquals(listOf("cleanup failed"), failures.map { it.message })
-        assertFalse(session.requestCancel(failures::add))
+        assertFalse(session.markCancellationRequested())
         assertEquals(listOf("throwing", "second", "third"), closed)
     }
 

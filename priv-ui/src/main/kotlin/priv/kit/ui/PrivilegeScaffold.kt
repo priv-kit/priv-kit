@@ -2,6 +2,10 @@ package priv.kit.ui
 
 import android.content.Context
 import android.content.ContextWrapper
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,14 +26,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
-import priv.kit.PrivilegeServerInfo
 import priv.kit.ui.component.AdbPanel
 import priv.kit.ui.component.AuthorizationModeTabs
 import priv.kit.ui.component.ExternalStartPanel
@@ -43,19 +45,20 @@ import priv.kit.ui.component.StartupLogPanel
 public fun PrivilegeScaffold(
     modifier: Modifier = Modifier,
     viewModel: PrivilegeUiViewModel = viewModel(),
-    onBackClick: () -> Unit = {},
-    onHelpClick: () -> Unit = {},
-    onConnected: (PrivilegeServerInfo) -> Unit = {},
-    onNotificationPermissionRequired: () -> Unit = {},
-    onLocalNetworkPermissionRequired: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
+    val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val state by viewModel.state.collectAsState()
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = viewModel::handleNotificationPermissionResult,
+    )
+    val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = {},
+    )
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
-    val manualCommandCopiedMessage = stringResource(R.string.priv_ui_manual_command_copied)
-    val staticTcpCommandCopiedMessage = stringResource(R.string.priv_ui_adb_static_command_copied)
-    val startupLogCopiedMessage = stringResource(R.string.priv_ui_startup_log_copied)
     fun showFeedback(message: String) {
         snackbarScope.launch {
             snackbarHostState.currentSnackbarData?.dismiss()
@@ -65,10 +68,26 @@ public fun PrivilegeScaffold(
             )
         }
     }
+    val screenScope = PrivilegeUiScreenScope(
+        state = state,
+        viewModel = viewModel,
+        backDispatcher = backDispatcher,
+        showFeedback = ::showFeedback,
+    )
     LaunchedEffect(state.connectionSerial) {
         val serverInfo = state.serverInfo
         if (state.connectionSerial > 0L && serverInfo != null) {
-            onConnected(serverInfo)
+            viewModel.dispatchConnected(state.connectionSerial, serverInfo)
+        }
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.permissionRequests.collect { request ->
+            when (request) {
+                PrivilegeUiPermissionRequest.Notification ->
+                    notificationPermissionLauncher.launch(POST_NOTIFICATIONS_PERMISSION)
+                is PrivilegeUiPermissionRequest.LocalNetwork ->
+                    localNetworkPermissionLauncher.launch(request.permission)
+            }
         }
     }
     LaunchedEffect(viewModel) {
@@ -102,10 +121,7 @@ public fun PrivilegeScaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
         topBar = {
-            PrivilegeTopBar(
-                onBackClick = onBackClick,
-                onHelpClick = onHelpClick,
-            )
+            screenScope.PrivilegeTopBar()
         },
         snackbarHost = {
             SnackbarHost(snackbarHostState)
@@ -119,48 +135,24 @@ public fun PrivilegeScaffold(
                 .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            ServiceStatusPanel(
-                state = state,
-                onStartClick = {
-                    viewModel.startAvailable()
-                },
-                onCancelClick = viewModel::stopCurrentStart,
-                onStopClick = viewModel::stopServer,
-            )
-            AuthorizationModeTabs(
-                modes = state.startupModes,
-                selectedMode = state.selectedStartupMode,
-                enabled = !state.busy,
-                onSelected = viewModel::selectStartupMode,
-            )
-            AuthorizationModePanel(
-                mode = state.selectedStartupMode.takeIf { it in state.startupModes }
-                    ?: state.startupModes.first(),
-                state = state,
-                viewModel = viewModel,
-                onCopyManualCommand = {
-                    viewModel.copyManualCommand(context)
-                    showFeedback(manualCommandCopiedMessage)
-                },
-                onCopyStaticTcpCommand = {
-                    viewModel.copyStaticTcpCommand(context)
-                    showFeedback(staticTcpCommandCopiedMessage)
-                },
-                onNotificationPermissionRequired = onNotificationPermissionRequired,
-                onLocalNetworkPermissionRequired = onLocalNetworkPermissionRequired,
-            )
+            screenScope.ServiceStatusPanel()
+            screenScope.AuthorizationModeTabs()
+            screenScope.AuthorizationModePanel()
             if (state.startupLogLines.isNotEmpty()) {
-                StartupLogPanel(
-                    lines = state.startupLogLines,
-                    onCopyLog = {
-                        viewModel.copyStartupLog(context)
-                        showFeedback(startupLogCopiedMessage)
-                    },
-                )
+                screenScope.StartupLogPanel()
             }
         }
     }
 }
+
+private const val POST_NOTIFICATIONS_PERMISSION = "android.permission.POST_NOTIFICATIONS"
+
+internal class PrivilegeUiScreenScope(
+    internal val state: PrivilegeUiState,
+    internal val viewModel: PrivilegeUiViewModel,
+    internal val backDispatcher: OnBackPressedDispatcher?,
+    internal val showFeedback: (String) -> Unit,
+)
 
 private tailrec fun Context.findLifecycleOwner(): LifecycleOwner? =
     when (this) {
@@ -170,52 +162,13 @@ private tailrec fun Context.findLifecycleOwner(): LifecycleOwner? =
     }
 
 @Composable
-private fun AuthorizationModePanel(
-    mode: PrivilegeUiStartupMode,
-    state: PrivilegeUiState,
-    viewModel: PrivilegeUiViewModel,
-    onCopyManualCommand: () -> Unit,
-    onCopyStaticTcpCommand: () -> Unit,
-    onNotificationPermissionRequired: () -> Unit,
-    onLocalNetworkPermissionRequired: (String) -> Unit,
-) {
+private fun PrivilegeUiScreenScope.AuthorizationModePanel() {
+    val mode = state.selectedStartupMode.takeIf { it in state.startupModes }
+        ?: state.startupModes.first()
     when (mode) {
-        PrivilegeUiStartupMode.ROOT -> RootPanel(
-            state = state,
-            onStartRoot = viewModel::startRoot,
-            onCancelStart = viewModel::stopCurrentStart,
-        )
-        PrivilegeUiStartupMode.MANUAL_SHELL -> ManualShellPanel(
-            state = state,
-            onCopyCommand = onCopyManualCommand,
-        )
-        PrivilegeUiStartupMode.ADB -> AdbPanel(
-            state = state,
-            tcpPolicy = viewModel.adbTcpPolicy,
-            configuredTcpPort = viewModel.config.tcpPort,
-            onPairingCodeChanged = viewModel::updatePairingCode,
-            onStartPairing = {
-                viewModel.startNotificationPairing(
-                    onNotificationPermissionRequired = onNotificationPermissionRequired,
-                )
-            },
-            onStopPairing = viewModel::stopNotificationPairing,
-            onClosePairing = viewModel::closePairingDialog,
-            onSubmitPairingCode = viewModel::submitNotificationPairingCode,
-            onEnableTcpMode = viewModel::enableTcpMode,
-            onStartWirelessAdb = {
-                viewModel.startWirelessAdb(onLocalNetworkPermissionRequired)
-            },
-            onStopWirelessAdb = viewModel::stopCurrentStart,
-            onStartStaticTcpAdb = {
-                viewModel.startStaticTcpAdb(onLocalNetworkPermissionRequired)
-            },
-            onCopyStaticTcpCommand = onCopyStaticTcpCommand,
-        )
-        PrivilegeUiStartupMode.EXTERNAL -> ExternalStartPanel(
-            state = state,
-            onAuthorizeOrStart = viewModel::authorizeOrStartExternal,
-            onCancelStart = viewModel::stopCurrentStart,
-        )
+        PrivilegeUiStartupMode.ROOT -> RootPanel()
+        PrivilegeUiStartupMode.MANUAL_SHELL -> ManualShellPanel()
+        PrivilegeUiStartupMode.ADB -> AdbPanel()
+        PrivilegeUiStartupMode.EXTERNAL -> ExternalStartPanel()
     }
 }

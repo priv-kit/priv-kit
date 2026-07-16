@@ -19,10 +19,7 @@ internal data class PrivilegeSampleNavigationCallbacks(
 internal data class PrivilegeSamplePrivilegeUiCallbacks(
     val open: () -> Unit,
     val back: () -> Unit,
-    val help: () -> Unit,
     val connected: (PrivilegeServerInfo) -> Unit,
-    val notificationPermissionRequired: ((Boolean) -> Unit) -> Unit,
-    val notificationPermissionDisposed: ((Boolean) -> Unit) -> Unit,
 )
 
 internal data class PrivilegeSampleConnectionCallbacks(

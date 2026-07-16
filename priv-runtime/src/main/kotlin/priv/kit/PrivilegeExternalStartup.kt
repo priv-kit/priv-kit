@@ -24,7 +24,6 @@ public data class PrivilegeExternalStartupOptions @JvmOverloads public construct
 }
 
 public data class PrivilegeExternalStartupResult public constructor(
-    public val exitCode: Int,
     public val output: String,
 )
 
@@ -49,20 +48,17 @@ public object PrivilegeExternalStartup {
         startupLogListener: PrivilegeStartupLogListener,
         sourcePrefix: String? = null,
     ): PrivilegeExternalStartupReceiver =
-        PrivilegeExternalStartupReceiver(
+        PrivilegeExternalStartupReceiver.create(
             startupLogListener = startupLogListener,
             sourcePrefix = sourcePrefix,
         )
 }
 
-public class PrivilegeExternalStartupReceiver @JvmOverloads public constructor(
+public class PrivilegeExternalStartupReceiver private constructor(
     private val startupLogListener: PrivilegeStartupLogListener,
     sourcePrefix: String? = null,
 ) {
     private val prefix = sourcePrefix.toStartupLogSourceOrNull()
-    private val adapter = PrivilegeStartupLogListener { line ->
-        receive(line)
-    }
 
     public fun receive(
         source: String?,
@@ -83,13 +79,21 @@ public class PrivilegeExternalStartupReceiver @JvmOverloads public constructor(
         )
     }
 
-    public fun asStartupLogListener(): PrivilegeStartupLogListener = adapter
-
     private fun applyPrefix(source: String): String =
         prefix?.let { "$it/$source" } ?: source
 
-    private companion object {
-        const val DEFAULT_REMOTE_SOURCE = "external"
+    internal companion object {
+        private const val DEFAULT_REMOTE_SOURCE = "external"
+
+        @JvmSynthetic
+        fun create(
+            startupLogListener: PrivilegeStartupLogListener,
+            sourcePrefix: String?,
+        ): PrivilegeExternalStartupReceiver =
+            PrivilegeExternalStartupReceiver(
+                startupLogListener = startupLogListener,
+                sourcePrefix = sourcePrefix,
+            )
     }
 }
 
@@ -162,7 +166,6 @@ internal class PrivilegeExternalStartupProcessRunner(
             )
         }
         return PrivilegeExternalStartupResult(
-            exitCode = exitCode,
             output = transcript.text(),
         )
     }

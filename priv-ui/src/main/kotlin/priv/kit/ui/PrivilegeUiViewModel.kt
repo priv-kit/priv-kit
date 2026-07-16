@@ -4,10 +4,12 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
+import priv.kit.PrivilegeServerInfo
 import priv.kit.ui.adb.PrivilegeUiAdbActions
 import priv.kit.ui.external.PrivilegeUiExternalStartActions
 import priv.kit.ui.runtime.PrivilegeUiDirectStartTarget
@@ -42,24 +44,23 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         coroutineScope = viewModelScope,
     )
     private val ownerClosed = AtomicBoolean(false)
-    private val ownerCloseable = AutoCloseable { closeOwner() }.also(::addCloseable)
     private var wirelessStatusPollingHandle: AutoCloseable? = null
     private var tcpModeStatusPollingHandle: AutoCloseable? = null
     private var externalStartStatusPollingHandle: AutoCloseable? = null
+    private var deliveredConnectionSerial = 0L
+    private val permissionRequestChannel = Channel<PrivilegeUiPermissionRequest>(Channel.BUFFERED)
     public val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
-    public open val tcpModeEnabled: MutableStateFlow<Boolean> = store.tcpModeEnabled
     internal val snackbarMessages: SharedFlow<String> = store.snackbarMessages
-    public open val adbTcpPolicy: PrivilegeUiAdbTcpPolicy
-        get() = store.config.adbTcpPolicy
+    internal val permissionRequests = permissionRequestChannel.receiveAsFlow()
 
     init {
+        addCloseable { closeOwner() }
         configure(config)
     }
 
     private fun configure(config: PrivilegeUiConfig) {
         store.config = config
 
-        runtimeActions.configureOwnerDeathBehavior()
         adbActions.observePairingEvents()
         runtimeActions.installRuntimeWatchers()
         store.initializeState(config)
@@ -72,6 +73,36 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         syncTcpModeStatusPolling()
         syncExternalStartStatusPolling()
         refreshTcpModeEnabledIfSelected()
+    }
+
+    /** Return true when the host handled the back action; false uses the system back dispatcher. */
+    protected open fun onBackClick(): Boolean = false
+
+    /** Override together with [hasHelpAction] to handle the optional help action. */
+    protected open fun onHelpClick(): Unit = Unit
+
+    /** Controls whether the authorization page exposes its optional help action. */
+    protected open val hasHelpAction: Boolean = false
+
+    /** Called once for each connection serial while this ViewModel is alive. */
+    protected open fun onConnected(serverInfo: PrivilegeServerInfo): Unit = Unit
+
+    internal fun dispatchBackClick(): Boolean = onBackClick()
+
+    internal fun dispatchHelpClick() {
+        onHelpClick()
+    }
+
+    internal val helpActionVisible: Boolean
+        get() = hasHelpAction
+
+    internal fun dispatchConnected(
+        connectionSerial: Long,
+        serverInfo: PrivilegeServerInfo,
+    ) {
+        if (connectionSerial <= deliveredConnectionSerial) return
+        deliveredConnectionSerial = connectionSerial
+        onConnected(serverInfo)
     }
 
     public open fun updatePairingCode(value: String) {
@@ -93,22 +124,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
     /** Starts the first available provider sequence without showing provider-specific prompts. */
     public open fun startAvailable() {
-        @Suppress("DEPRECATION")
-        startAvailable(onLocalNetworkPermissionRequired = {})
-    }
-
-    /**
-     * Compatibility overload. Unified startup is intentionally silent and never invokes
-     * [onLocalNetworkPermissionRequired]; use the dedicated ADB start methods for that prompt.
-     */
-    @Deprecated(
-        message = "Unified startup does not emit provider-specific permission prompts; use startAvailable()",
-        replaceWith = ReplaceWith("startAvailable()"),
-    )
-    @Suppress("UNUSED_PARAMETER")
-    public open fun startAvailable(
-        onLocalNetworkPermissionRequired: (String) -> Unit = {},
-    ) {
         startAvailableSilently()
     }
 
@@ -165,11 +180,9 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         )
     }
 
-    public open fun startNotificationPairing(
-        onNotificationPermissionRequired: () -> Unit = {},
-    ) {
+    public open fun startNotificationPairing() {
         adbActions.startNotificationPairing(
-            onNotificationPermissionRequired = onNotificationPermissionRequired,
+            onNotificationPermissionRequired = ::requestNotificationPermission,
         )
     }
 
@@ -189,16 +202,12 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         adbActions.handleNotificationPermissionResult(granted)
     }
 
-    public open fun startWirelessAdb(
-        onLocalNetworkPermissionRequired: (String) -> Unit = {},
-    ) {
-        adbActions.startWirelessAdb(onLocalNetworkPermissionRequired)
+    public open fun startWirelessAdb() {
+        adbActions.startWirelessAdb(::requestLocalNetworkPermission)
     }
 
-    public open fun startAdb(
-        onLocalNetworkPermissionRequired: (String) -> Unit = {},
-    ) {
-        adbActions.startAdb(onLocalNetworkPermissionRequired)
+    public open fun startAdb() {
+        adbActions.startAdb(::requestLocalNetworkPermission)
     }
 
     public open fun startWirelessAdbStatusPolling(): AutoCloseable =
@@ -254,10 +263,8 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         adbActions.refreshTcpModeEnabled()
     }
 
-    public open fun startStaticTcpAdb(
-        onLocalNetworkPermissionRequired: (String) -> Unit = {},
-    ) {
-        adbActions.startStaticTcpAdb(onLocalNetworkPermissionRequired)
+    public open fun startStaticTcpAdb() {
+        adbActions.startStaticTcpAdb(::requestLocalNetworkPermission)
     }
 
     public open fun refreshExternalStartStatus(providerId: String? = null) {
@@ -326,9 +333,16 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         }
     }
 
+    private fun requestNotificationPermission() {
+        permissionRequestChannel.trySend(PrivilegeUiPermissionRequest.Notification)
+    }
+
+    private fun requestLocalNetworkPermission(permission: String) {
+        permissionRequestChannel.trySend(PrivilegeUiPermissionRequest.LocalNetwork(permission))
+    }
+
     override fun onCleared() {
         closeOwner()
-        super.onCleared()
     }
 
     private fun closeOwner() {
@@ -337,5 +351,14 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         runCatching { externalStartActions.close() }
         runCatching { adbActions.close() }
         runCatching { store.close() }
+        permissionRequestChannel.close()
     }
+}
+
+internal sealed interface PrivilegeUiPermissionRequest {
+    data object Notification : PrivilegeUiPermissionRequest
+
+    data class LocalNetwork(
+        val permission: String,
+    ) : PrivilegeUiPermissionRequest
 }

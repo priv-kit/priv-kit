@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -34,10 +35,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import priv.kit.ui.PrivilegeUiAdbPairingStatus
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
-import priv.kit.ui.PrivilegeUiRuntimeStatus
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
-import priv.kit.ui.PrivilegeUiState
+import priv.kit.ui.PrivilegeUiScreenScope
 import priv.kit.ui.PrivilegeUiWirelessAdbStatus
 import priv.kit.ui.R
 import priv.kit.ui.adb.PrivilegeUiAdbStartupSection
@@ -58,58 +58,18 @@ import priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported
 import priv.kit.ui.state.privilegeUiStaticTcpOpenCommand
 
 @Composable
-internal fun AdbPanel(
-    state: PrivilegeUiState,
-    tcpPolicy: PrivilegeUiAdbTcpPolicy,
-    configuredTcpPort: Int,
-    onPairingCodeChanged: (String) -> Unit,
-    onStartPairing: () -> Unit,
-    onStopPairing: () -> Unit,
-    onClosePairing: () -> Unit,
-    onSubmitPairingCode: () -> Unit,
-    onEnableTcpMode: () -> Unit,
-    onStartWirelessAdb: () -> Unit,
-    onStopWirelessAdb: () -> Unit,
-    onStartStaticTcpAdb: () -> Unit,
-    onCopyStaticTcpCommand: () -> Unit,
-) {
+internal fun PrivilegeUiScreenScope.AdbPanel() {
     Panel {
-        val paired = state.wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON
-        val wirelessStatus = wirelessAdbPanelStatus(
-            wifiConnected = state.wifiConnected,
-            wirelessDebuggingStatus = state.wirelessDebuggingStatus,
-            wirelessPairingServiceStatus = state.wirelessPairingServiceStatus,
-            wirelessPairingCheckStatus = state.wirelessPairingCheckStatus,
-        )
         val sections = privilegeUiAdbStartupSections(
             wirelessAdbSupported = isPrivilegeUiWirelessAdbSupported(),
-            tcpPolicy = tcpPolicy,
+            tcpPolicy = viewModel.config.adbTcpPolicy,
         )
         AdbFingerprintRow(fingerprint = state.adbKeyFingerprint)
         if (PrivilegeUiAdbStartupSection.WIRELESS in sections) {
-            WirelessAdbSection(
-                state = state,
-                wirelessStatus = wirelessStatus,
-                onPairingCodeChanged = onPairingCodeChanged,
-                onStartPairing = onStartPairing,
-                onStopPairing = onStopPairing,
-                onClosePairing = onClosePairing,
-                onSubmitPairingCode = onSubmitPairingCode,
-                onStartWirelessAdb = onStartWirelessAdb,
-                onStopWirelessAdb = onStopWirelessAdb,
-            )
+            WirelessAdbSection()
         }
         if (PrivilegeUiAdbStartupSection.STATIC_TCP in sections) {
-            StaticTcpAdbSection(
-                state = state,
-                paired = paired,
-                tcpPolicy = tcpPolicy,
-                configuredTcpPort = configuredTcpPort,
-                onEnableTcpMode = onEnableTcpMode,
-                onStartStaticTcpAdb = onStartStaticTcpAdb,
-                onStopStaticTcpAdb = onStopWirelessAdb,
-                onCopyStaticTcpCommand = onCopyStaticTcpCommand,
-            )
+            StaticTcpAdbSection()
         }
         if (sections.isEmpty()) {
             StatusText(stringResource(R.string.priv_ui_adb_unavailable))
@@ -118,18 +78,14 @@ internal fun AdbPanel(
 }
 
 @Composable
-private fun WirelessAdbSection(
-    state: PrivilegeUiState,
-    wirelessStatus: PrivilegeUiWirelessAdbPanelStatus,
-    onPairingCodeChanged: (String) -> Unit,
-    onStartPairing: () -> Unit,
-    onStopPairing: () -> Unit,
-    onClosePairing: () -> Unit,
-    onSubmitPairingCode: () -> Unit,
-    onStartWirelessAdb: () -> Unit,
-    onStopWirelessAdb: () -> Unit,
-) {
+private fun PrivilegeUiScreenScope.WirelessAdbSection() {
     ItemPanel {
+        val wirelessStatus = wirelessAdbPanelStatus(
+            wifiConnected = state.wifiConnected,
+            wirelessDebuggingStatus = state.wirelessDebuggingStatus,
+            wirelessPairingServiceStatus = state.wirelessPairingServiceStatus,
+            wirelessPairingCheckStatus = state.wirelessPairingCheckStatus,
+        )
         val runtimeStartInProgress = state.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE
         val wirelessOwnsRuntimeStart = runtimeStartInProgress &&
             state.runtimeStartSource == PrivilegeUiRuntimeStartSource.ADB_WIRELESS
@@ -144,13 +100,7 @@ private fun WirelessAdbSection(
             color = wirelessStatus.displayColor(),
         )
         if (state.pairingDialogVisible) {
-            WirelessAdbPairingDialog(
-                state = state,
-                onPairingCodeChanged = onPairingCodeChanged,
-                onSubmitPairingCode = onSubmitPairingCode,
-                onStopPairing = onStopPairing,
-                onClose = onClosePairing,
-            )
+            WirelessAdbPairingDialog()
         }
         val startAction = privilegeUiWirelessAdbStartAction(
             runtimeStartPhase = state.runtimeStartPhase,
@@ -163,9 +113,7 @@ private fun WirelessAdbSection(
         ) {
             OutlinedButton(
                 enabled = pairingActionEnabled,
-                onClick = {
-                    onStartPairing()
-                },
+                onClick = viewModel::startNotificationPairing,
             ) {
                 Text(stringResource(R.string.priv_ui_wireless_pair_action))
             }
@@ -174,12 +122,12 @@ private fun WirelessAdbSection(
                 enabled = privilegeUiWirelessAdbStartActionEnabled(
                     action = startAction,
                     busy = state.busy,
-                    runtimeStatus = state.runtimeStatus,
                 ),
                 onClick = {
                     when (startAction) {
-                        PrivilegeUiStartAction.START -> onStartWirelessAdb()
-                        PrivilegeUiStartAction.CANCEL -> onStopWirelessAdb()
+                        PrivilegeUiStartAction.START ->
+                            viewModel.startWirelessAdb()
+                        PrivilegeUiStartAction.CANCEL -> viewModel.stopCurrentStart()
                         PrivilegeUiStartAction.CANCELLING,
                         PrivilegeUiStartAction.NONE,
                         -> Unit
@@ -197,13 +145,7 @@ private fun WirelessAdbSection(
 }
 
 @Composable
-private fun WirelessAdbPairingDialog(
-    state: PrivilegeUiState,
-    onPairingCodeChanged: (String) -> Unit,
-    onSubmitPairingCode: () -> Unit,
-    onStopPairing: () -> Unit,
-    onClose: () -> Unit,
-) {
+private fun PrivilegeUiScreenScope.WirelessAdbPairingDialog() {
     val defaultPairingMessage = stringResource(R.string.priv_ui_pairing_default_message)
     val pairing = state.pairingStatus == PrivilegeUiAdbPairingStatus.PAIRING
     val canSubmit = state.notificationPairingRunning &&
@@ -211,12 +153,12 @@ private fun WirelessAdbPairingDialog(
         state.pairingCode.isPrivilegeUiPairingCode()
     fun dismissOrStop() {
         if (pairing) {
-            onStopPairing()
+            viewModel.stopNotificationPairing()
         } else {
             if (state.notificationPairingRunning) {
-                onStopPairing()
+                viewModel.stopNotificationPairing()
             }
-            onClose()
+            viewModel.closePairingDialog()
         }
     }
     AlertDialog(
@@ -234,7 +176,7 @@ private fun WirelessAdbPairingDialog(
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = state.pairingCode,
-                    onValueChange = onPairingCodeChanged,
+                    onValueChange = viewModel::updatePairingCode,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.NumberPassword,
                         imeAction = ImeAction.Done,
@@ -242,7 +184,7 @@ private fun WirelessAdbPairingDialog(
                     keyboardActions = KeyboardActions(
                         onDone = {
                             if (canSubmit) {
-                                onSubmitPairingCode()
+                                viewModel.submitNotificationPairingCode()
                             }
                         },
                     ),
@@ -254,7 +196,7 @@ private fun WirelessAdbPairingDialog(
         confirmButton = {
             TextButton(
                 enabled = canSubmit,
-                onClick = onSubmitPairingCode,
+                onClick = viewModel::submitNotificationPairingCode,
             ) {
                 Text(stringResource(R.string.priv_ui_pairing_submit_action))
             }
@@ -276,17 +218,13 @@ private fun WirelessAdbPairingDialog(
 }
 
 @Composable
-private fun StaticTcpAdbSection(
-    state: PrivilegeUiState,
-    paired: Boolean,
-    tcpPolicy: PrivilegeUiAdbTcpPolicy,
-    configuredTcpPort: Int,
-    onEnableTcpMode: () -> Unit,
-    onStartStaticTcpAdb: () -> Unit,
-    onStopStaticTcpAdb: () -> Unit,
-    onCopyStaticTcpCommand: () -> Unit,
-) {
+private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
+    val context = LocalContext.current
+    val copiedMessage = stringResource(R.string.priv_ui_adb_static_command_copied)
     ItemPanel {
+        val tcpPolicy = viewModel.config.adbTcpPolicy
+        val configuredTcpPort = viewModel.config.tcpPort
+        val paired = state.wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON
         val activeTcpPort = state.tcpModePort
         val staticTcpActive = activeTcpPort != null
         val staticTcpConfigured = state.configuredTcpModePort != null
@@ -313,9 +251,7 @@ private fun StaticTcpAdbSection(
         )
         val tcpStartActionEnabled = staticTcpActionEnabled(
             action = startAction,
-            tcpModeEnabled = staticTcpActive,
             busy = state.busy,
-            runtimeStatus = state.runtimeStatus,
             wirelessAdbSupported = wirelessAdbSupported,
             tcpModeConfigured = staticTcpConfigured,
         )
@@ -331,7 +267,7 @@ private fun StaticTcpAdbSection(
             OutlinedButton(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = prepareActionEnabled,
-                onClick = onEnableTcpMode,
+                onClick = viewModel::enableTcpMode,
             ) {
                 Text(stringResource(R.string.priv_ui_adb_static_prepare_action))
             }
@@ -341,8 +277,9 @@ private fun StaticTcpAdbSection(
             enabled = tcpStartActionEnabled,
             onClick = {
                 when (startAction) {
-                    PrivilegeUiStartAction.START -> onStartStaticTcpAdb()
-                    PrivilegeUiStartAction.CANCEL -> onStopStaticTcpAdb()
+                    PrivilegeUiStartAction.START ->
+                        viewModel.startStaticTcpAdb()
+                    PrivilegeUiStartAction.CANCEL -> viewModel.stopCurrentStart()
                     PrivilegeUiStartAction.CANCELLING,
                     PrivilegeUiStartAction.NONE,
                     -> Unit
@@ -372,7 +309,10 @@ private fun StaticTcpAdbSection(
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !runtimeStartInProgress && !state.busy,
-                    onClick = onCopyStaticTcpCommand,
+                    onClick = {
+                        viewModel.copyStaticTcpCommand(context)
+                        showFeedback(copiedMessage)
+                    },
                 ) {
                     Text(stringResource(R.string.priv_ui_manual_copy_command))
                 }

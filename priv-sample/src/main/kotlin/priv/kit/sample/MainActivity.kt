@@ -11,7 +11,6 @@ import rikka.shizuku.Shizuku
 
 class MainActivity : ComponentActivity() {
     internal lateinit var sampleViewModel: PrivilegeSampleViewModel
-    private var notificationPermissionResultHandler: ((Boolean) -> Unit)? = null
     private val shizukuBinderReceivedListener = Shizuku.OnBinderReceivedListener {
         refreshShizukuStatus(append = false)
     }
@@ -47,10 +46,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleNotificationPermissionResult(granted: Boolean) {
-        val pendingPrivilegeUiHandler = notificationPermissionResultHandler
-        notificationPermissionResultHandler = null
-        pendingPrivilegeUiHandler?.invoke(granted)
-
         val shouldStartSamplePairing = sampleViewModel.startNotificationPairingAfterPermission
         sampleViewModel.startNotificationPairingAfterPermission = false
         if (granted && shouldStartSamplePairing) {
@@ -65,8 +60,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    internal fun requestNotificationPermission(onResult: ((Boolean) -> Unit)? = null) {
-        notificationPermissionResultHandler = onResult
+    internal fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
@@ -80,16 +74,6 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    private fun requestPrivilegeUiNotificationPermission(onResult: (Boolean) -> Unit) {
-        requestNotificationPermission(onResult)
-    }
-
-    private fun clearPrivilegeUiNotificationPermissionHandler(handler: (Boolean) -> Unit) {
-        if (notificationPermissionResultHandler === handler) {
-            notificationPermissionResultHandler = null
-        }
-    }
-
     private fun createPrivilegeSampleCallbacks(): PrivilegeSampleCallbacks =
         PrivilegeSampleCallbacks(
             navigation = PrivilegeSampleNavigationCallbacks(
@@ -97,12 +81,9 @@ class MainActivity : ComponentActivity() {
                 startupTabSelected = { sampleViewModel.selectStartupTab(it) },
             ),
             privilegeUi = PrivilegeSamplePrivilegeUiCallbacks(
-                open = { sampleViewModel.openPrivilegeUi() },
-                back = { sampleViewModel.navigateBack() },
-                help = {},
+                open = sampleViewModel::openPrivilegeUi,
+                back = sampleViewModel::navigateBack,
                 connected = sampleViewModel::handlePrivilegeUiConnected,
-                notificationPermissionRequired = { requestPrivilegeUiNotificationPermission(it) },
-                notificationPermissionDisposed = { clearPrivilegeUiNotificationPermissionHandler(it) },
             ),
             connection = PrivilegeSampleConnectionCallbacks(
                 adbDeviceNameChanged = { updateAdbDeviceName(it) },

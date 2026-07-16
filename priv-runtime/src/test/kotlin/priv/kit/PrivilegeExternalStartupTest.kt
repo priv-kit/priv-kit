@@ -39,7 +39,6 @@ class PrivilegeExternalStartupTest {
         )
 
         assertEquals("/custom/sh|start-command", startedCommand)
-        assertEquals(0, result.exitCode)
         assertTrue(result.output.contains("[stdout] ready"))
         assertTrue(result.output.contains("[stdout] more"))
         assertTrue(result.output.contains("[stderr] warn"))

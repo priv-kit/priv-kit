@@ -18,10 +18,10 @@ import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import priv.kit.Privilege
-import priv.kit.PrivilegeConfig
 import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeServerLaunchUncertainException
 import priv.kit.PrivilegeStartupLogLine
+import kotlin.time.Duration.Companion.milliseconds
 
 internal class PrivilegeUiRuntimeActions(
     private val store: PrivilegeUiViewModelStore,
@@ -36,13 +36,6 @@ internal class PrivilegeUiRuntimeActions(
 
     internal val isClosed: Boolean
         get() = closed.get()
-
-    fun configureOwnerDeathBehavior() {
-        PrivilegeConfig.configure(
-            followDeathDelayMillis = store.config.followDeathDelayMillis,
-            activeReconnectOnOwnerDeath = store.config.activeReconnectOnOwnerDeath,
-        )
-    }
 
     fun startRoot() {
         runServerStart(rootStartAttempt())
@@ -197,44 +190,8 @@ internal class PrivilegeUiRuntimeActions(
         }
     }
 
-    fun runServerStart(
-        message: String,
-        startupSource: String? = null,
-        runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
-        start: () -> PrivilegeServerInfo,
-    ) {
-        runServerStart(
-            PrivilegeUiRuntimeStartAttempt.Connect(
-                message = message,
-                startupSource = startupSource,
-                runtimeStartSource = runtimeStartSource,
-            ) {
-                start()
-            },
-        )
-    }
-
     fun runServerStart(attempt: PrivilegeUiRuntimeStartAttempt.Connect) {
         runServerStartAttempt(attempt, name = "priv-ui-runtime-start")
-    }
-
-    fun runServerStartRequest(
-        message: String,
-        startedMessage: String,
-        startupSource: String? = null,
-        runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
-        start: () -> Unit,
-    ) {
-        runServerStartRequest(
-            PrivilegeUiRuntimeStartAttempt.Request(
-                message = message,
-                startedMessage = startedMessage,
-                startupSource = startupSource,
-                runtimeStartSource = runtimeStartSource,
-            ) {
-                start()
-            },
-        )
     }
 
     fun runServerStartRequest(attempt: PrivilegeUiRuntimeStartAttempt.Request) {
@@ -350,8 +307,7 @@ internal class PrivilegeUiRuntimeActions(
             startupLogSink = ::appendSessionStartupLog,
             structuredStartupLogSink = ::appendSessionStartupLog,
         )
-        lateinit var job: Job
-        job = runtimeStartScope.launch(
+        val job: Job = runtimeStartScope.launch(
             context = CoroutineName(name),
             start = CoroutineStart.LAZY,
         ) {
@@ -515,7 +471,7 @@ internal class PrivilegeUiRuntimeActions(
         }
 
         withContext(NonCancellable) {
-            withTimeoutOrNull(store.config.startTimeoutMillis) {
+            withTimeoutOrNull(store.config.startTimeoutMillis.milliseconds) {
                 session.awaitCompletionSignal()
             }
         }
@@ -531,7 +487,7 @@ internal class PrivilegeUiRuntimeActions(
     private fun requestRuntimeStartCancellation(ownerClosing: Boolean = false): Boolean {
         lateinit var session: PrivilegeUiRuntimeStartSession
         var job: Job? = null
-        var firstRequest = false
+        var firstRequest: Boolean
         synchronized(store) {
             session = store.runtimeStartSession ?: return false
             if (!ownerClosing && store.state.value.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.RUNNING) {
@@ -559,20 +515,18 @@ internal class PrivilegeUiRuntimeActions(
 
         job?.cancel(CancellationException("Runtime start was cancelled"))
         session.signalCompletion()
-        if (firstRequest || ownerClosing) {
-            cleanupScope.launch(CoroutineName("priv-ui-runtime-start-cleanup")) {
-                try {
-                    session.closeCancellationResources { throwable ->
+        cleanupScope.launch(CoroutineName("priv-ui-runtime-start-cleanup")) {
+            try {
+                session.closeCancellationResources { throwable ->
+                    appendCleanupFailure(session, throwable)
+                }
+                if (ownerClosing) {
+                    session.finish { throwable ->
                         appendCleanupFailure(session, throwable)
                     }
-                    if (ownerClosing) {
-                        session.finish { throwable ->
-                            appendCleanupFailure(session, throwable)
-                        }
-                    }
-                } finally {
-                    if (ownerClosing) cleanupScope.cancel()
                 }
+            } finally {
+                if (ownerClosing) cleanupScope.cancel()
             }
         }
         return true
@@ -653,7 +607,7 @@ internal class PrivilegeUiRuntimeActions(
                 }
             }
             if (resolvedCompletion is RuntimeStartCompletion.HandledFailure) {
-                val disposition = (resolvedCompletion as RuntimeStartCompletion.HandledFailure).disposition
+                val disposition = resolvedCompletion.disposition
                 afterCommit = disposition.afterCommit
                 userAction = disposition.onUserActionRequired
                 committedGeneration = store.runtimeStartGeneration.get()

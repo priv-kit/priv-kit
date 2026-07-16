@@ -1169,16 +1169,14 @@ private fun MainActivity.sampleUserServiceConnection(label: String): PrivilegeUs
 
 private fun MainActivity.describeSampleUserService(label: String): String {
     val connection = sampleUserServiceConnection(label)
-    return connection.call { binder ->
-        if (label == "embedded") {
-            val service = IPrivilegeSampleEmbeddedUserService.Stub.asInterface(binder)
-                ?: throw PrivilegeUserServiceException("$label UserService returned an invalid Binder")
-            service.describe("$label call")
-        } else {
-            val service = IPrivilegeSampleDedicatedUserService.Stub.asInterface(binder)
-                ?: throw PrivilegeUserServiceException("$label UserService returned an invalid Binder")
-            service.describe("$label call")
-        }
+    return if (label == "embedded") {
+        val service = IPrivilegeSampleEmbeddedUserService.Stub.asInterface(connection.binder)
+            ?: throw PrivilegeUserServiceException("$label UserService returned an invalid Binder")
+        service.describe("$label call")
+    } else {
+        val service = IPrivilegeSampleDedicatedUserService.Stub.asInterface(connection.binder)
+            ?: throw PrivilegeUserServiceException("$label UserService returned an invalid Binder")
+        service.describe("$label call")
     }
 }
 
@@ -1189,18 +1187,14 @@ private fun MainActivity.setSampleUserService(
     if (label == "embedded") {
         val service = IPrivilegeSampleEmbeddedUserService.Stub.asInterface(connection.binder)
             ?: throw PrivilegeUserServiceException("$label UserService bind returned an invalid Binder")
-        val message = connection.call {
-            service.describe("$label bind")
-        }
+        val message = service.describe("$label bind")
         sampleViewModel.embeddedUserServiceConnection = connection
         sampleViewModel.embeddedUserService = service
         message
     } else {
         val service = IPrivilegeSampleDedicatedUserService.Stub.asInterface(connection.binder)
             ?: throw PrivilegeUserServiceException("$label UserService bind returned an invalid Binder")
-        val message = connection.call {
-            service.describe("$label bind")
-        }
+        val message = service.describe("$label bind")
         sampleViewModel.dedicatedUserServiceConnection = connection
         sampleViewModel.dedicatedUserService = service
         message

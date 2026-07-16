@@ -1,13 +1,9 @@
 package priv.kit.ui.adb
 
-import priv.kit.ui.*
-import priv.kit.ui.adb.pairing.*
-import priv.kit.ui.runtime.*
-import priv.kit.ui.state.*
-
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import priv.kit.ui.state.PrivilegeUiViewModelStore
 
 @Suppress("DEPRECATION")
 internal fun Context.isPrivilegeUiWifiConnected(): Boolean =

@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
@@ -44,6 +45,7 @@ import priv.kit.PrivilegeServerInfo
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
 import priv.kit.ui.PrivilegeUiRuntimeStatus
+import priv.kit.ui.PrivilegeUiScreenScope
 import priv.kit.ui.PrivilegeUiState
 import priv.kit.ui.R
 
@@ -102,12 +104,7 @@ internal fun CommandBlock(commandLine: String) {
 }
 
 @Composable
-internal fun ServiceStatusPanel(
-    state: PrivilegeUiState,
-    onStartClick: () -> Unit,
-    onCancelClick: () -> Unit,
-    onStopClick: () -> Unit,
-) {
+internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
     var showStopConfirmation by remember { mutableStateOf(false) }
     val action = privilegeUiServiceStatusAction(
         runtimeStatus = state.runtimeStatus,
@@ -183,7 +180,7 @@ internal fun ServiceStatusPanel(
                 TextButton(
                     onClick = {
                         showStopConfirmation = false
-                        onStopClick()
+                        viewModel.stopServer()
                     },
                 ) {
                     Text(stringResource(R.string.priv_ui_stop_service_confirm))
@@ -243,9 +240,9 @@ internal fun ServiceStatusPanel(
                     onClick = {
                         when (action) {
                             PrivilegeUiServiceStatusAction.STOP -> showStopConfirmation = true
-                            PrivilegeUiServiceStatusAction.CANCEL -> onCancelClick()
+                            PrivilegeUiServiceStatusAction.CANCEL -> viewModel.stopCurrentStart()
                             PrivilegeUiServiceStatusAction.CANCELLING -> Unit
-                            PrivilegeUiServiceStatusAction.START -> onStartClick()
+                            PrivilegeUiServiceStatusAction.START -> viewModel.startAvailable()
                         }
                     },
                 ) {
@@ -296,10 +293,10 @@ internal fun privilegeUiServiceStatusActionEnabled(
     }
 
 @Composable
-internal fun StartupLogPanel(
-    lines: List<String>,
-    onCopyLog: () -> Unit,
-) {
+internal fun PrivilegeUiScreenScope.StartupLogPanel() {
+    val context = LocalContext.current
+    val lines = state.startupLogLines
+    val copiedMessage = stringResource(R.string.priv_ui_startup_log_copied)
     Panel {
         val copyLogDescription = stringResource(R.string.priv_ui_startup_log_copy_description)
         val logScrollState = rememberScrollState()
@@ -324,7 +321,10 @@ internal fun StartupLogPanel(
                             enabled = lines.isNotEmpty(),
                             onClickLabel = copyLogDescription,
                             role = Role.Button,
-                            onClick = onCopyLog,
+                            onClick = {
+                                viewModel.copyStartupLog(context)
+                                showFeedback(copiedMessage)
+                            },
                         ),
                     contentAlignment = Alignment.Center,
                 ) {

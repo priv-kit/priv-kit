@@ -1,13 +1,13 @@
 package priv.kit.ui.adb
 
-import priv.kit.ui.*
-import priv.kit.ui.adb.pairing.*
+import priv.kit.ui.PrivilegeUiAdbTcpAuthorizationStatus
+import priv.kit.ui.PrivilegeUiRuntimeStartPhase
+import priv.kit.ui.PrivilegeUiWirelessAdbStatus
+import priv.kit.ui.R
 import priv.kit.ui.component.PrivilegeUiStartAction
 import priv.kit.ui.component.privilegeUiStartAction
 import priv.kit.ui.component.privilegeUiStartActionEnabled
 import priv.kit.ui.component.privilegeUiStartActionLabel
-import priv.kit.ui.runtime.*
-import priv.kit.ui.state.*
 
 internal enum class PrivilegeUiWirelessAdbPanelStatus {
     WIFI_REQUIRED,
@@ -53,11 +53,9 @@ internal fun privilegeUiWirelessAdbStartAction(
 ): PrivilegeUiStartAction =
     privilegeUiStartAction(runtimeStartPhase, ownsRuntimeStart)
 
-@Suppress("UNUSED_PARAMETER")
 internal fun privilegeUiWirelessAdbStartActionEnabled(
     action: PrivilegeUiStartAction,
     busy: Boolean,
-    runtimeStatus: PrivilegeUiRuntimeStatus,
 ): Boolean =
     privilegeUiStartActionEnabled(
         action,
@@ -67,16 +65,6 @@ internal fun privilegeUiWirelessAdbStartActionEnabled(
 internal fun privilegeUiWirelessAdbStartActionLabel(
     action: PrivilegeUiStartAction,
 ): Int = privilegeUiStartActionLabel(action, R.string.priv_ui_adb_wireless_start_action)
-
-internal fun staticTcpPanelStatus(
-    tcpModeEnabled: Boolean,
-    status: PrivilegeUiAdbTcpAuthorizationStatus,
-): PrivilegeUiStaticTcpPanelStatus =
-    staticTcpPanelStatus(
-        tcpModeConfigured = tcpModeEnabled,
-        tcpModeActive = tcpModeEnabled,
-        status = status,
-    )
 
 internal fun staticTcpPanelStatus(
     tcpModeConfigured: Boolean,
@@ -99,14 +87,11 @@ internal fun staticTcpStartAction(
 ): PrivilegeUiStartAction =
     privilegeUiStartAction(runtimeStartPhase, ownsRuntimeStart)
 
-@Suppress("UNUSED_PARAMETER")
 internal fun staticTcpActionEnabled(
     action: PrivilegeUiStartAction,
-    tcpModeEnabled: Boolean,
     busy: Boolean,
-    runtimeStatus: PrivilegeUiRuntimeStatus,
     wirelessAdbSupported: Boolean,
-    tcpModeConfigured: Boolean = tcpModeEnabled,
+    tcpModeConfigured: Boolean,
 ): Boolean =
     privilegeUiStartActionEnabled(
         action = action,

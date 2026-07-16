@@ -71,16 +71,10 @@ internal class PrivilegeSampleShizukuExternalStarter(
             }
 
             override fun onFinished(
-                exitCode: Int,
                 output: String?,
             ) {
                 if (!completed.compareAndSet(false, true)) return
                 outputRef.set(output.orEmpty())
-                if (exitCode != 0) {
-                    failureRef.set(
-                        PrivilegeStartupException("Shizuku UserService start command exited code=$exitCode"),
-                    )
-                }
                 latch.countDown()
             }
 
@@ -216,6 +210,7 @@ internal class PrivilegeSampleShizukuExternalStarter(
         private const val SHIZUKU_START_RESULT_TIMEOUT_MILLIS = 10_000L
         private const val SHIZUKU_START_TAG = "priv-kit-external-start"
         private const val SHIZUKU_START_PROCESS_SUFFIX = "priv-kit-shizuku-start"
-        private const val SHIZUKU_START_SERVICE_VERSION = 2
+        // Bump whenever the UserService implementation or its AIDL contract changes.
+        private const val SHIZUKU_START_SERVICE_VERSION = 3
     }
 }

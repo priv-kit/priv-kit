@@ -6,7 +6,6 @@ import priv.kit.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeStartupException
 import priv.kit.PrivilegeStartupLogListener
-import priv.kit.PrivilegeConfig
 
 public enum class PrivilegeUiRuntimeStatus {
     DISCONNECTED,
@@ -97,12 +96,9 @@ public data class PrivilegeUiConfig public constructor(
     public val wirelessStatusDiscoveryTimeoutMillis: Long = DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS,
     public val externalStartStatusPollIntervalMillis: Long = DEFAULT_EXTERNAL_START_STATUS_POLL_INTERVAL_MILLIS,
     public val startTimeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
-    public val followDeathDelayMillis: Long = PrivilegeConfig.followDeathDelayMillis,
-    public val activeReconnectOnOwnerDeath: Boolean = PrivilegeConfig.activeReconnectOnOwnerDeath,
 ) {
     init {
         require(startTimeoutMillis > 0L) { "startTimeoutMillis must be positive" }
-        require(followDeathDelayMillis >= 0L) { "followDeathDelayMillis must not be negative" }
         require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
         require(adbAuthorizationTimeoutMillis > 0L) { "adbAuthorizationTimeoutMillis must be positive" }
         require(wirelessStatusPollIntervalMillis > 0L) {
@@ -170,7 +166,6 @@ public data class PrivilegeUiExternalStartItemState public constructor(
     public val id: String,
     public val label: CharSequence,
     public val snapshot: PrivilegeUiExternalStartSnapshot = PrivilegeUiExternalStartSnapshot(),
-    public val busy: Boolean = false,
 )
 
 public data class PrivilegeUiState public constructor(
@@ -199,8 +194,6 @@ public data class PrivilegeUiState public constructor(
     public val tcpModePort: Int? = null,
     public val tcpAuthorizationStatus: PrivilegeUiAdbTcpAuthorizationStatus =
         PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
-    public val wirelessStatusPollingActive: Boolean = false,
-    public val tcpModeStatusPollingActive: Boolean = false,
     public val adbKeyFingerprint: String? = null,
     public val notificationPairingRunning: Boolean = false,
     public val externalStartItems: List<PrivilegeUiExternalStartItemState> = emptyList(),

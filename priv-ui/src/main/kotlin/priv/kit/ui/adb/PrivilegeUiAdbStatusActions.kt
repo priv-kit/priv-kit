@@ -1,10 +1,5 @@
 package priv.kit.ui.adb
 
-import priv.kit.ui.*
-import priv.kit.ui.adb.pairing.*
-import priv.kit.ui.runtime.*
-import priv.kit.ui.state.*
-
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -13,7 +8,18 @@ import kotlinx.coroutines.launch
 import priv.kit.Privilege
 import priv.kit.adb.PrivilegeAdbAuthorizationStatus
 import priv.kit.adb.PrivilegeAdbPairingCheckStatus
+import priv.kit.ui.PrivilegeAdbPairingService
+import priv.kit.ui.PrivilegeUiAdbTcpAuthorizationStatus
+import priv.kit.ui.PrivilegeUiAdbTcpPolicy
+import priv.kit.ui.PrivilegeUiManagedWirelessAdbStatus
+import priv.kit.ui.PrivilegeUiWirelessAdbStatus
+import priv.kit.ui.state.PrivilegeUiNoopCloseable
+import priv.kit.ui.state.PrivilegeUiPollingSlot
+import priv.kit.ui.state.PrivilegeUiStatusRefreshController
+import priv.kit.ui.state.PrivilegeUiViewModelStore
+import priv.kit.ui.state.toPrivilegeUiDiagnosticString
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration.Companion.milliseconds
 
 internal class PrivilegeUiAdbStatusActions(
     private val store: PrivilegeUiViewModelStore,
@@ -31,12 +37,8 @@ internal class PrivilegeUiAdbStatusActions(
     private val tcpModeStatusPolling = PrivilegeUiPollingSlot(
         scope = coroutineScope,
         name = "priv-ui-tcp-mode-status",
-        onStart = {
-            store.updateState { it.copy(tcpModeStatusPollingActive = true) }
-        },
         onStop = {
             adbConnectionSessions.closeTcpAuthorizationCheckSession()
-            store.updateState { it.copy(tcpModeStatusPollingActive = false) }
         },
     ) { stop ->
         pollTcpModeStatus(stop)
@@ -47,7 +49,6 @@ internal class PrivilegeUiAdbStatusActions(
         onStart = {
             store.updateState {
                 it.copy(
-                    wirelessStatusPollingActive = true,
                     wifiConnected = store.isWifiConnected(),
                     wirelessDebuggingStatus = it.wirelessDebuggingStatus.checkingIfUnknown(),
                     wirelessPairingServiceStatus = it.wirelessPairingServiceStatus.checkingIfUnknown(),
@@ -64,7 +65,6 @@ internal class PrivilegeUiAdbStatusActions(
             adbConnectionSessions.closeWirelessPairingCheckSession()
             store.updateState {
                 it.copy(
-                    wirelessStatusPollingActive = false,
                     notificationPairingRunning = PrivilegeAdbPairingService.running,
                 )
             }
@@ -362,23 +362,18 @@ internal class PrivilegeUiAdbStatusActions(
             null
         }
         if (stop.get()) return
-        val wirelessDebuggingOn = wirelessControlStatus.wirelessDebuggingEnabled
 
         store.updateState {
             it.copy(
                 wifiConnected = true,
-                wirelessDebuggingStatus = privilegeUiWirelessDebuggingStatus(
-                    wirelessDebuggingEnabled = wirelessDebuggingOn,
-                    connectPortAvailable = connectPort != null,
-                    pairingServiceOn = pairingServiceOn,
-                ),
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
                 wirelessPairingServiceStatus = if (pairingServiceOn) {
                     PrivilegeUiWirelessAdbStatus.ON
                 } else {
                     PrivilegeUiWirelessAdbStatus.OFF
                 },
                 wirelessPairingCheckStatus = privilegeUiPairingCheckStatus(
-                    wirelessDebuggingOn = wirelessDebuggingOn,
+                    wirelessDebuggingOn = true,
                     pairingCheckPaired = pairingCheck?.toKnownPairingCheckPaired(),
                     currentStatus = it.wirelessPairingCheckStatus,
                 ),
@@ -423,7 +418,7 @@ internal class PrivilegeUiAdbStatusActions(
     }
 
     private suspend fun sleepPolling(stop: AtomicBoolean, intervalMillis: Long): Boolean {
-        delay(intervalMillis)
+        delay(intervalMillis.milliseconds)
         return !stop.get()
     }
 

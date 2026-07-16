@@ -14,19 +14,23 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import priv.kit.ui.PrivilegeUiStartupMode
+import priv.kit.ui.PrivilegeUiScreenScope
 import priv.kit.ui.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun PrivilegeTopBar(
-    onBackClick: () -> Unit,
-    onHelpClick: () -> Unit,
-) {
+internal fun PrivilegeUiScreenScope.PrivilegeTopBar() {
     TopAppBar(
         navigationIcon = {
             val backDescription = stringResource(R.string.priv_ui_nav_back)
             PrivilegeIconTooltip(text = backDescription) {
-                IconButton(onClick = onBackClick) {
+                IconButton(
+                    onClick = {
+                        if (!viewModel.dispatchBackClick()) {
+                            backDispatcher?.onBackPressed()
+                        }
+                    },
+                ) {
                     Icon(
                         imageVector = PrivilegeUiIcons.ArrowBack,
                         contentDescription = backDescription,
@@ -42,13 +46,15 @@ internal fun PrivilegeTopBar(
             )
         },
         actions = {
-            val helpDescription = stringResource(R.string.priv_ui_help)
-            PrivilegeIconTooltip(text = helpDescription) {
-                IconButton(onClick = onHelpClick) {
-                    Icon(
-                        imageVector = PrivilegeUiIcons.Help,
-                        contentDescription = helpDescription,
-                    )
+            if (viewModel.helpActionVisible) {
+                val helpDescription = stringResource(R.string.priv_ui_help)
+                PrivilegeIconTooltip(text = helpDescription) {
+                    IconButton(onClick = viewModel::dispatchHelpClick) {
+                        Icon(
+                            imageVector = PrivilegeUiIcons.Help,
+                            contentDescription = helpDescription,
+                        )
+                    }
                 }
             }
         },
@@ -59,12 +65,9 @@ internal fun PrivilegeTopBar(
 }
 
 @Composable
-internal fun AuthorizationModeTabs(
-    modes: List<PrivilegeUiStartupMode>,
-    selectedMode: PrivilegeUiStartupMode,
-    enabled: Boolean,
-    onSelected: (PrivilegeUiStartupMode) -> Unit,
-) {
+internal fun PrivilegeUiScreenScope.AuthorizationModeTabs() {
+    val modes = state.startupModes
+    val selectedMode = state.selectedStartupMode
     val selectedIndex = modes.indexOf(selectedMode).takeIf { it >= 0 } ?: 0
     PrimaryScrollableTabRow(
         selectedTabIndex = selectedIndex,
@@ -75,8 +78,8 @@ internal fun AuthorizationModeTabs(
         modes.forEach { mode ->
             Tab(
                 selected = mode == selectedMode,
-                enabled = enabled || mode == selectedMode,
-                onClick = { onSelected(mode) },
+                enabled = !state.busy || mode == selectedMode,
+                onClick = { viewModel.selectStartupMode(mode) },
                 text = {
                     Text(
                         text = stringResource(mode.labelRes()),

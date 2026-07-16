@@ -48,7 +48,6 @@ class PrivilegeUserServiceClientTest {
         connection.close()
         client.stop(spec)
 
-        assertEquals("connection-1", connection.id)
         assertSame(serviceBinder, connection.binder)
         assertEquals(
             listOf("start", "bind", "unbind", "stop"),

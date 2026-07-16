@@ -1,12 +1,9 @@
 package priv.kit.ui.adb
 
-import priv.kit.ui.*
-import priv.kit.ui.adb.pairing.*
-import priv.kit.ui.runtime.*
-import priv.kit.ui.state.*
-
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbWirelessDebuggingControl
+import priv.kit.ui.PrivilegeUiAdbTcpPolicy
+import priv.kit.ui.PrivilegeUiManagedWirelessAdbStatus
 
 internal fun Throwable.isAdbKeyNotAuthorizedFailure(): Boolean =
     generateSequence(this) { it.cause }.any { throwable ->

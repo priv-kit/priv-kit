@@ -1,10 +1,5 @@
 package priv.kit.ui.state
 
-import priv.kit.ui.*
-import priv.kit.ui.adb.*
-import priv.kit.ui.adb.pairing.*
-import priv.kit.ui.runtime.*
-
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context

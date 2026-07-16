@@ -6,15 +6,18 @@ import priv.kit.ui.runtime.*
 import priv.kit.ui.external.*
 import priv.kit.ui.state.*
 
+import android.Manifest
 import android.app.Application
 import android.content.Context
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.io.Closeable
 import java.util.concurrent.CountDownLatch
@@ -22,7 +25,9 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
+import priv.kit.PrivilegeServerInfo
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -91,12 +96,14 @@ class PrivilegeUiViewModelTest {
             ),
         )
 
-        assertFalse(viewModel.state.value.wirelessStatusPollingActive)
+        val handle = viewModel.startWirelessAdbStatusPolling()
+        assertSame(PrivilegeUiNoopCloseable, handle)
 
-        viewModel.startWirelessAdbStatusPolling()
         viewModel.onHostResume()
-
-        assertFalse(viewModel.state.value.wirelessStatusPollingActive)
+        assertEquals(
+            PrivilegeUiWirelessAdbStatus.UNKNOWN,
+            viewModel.state.value.wirelessDebuggingStatus,
+        )
     }
 
     @Test
@@ -222,100 +229,45 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
-    fun tcpModeStatusPollingFollowsAdbMode() {
-        val viewModel = configuredViewModel(
-            PrivilegeUiConfig(
-                startupModes = setOf(
-                    PrivilegeUiStartupMode.ADB,
-                    PrivilegeUiStartupMode.ROOT,
-                ),
-                adbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
-                wirelessStatusPollIntervalMillis = 60_000L,
-            ),
-        )
+    fun hostEventsAreOverridableAndConnectionsAreDeliveredOncePerSerial() {
+        val viewModel = HostEventPrivilegeUiViewModel(application())
+        val first = PrivilegeServerInfo(uid = 2000, pid = 10, protocolVersion = 1)
+        val second = PrivilegeServerInfo(uid = 0, pid = 11, protocolVersion = 1)
 
-        try {
-            assertTrue(viewModel.state.value.tcpModeStatusPollingActive)
+        assertTrue(viewModel.helpActionVisible)
+        assertTrue(viewModel.dispatchBackClick())
+        viewModel.dispatchHelpClick()
+        viewModel.dispatchConnected(connectionSerial = 1L, serverInfo = first)
+        viewModel.dispatchConnected(connectionSerial = 1L, serverInfo = second)
+        viewModel.dispatchConnected(connectionSerial = 2L, serverInfo = second)
 
-            viewModel.onHostResume()
-            viewModel.selectStartupMode(PrivilegeUiStartupMode.ROOT)
-
-            assertFalse(viewModel.state.value.tcpModeStatusPollingActive)
-
-            viewModel.selectStartupMode(PrivilegeUiStartupMode.ADB)
-
-            assertTrue(viewModel.state.value.tcpModeStatusPollingActive)
-        } finally {
-            viewModel.stopTcpModeStatusPolling()
-            viewModel.stopWirelessAdbStatusPolling()
-        }
+        assertEquals(1, viewModel.backClickCount)
+        assertEquals(1, viewModel.helpClickCount)
+        assertEquals(listOf(first, second), viewModel.connectedServers)
     }
 
     @Test
-    fun tcpModeStatusPollingHandleKeepsPollingUntilAllHandlesClose() {
-        val viewModel = configuredViewModel(
-            PrivilegeUiConfig(
-                startupModes = setOf(PrivilegeUiStartupMode.ROOT),
-                adbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
-                wirelessStatusPollIntervalMillis = 60_000L,
-            ),
-        )
-        var first: AutoCloseable? = null
-        var second: AutoCloseable? = null
+    fun baseHostEventsUseSystemBackAndHideHelp() {
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
 
-        try {
-            assertFalse(viewModel.state.value.tcpModeStatusPollingActive)
-
-            first = viewModel.startTcpModeStatusPolling()
-            second = viewModel.startTcpModeStatusPolling()
-
-            assertTrue(viewModel.state.value.tcpModeStatusPollingActive)
-
-            first.close()
-
-            assertTrue(viewModel.state.value.tcpModeStatusPollingActive)
-
-            second.close()
-
-            assertFalse(viewModel.state.value.tcpModeStatusPollingActive)
-        } finally {
-            second?.close()
-            first?.close()
-            viewModel.stopTcpModeStatusPolling()
-        }
+        assertFalse(viewModel.dispatchBackClick())
+        assertFalse(viewModel.helpActionVisible)
     }
 
     @Test
-    fun stopTcpModeStatusPollingStopsAllHandles() {
-        val viewModel = configuredViewModel(
-            PrivilegeUiConfig(
-                startupModes = setOf(PrivilegeUiStartupMode.ROOT),
-                adbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
-                wirelessStatusPollIntervalMillis = 60_000L,
-            ),
+    fun missingNotificationPermissionEmitsComposePermissionRequest() = runBlocking {
+        val application = application()
+        shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+
+        viewModel.startNotificationPairing()
+
+        assertEquals(
+            PrivilegeUiPermissionRequest.Notification,
+            withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+                viewModel.permissionRequests.first()
+            },
         )
-        var first: AutoCloseable? = null
-        var second: AutoCloseable? = null
-
-        try {
-            first = viewModel.startTcpModeStatusPolling()
-            second = viewModel.startTcpModeStatusPolling()
-
-            assertTrue(viewModel.state.value.tcpModeStatusPollingActive)
-
-            viewModel.stopTcpModeStatusPolling()
-
-            assertFalse(viewModel.state.value.tcpModeStatusPollingActive)
-
-            first.close()
-            second.close()
-
-            assertFalse(viewModel.state.value.tcpModeStatusPollingActive)
-        } finally {
-            second?.close()
-            first?.close()
-            viewModel.stopTcpModeStatusPolling()
-        }
     }
 
     private class RootOnlyPrivilegeUiViewModel(
@@ -335,6 +287,37 @@ class PrivilegeUiViewModelTest {
         application = application,
         config = config,
     )
+
+    private class HostEventPrivilegeUiViewModel(
+        application: Application,
+    ) : PrivilegeUiViewModel(
+        application = application,
+        config = PrivilegeUiConfig(
+            startupModes = setOf(PrivilegeUiStartupMode.ROOT),
+            adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+        ),
+    ) {
+        var backClickCount = 0
+            private set
+        var helpClickCount = 0
+            private set
+        val connectedServers = mutableListOf<PrivilegeServerInfo>()
+
+        override val hasHelpAction: Boolean = true
+
+        override fun onBackClick(): Boolean {
+            backClickCount += 1
+            return true
+        }
+
+        override fun onHelpClick() {
+            helpClickCount += 1
+        }
+
+        override fun onConnected(serverInfo: PrivilegeServerInfo) {
+            connectedServers += serverInfo
+        }
+    }
 
     private object TestExternalStartProvider : PrivilegeUiExternalStartProvider {
         override val id: String = "test"

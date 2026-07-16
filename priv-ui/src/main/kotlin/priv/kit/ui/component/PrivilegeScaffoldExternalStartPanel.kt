@@ -12,15 +12,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
-import priv.kit.ui.PrivilegeUiState
+import priv.kit.ui.PrivilegeUiScreenScope
 import priv.kit.ui.R
 
 @Composable
-internal fun ExternalStartPanel(
-    state: PrivilegeUiState,
-    onAuthorizeOrStart: (String) -> Unit,
-    onCancelStart: () -> Unit,
-) {
+internal fun PrivilegeUiScreenScope.ExternalStartPanel() {
     Panel {
         if (state.externalStartItems.isEmpty()) {
             Text(stringResource(R.string.priv_ui_external_no_provider))
@@ -45,14 +41,11 @@ internal fun ExternalStartPanel(
                 }
                 Button(
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = state.startActionEnabled(
-                        action = action,
-                        startAvailable = !item.busy,
-                    ),
+                    enabled = state.startActionEnabled(action),
                     onClick = {
                         when (action) {
-                            PrivilegeUiStartAction.START -> onAuthorizeOrStart(item.id)
-                            PrivilegeUiStartAction.CANCEL -> onCancelStart()
+                            PrivilegeUiStartAction.START -> viewModel.authorizeOrStartExternal(item.id)
+                            PrivilegeUiStartAction.CANCEL -> viewModel.stopCurrentStart()
                             PrivilegeUiStartAction.CANCELLING,
                             PrivilegeUiStartAction.NONE,
                             -> Unit

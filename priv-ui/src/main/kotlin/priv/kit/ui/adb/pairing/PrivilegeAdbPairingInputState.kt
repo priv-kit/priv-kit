@@ -1,10 +1,5 @@
 package priv.kit.ui.adb.pairing
 
-import priv.kit.ui.*
-import priv.kit.ui.adb.*
-import priv.kit.ui.runtime.*
-import priv.kit.ui.state.*
-
 internal data class PrivilegeAdbPairingInputState(
     internal val code: String = DEFAULT_PAIRING_INPUT_CODE,
     internal val selectedIndex: Int = 0,
@@ -48,9 +43,6 @@ internal data class PrivilegeAdbPairingInputState(
             )
     }
 }
-
-internal fun String.toPrivilegeAdbPairingCodeDigits(): String =
-    filter(Char::isDigit).take(PAIRING_INPUT_CODE_LENGTH)
 
 internal fun String.isPrivilegeUiPairingCode(): Boolean =
     length == PAIRING_INPUT_CODE_LENGTH && all(Char::isDigit)

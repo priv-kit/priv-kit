@@ -1,19 +1,20 @@
 package priv.kit.ui.state
 
-import priv.kit.ui.*
-import priv.kit.ui.adb.*
-import priv.kit.ui.adb.pairing.*
-import priv.kit.ui.runtime.*
-
 import android.content.Context
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.Job
 import priv.kit.PrivilegeStartupLogLine
-import priv.kit.PrivilegeStartupLogListener
+import priv.kit.ui.PrivilegeAdbPairingService
+import priv.kit.ui.PrivilegeUiConfig
+import priv.kit.ui.PrivilegeUiExternalStartItemState
+import priv.kit.ui.PrivilegeUiStartupMode
+import priv.kit.ui.PrivilegeUiState
+import priv.kit.ui.R
+import priv.kit.ui.runtime.PrivilegeUiRuntimeStartSession
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicLong
 
@@ -21,12 +22,8 @@ internal class PrivilegeUiViewModelStore(
     context: Context? = null,
 ) : AutoCloseable {
     val state = MutableStateFlow(PrivilegeUiState())
-    val tcpModeEnabled = MutableStateFlow(false)
     private val snackbarMessageState = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val snackbarMessages: SharedFlow<String> = snackbarMessageState.asSharedFlow()
-    val startupLogListener = PrivilegeStartupLogListener { line ->
-        appendStartupLog(line)
-    }
 
     @Volatile
     var applicationContext: Context? = context?.applicationContext ?: context

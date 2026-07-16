@@ -1,11 +1,9 @@
 package priv.kit.ui.adb
 
-import priv.kit.ui.*
-import priv.kit.ui.adb.pairing.*
-import priv.kit.ui.runtime.*
-import priv.kit.ui.state.*
-
 import priv.kit.adb.PrivilegeAdbWirelessDebuggingControlStatus
+import priv.kit.ui.PrivilegeUiManagedWirelessAdbStatus
+import priv.kit.ui.PrivilegeUiState
+import priv.kit.ui.PrivilegeUiWirelessAdbStatus
 
 internal fun privilegeUiPairingCheckStatus(
     wirelessDebuggingOn: Boolean,
@@ -25,23 +23,12 @@ internal fun privilegeUiPairingCheckStatus(
 
 internal fun privilegeUiWirelessDebuggingStatus(
     wirelessDebuggingEnabled: Boolean,
-    connectPortAvailable: Boolean,
-    pairingServiceOn: Boolean,
 ): PrivilegeUiWirelessAdbStatus =
     if (wirelessDebuggingEnabled) {
         PrivilegeUiWirelessAdbStatus.ON
     } else {
         PrivilegeUiWirelessAdbStatus.OFF
     }
-
-internal fun privilegeUiWirelessDebuggingStatus(
-    wirelessDebuggingEnabled: Boolean,
-): PrivilegeUiWirelessAdbStatus =
-    privilegeUiWirelessDebuggingStatus(
-        wirelessDebuggingEnabled = wirelessDebuggingEnabled,
-        connectPortAvailable = false,
-        pairingServiceOn = false,
-    )
 
 internal fun privilegeUiRefreshingPairingCheckStatus(
     wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus,

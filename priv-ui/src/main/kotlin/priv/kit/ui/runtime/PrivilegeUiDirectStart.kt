@@ -1,7 +1,8 @@
 package priv.kit.ui.runtime
 
-import priv.kit.ui.*
-import priv.kit.ui.state.*
+import priv.kit.ui.PrivilegeUiAdbTcpPolicy
+import priv.kit.ui.PrivilegeUiStartupMode
+import priv.kit.ui.PrivilegeUiState
 
 internal sealed interface PrivilegeUiDirectStartTarget {
     data object Adb : PrivilegeUiDirectStartTarget

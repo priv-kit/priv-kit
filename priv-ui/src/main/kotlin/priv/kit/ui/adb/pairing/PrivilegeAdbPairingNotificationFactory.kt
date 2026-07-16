@@ -1,10 +1,5 @@
 package priv.kit.ui.adb.pairing
 
-import priv.kit.ui.*
-import priv.kit.ui.adb.*
-import priv.kit.ui.runtime.*
-import priv.kit.ui.state.*
-
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -17,6 +12,8 @@ import android.graphics.Color
 import android.os.Build
 import android.widget.RemoteViews
 import androidx.core.app.NotificationManagerCompat
+import priv.kit.ui.PrivilegeAdbPairingService
+import priv.kit.ui.R
 
 internal class PrivilegeAdbPairingNotificationFactory(
     private val context: Context,

@@ -33,7 +33,6 @@ internal class PrivilegeUserServiceClient(
             ?: throw PrivilegeUserServiceException("UserService bind response is missing a service Binder")
         return PrivilegeUserServiceConnection(
             id = connectionId,
-            spec = spec,
             binder = binder,
             unbind = ::unbind,
         )

@@ -13,29 +13,11 @@ internal object PrivilegeServerHandshakeRegistry {
 
     fun prepare(token: String): PrivilegePendingHandshake {
         require(token.isNotBlank()) { "token must not be blank" }
-        val handshake = PrivilegePendingHandshake(token)
+        val handshake = PrivilegePendingHandshake()
         val previous = pendingHandshakes.putIfAbsent(token, handshake)
         require(previous == null) { "token is already pending" }
         readyHandshakes.remove(token)?.let(handshake::complete)
         return handshake
-    }
-
-    fun deliver(
-        token: String?,
-        serverBinder: IBinder?,
-        serverInfo: PrivilegeServerInfo,
-    ): Boolean {
-        if (token.isNullOrBlank() || serverBinder == null) {
-            return false
-        }
-        val result = PrivilegeServerHandshakeResult(
-            token = token,
-            serverInfo = serverInfo,
-            serverBinder = serverBinder,
-        )
-        val handshake = pendingHandshakes.remove(token) ?: return false
-        handshake.complete(result)
-        return true
     }
 
     fun deliverReady(
@@ -47,7 +29,6 @@ internal object PrivilegeServerHandshakeRegistry {
             return false
         }
         val result = PrivilegeServerHandshakeResult(
-            token = token,
             serverInfo = serverInfo,
             serverBinder = serverBinder,
         )

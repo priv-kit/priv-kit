@@ -36,7 +36,7 @@ internal class PrivilegeSampleShizukuStartService @Keep constructor() :
                     },
                 )
                 runCatching {
-                    callback?.onFinished(result.exitCode, result.output)
+                    callback?.onFinished(result.output)
                 }
             } catch (throwable: Throwable) {
                 callback.notifyFailure(throwable)

@@ -7,7 +7,7 @@ import org.junit.Test
 class PrivilegePendingHandshakeTest {
     @Test
     fun awaitRestoresInterruptFlagBeforePropagatingInterruption() {
-        val pendingHandshake = PrivilegePendingHandshake("owner-token")
+        val pendingHandshake = PrivilegePendingHandshake()
 
         try {
             Thread.currentThread().interrupt()

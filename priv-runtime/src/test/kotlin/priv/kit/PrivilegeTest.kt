@@ -81,7 +81,6 @@ class PrivilegeTest {
         )
         Privilege.connectHandshake(
             PrivilegeServerHandshakeResult(
-                token = "token",
                 serverInfo = serverInfo,
                 serverBinder = server.asBinder(),
             ),
@@ -102,7 +101,6 @@ class PrivilegeTest {
         )
         Privilege.connectHandshake(
             PrivilegeServerHandshakeResult(
-                token = "token",
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -125,7 +123,6 @@ class PrivilegeTest {
         )
         Privilege.connectHandshake(
             PrivilegeServerHandshakeResult(
-                token = "token",
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -162,7 +159,6 @@ class PrivilegeTest {
         )
         Privilege.connectHandshake(
             PrivilegeServerHandshakeResult(
-                token = "token",
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,

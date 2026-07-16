@@ -2,7 +2,6 @@ package priv.kit.internal.core
 
 import android.os.IBinder
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -29,7 +28,6 @@ class PrivilegeServerHandshakeRegistryTest {
         val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
         val result = pendingHandshake.await(1)
 
-        assertEquals(token, result.token)
         assertEquals(serverInfo, result.serverInfo)
     }
 
@@ -51,22 +49,10 @@ class PrivilegeServerHandshakeRegistryTest {
             )
 
             assertNotNull(received.get())
-            assertEquals(token, received.get()?.token)
             assertNull(PrivilegeServerHandshakeRegistry.claimReady(token))
         } finally {
             listener.close()
         }
-    }
-
-    @Test
-    fun regularDeliverStillRequiresPendingHandshake() {
-        assertFalse(
-            PrivilegeServerHandshakeRegistry.deliver(
-                token = newToken(),
-                serverBinder = fakeBinder(),
-                serverInfo = serverInfo(),
-            ),
-        )
     }
 
     private fun newToken(): String =
