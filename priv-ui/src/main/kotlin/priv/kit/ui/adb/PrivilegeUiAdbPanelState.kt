@@ -20,7 +20,6 @@ internal enum class PrivilegeUiWirelessAdbPanelStatus {
 internal enum class PrivilegeUiStaticTcpPanelStatus {
     PORT_NOT_CONFIGURED,
     ADB_SERVICE_STOPPED,
-    CHECKING,
     UNAUTHORIZED,
     AUTHORIZED,
 }
@@ -76,8 +75,6 @@ internal fun staticTcpPanelStatus(
         !tcpModeActive || status == PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE ->
             PrivilegeUiStaticTcpPanelStatus.ADB_SERVICE_STOPPED
         status == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED -> PrivilegeUiStaticTcpPanelStatus.AUTHORIZED
-        status == PrivilegeUiAdbTcpAuthorizationStatus.CHECKING ||
-            status == PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN -> PrivilegeUiStaticTcpPanelStatus.CHECKING
         else -> PrivilegeUiStaticTcpPanelStatus.UNAUTHORIZED
     }
 

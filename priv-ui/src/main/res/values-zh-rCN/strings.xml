@@ -73,7 +73,6 @@
     <string name="priv_ui_wireless_status_pairing_service">配对入口</string>
     <string name="priv_ui_wireless_status_pairing_check">已配对</string>
     <string name="priv_ui_wireless_status_unknown">未知</string>
-    <string name="priv_ui_wireless_status_checking">正在检查</string>
     <string name="priv_ui_wireless_status_on">开启</string>
     <string name="priv_ui_wireless_status_wifi_required">需要 Wi-Fi</string>
     <string name="priv_ui_wireless_status_off">关闭</string>
@@ -112,8 +111,8 @@
     <string name="priv_ui_external_authorize_start">启动</string>
     <string name="priv_ui_external_start">启动</string>
     <string name="priv_ui_external_unavailable">不可用</string>
-    <string name="priv_ui_external_ready">就绪</string>
-    <string name="priv_ui_external_permission_required">需要权限</string>
+    <string name="priv_ui_external_ready">已授权</string>
+    <string name="priv_ui_external_permission_required">未授权</string>
     <string name="priv_ui_external_no_provider">未配置外部提供方</string>
     <string name="priv_ui_external_starting">正在通过外部授权启动...</string>
     <string name="priv_ui_external_start_requested">已发送外部启动请求，正在等待连接</string>

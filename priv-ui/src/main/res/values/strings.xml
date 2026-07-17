@@ -73,7 +73,6 @@
     <string name="priv_ui_wireless_status_pairing_service">Pairing entry</string>
     <string name="priv_ui_wireless_status_pairing_check">Paired with this device</string>
     <string name="priv_ui_wireless_status_unknown">Unknown</string>
-    <string name="priv_ui_wireless_status_checking">Checking</string>
     <string name="priv_ui_wireless_status_on">On</string>
     <string name="priv_ui_wireless_status_wifi_required">Wi-Fi required</string>
     <string name="priv_ui_wireless_status_off">Off</string>
@@ -112,8 +111,8 @@
     <string name="priv_ui_external_authorize_start">Start</string>
     <string name="priv_ui_external_start">Start</string>
     <string name="priv_ui_external_unavailable">Unavailable</string>
-    <string name="priv_ui_external_ready">Ready</string>
-    <string name="priv_ui_external_permission_required">Permission required</string>
+    <string name="priv_ui_external_ready">Authorized</string>
+    <string name="priv_ui_external_permission_required">Unauthorized</string>
     <string name="priv_ui_external_no_provider">No external provider configured</string>
     <string name="priv_ui_external_starting">Starting through external authorization...</string>
     <string name="priv_ui_external_start_requested">External start requested. Waiting for connection</string>

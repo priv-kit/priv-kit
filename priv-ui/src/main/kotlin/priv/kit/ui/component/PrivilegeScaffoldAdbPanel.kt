@@ -508,7 +508,6 @@ private fun PrivilegeUiStaticTcpPanelStatus.displayText(): String =
             stringResource(R.string.priv_ui_adb_static_port_unavailable)
         PrivilegeUiStaticTcpPanelStatus.ADB_SERVICE_STOPPED ->
             stringResource(R.string.priv_ui_adb_static_service_stopped)
-        PrivilegeUiStaticTcpPanelStatus.CHECKING -> stringResource(R.string.priv_ui_wireless_status_checking)
         PrivilegeUiStaticTcpPanelStatus.UNAUTHORIZED -> stringResource(R.string.priv_ui_adb_static_status_unauthorized)
         PrivilegeUiStaticTcpPanelStatus.AUTHORIZED -> stringResource(R.string.priv_ui_adb_static_status_authorized)
     }
@@ -517,7 +516,6 @@ private fun PrivilegeUiStaticTcpPanelStatus.displayText(): String =
 private fun PrivilegeUiStaticTcpPanelStatus.displayColor(): Color =
     when (this) {
         PrivilegeUiStaticTcpPanelStatus.AUTHORIZED -> MaterialTheme.colorScheme.tertiary
-        PrivilegeUiStaticTcpPanelStatus.CHECKING,
         PrivilegeUiStaticTcpPanelStatus.PORT_NOT_CONFIGURED,
         PrivilegeUiStaticTcpPanelStatus.ADB_SERVICE_STOPPED,
         PrivilegeUiStaticTcpPanelStatus.UNAUTHORIZED,

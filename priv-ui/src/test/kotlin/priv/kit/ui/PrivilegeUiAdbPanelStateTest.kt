@@ -198,7 +198,7 @@ class PrivilegeUiAdbPanelStateTest {
             ),
         )
         assertEquals(
-            PrivilegeUiStaticTcpPanelStatus.CHECKING,
+            PrivilegeUiStaticTcpPanelStatus.UNAUTHORIZED,
             staticTcpPanelStatus(
                 tcpModeConfigured = true,
                 tcpModeActive = true,
@@ -206,7 +206,7 @@ class PrivilegeUiAdbPanelStateTest {
             ),
         )
         assertEquals(
-            PrivilegeUiStaticTcpPanelStatus.CHECKING,
+            PrivilegeUiStaticTcpPanelStatus.UNAUTHORIZED,
             staticTcpPanelStatus(
                 tcpModeConfigured = true,
                 tcpModeActive = true,
