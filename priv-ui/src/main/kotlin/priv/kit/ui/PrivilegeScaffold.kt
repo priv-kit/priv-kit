@@ -30,7 +30,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
@@ -41,6 +40,7 @@ import priv.kit.ui.component.AuthorizationModeTabs
 import priv.kit.ui.component.ExternalStartPanel
 import priv.kit.ui.component.ManualShellPanel
 import priv.kit.ui.component.PrivilegeTopBar
+import priv.kit.ui.component.PrivilegeUiSpacing
 import priv.kit.ui.component.RootPanel
 import priv.kit.ui.component.ServiceStatusPanel
 import priv.kit.ui.component.StartupLogPanel
@@ -168,8 +168,13 @@ public fun PrivilegeScaffold(
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(
+                    start = PrivilegeUiSpacing.large,
+                    top = PrivilegeUiSpacing.medium,
+                    end = PrivilegeUiSpacing.large,
+                    bottom = PrivilegeUiSpacing.extraLarge,
+                ),
+            verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.large),
         ) {
             screenScope.ServiceStatusPanel()
             screenScope.AuthorizationModeTabs()

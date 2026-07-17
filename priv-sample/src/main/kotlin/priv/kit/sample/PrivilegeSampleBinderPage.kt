@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,7 +51,6 @@ private fun BinderPage(
     onGetUsers: () -> Unit,
     onRunImqsNative: () -> Unit,
 ) {
-    val colors = sampleColors
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         BinderStatusPanel(state)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -59,7 +59,7 @@ private fun BinderPage(
                 enabled = !state.busy &&
                     state.status == PrivilegeSampleStatus.CONNECTED &&
                     !state.userManagerCached,
-                background = colors.actionWarning,
+                tone = SampleActionTone.Tonal,
                 modifier = Modifier.weight(1f),
                 onClick = onGetUserManager,
             )
@@ -67,7 +67,7 @@ private fun BinderPage(
                 label = "Get Users",
                 enabled = !state.busy &&
                     (state.status == PrivilegeSampleStatus.CONNECTED || state.userManagerCached),
-                background = colors.actionSuccess,
+                tone = SampleActionTone.Primary,
                 modifier = Modifier.weight(1f),
                 onClick = onGetUsers,
             )
@@ -76,7 +76,7 @@ private fun BinderPage(
             label = "Probe IMQSNative",
             enabled = !state.busy &&
                 (state.status == PrivilegeSampleStatus.CONNECTED || state.systemServiceBinderCached),
-            background = colors.actionAccent,
+            tone = SampleActionTone.Secondary,
             modifier = Modifier.fillMaxWidth(),
             onClick = onRunImqsNative,
         )
@@ -88,12 +88,12 @@ private fun BinderPage(
 
 @Composable
 private fun BinderStatusPanel(state: PrivilegeSampleScreenState) {
-    val colors = sampleColors
+    val colors = MaterialTheme.colorScheme
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(colors.panelBackground)
+            .background(colors.surfaceContainerLow)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -111,7 +111,7 @@ private fun BinderStatusPanel(state: PrivilegeSampleScreenState) {
             BasicText(
                 text = state.binderMessage,
                 style = TextStyle(
-                    color = colors.textMuted,
+                    color = colors.onSurfaceVariant,
                     fontFamily = FontFamily.SansSerif,
                     fontSize = 13.sp,
                     lineHeight = 18.sp,

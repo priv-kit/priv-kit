@@ -1,15 +1,24 @@
 package priv.kit.ui.component
 
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import priv.kit.ui.PrivilegeUiScreenScope
 import priv.kit.ui.PrivilegeUiStartupMode
@@ -46,28 +55,99 @@ internal fun PrivilegeTopBar(viewModel: PrivilegeUiViewModel) {
 
 @Composable
 internal fun PrivilegeUiScreenScope.AuthorizationModeTabs() {
-    val modes = state.startupModes
-    val selectedMode = state.selectedStartupMode
-    val selectedIndex = modes.indexOf(selectedMode).takeIf { it >= 0 } ?: 0
-    PrimaryScrollableTabRow(
-        selectedTabIndex = selectedIndex,
-        edgePadding = 0.dp,
-    ) {
-        modes.forEach { mode ->
-            Tab(
-                selected = mode == selectedMode,
-                enabled = !state.busy || mode == selectedMode,
-                onClick = { viewModel.selectStartupMode(mode) },
-                text = {
-                    Text(
-                        text = stringResource(mode.labelRes()),
-                        maxLines = 1,
-                    )
-                },
-            )
+    val items = privilegeUiAuthorizationModeItems(
+        modes = state.startupModes,
+        selectedMode = state.selectedStartupMode,
+        busy = state.busy,
+    )
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        when (privilegeUiAuthorizationModeSelector(items.size, maxWidth)) {
+            PrivilegeUiAuthorizationModeSelector.NONE -> Unit
+            PrivilegeUiAuthorizationModeSelector.SEGMENTED -> {
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    items.forEachIndexed { index, item ->
+                        SegmentedButton(
+                            selected = item.selected,
+                            enabled = item.enabled,
+                            onClick = { viewModel.selectStartupMode(item.mode) },
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = items.size,
+                            ),
+                            contentPadding = PaddingValues(
+                                horizontal = PrivilegeUiSpacing.small,
+                            ),
+                        ) {
+                            Text(
+                                text = stringResource(item.mode.labelRes()),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+            PrivilegeUiAuthorizationModeSelector.SCROLLABLE_TABS -> {
+                PrimaryScrollableTabRow(
+                    selectedTabIndex = items.indexOfFirst { it.selected },
+                    edgePadding = 0.dp,
+                ) {
+                    items.forEach { item ->
+                        Tab(
+                            selected = item.selected,
+                            enabled = item.enabled,
+                            onClick = { viewModel.selectStartupMode(item.mode) },
+                            text = {
+                                Text(
+                                    text = stringResource(item.mode.labelRes()),
+                                    maxLines = 1,
+                                )
+                            },
+                        )
+                    }
+                }
+            }
         }
     }
 }
+
+internal data class PrivilegeUiAuthorizationModeItem(
+    val mode: PrivilegeUiStartupMode,
+    val selected: Boolean,
+    val enabled: Boolean,
+)
+
+internal fun privilegeUiAuthorizationModeItems(
+    modes: List<PrivilegeUiStartupMode>,
+    selectedMode: PrivilegeUiStartupMode,
+    busy: Boolean,
+): List<PrivilegeUiAuthorizationModeItem> {
+    val resolvedMode = selectedMode.takeIf { it in modes } ?: modes.firstOrNull()
+    return modes.map { mode ->
+        PrivilegeUiAuthorizationModeItem(
+            mode = mode,
+            selected = mode == resolvedMode,
+            enabled = !busy || mode == resolvedMode,
+        )
+    }
+}
+
+internal enum class PrivilegeUiAuthorizationModeSelector {
+    NONE,
+    SEGMENTED,
+    SCROLLABLE_TABS,
+}
+
+internal fun privilegeUiAuthorizationModeSelector(
+    modeCount: Int,
+    availableWidth: Dp,
+): PrivilegeUiAuthorizationModeSelector =
+    when {
+        modeCount <= 1 -> PrivilegeUiAuthorizationModeSelector.NONE
+        availableWidth >= PrivilegeUiSize.segmentedSelectorMinimumWidth ->
+            PrivilegeUiAuthorizationModeSelector.SEGMENTED
+        else -> PrivilegeUiAuthorizationModeSelector.SCROLLABLE_TABS
+    }
 
 internal fun PrivilegeUiStartupMode.labelRes(): Int =
     when (this) {

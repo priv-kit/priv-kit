@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -29,7 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -48,21 +49,21 @@ internal fun SamplePageScaffold(
     actions: @Composable () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
-    val colors = sampleColors
+    val colors = MaterialTheme.colorScheme
     Scaffold(
-        containerColor = colors.pageBackground,
+        containerColor = colors.background,
         topBar = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(colors.pageBackground),
+                    .background(colors.background),
             ) {
                 TopAppBar(
                     title = {
                         BasicText(
                             text = title,
                             style = TextStyle(
-                                color = colors.textPrimary,
+                                color = colors.onBackground,
                                 fontFamily = FontFamily.SansSerif,
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -73,7 +74,7 @@ internal fun SamplePageScaffold(
                         actions()
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = colors.pageBackground,
+                        containerColor = colors.background,
                     ),
                 )
                 Column(
@@ -107,15 +108,13 @@ private fun DestinationTabs(
     busy: Boolean,
     onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
 ) {
-    val colors = sampleColors
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         PrivilegeSampleDestination.entries.forEach { destination ->
             val selected = destination == selectedDestination
             SampleAction(
                 label = destination.title,
                 enabled = !busy || selected,
-                background = if (selected) colors.tabSelectedBackground else colors.tabBackground,
-                foreground = if (selected) colors.actionForeground else colors.textSecondary,
+                tone = if (selected) SampleActionTone.Primary else SampleActionTone.Neutral,
                 modifier = Modifier.weight(1f),
             ) {
                 onDestinationSelected(destination)
@@ -130,8 +129,9 @@ internal fun SampleTopBarAction(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    val colors = sampleColors
-    val background = if (enabled) colors.actionPrimary else colors.actionDisabled
+    val colors = MaterialTheme.colorScheme
+    val background = if (enabled) colors.primary else colors.onSurface.copy(alpha = 0.12f)
+    val foreground = if (enabled) colors.onPrimary else colors.onSurface.copy(alpha = 0.38f)
     Box(
         modifier = Modifier
             .height(40.dp)
@@ -149,7 +149,7 @@ internal fun SampleTopBarAction(
         BasicText(
             text = label,
             style = TextStyle(
-                color = colors.actionForeground,
+                color = foreground,
                 fontFamily = FontFamily.SansSerif,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -160,11 +160,11 @@ internal fun SampleTopBarAction(
 
 @Composable
 internal fun SectionTitle(text: String) {
-    val colors = sampleColors
+    val colors = MaterialTheme.colorScheme
     BasicText(
         text = text,
         style = TextStyle(
-            color = colors.textSecondary,
+            color = colors.onSurface,
             fontFamily = FontFamily.SansSerif,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
@@ -174,20 +174,20 @@ internal fun SectionTitle(text: String) {
 
 @Composable
 internal fun DiagnosticBlock(text: String) {
-    val colors = sampleColors
+    val colors = MaterialTheme.colorScheme
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 120.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(colors.terminalBackground)
+            .background(colors.surfaceContainerHighest)
             .padding(16.dp),
     ) {
         SelectionContainer {
             BasicText(
                 text = text,
                 style = TextStyle(
-                    color = colors.terminalText,
+                    color = colors.onSurface,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,
                     lineHeight = 18.sp,
@@ -202,12 +202,12 @@ internal fun StatusPanel(
     state: PrivilegeSampleScreenState,
     onStopServer: () -> Unit,
 ) {
-    val colors = sampleColors
+    val colors = MaterialTheme.colorScheme
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(colors.panelBackground)
+            .background(colors.surfaceContainerLow)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -222,7 +222,7 @@ internal fun StatusPanel(
                 modifier = Modifier.weight(1f),
                 text = state.message,
                 style = TextStyle(
-                    color = colors.textMuted,
+                    color = colors.onSurfaceVariant,
                     fontFamily = FontFamily.SansSerif,
                     fontSize = 13.sp,
                     textAlign = TextAlign.End,
@@ -235,7 +235,7 @@ internal fun StatusPanel(
         SampleAction(
             label = "Stop Server",
             enabled = !state.busy && state.status == PrivilegeSampleStatus.CONNECTED,
-            background = colors.actionDanger,
+            tone = SampleActionTone.Destructive,
             onClick = onStopServer,
         )
     }
@@ -248,12 +248,12 @@ internal fun SampleField(
     onValueChange: (String) -> Unit,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
 ) {
-    val colors = sampleColors
+    val colors = MaterialTheme.colorScheme
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         BasicText(
             text = label,
             style = TextStyle(
-                color = colors.textSubtle,
+                color = colors.onSurfaceVariant,
                 fontFamily = FontFamily.SansSerif,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
@@ -265,7 +265,7 @@ internal fun SampleField(
             singleLine = true,
             keyboardOptions = keyboardOptions,
             textStyle = TextStyle(
-                color = colors.fieldText,
+                color = colors.onSurface,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 15.sp,
             ),
@@ -273,23 +273,39 @@ internal fun SampleField(
                 .fillMaxWidth()
                 .height(44.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(colors.fieldBackground)
+                .background(colors.surfaceContainerHighest)
                 .padding(horizontal = 12.dp, vertical = 12.dp),
+            cursorBrush = SolidColor(colors.primary),
         )
     }
+}
+
+internal enum class SampleActionTone {
+    Primary,
+    Secondary,
+    Tonal,
+    Destructive,
+    Neutral,
 }
 
 @Composable
 internal fun SampleAction(
     label: String,
     enabled: Boolean,
-    background: Color,
+    tone: SampleActionTone,
     modifier: Modifier = Modifier,
-    foreground: Color = sampleColors.actionForeground,
     onClick: () -> Unit,
 ) {
-    val colors = sampleColors
-    val actualBackground = if (enabled) background else colors.actionDisabled
+    val colors = MaterialTheme.colorScheme
+    val enabledColors = when (tone) {
+        SampleActionTone.Primary -> colors.primary to colors.onPrimary
+        SampleActionTone.Secondary -> colors.secondary to colors.onSecondary
+        SampleActionTone.Tonal -> colors.secondaryContainer to colors.onSecondaryContainer
+        SampleActionTone.Destructive -> colors.error to colors.onError
+        SampleActionTone.Neutral -> colors.surfaceContainerHighest to colors.onSurface
+    }
+    val actualBackground = if (enabled) enabledColors.first else colors.onSurface.copy(alpha = 0.12f)
+    val actualForeground = if (enabled) enabledColors.second else colors.onSurface.copy(alpha = 0.38f)
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -307,7 +323,7 @@ internal fun SampleAction(
         BasicText(
             text = label,
             style = TextStyle(
-                color = foreground,
+                color = actualForeground,
                 fontFamily = FontFamily.SansSerif,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -321,7 +337,7 @@ private fun StatusPill(
     status: PrivilegeSampleStatus,
     busy: Boolean,
 ) {
-    val colors = sampleColors
+    val colors = MaterialTheme.colorScheme
     val text = when {
         busy -> "Busy"
         status == PrivilegeSampleStatus.CONNECTED -> "Connected"
@@ -329,14 +345,14 @@ private fun StatusPill(
         else -> "Disconnected"
     }
     val background = when {
-        busy -> colors.statusInfoBackground
-        status == PrivilegeSampleStatus.CONNECTED -> colors.statusSuccessBackground
-        else -> colors.statusNeutralBackground
+        busy -> colors.primaryContainer
+        status == PrivilegeSampleStatus.CONNECTED -> colors.tertiaryContainer
+        else -> colors.surfaceContainerHigh
     }
     val foreground = when {
-        busy -> colors.statusInfoForeground
-        status == PrivilegeSampleStatus.CONNECTED -> colors.statusSuccessForeground
-        else -> colors.statusNeutralForeground
+        busy -> colors.onPrimaryContainer
+        status == PrivilegeSampleStatus.CONNECTED -> colors.onTertiaryContainer
+        else -> colors.onSurfaceVariant
     }
 
     Row(
@@ -371,7 +387,7 @@ internal fun RuntimeInfoRow(
     label: String,
     value: String,
 ) {
-    val colors = sampleColors
+    val colors = MaterialTheme.colorScheme
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -380,7 +396,7 @@ internal fun RuntimeInfoRow(
         BasicText(
             text = label,
             style = TextStyle(
-                color = colors.textSubtle,
+                color = colors.onSurfaceVariant,
                 fontFamily = FontFamily.SansSerif,
                 fontSize = 14.sp,
             ),
@@ -389,7 +405,7 @@ internal fun RuntimeInfoRow(
         BasicText(
             text = value,
             style = TextStyle(
-                color = colors.textPrimary,
+                color = colors.onSurface,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,

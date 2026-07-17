@@ -2,8 +2,7 @@
     <style name="Theme.PrivKitSample" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar" tools:ignore="NewApi">false</item>
-        <item name="android:statusBarColor">#101419</item>
-        <item name="android:navigationBarColor">#101419</item>
-        <item name="android:colorAccent">#8DBBFF</item>
+        <item name="android:statusBarColor">?android:attr/colorBackground</item>
+        <item name="android:navigationBarColor">?android:attr/colorBackground</item>
     </style>
 </resources>

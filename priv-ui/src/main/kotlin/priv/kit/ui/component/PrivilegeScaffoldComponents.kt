@@ -1,7 +1,6 @@
 package priv.kit.ui.component
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,12 +13,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -32,11 +31,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,12 +50,12 @@ import priv.kit.ui.R
 internal fun Panel(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.small,
-        tonalElevation = 1.dp,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = MaterialTheme.shapes.medium,
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(PrivilegeUiSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.medium),
             content = content,
         )
     }
@@ -68,12 +65,12 @@ internal fun Panel(content: @Composable ColumnScope.() -> Unit) {
 internal fun ItemPanel(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
         shape = MaterialTheme.shapes.small,
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(PrivilegeUiSpacing.medium),
+            verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.small),
             content = content,
         )
     }
@@ -85,17 +82,17 @@ internal fun CommandBlock(commandLine: String) {
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                color = Color(0xFF111820),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
                 shape = MaterialTheme.shapes.small,
             )
-            .padding(12.dp),
+            .padding(PrivilegeUiSpacing.medium),
     ) {
         SelectionContainer {
             Text(
                 modifier = Modifier.fillMaxWidth(),
                 text = commandLine,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFF7FAFC),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontFamily = FontFamily.Monospace,
             )
         }
@@ -136,7 +133,7 @@ internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
         PrivilegeUiServiceStatusAction.CANCEL -> StatusUi(
             title = stringResource(R.string.priv_ui_service_not_started),
             detail = state.runtimeStatusDetail(),
-            background = MaterialTheme.colorScheme.surface,
+            background = MaterialTheme.colorScheme.surfaceContainerLow,
             foreground = MaterialTheme.colorScheme.onSurface,
             icon = PrivilegeUiIcons.Stop,
             iconDescription = stringResource(R.string.priv_ui_start_cancel_action),
@@ -146,7 +143,7 @@ internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
         PrivilegeUiServiceStatusAction.CANCELLING -> StatusUi(
             title = stringResource(R.string.priv_ui_service_not_started),
             detail = state.runtimeStatusDetail(),
-            background = MaterialTheme.colorScheme.surface,
+            background = MaterialTheme.colorScheme.surfaceContainerLow,
             foreground = MaterialTheme.colorScheme.onSurface,
             icon = PrivilegeUiIcons.Stop,
             iconDescription = stringResource(R.string.priv_ui_start_cancelling_action),
@@ -157,7 +154,7 @@ internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
         StatusUi(
             title = stringResource(R.string.priv_ui_service_not_started),
             detail = state.runtimeStatusDetail(),
-            background = MaterialTheme.colorScheme.surface,
+            background = MaterialTheme.colorScheme.surfaceContainerLow,
             foreground = MaterialTheme.colorScheme.onSurface,
             icon = PrivilegeUiIcons.PlayArrow,
             iconDescription = stringResource(R.string.priv_ui_service_start_action_description),
@@ -197,18 +194,22 @@ internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
         modifier = Modifier.fillMaxWidth(),
         color = background,
         contentColor = foreground,
-        shape = MaterialTheme.shapes.small,
-        tonalElevation = 1.dp,
+        shape = MaterialTheme.shapes.medium,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, top = 14.dp, end = 10.dp, bottom = 14.dp),
+                .padding(
+                    start = PrivilegeUiSpacing.large,
+                    top = PrivilegeUiSpacing.medium,
+                    end = PrivilegeUiSpacing.medium,
+                    bottom = PrivilegeUiSpacing.medium,
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
+                verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.extraSmall),
             ) {
                 Text(
                     text = title,
@@ -220,14 +221,14 @@ internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
                 Text(
                     text = detail,
                     style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(PrivilegeUiSpacing.medium))
             PrivilegeIconTooltip(text = iconDescription) {
                 FilledTonalIconButton(
-                    modifier = Modifier.size(44.dp),
+                    modifier = Modifier.size(PrivilegeUiSize.minimumTouchTarget),
                     enabled = privilegeUiServiceStatusActionEnabled(action, state.busy),
                     colors = IconButtonDefaults.filledTonalIconButtonColors(
                         containerColor = actionContainer,
@@ -309,20 +310,13 @@ internal fun PrivilegeUiScreenScope.StartupLogPanel() {
                 overflow = TextOverflow.Ellipsis,
             )
             PrivilegeIconTooltip(text = copyLogDescription) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .clickable(
-                            enabled = lines.isNotEmpty(),
-                            onClickLabel = copyLogDescription,
-                            role = Role.Button,
-                            onClick = {
-                                viewModel.copyStartupLog(context)
-                                showFeedback(copiedMessage)
-                            },
-                        ),
-                    contentAlignment = Alignment.Center,
+                IconButton(
+                    modifier = Modifier.size(PrivilegeUiSize.minimumTouchTarget),
+                    enabled = lines.isNotEmpty(),
+                    onClick = {
+                        viewModel.copyStartupLog(context)
+                        showFeedback(copiedMessage)
+                    },
                 ) {
                     Icon(
                         modifier = Modifier.size(18.dp),
@@ -338,10 +332,10 @@ internal fun PrivilegeUiScreenScope.StartupLogPanel() {
                 .fillMaxWidth()
                 .heightIn(min = 96.dp, max = 480.dp)
                 .background(
-                    color = Color(0xFF101820),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
                     shape = MaterialTheme.shapes.small,
                 )
-                .padding(12.dp),
+                .padding(PrivilegeUiSpacing.medium),
         ) {
             SelectionContainer(
                 modifier = Modifier
@@ -352,7 +346,7 @@ internal fun PrivilegeUiScreenScope.StartupLogPanel() {
                     modifier = Modifier.fillMaxWidth(),
                     text = lines.joinToString("\n"),
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFF7FAFC),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontFamily = FontFamily.Monospace,
                 )
             }

@@ -10,11 +10,13 @@ import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,7 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import priv.kit.ui.PrivilegeUiAdbPairingStatus
@@ -66,21 +68,29 @@ internal fun PrivilegeUiScreenScope.AdbPanel() {
             tcpPolicy = viewModel.config.adbTcpPolicy,
         )
         AdbFingerprintRow(fingerprint = state.adbKeyFingerprint)
-        if (PrivilegeUiAdbStartupSection.WIRELESS in sections) {
-            WirelessAdbSection()
-        }
-        if (PrivilegeUiAdbStartupSection.STATIC_TCP in sections) {
-            StaticTcpAdbSection()
-        }
         if (sections.isEmpty()) {
             StatusText(stringResource(R.string.priv_ui_adb_unavailable))
+        } else {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            sections.forEachIndexed { index, section ->
+                if (index > 0) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+                when (section) {
+                    PrivilegeUiAdbStartupSection.WIRELESS -> WirelessAdbSection()
+                    PrivilegeUiAdbStartupSection.STATIC_TCP -> StaticTcpAdbSection()
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun PrivilegeUiScreenScope.WirelessAdbSection() {
-    ItemPanel {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.medium),
+    ) {
         val wirelessStatus = wirelessAdbPanelStatus(
             wifiConnected = state.wifiConnected,
             wirelessDebuggingStatus = state.wirelessDebuggingStatus,
@@ -108,7 +118,7 @@ private fun PrivilegeUiScreenScope.WirelessAdbSection() {
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.small),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             OutlinedButton(
@@ -189,8 +199,8 @@ private fun PrivilegeUiScreenScope.WirelessAdbPairingDialog() {
             Text(stringResource(R.string.priv_ui_wireless_pair_dialog_title))
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.medium)) {
+                Column(verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.extraSmall)) {
                     Text(
                         text = state.pairingMessage.ifBlank { defaultPairingMessage },
                         style = MaterialTheme.typography.bodyMedium,
@@ -264,7 +274,10 @@ internal fun privilegeUiPairingInputHint(notificationPairingRunning: Boolean): I
 private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
     val context = LocalContext.current
     val copiedMessage = stringResource(R.string.priv_ui_adb_static_command_copied)
-    ItemPanel {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.medium),
+    ) {
         val tcpPolicy = viewModel.config.adbTcpPolicy
         val configuredTcpPort = viewModel.config.tcpPort
         val paired = state.wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON
@@ -340,7 +353,7 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
         if (commandHelpVisible) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.medium),
             ) {
                 Text(
                     modifier = Modifier.fillMaxWidth(),
@@ -349,7 +362,7 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 CommandBlock(staticTcpCommand)
-                Button(
+                OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !runtimeStartInProgress && !state.busy,
                     onClick = {
@@ -364,13 +377,42 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
     }
 }
 
+internal data class PrivilegeUiFingerprintTextPolicy(
+    val minFontSize: TextUnit,
+    val maxFontSize: TextUnit,
+    val stepSize: TextUnit,
+)
+
+internal fun privilegeUiFingerprintTextPolicy(
+    typography: Typography,
+): PrivilegeUiFingerprintTextPolicy? {
+    val minFontSize = typography.labelSmall.fontSize
+    val maxFontSize = typography.bodySmall.fontSize
+    if (!minFontSize.isSp || !maxFontSize.isSp) return null
+    if (minFontSize.value < 0f || maxFontSize.value < 0f || minFontSize >= maxFontSize) return null
+    return PrivilegeUiFingerprintTextPolicy(
+        minFontSize = minFontSize,
+        maxFontSize = maxFontSize,
+        stepSize = 0.25.sp,
+    )
+}
+
+internal fun privilegeUiFingerprintShouldWrap(
+    currentlyWrapped: Boolean,
+    didOverflowWidth: Boolean,
+    didOverflowHeight: Boolean,
+    lineCount: Int,
+): Boolean = if (currentlyWrapped) lineCount > 1 else didOverflowWidth || didOverflowHeight
+
 @Composable
 private fun AdbFingerprintRow(fingerprint: String?) {
-    val fingerprintTextStyle = MaterialTheme.typography.labelMedium
-    var fingerprintWrapped by remember(fingerprint) { mutableStateOf(false) }
+    val typography = MaterialTheme.typography
+    val fingerprintTextStyle = typography.bodySmall
+    val textPolicy = privilegeUiFingerprintTextPolicy(typography)
+    var fingerprintWrapped by remember(fingerprint, textPolicy) { mutableStateOf(false) }
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.extraSmall),
     ) {
         Text(
             text = stringResource(R.string.priv_ui_adb_key_fingerprint),
@@ -381,8 +423,8 @@ private fun AdbFingerprintRow(fingerprint: String?) {
             Text(
                 modifier = Modifier.fillMaxWidth(),
                 text = fingerprint ?: stringResource(R.string.priv_ui_adb_key_fingerprint_unavailable),
-                style = if (fingerprintWrapped) {
-                    fingerprintTextStyle.copy(fontSize = 9.sp)
+                style = if (fingerprintWrapped && textPolicy != null) {
+                    fingerprintTextStyle.copy(fontSize = textPolicy.minFontSize)
                 } else {
                     fingerprintTextStyle
                 },
@@ -390,21 +432,22 @@ private fun AdbFingerprintRow(fingerprint: String?) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = if (fingerprintWrapped) Int.MAX_VALUE else 1,
                 overflow = TextOverflow.Visible,
-                autoSize = if (fingerprintWrapped) {
+                autoSize = if (fingerprintWrapped || textPolicy == null) {
                     null
                 } else {
                     TextAutoSize.StepBased(
-                        minFontSize = 9.sp,
-                        maxFontSize = fingerprintTextStyle.fontSize,
-                        stepSize = 0.5.sp,
+                        minFontSize = textPolicy.minFontSize,
+                        maxFontSize = textPolicy.maxFontSize,
+                        stepSize = textPolicy.stepSize,
                     )
                 },
                 onTextLayout = { result ->
-                    fingerprintWrapped = if (fingerprintWrapped) {
-                        result.lineCount > 1
-                    } else {
-                        result.didOverflowWidth
-                    }
+                    fingerprintWrapped = privilegeUiFingerprintShouldWrap(
+                        currentlyWrapped = fingerprintWrapped,
+                        didOverflowWidth = result.didOverflowWidth,
+                        didOverflowHeight = result.didOverflowHeight,
+                        lineCount = result.lineCount,
+                    )
                 },
             )
         }

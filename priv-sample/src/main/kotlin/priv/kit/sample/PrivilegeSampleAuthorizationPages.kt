@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -122,13 +123,17 @@ private fun StartupTabButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    val colors = sampleColors
+    val colors = MaterialTheme.colorScheme
     val background = when {
-        selected -> colors.tabSelectedBackground
-        enabled -> colors.tabBackground
-        else -> colors.tabDisabledBackground
+        selected -> colors.primary
+        enabled -> colors.surfaceContainerHigh
+        else -> colors.onSurface.copy(alpha = 0.12f)
     }
-    val foreground = if (selected) colors.actionForeground else colors.textSecondary
+    val foreground = when {
+        selected -> colors.onPrimary
+        enabled -> colors.onSurfaceVariant
+        else -> colors.onSurface.copy(alpha = 0.38f)
+    }
     Box(
         modifier = modifier
             .height(42.dp)
@@ -160,7 +165,6 @@ private fun RootPage(
     state: PrivilegeSampleScreenState,
     onStartRootRuntime: () -> Unit,
 ) {
-    val colors = sampleColors
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SampleAction(
             label = if (state.busy && state.status == PrivilegeSampleStatus.STARTING) {
@@ -169,7 +173,7 @@ private fun RootPage(
                 "Start Root Runtime"
             },
             enabled = !state.busy,
-            background = colors.actionPrimary,
+            tone = SampleActionTone.Primary,
             onClick = onStartRootRuntime,
         )
     }
@@ -180,7 +184,6 @@ private fun ManualPage(
     state: PrivilegeSampleScreenState,
     onCopyManualCommand: () -> Unit,
 ) {
-    val colors = sampleColors
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (state.manualShellCommandLine != null) {
             val commandLine = state.manualShellCommandLine
@@ -189,7 +192,7 @@ private fun ManualPage(
             SampleAction(
                 label = "Manual Shell Command Unavailable",
                 enabled = false,
-                background = colors.actionMuted,
+                tone = SampleActionTone.Neutral,
                 onClick = {},
             )
         }
@@ -201,13 +204,13 @@ private fun ShizukuPage(
     state: PrivilegeSampleScreenState,
     onStartShizukuExternal: () -> Unit,
 ) {
-    val colors = sampleColors
+    val colors = MaterialTheme.colorScheme
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(8.dp))
-                .background(colors.panelBackground)
+                .background(colors.surfaceContainerLow)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -219,7 +222,7 @@ private fun ShizukuPage(
                 BasicText(
                     text = state.shizukuMessage,
                     style = TextStyle(
-                        color = colors.textMuted,
+                        color = colors.onSurfaceVariant,
                         fontFamily = FontFamily.SansSerif,
                         fontSize = 13.sp,
                         lineHeight = 18.sp,
@@ -230,7 +233,7 @@ private fun ShizukuPage(
         SampleAction(
             label = state.shizukuExternalActionLabel(),
             enabled = !state.busy,
-            background = colors.actionPrimary,
+            tone = SampleActionTone.Primary,
             onClick = onStartShizukuExternal,
         )
         if (state.shizukuLastException.isNotBlank()) {
@@ -253,26 +256,26 @@ private fun PairingStatusPanel(
     fingerprint: String?,
     fingerprintLoading: Boolean,
 ) {
-    val colors = sampleColors
+    val colors = MaterialTheme.colorScheme
     val background = when (status) {
-        PrivilegeAdbPairingStatus.PAIRED -> colors.statusSuccessBackground
-        PrivilegeAdbPairingStatus.FAILED -> colors.statusDangerBackground
+        PrivilegeAdbPairingStatus.PAIRED -> colors.tertiaryContainer
+        PrivilegeAdbPairingStatus.FAILED -> colors.errorContainer
         PrivilegeAdbPairingStatus.CHECKING,
         PrivilegeAdbPairingStatus.SEARCHING,
         PrivilegeAdbPairingStatus.PAIRING,
         PrivilegeAdbPairingStatus.FOUND,
-        -> colors.statusInfoBackground
-        PrivilegeAdbPairingStatus.NOT_PAIRED -> colors.statusNeutralBackground
+        -> colors.primaryContainer
+        PrivilegeAdbPairingStatus.NOT_PAIRED -> colors.surfaceContainerHigh
     }
     val foreground = when (status) {
-        PrivilegeAdbPairingStatus.PAIRED -> colors.statusSuccessForeground
-        PrivilegeAdbPairingStatus.FAILED -> colors.statusDangerForeground
+        PrivilegeAdbPairingStatus.PAIRED -> colors.onTertiaryContainer
+        PrivilegeAdbPairingStatus.FAILED -> colors.onErrorContainer
         PrivilegeAdbPairingStatus.CHECKING,
         PrivilegeAdbPairingStatus.SEARCHING,
         PrivilegeAdbPairingStatus.PAIRING,
         PrivilegeAdbPairingStatus.FOUND,
-        -> colors.statusInfoForeground
-        PrivilegeAdbPairingStatus.NOT_PAIRED -> colors.statusNeutralForeground
+        -> colors.onPrimaryContainer
+        PrivilegeAdbPairingStatus.NOT_PAIRED -> colors.onSurfaceVariant
     }
 
     Column(
@@ -305,7 +308,7 @@ private fun PairingStatusPanel(
         BasicText(
             text = message,
             style = TextStyle(
-                color = colors.textSecondary,
+                color = foreground.copy(alpha = 0.82f),
                 fontFamily = FontFamily.SansSerif,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
@@ -318,7 +321,7 @@ private fun PairingStatusPanel(
                 else -> "not loaded"
             },
             style = TextStyle(
-                color = colors.textSecondary,
+                color = foreground.copy(alpha = 0.72f),
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
                 lineHeight = 16.sp,
@@ -341,7 +344,6 @@ private fun WirelessAdbPage(
     onStopNotificationPairing: () -> Unit,
     onStartWirelessAdb: () -> Unit,
 ) {
-    val colors = sampleColors
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PairingStatusPanel(
             status = state.pairingStatus,
@@ -356,14 +358,14 @@ private fun WirelessAdbPage(
             SampleAction(
                 label = "Refresh Identity",
                 enabled = !state.busy && !state.adbKeyFingerprintLoading,
-                background = colors.actionMuted,
+                tone = SampleActionTone.Tonal,
                 modifier = Modifier.weight(1f),
                 onClick = onRefreshAdbFingerprint,
             )
             SampleAction(
                 label = "Check Pairing",
                 enabled = !state.busy && !state.adbKeyFingerprintLoading,
-                background = colors.actionAccent,
+                tone = SampleActionTone.Secondary,
                 modifier = Modifier.weight(1f),
                 onClick = onCheckAdbPairing,
             )
@@ -371,7 +373,7 @@ private fun WirelessAdbPage(
         SampleAction(
             label = "Copy Wireless Log",
             enabled = true,
-            background = colors.actionLog,
+            tone = SampleActionTone.Neutral,
             onClick = onCopyLog,
         )
         SampleField(
@@ -384,7 +386,7 @@ private fun WirelessAdbPage(
         SampleAction(
             label = "Pair by Code",
             enabled = !state.busy,
-            background = colors.actionPrimary,
+            tone = SampleActionTone.Primary,
             onClick = onPairWirelessAdb,
         )
         SampleAction(
@@ -394,13 +396,17 @@ private fun WirelessAdbPage(
                 "Pair via Notification"
             },
             enabled = !state.busy || notificationPairingRunning,
-            background = if (notificationPairingRunning) colors.actionDanger else colors.actionPrimary,
+            tone = if (notificationPairingRunning) {
+                SampleActionTone.Destructive
+            } else {
+                SampleActionTone.Primary
+            },
             onClick = if (notificationPairingRunning) onStopNotificationPairing else onStartNotificationPairing,
         )
         SampleAction(
             label = "Start Wireless ADB",
             enabled = !state.busy,
-            background = colors.actionPrimary,
+            tone = SampleActionTone.Primary,
             onClick = onStartWirelessAdb,
         )
     }
@@ -414,26 +420,25 @@ private fun TcpPage(
     onRestartTcp: () -> Unit,
     onStopTcp: () -> Unit,
 ) {
-    val colors = sampleColors
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         RuntimeInfoRow(label = "last connect port", value = state.connectPortText.ifBlank { "auto" })
         SampleField("TCP port", state.tcpPortText, onTcpPortChanged)
         SampleAction(
             label = "Switch to TCP Mode",
             enabled = !state.busy,
-            background = colors.actionAccent,
+            tone = SampleActionTone.Secondary,
             onClick = onSwitchToTcp,
         )
         SampleAction(
             label = "Restart From TCP Port",
             enabled = !state.busy,
-            background = colors.actionPrimary,
+            tone = SampleActionTone.Primary,
             onClick = onRestartTcp,
         )
         SampleAction(
             label = "Stop TCP Mode",
             enabled = !state.busy,
-            background = colors.actionNeutral,
+            tone = SampleActionTone.Neutral,
             onClick = onStopTcp,
         )
     }
@@ -445,20 +450,20 @@ private fun SessionPage(
     onClearLog: () -> Unit,
     onCopyLog: () -> Unit,
 ) {
-    val colors = sampleColors
+    val colors = MaterialTheme.colorScheme
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SampleAction(
                 label = "Copy Log",
                 enabled = state.logText.isNotBlank(),
-                background = colors.actionPrimary,
+                tone = SampleActionTone.Primary,
                 modifier = Modifier.weight(1f),
                 onClick = onCopyLog,
             )
             SampleAction(
                 label = "Clear Log",
                 enabled = !state.busy,
-                background = colors.actionNeutral,
+                tone = SampleActionTone.Neutral,
                 modifier = Modifier.weight(1f),
                 onClick = onClearLog,
             )
@@ -468,14 +473,14 @@ private fun SessionPage(
                 .fillMaxWidth()
                 .heightIn(min = 220.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(colors.terminalBackground)
+                .background(colors.surfaceContainerHighest)
                 .padding(16.dp),
         ) {
             SelectionContainer {
                 BasicText(
                     text = state.logText.ifBlank { "-" },
                     style = TextStyle(
-                        color = colors.terminalText,
+                        color = colors.onSurface,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp,
                         lineHeight = 18.sp,
@@ -491,19 +496,19 @@ private fun CommandBlock(
     commandLine: String,
     onCopy: () -> Unit,
 ) {
-    val colors = sampleColors
+    val colors = MaterialTheme.colorScheme
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(colors.terminalBackground)
+            .background(colors.surfaceContainerHighest)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         BasicText(
             text = "Run starter inside adb shell",
             style = TextStyle(
-                color = colors.terminalMutedText,
+                color = colors.onSurfaceVariant,
                 fontFamily = FontFamily.SansSerif,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
@@ -512,7 +517,7 @@ private fun CommandBlock(
         BasicText(
             text = commandLine,
             style = TextStyle(
-                color = colors.terminalText,
+                color = colors.onSurface,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 12.sp,
                 lineHeight = 18.sp,
@@ -521,7 +526,7 @@ private fun CommandBlock(
         SampleAction(
             label = "Copy Command",
             enabled = true,
-            background = colors.actionLog,
+            tone = SampleActionTone.Primary,
             onClick = onCopy,
         )
     }
