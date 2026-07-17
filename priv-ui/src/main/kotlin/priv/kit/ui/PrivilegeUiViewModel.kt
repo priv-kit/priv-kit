@@ -78,23 +78,10 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     /** Return true when the host handled the back action; false uses the system back dispatcher. */
     protected open fun onBackClick(): Boolean = false
 
-    /** Override together with [hasHelpAction] to handle the optional help action. */
-    protected open fun onHelpClick(): Unit = Unit
-
-    /** Controls whether the authorization page exposes its optional help action. */
-    protected open val hasHelpAction: Boolean = false
-
     /** Called once for each connection serial while this ViewModel is alive. */
     protected open fun onConnected(serverInfo: PrivilegeServerInfo): Unit = Unit
 
     internal fun dispatchBackClick(): Boolean = onBackClick()
-
-    internal fun dispatchHelpClick() {
-        onHelpClick()
-    }
-
-    internal val helpActionVisible: Boolean
-        get() = hasHelpAction
 
     internal fun dispatchConnected(
         connectionSerial: Long,

@@ -234,24 +234,20 @@ class PrivilegeUiViewModelTest {
         val first = PrivilegeServerInfo(uid = 2000, pid = 10, protocolVersion = 1)
         val second = PrivilegeServerInfo(uid = 0, pid = 11, protocolVersion = 1)
 
-        assertTrue(viewModel.helpActionVisible)
         assertTrue(viewModel.dispatchBackClick())
-        viewModel.dispatchHelpClick()
         viewModel.dispatchConnected(connectionSerial = 1L, serverInfo = first)
         viewModel.dispatchConnected(connectionSerial = 1L, serverInfo = second)
         viewModel.dispatchConnected(connectionSerial = 2L, serverInfo = second)
 
         assertEquals(1, viewModel.backClickCount)
-        assertEquals(1, viewModel.helpClickCount)
         assertEquals(listOf(first, second), viewModel.connectedServers)
     }
 
     @Test
-    fun baseHostEventsUseSystemBackAndHideHelp() {
+    fun baseBackEventUsesSystemBack() {
         val viewModel = RootOnlyPrivilegeUiViewModel(application())
 
         assertFalse(viewModel.dispatchBackClick())
-        assertFalse(viewModel.helpActionVisible)
     }
 
     @Test
@@ -315,19 +311,11 @@ class PrivilegeUiViewModelTest {
     ) {
         var backClickCount = 0
             private set
-        var helpClickCount = 0
-            private set
         val connectedServers = mutableListOf<PrivilegeServerInfo>()
-
-        override val hasHelpAction: Boolean = true
 
         override fun onBackClick(): Boolean {
             backClickCount += 1
             return true
-        }
-
-        override fun onHelpClick() {
-            helpClickCount += 1
         }
 
         override fun onConnected(serverInfo: PrivilegeServerInfo) {

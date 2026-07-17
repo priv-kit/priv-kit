@@ -1,23 +1,25 @@
 package priv.kit.ui
 
-import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import androidx.activity.OnBackPressedDispatcher
-import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -46,10 +49,21 @@ import priv.kit.ui.component.StartupLogPanel
 public fun PrivilegeScaffold(
     modifier: Modifier = Modifier,
     viewModel: PrivilegeUiViewModel = viewModel(),
+    topBar: @Composable () -> Unit = {
+        PrivilegeTopBar(viewModel)
+    },
+    bottomBar: @Composable () -> Unit = {},
+    snackbarHost: @Composable (SnackbarHostState) -> Unit = {
+        SnackbarHost(it)
+    },
+    floatingActionButton: @Composable () -> Unit = {},
+    floatingActionButtonPosition: FabPosition = FabPosition.End,
+    containerColor: Color = MaterialTheme.colorScheme.background,
+    contentColor: Color = contentColorFor(containerColor),
+    contentWindowInsets: WindowInsets = ScaffoldDefaults.contentWindowInsets,
 ) {
     val context = LocalContext.current
-    val activity = context.findActivity()
-    val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    val activity = LocalActivity.current
     val state by viewModel.state.collectAsState()
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -73,16 +87,12 @@ public fun PrivilegeScaffold(
     fun showFeedback(message: String) {
         snackbarScope.launch {
             snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(
-                message = message,
-                duration = SnackbarDuration.Short,
-            )
+            snackbarHostState.showSnackbar(message = message)
         }
     }
     val screenScope = PrivilegeUiScreenScope(
         state = state,
         viewModel = viewModel,
-        backDispatcher = backDispatcher,
         showFeedback = ::showFeedback,
     )
     LaunchedEffect(state.connectionSerial) {
@@ -118,10 +128,7 @@ public fun PrivilegeScaffold(
     LaunchedEffect(viewModel) {
         viewModel.snackbarMessages.collect { message ->
             snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(
-                message = message,
-                duration = SnackbarDuration.Short,
-            )
+            snackbarHostState.showSnackbar(message = message)
         }
     }
     DisposableEffect(viewModel, context) {
@@ -144,18 +151,22 @@ public fun PrivilegeScaffold(
 
     Scaffold(
         modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-        topBar = {
-            screenScope.PrivilegeTopBar()
-        },
+        topBar = topBar,
+        bottomBar = bottomBar,
         snackbarHost = {
-            SnackbarHost(snackbarHostState)
+            snackbarHost(snackbarHostState)
         },
+        floatingActionButton = floatingActionButton,
+        floatingActionButtonPosition = floatingActionButtonPosition,
+        containerColor = containerColor,
+        contentColor = contentColor,
+        contentWindowInsets = contentWindowInsets,
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
                 .verticalScroll(rememberScrollState())
                 .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -175,7 +186,6 @@ private const val POST_NOTIFICATIONS_PERMISSION = "android.permission.POST_NOTIF
 internal class PrivilegeUiScreenScope(
     internal val state: PrivilegeUiState,
     internal val viewModel: PrivilegeUiViewModel,
-    internal val backDispatcher: OnBackPressedDispatcher?,
     internal val showFeedback: (String) -> Unit,
 )
 
@@ -183,13 +193,6 @@ private tailrec fun Context.findLifecycleOwner(): LifecycleOwner? =
     when (this) {
         is LifecycleOwner -> this
         is ContextWrapper -> baseContext.findLifecycleOwner()
-        else -> null
-    }
-
-private tailrec fun Context.findActivity(): Activity? =
-    when (this) {
-        is Activity -> this
-        is ContextWrapper -> baseContext.findActivity()
         else -> null
     }
 

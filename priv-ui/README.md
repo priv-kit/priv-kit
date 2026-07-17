@@ -16,10 +16,10 @@ Process-wide owner-death behavior remains a runtime concern. Configure it throug
 `PrivilegeConfig` before starting a server; `PrivilegeUiConfig` does not mirror or
 override that global runtime state.
 
-The module keeps Compose Foundation, Material 3, and lifecycle Compose adapters as
-implementation dependencies. Host apps using the examples below should declare
-their own `androidx.compose.material3:material3` and
-`androidx.lifecycle:lifecycle-viewmodel-compose` dependencies.
+Compose Foundation and Material 3 are API dependencies because `PrivilegeScaffold`
+exposes Material 3 Scaffold slots and parameters. The lifecycle Compose adapter remains
+an implementation dependency; host apps using `viewModel()` as shown below should
+declare their own `androidx.lifecycle:lifecycle-viewmodel-compose` dependency.
 
 `PrivilegeScaffold` consumes the caller's Compose `MaterialTheme` colors. Apps that need light, dark, dynamic, or branded authorization UI should wrap it in their own Material 3 theme instead of configuring colors through `PrivilegeUiConfig`.
 
@@ -79,12 +79,19 @@ PrivilegeScaffold(
 )
 ```
 
+`PrivilegeScaffold` exposes the nested Material 3 Scaffold's `topBar`, `bottomBar`,
+`snackbarHost`, `floatingActionButton`, `floatingActionButtonPosition`, `containerColor`,
+`contentColor`, and `contentWindowInsets` parameters. Its authorization top bar and
+snackbar host remain the defaults, while Scaffold colors and insets follow Material 3.
+A custom `snackbarHost` receives the internal `SnackbarHostState` so ViewModel feedback
+continues to use the supplied host.
+
 `PrivilegeScaffold` owns its Activity Result launchers for notification and local-network
 permissions and returns the notification result to the ViewModel. Host subclasses may
-override `onBackClick()`, `onConnected(...)`, and the optional help hooks. These hooks
+override `onBackClick()` and `onConnected(...)`. These hooks
 should update host state or emit host events; a ViewModel must not retain an `Activity`,
 `NavController`, Compose state holder, or Activity Result launcher. Returning `false`
-from `onBackClick()` delegates to the system back dispatcher. The help action is hidden
-unless the subclass overrides `hasHelpAction` with `true`.
+from `onBackClick()` delegates to the system back dispatcher. Hosts that need custom
+top-bar actions should supply their own `topBar`.
 
 All static UI and notification text lives in `src/main/res/values/strings.xml` with the `priv_ui_` prefix so apps can override or localize it.

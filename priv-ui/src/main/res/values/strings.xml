@@ -1,7 +1,6 @@
 <resources>
     <string name="priv_ui_title">授权启动</string>
     <string name="priv_ui_nav_back">Back</string>
-    <string name="priv_ui_help">Help</string>
     <string name="priv_ui_auth_method_root">Root</string>
     <string name="priv_ui_auth_method_manual_shell">Manual</string>
     <string name="priv_ui_auth_method_adb">ADB</string>

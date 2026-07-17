@@ -1,25 +1,25 @@
 package priv.kit.ui.component
 
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import priv.kit.ui.PrivilegeUiStartupMode
 import priv.kit.ui.PrivilegeUiScreenScope
+import priv.kit.ui.PrivilegeUiStartupMode
+import priv.kit.ui.PrivilegeUiViewModel
 import priv.kit.ui.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun PrivilegeUiScreenScope.PrivilegeTopBar() {
+internal fun PrivilegeTopBar(viewModel: PrivilegeUiViewModel) {
+    val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     TopAppBar(
         navigationIcon = {
             val backDescription = stringResource(R.string.priv_ui_nav_back)
@@ -39,28 +39,8 @@ internal fun PrivilegeUiScreenScope.PrivilegeTopBar() {
             }
         },
         title = {
-            Text(
-                text = stringResource(R.string.priv_ui_title),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Text(text = stringResource(R.string.priv_ui_title))
         },
-        actions = {
-            if (viewModel.helpActionVisible) {
-                val helpDescription = stringResource(R.string.priv_ui_help)
-                PrivilegeIconTooltip(text = helpDescription) {
-                    IconButton(onClick = viewModel::dispatchHelpClick) {
-                        Icon(
-                            imageVector = PrivilegeUiIcons.Help,
-                            contentDescription = helpDescription,
-                        )
-                    }
-                }
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-        ),
     )
 }
 
@@ -72,8 +52,6 @@ internal fun PrivilegeUiScreenScope.AuthorizationModeTabs() {
     PrimaryScrollableTabRow(
         selectedTabIndex = selectedIndex,
         edgePadding = 0.dp,
-        containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.primary,
     ) {
         modes.forEach { mode ->
             Tab(

@@ -53,7 +53,6 @@ import priv.kit.ui.R
 internal fun Panel(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
         shape = MaterialTheme.shapes.small,
         tonalElevation = 1.dp,
     ) {
@@ -69,7 +68,7 @@ internal fun Panel(content: @Composable ColumnScope.() -> Unit) {
 internal fun ItemPanel(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        color = MaterialTheme.colorScheme.surfaceVariant,
         shape = MaterialTheme.shapes.small,
     ) {
         Column(
@@ -221,7 +220,6 @@ internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
                 Text(
                     text = detail,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = foreground.copy(alpha = 0.78f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -234,8 +232,6 @@ internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
                     colors = IconButtonDefaults.filledTonalIconButtonColors(
                         containerColor = actionContainer,
                         contentColor = actionForeground,
-                        disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                        disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.34f),
                     ),
                     onClick = {
                         when (action) {
