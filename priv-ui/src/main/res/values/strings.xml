@@ -105,6 +105,8 @@
     <string name="priv_ui_tcp_authorization_unauthorized">Not allowed</string>
     <string name="priv_ui_tcp_authorization_failed">Retry needed</string>
     <string name="priv_ui_notification_permission_required">Notification permission required</string>
+    <string name="priv_ui_notification_permission_unavailable_title">Notification permission unavailable</string>
+    <string name="priv_ui_notification_permission_unavailable_message">You won\'t be able to enter the pairing code from the notification shade. You can only enter it in split screen. Continue?</string>
     <string name="priv_ui_local_network_permission_required">Local network permission required</string>
     <string name="priv_ui_local_network_permission_missing">Allow local network access so Wireless debugging can connect to this device</string>
     <string name="priv_ui_notification_pairing_started">Pairing is open</string>
@@ -147,6 +149,7 @@
     <string name="priv_ui_pairing_arrow_down_description">Decrease selected digit</string>
     <string name="priv_ui_pairing_arrow_right_description">Move to next digit</string>
     <string name="priv_ui_pairing_cancel_action">Cancel</string>
+    <string name="priv_ui_pairing_continue_action">Continue</string>
     <string name="priv_ui_pairing_submit_action">Pair</string>
     <string name="priv_ui_pairing_stop_action">Stop</string>
     <string name="priv_ui_pairing_foreground_failed">Unable to keep the pairing notification visible: %1$s</string>

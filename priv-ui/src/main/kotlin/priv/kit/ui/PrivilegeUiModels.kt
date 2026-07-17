@@ -1,11 +1,10 @@
 package priv.kit.ui
 
 import android.content.Context
-import priv.kit.adb.PRIVILEGE_ADB_DEFAULT_AUTHORIZATION_TIMEOUT_MILLIS
-import priv.kit.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeStartupException
 import priv.kit.PrivilegeStartupLogListener
+import priv.kit.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 
 public enum class PrivilegeUiRuntimeStatus {
     DISCONNECTED,
@@ -91,7 +90,7 @@ public data class PrivilegeUiConfig public constructor(
     public val tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     public val adbTcpPolicy: PrivilegeUiAdbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
     public val enableManagedWirelessAdb: Boolean = true,
-    public val adbAuthorizationTimeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_AUTHORIZATION_TIMEOUT_MILLIS,
+    public val adbAuthorizationTimeoutMillis: Long = PRIVILEGE_UI_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS,
     public val wirelessStatusPollIntervalMillis: Long = DEFAULT_WIRELESS_STATUS_POLL_INTERVAL_MILLIS,
     public val wirelessStatusDiscoveryTimeoutMillis: Long = DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS,
     public val externalStartStatusPollIntervalMillis: Long = DEFAULT_EXTERNAL_START_STATUS_POLL_INTERVAL_MILLIS,
@@ -185,6 +184,7 @@ public data class PrivilegeUiState public constructor(
     public val pairingStatus: PrivilegeUiAdbPairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
     public val pairingMessage: String = "",
     public val pairingDialogVisible: Boolean = false,
+    public val pairingNotificationPermissionWarningVisible: Boolean = false,
     public val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
@@ -208,3 +208,5 @@ internal fun String.toPrivilegeUiPairingCodeDigits(): String =
     filter(Char::isDigit).take(PRIVILEGE_UI_PAIRING_CODE_LENGTH)
 
 internal const val PRIVILEGE_UI_PAIRING_CODE_LENGTH = 6
+
+private const val PRIVILEGE_UI_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS = 60_000L

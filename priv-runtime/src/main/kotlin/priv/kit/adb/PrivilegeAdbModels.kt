@@ -75,7 +75,7 @@ public data class PrivilegeAdbStartOptions public constructor(
 
 internal const val PRIVILEGE_ADB_LOCAL_HOST: String = "127.0.0.1"
 public const val PRIVILEGE_ADB_DEFAULT_TCP_PORT: Int = 5555
-public const val PRIVILEGE_ADB_DEFAULT_AUTHORIZATION_TIMEOUT_MILLIS: Long = 60_000L
+internal const val PRIVILEGE_ADB_DEFAULT_AUTHORIZATION_TIMEOUT_MILLIS: Long = 60_000L
 internal const val PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_COUNT: Int = 5
 internal const val PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS: Long = 1_000L
 internal const val PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS: Long = 15_000L

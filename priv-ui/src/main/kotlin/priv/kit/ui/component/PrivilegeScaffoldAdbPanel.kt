@@ -97,7 +97,9 @@ private fun PrivilegeUiScreenScope.WirelessAdbSection() {
             text = wirelessStatus.displayText(),
             color = wirelessStatus.displayColor(),
         )
-        if (state.pairingDialogVisible) {
+        if (state.pairingNotificationPermissionWarningVisible) {
+            WirelessAdbPairingNotificationPermissionWarningDialog()
+        } else if (state.pairingDialogVisible) {
             WirelessAdbPairingDialog()
         }
         val startAction = privilegeUiWirelessAdbStartAction(
@@ -140,6 +142,30 @@ private fun PrivilegeUiScreenScope.WirelessAdbSection() {
             }
         }
     }
+}
+
+@Composable
+private fun PrivilegeUiScreenScope.WirelessAdbPairingNotificationPermissionWarningDialog() {
+    AlertDialog(
+        onDismissRequest = viewModel::cancelPendingPairingStart,
+        properties = DialogProperties(dismissOnClickOutside = false),
+        title = {
+            Text(stringResource(R.string.priv_ui_notification_permission_unavailable_title))
+        },
+        text = {
+            Text(stringResource(R.string.priv_ui_notification_permission_unavailable_message))
+        },
+        confirmButton = {
+            TextButton(onClick = viewModel::continuePairingWithoutNotification) {
+                Text(stringResource(R.string.priv_ui_pairing_continue_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = viewModel::cancelPendingPairingStart) {
+                Text(stringResource(R.string.priv_ui_pairing_cancel_action))
+            }
+        },
+    )
 }
 
 @Composable

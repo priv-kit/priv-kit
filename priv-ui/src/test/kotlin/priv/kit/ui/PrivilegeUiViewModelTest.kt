@@ -255,7 +255,7 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
-    fun missingNotificationPermissionKeepsViewModelPairingSessionAvailable() = runBlocking {
+    fun permanentlyDeniedNotificationPermissionShowsWarningBeforePairingSessionStarts() = runBlocking {
         val application = application()
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
@@ -268,19 +268,21 @@ class PrivilegeUiViewModelTest {
                     viewModel.permissionRequests.first()
                 },
             )
-            assertTrue(viewModel.state.value.pairingDialogVisible)
-            assertEquals(PrivilegeUiAdbPairingStatus.SEARCHING, viewModel.state.value.pairingStatus)
+            assertFalse(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+            assertFalse(viewModel.state.value.pairingDialogVisible)
+            assertEquals(PrivilegeUiAdbPairingStatus.NOT_PAIRED, viewModel.state.value.pairingStatus)
             assertFalse(viewModel.state.value.notificationPairingRunning)
 
             viewModel.handleNotificationPermissionResult(
                 PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
             )
 
-            assertTrue(viewModel.state.value.pairingDialogVisible)
-            assertEquals(PrivilegeUiAdbPairingStatus.SEARCHING, viewModel.state.value.pairingStatus)
+            assertTrue(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+            assertFalse(viewModel.state.value.pairingDialogVisible)
+            assertEquals(PrivilegeUiAdbPairingStatus.NOT_PAIRED, viewModel.state.value.pairingStatus)
             assertFalse(viewModel.state.value.notificationPairingRunning)
         } finally {
-            viewModel.stopNotificationPairing()
+            viewModel.cancelPendingPairingStart()
         }
     }
 

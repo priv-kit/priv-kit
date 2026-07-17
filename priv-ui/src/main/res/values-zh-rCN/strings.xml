@@ -105,6 +105,8 @@
     <string name="priv_ui_tcp_authorization_unauthorized">未允许</string>
     <string name="priv_ui_tcp_authorization_failed">需要重试</string>
     <string name="priv_ui_notification_permission_required">需要通知权限</string>
+    <string name="priv_ui_notification_permission_unavailable_title">通知权限不可用</string>
+    <string name="priv_ui_notification_permission_unavailable_message">将无法使用通知栏输入配对码，只能使用分屏输入，是否继续？</string>
     <string name="priv_ui_local_network_permission_required">需要本地网络权限</string>
     <string name="priv_ui_local_network_permission_missing">需要允许本地网络访问，才能连接本机无线调试</string>
     <string name="priv_ui_notification_pairing_started">已打开配对入口</string>
@@ -147,6 +149,7 @@
     <string name="priv_ui_pairing_arrow_down_description">减少选中数字</string>
     <string name="priv_ui_pairing_arrow_right_description">移至下一位</string>
     <string name="priv_ui_pairing_cancel_action">取消</string>
+    <string name="priv_ui_pairing_continue_action">继续</string>
     <string name="priv_ui_pairing_submit_action">配对</string>
     <string name="priv_ui_pairing_stop_action">停止</string>
     <string name="priv_ui_pairing_foreground_failed">无法保持配对通知显示：%1$s</string>

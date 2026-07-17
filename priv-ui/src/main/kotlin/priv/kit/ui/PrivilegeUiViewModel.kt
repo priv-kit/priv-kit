@@ -190,6 +190,14 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         adbActions.stopNotificationPairing()
     }
 
+    public open fun cancelPendingPairingStart() {
+        adbActions.cancelPendingPairingStart()
+    }
+
+    public open fun continuePairingWithoutNotification() {
+        adbActions.continuePairingWithoutNotification()
+    }
+
     public open fun closePairingDialog() {
         adbActions.closePairingDialog()
     }
