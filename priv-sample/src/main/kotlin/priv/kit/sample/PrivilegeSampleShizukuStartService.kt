@@ -1,61 +1,35 @@
 package priv.kit.sample
 
 import android.content.Context
+import android.os.ParcelFileDescriptor
+import android.os.ResultReceiver
 import androidx.annotation.Keep
-import priv.kit.PrivilegeStartupLogListener
-import priv.kit.PrivilegeExternalStartup
-import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.concurrent.thread
+import priv.kit.PrivilegeExternalStartupHost
 import kotlin.system.exitProcess
 
 internal class PrivilegeSampleShizukuStartService @Keep constructor() :
     IPrivilegeSampleShizukuStartService.Stub() {
-    private val startRunning = AtomicBoolean(false)
+    private val host = PrivilegeExternalStartupHost()
 
     @Keep
     constructor(context: Context) : this()
 
-    override fun startWithCallback(
+    override fun start(
         commandLine: String,
-        callback: IPrivilegeSampleShizukuStartCallback?,
+        stdout: ParcelFileDescriptor,
+        stderr: ParcelFileDescriptor,
+        resultReceiver: ResultReceiver,
     ) {
-        if (!startRunning.compareAndSet(false, true)) {
-            callback.notifyFailure(
-                IllegalStateException("Shizuku start command is already running"),
-            )
-            return
-        }
-        thread(name = "priv-kit-shizuku-start", isDaemon = true) {
-            try {
-                val result = PrivilegeExternalStartup.runInCurrentProcess(
-                    commandLine = commandLine,
-                    startupLogListener = PrivilegeStartupLogListener { line ->
-                        runCatching {
-                            callback?.onOutput(line.source, line.message)
-                        }
-                    },
-                )
-                runCatching {
-                    callback?.onFinished(result.output)
-                }
-            } catch (throwable: Throwable) {
-                callback.notifyFailure(throwable)
-            } finally {
-                startRunning.set(false)
-            }
-        }
+        host.start(
+            commandLine = commandLine,
+            stdout = stdout,
+            stderr = stderr,
+            resultReceiver = resultReceiver,
+        )
     }
 
     override fun destroy() {
+        host.close()
         exitProcess(0)
-    }
-
-    private fun IPrivilegeSampleShizukuStartCallback?.notifyFailure(throwable: Throwable) {
-        runCatching {
-            this?.onFailure(
-                throwable.message ?: throwable.javaClass.name,
-                throwable.toDiagnosticString(),
-            )
-        }
     }
 }

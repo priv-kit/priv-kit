@@ -97,7 +97,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 - 构造项目自有 Privileged Server 的 `app_process` 启动命令；
 - 打包供 shell/manual/ADB 通道复用的 native starter 可执行文件；
 - 通过 root 或 ADB 执行共享服务端启动命令；
-- 为用户手动执行或具备代码执行能力的外部启动入口提供启动命令、外部特权进程内执行 helper 和主进程日志接收 helper。
+- 为用户手动执行或具备代码执行能力的外部启动入口提供启动命令、主进程桥接 runner、特权端 host，以及底层外部进程执行与日志接收 helper；第三方绑定和应用自有 AIDL 不进入 runtime。
 
 禁止：
 

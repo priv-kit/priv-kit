@@ -134,7 +134,7 @@ app 侧 handshake provider 必须保持 exported，以便 shell、root 或外部
 
 启动入口、命令执行者和服务端实际运行身份是三个概念：Root、ADB、手动 shell 或外部启动入口描述命令从哪里触发；服务端最终运行身份以 `PrivilegeServerInfo.uid` 和 `pid` 为准。运行时不再提供额外的 root/shell 分类，避免把设备上的实际 UID 强行归类为权限等级。
 
-外部启动入口必须具备执行启动命令或托管应用启动代码的能力；仅提供授权 Binder 或权限 API、但不能执行代码的工具不属于 Priv Kit 启动策略。`priv-kit` 提供可随时执行的启动命令、可在外部特权进程内调用的 `PrivilegeExternalStartup.runInCurrentProcess(...)`、以及主进程接收实时启动日志的 `PrivilegeExternalStartup.createReceiver(...)`；Shizuku UserService 等第三方能力只负责把这两端通过应用自有 Binder/AIDL 接起来，并停留在应用侧 provider、可选集成模块或示例代码中，不成为核心运行时策略模块。
+外部启动入口必须具备执行启动命令或托管应用启动代码的能力；仅提供授权 Binder 或权限 API、但不能执行代码的工具不属于 Priv Kit 启动策略。`priv-kit` 提供可随时执行的启动命令、主进程侧 `PrivilegeExternalStartup.runThroughBridge(...)`、特权端 `PrivilegeExternalStartupHost`，由 runtime 统一管理 `ParcelFileDescriptor` stdout/stderr 管道、实时日志、超时、并发与 `ResultReceiver` 完成通知；`runInCurrentProcess(...)` 和 `createReceiver(...)` 保留为底层 helper。Shizuku UserService 等第三方能力只负责绑定并用应用自有 Binder/AIDL 启动方法桥接这两端，相关依赖停留在应用侧 provider、可选集成模块或示例代码中，不成为核心运行时策略模块。runtime 不替应用做 Binder 调用方鉴权，应用必须限制桥接入口只允许可信调用方访问。
 
 启动策略不得变成操作库。`Privilege.startRoot()` 可以通过 root 启动服务端，但不得提供用于包安装、输入事件、设置写入、app-ops 修改或其他系统操作的公开 root helper。
 

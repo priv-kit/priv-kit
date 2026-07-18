@@ -54,7 +54,7 @@ YourApp.showCommandToUser(commandLine)
 
 把启动命令交给 Shizuku UserService 或其他能够在兼容特权身份中执行代码的外部启动入口。
 
-库侧提供通用的两端 API：特权进程内调用 `PrivilegeExternalStartup.runInCurrentProcess(...)`，主进程用 `PrivilegeExternalStartup.createReceiver(...)` 接收实时日志；Shizuku 的 UserService 绑定和 AIDL 转发由接入应用自己完成。
+runtime 负责通用桥接机制：主进程调用 `PrivilegeExternalStartup.runThroughBridge(...)`，特权端只需把唯一启动方法委托给 `PrivilegeExternalStartupHost`；`ParcelFileDescriptor` 管道、实时日志、完成通知、超时和并发拒绝均由 runtime 处理。`runInCurrentProcess(...)` 与 `createReceiver(...)` 继续作为底层 helper。接入应用只保留 Shizuku UserService 绑定和应用自有 AIDL，并负责限制该 Binder 入口的访问范围。
 
 ```kotlin
 val commandLine = Privilege.createShellStartCommand()

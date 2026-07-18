@@ -54,7 +54,7 @@ YourApp.showCommandToUser(commandLine)
 
 Pass the startup command to Shizuku UserService or another external startup entry point that can execute code under a compatible privileged identity.
 
-The library provides common APIs for both sides: call `PrivilegeExternalStartup.runInCurrentProcess(...)` inside the privileged process, and use `PrivilegeExternalStartup.createReceiver(...)` in the main process to receive real-time logs. Shizuku UserService binding and AIDL forwarding are handled by the integrating app.
+The runtime owns the reusable bridge mechanics. The main process calls `PrivilegeExternalStartup.runThroughBridge(...)`, while the privileged endpoint delegates its single start method to `PrivilegeExternalStartupHost`; the runtime manages `ParcelFileDescriptor` pipes, live logs, completion, timeouts, and concurrent-call rejection. `runInCurrentProcess(...)` and `createReceiver(...)` remain available as lower-level helpers. The integrating app keeps only its Shizuku UserService binding and app-owned AIDL contract, and must restrict access to that Binder endpoint.
 
 ```kotlin
 val commandLine = Privilege.createShellStartCommand()

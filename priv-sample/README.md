@@ -23,6 +23,6 @@ Phase 1 contents:
 - Display of connection state, uid, pid, and protocol version.
 - Manual command display and copy support for pasting into `adb shell` on non-root devices.
 - Binder death observation through `Privilege`.
-- A sample Shizuku UserService starter that dispatches the shared Priv Kit shell start command off the UserService Binder thread, streams output through a callback, reports completion or failure explicitly, then destroys the Shizuku UserService while the app waits for the privileged server handoff.
+- A thin Shizuku UserService bridge with one app-owned AIDL: the app keeps Shizuku binding only, the privileged endpoint delegates to runtime `PrivilegeExternalStartupHost`, and the main process delegates pipe/result orchestration to `PrivilegeExternalStartup.runThroughBridge(...)` before waiting for the privileged server handoff.
 
 The sample demonstrates the Root runtime minimum loop, manual shell verification path, Shizuku-backed shell start path, Wireless ADB startup path, one app-owned hidden API smoke test for Binder remote transact, and two app-owned UserService AIDL smoke tests. Both sample UserServices accept `Context`; the embedded UserService omits `destroy()`, while the dedicated UserService exits from `destroy()` with `System.exit(0)`. It does not demonstrate reusable Android system service wrappers.

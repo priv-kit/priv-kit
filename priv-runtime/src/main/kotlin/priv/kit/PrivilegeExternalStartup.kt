@@ -1,5 +1,6 @@
 package priv.kit
 
+import priv.kit.internal.external.PrivilegeExternalStartupBridgeRunner
 import java.io.InputStream
 import java.util.Collections
 import java.util.concurrent.TimeUnit
@@ -51,6 +52,36 @@ public object PrivilegeExternalStartup {
         PrivilegeExternalStartupReceiver.create(
             startupLogListener = startupLogListener,
             sourcePrefix = sourcePrefix,
+        )
+
+    @JvmStatic
+    @JvmOverloads
+    @Throws(PrivilegeStartupException::class)
+    public fun runThroughBridge(
+        commandLine: String,
+        bridge: PrivilegeExternalStartupBridge,
+        options: PrivilegeExternalStartupBridgeOptions = PrivilegeExternalStartupBridgeOptions(),
+        startupLogListener: PrivilegeStartupLogListener? = null,
+    ): PrivilegeExternalStartupResult =
+        PrivilegeExternalStartupBridgeRunner().run(
+            commandLine = commandLine,
+            bridge = bridge,
+            options = options,
+            startupLogListener = startupLogListener,
+        )
+
+    @JvmStatic
+    @Throws(PrivilegeStartupException::class)
+    public fun runThroughBridge(
+        commandLine: String,
+        bridge: PrivilegeExternalStartupBridge,
+        startupLogListener: PrivilegeStartupLogListener,
+    ): PrivilegeExternalStartupResult =
+        runThroughBridge(
+            commandLine = commandLine,
+            bridge = bridge,
+            options = PrivilegeExternalStartupBridgeOptions(),
+            startupLogListener = startupLogListener,
         )
 }
 
@@ -206,7 +237,7 @@ internal class PrivilegeExternalStartupProcessRunner(
     }
 }
 
-private class StartupTranscript(
+internal class StartupTranscript(
     private val maxCapturedLines: Int,
     private val startupLogListener: PrivilegeStartupLogListener?,
 ) {

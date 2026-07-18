@@ -1,8 +1,14 @@
 package priv.kit.sample;
 
-import priv.kit.sample.IPrivilegeSampleShizukuStartCallback;
+import android.os.ParcelFileDescriptor;
+import android.os.ResultReceiver;
 
 interface IPrivilegeSampleShizukuStartService {
-    void startWithCallback(String commandLine, IPrivilegeSampleShizukuStartCallback callback) = 1;
+    void start(
+        String commandLine,
+        in ParcelFileDescriptor stdout,
+        in ParcelFileDescriptor stderr,
+        in ResultReceiver resultReceiver
+    ) = 1;
     void destroy() = 16777114;
 }
