@@ -1,19 +1,15 @@
 package priv.kit.ui
 
-import priv.kit.ui.adb.*
-import priv.kit.ui.adb.pairing.*
-import priv.kit.ui.runtime.*
-import priv.kit.ui.external.*
-import priv.kit.ui.state.*
-
 import android.content.Context
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -21,6 +17,13 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import priv.kit.ui.external.PrivilegeUiExternalStartActions
+import priv.kit.ui.runtime.PrivilegeUiRuntimeActions
+import priv.kit.ui.state.PrivilegeUiViewModelStore
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.milliseconds
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -89,6 +92,47 @@ class PrivilegeUiExternalStartActionsTest {
         }
     }
 
+    @Test
+    @Config(qualifiers = "zh-rCN")
+    fun externalStartFailureUsesLocalizedMessageAndKeepsDiagnosticLog() = runBlocking {
+        val provider = ThrowingExternalStartProvider()
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
+        val config = PrivilegeUiConfig(externalStartProviders = listOf(provider))
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val runtimeActions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+        )
+        val actions = PrivilegeUiExternalStartActions(
+            store = store,
+            runtimeActions = runtimeActions,
+            coroutineScope = scope,
+            createShellStartCommand = { "external command" },
+        )
+        try {
+            store.config = config
+            store.initializeState(config)
+            val snackbar = async(start = CoroutineStart.UNDISPATCHED) {
+                withTimeout(2_000.milliseconds) { store.snackbarMessages.first() }
+            }
+
+            actions.authorizeOrStartExternal(provider.id)
+
+            assertEquals("外部授权启动失败，请查看启动日志", snackbar.await())
+            withTimeout(2_000.milliseconds) {
+                store.state.first { state ->
+                    state.startupLogLines.any { "Injected external provider failure" in it }
+                }
+            }
+            Unit
+        } finally {
+            actions.close()
+            runtimeActions.close()
+            scope.cancel()
+            store.close()
+        }
+    }
+
     private class CountingExternalStartProvider : PrivilegeUiExternalStartProvider {
         val snapshotCalls = AtomicInteger(0)
 
@@ -137,5 +181,21 @@ class PrivilegeUiExternalStartActionsTest {
             startCalls.incrementAndGet()
             started.countDown()
         }
+    }
+
+    private class ThrowingExternalStartProvider : PrivilegeUiExternalStartProvider {
+        override val id: String = "throwing-external"
+        override val label: CharSequence = "External"
+
+        override fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot =
+            PrivilegeUiExternalStartSnapshot(
+                available = true,
+                authorized = true,
+            )
+
+        override fun start(
+            context: Context,
+            commandLine: String,
+        ): Unit = error("Injected external provider failure")
     }
 }

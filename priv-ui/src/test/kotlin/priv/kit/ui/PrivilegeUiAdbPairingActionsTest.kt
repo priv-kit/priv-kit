@@ -2,9 +2,15 @@ package priv.kit.ui
 
 import android.Manifest
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -15,6 +21,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import priv.kit.ui.adb.pairing.PrivilegeAdbPairingNotificationEvent
+import priv.kit.ui.adb.pairing.PrivilegeAdbPairingNotificationUnavailableReason
 import priv.kit.ui.adb.pairing.PrivilegeUiAdbPairingActions
 import priv.kit.ui.state.PrivilegeUiViewModelStore
 
@@ -169,8 +176,35 @@ class PrivilegeUiAdbPairingActionsTest {
     }
 
     @Test
-    fun unavailableNotificationUiKeepsViewModelPairingSessionOpen() {
-        withPairingActions { store, actions ->
+    @Config(qualifiers = "zh-rCN")
+    fun foregroundFailureEventUsesLocalizedMessageAndKeepsPairingSessionOpen() = runBlocking {
+        assertUnavailableNotificationMessage(
+            reason = PrivilegeAdbPairingNotificationUnavailableReason.FOREGROUND_SERVICE_FAILED,
+            expectedMessage = "无法显示配对通知，请在应用内继续配对",
+        )
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN")
+    fun permissionFailureEventUsesLocalizedPermissionMessage() = runBlocking {
+        assertUnavailableNotificationMessage(
+            reason = PrivilegeAdbPairingNotificationUnavailableReason.NOTIFICATION_PERMISSION_REQUIRED,
+            expectedMessage = "需要通知权限",
+        )
+    }
+
+    private suspend fun assertUnavailableNotificationMessage(
+        reason: PrivilegeAdbPairingNotificationUnavailableReason,
+        expectedMessage: String,
+    ) = coroutineScope {
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val actions = PrivilegeUiAdbPairingActions(
+            store = store,
+            coroutineScope = scope,
+            enableTcpMode = {},
+        )
+        try {
             store.updateState {
                 it.copy(
                     pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
@@ -178,17 +212,26 @@ class PrivilegeUiAdbPairingActionsTest {
                     notificationPairingRunning = true,
                 )
             }
+            val snackbar = async(start = CoroutineStart.UNDISPATCHED) {
+                withTimeout(2_000) { store.snackbarMessages.first() }
+            }
 
             actions.handleNotificationEvent(
                 PrivilegeAdbPairingNotificationEvent.Unavailable(
                     ownerId = store.notificationPairingOwnerId,
-                    message = "notification unavailable",
+                    message = "ForegroundServiceStartNotAllowedException: injected",
+                    reason = reason,
                 ),
             )
 
+            assertEquals(expectedMessage, snackbar.await())
             assertEquals(PrivilegeUiAdbPairingStatus.SEARCHING, store.state.value.pairingStatus)
             assertTrue(store.state.value.pairingDialogVisible)
             assertFalse(store.state.value.notificationPairingRunning)
+        } finally {
+            actions.close()
+            scope.cancel()
+            store.close()
         }
     }
 

@@ -1,5 +1,5 @@
 <resources>
-    <string name="priv_ui_title">授权启动</string>
+    <string name="priv_ui_title">Privilege startup</string>
     <string name="priv_ui_nav_back">Back</string>
     <string name="priv_ui_auth_method_root">Root</string>
     <string name="priv_ui_auth_method_manual_shell">Manual</string>
@@ -16,8 +16,12 @@
     <string name="priv_ui_service_start_action_description">Start service</string>
     <string name="priv_ui_service_stop_action_description">Stop service</string>
     <string name="priv_ui_start_failed">Startup failed</string>
+    <string name="priv_ui_root_start_failed">Root startup failed. See the startup log for details</string>
+    <string name="priv_ui_adb_start_failed">ADB startup failed. See the startup log for details</string>
+    <string name="priv_ui_external_start_failed">External authorization startup failed. See the startup log for details</string>
     <string name="priv_ui_stopping_service">Stopping Privileged Server...</string>
     <string name="priv_ui_service_stopped">Privileged Server stopped</string>
+    <string name="priv_ui_stop_service_failed">Failed to stop Privileged Server. Try again</string>
     <string name="priv_ui_stop_service_dialog_title">Stop service?</string>
     <string name="priv_ui_stop_service_dialog_message">The current privileged connection will be closed</string>
     <string name="priv_ui_stop_service_confirm">Stop</string>
@@ -27,6 +31,7 @@
     <string name="priv_ui_connected">Connected</string>
     <string name="priv_ui_binder_died">Binder died</string>
     <string name="priv_ui_starting_root">Starting Root Runtime...</string>
+    <string name="priv_ui_root_unavailable">Root is not available</string>
     <string name="priv_ui_startup_interrupted">Startup cancelled</string>
     <string name="priv_ui_startup_source">Startup source: %1$s</string>
     <string name="priv_ui_startup_log_title">Startup log</string>
@@ -99,6 +104,7 @@
     <string name="priv_ui_wireless_adb_starting">Starting with wireless debugging...</string>
     <string name="priv_ui_tcp_enabling">Opening static ADB port...</string>
     <string name="priv_ui_tcp_enabled">Static ADB port is open</string>
+    <string name="priv_ui_tcp_enable_failed">Unable to open the static ADB port. Try again</string>
     <string name="priv_ui_tcp_starting">Continuing start...</string>
     <string name="priv_ui_tcp_authorization_requesting">Tap Allow in the system prompt...</string>
     <string name="priv_ui_tcp_authorization_waiting_action">Waiting for system prompt</string>
@@ -107,7 +113,7 @@
     <string name="priv_ui_tcp_authorization_waiting">Waiting for prompt</string>
     <string name="priv_ui_tcp_authorization_authorized">Allowed</string>
     <string name="priv_ui_tcp_authorization_unauthorized">Not allowed</string>
-    <string name="priv_ui_tcp_authorization_failed">Retry needed</string>
+    <string name="priv_ui_tcp_authorization_failed">ADB authorization failed. Try again</string>
     <string name="priv_ui_notification_permission_required">Notification permission required</string>
     <string name="priv_ui_notification_permission_unavailable_title">Notification permission unavailable</string>
     <string name="priv_ui_notification_permission_unavailable_message">You won\'t be able to enter the pairing code from the notification shade. You can only enter it in split screen. Continue?</string>
@@ -135,6 +141,7 @@
     <string name="priv_ui_pairing_with_port">Connecting to Wireless debugging...</string>
     <string name="priv_ui_pairing_success_text">Wireless debugging paired</string>
     <string name="priv_ui_pairing_failed_text">Pairing failed: %1$s</string>
+    <string name="priv_ui_pairing_failed">Wireless debugging pairing failed. Check the pairing code and try again</string>
     <string name="priv_ui_pairing_stopped">Pairing stopped</string>
     <string name="priv_ui_pairing_reply_notification_title">Pairing code input</string>
     <string name="priv_ui_pairing_reply_notification_text">Reply here with the pairing code shown in Settings</string>
@@ -157,4 +164,5 @@
     <string name="priv_ui_pairing_submit_action">Pair</string>
     <string name="priv_ui_pairing_stop_action">Stop</string>
     <string name="priv_ui_pairing_foreground_failed">Unable to keep the pairing notification visible: %1$s</string>
+    <string name="priv_ui_pairing_notification_failed">Unable to show the pairing notification. Continue pairing in the app</string>
 </resources>

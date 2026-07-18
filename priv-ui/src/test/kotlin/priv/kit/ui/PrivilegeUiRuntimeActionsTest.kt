@@ -19,6 +19,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeServerLaunchUncertainException
+import priv.kit.PrivilegeStartupException
 import priv.kit.adb.PrivilegeAdbAuthorizationRequestResult
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
@@ -39,6 +40,116 @@ import kotlinx.coroutines.withTimeoutOrNull
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class PrivilegeUiRuntimeActionsTest {
+    @Test
+    @Config(qualifiers = "zh-rCN")
+    fun rootUnavailableSnackbarIsLocalizedWithoutRewritingDiagnosticLog() = runBlocking {
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val actions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+        )
+        try {
+            val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }
+
+            actions.runServerStart(
+                PrivilegeUiRuntimeStartAttempt.Connect(
+                    message = store.text(R.string.priv_ui_starting_root),
+                    startupSource = store.text(R.string.priv_ui_auth_method_root),
+                    runtimeStartSource = PrivilegeUiRuntimeStartSource.ROOT,
+                ) {
+                    throw PrivilegeStartupException("Root is not available")
+                },
+            )
+
+            assertTrue(waitUntilIdle(store))
+            assertEquals(PrivilegeUiRuntimeStatus.FAILED, store.state.value.runtimeStatus)
+            assertEquals("Root 权限不可用", snackbar.await())
+            assertTrue(
+                store.state.value.startupLogLines.any { "Root is not available" in it },
+            )
+            assertFalse(
+                store.state.value.startupLogLines.any { "Root 权限不可用" in it },
+            )
+        } finally {
+            actions.close()
+            scope.cancel()
+            store.close()
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN")
+    fun unknownRootStartFailureUsesLocalizedFallbackAndKeepsDiagnosticLog() = runBlocking {
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val actions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+        )
+        try {
+            val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }
+
+            actions.runServerStart(
+                PrivilegeUiRuntimeStartAttempt.Connect(
+                    message = store.text(R.string.priv_ui_starting_root),
+                    startupSource = store.text(R.string.priv_ui_auth_method_root),
+                    runtimeStartSource = PrivilegeUiRuntimeStartSource.ROOT,
+                ) {
+                    throw PrivilegeStartupException("Failed to execute su")
+                },
+            )
+
+            assertTrue(waitUntilIdle(store))
+            assertEquals(PrivilegeUiRuntimeStatus.FAILED, store.state.value.runtimeStatus)
+            assertEquals("Root 启动失败，请查看启动日志", snackbar.await())
+            assertTrue(
+                store.state.value.startupLogLines.any { "Failed to execute su" in it },
+            )
+        } finally {
+            actions.close()
+            scope.cancel()
+            store.close()
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN")
+    fun adbStartFailureUsesLocalizedFallbackAndKeepsDiagnosticLog() = runBlocking {
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val actions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+        )
+        try {
+            val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }
+
+            actions.runServerStart(
+                PrivilegeUiRuntimeStartAttempt.Connect(
+                    message = store.text(R.string.priv_ui_wireless_adb_starting),
+                    startupSource = store.text(R.string.priv_ui_auth_method_adb),
+                    runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
+                ) {
+                    throw PrivilegeStartupException("Failed to discover ADB connect port")
+                },
+            )
+
+            assertTrue(waitUntilIdle(store))
+            assertEquals(PrivilegeUiRuntimeStatus.FAILED, store.state.value.runtimeStatus)
+            assertEquals("ADB 启动失败，请查看启动日志", snackbar.await())
+            assertTrue(
+                store.state.value.startupLogLines.any {
+                    "Failed to discover ADB connect port" in it
+                },
+            )
+        } finally {
+            actions.close()
+            scope.cancel()
+            store.close()
+        }
+    }
+
     @Test
     fun connectionForegroundRefreshAndDisconnectUpdateAdbRestrictionStatus() = runBlocking {
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
@@ -210,6 +321,65 @@ class PrivilegeUiRuntimeActionsTest {
             assertEquals(PrivilegeUiRuntimeStatus.DISCONNECTED, store.state.value.runtimeStatus)
         } finally {
             releaseShutdown.countDown()
+            actions.close()
+            scope.cancel()
+            store.close()
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN")
+    fun stopServerFailureUsesLocalizedMessageAndKeepsDiagnosticLog() = runBlocking {
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val actions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+            shutdownServer = { error("Privilege server is unavailable") },
+        )
+        try {
+            actions.connectForTest(shellServerInfo())
+            val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }
+
+            actions.stopServer()
+
+            assertTrue(waitUntilIdle(store))
+            assertEquals("停止特权服务失败，请重试", snackbar.await())
+            assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, store.state.value.runtimeStatus)
+            assertTrue(waitUntil {
+                store.state.value.startupLogLines.any { "Privilege server is unavailable" in it }
+            })
+        } finally {
+            actions.close()
+            scope.cancel()
+            store.close()
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN")
+    fun busyFailureUsesOperationMessageAndKeepsDiagnosticLog() = runBlocking {
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val actions = PrivilegeUiRuntimeActions(store, scope)
+        try {
+            val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }
+
+            actions.runBusy(
+                message = store.text(R.string.priv_ui_tcp_enabling),
+                failureKind = PrivilegeUiFailureKind.TCP_ENABLE_FAILED,
+                action = { error("Failed to switch ADB to TCP mode: injected transcript") },
+                onSuccess = { store.text(R.string.priv_ui_tcp_enabled) },
+            )
+
+            assertTrue(waitUntilIdle(store))
+            assertEquals("无法打开静态 ADB 端口，请重试", snackbar.await())
+            assertTrue(waitUntil {
+                store.state.value.startupLogLines.any {
+                    "Failed to switch ADB to TCP mode: injected transcript" in it
+                }
+            })
+        } finally {
             actions.close()
             scope.cancel()
             store.close()
@@ -1223,10 +1393,11 @@ class PrivilegeUiRuntimeActionsTest {
                     PrivilegeUiRuntimeStartAttempt.Workflow(
                         message = "adb",
                         startupSource = null,
+                        runtimeStartSource = PrivilegeUiRuntimeStartSource.EXTERNAL,
                     ) {
                         workflowFeedbackEnabled.set(showAttemptFeedback)
                         if (showAttemptFeedback) {
-                            store.showFailure("child failure")
+                            store.showSnackbar("child failure")
                         }
                         PrivilegeUiRuntimeStartResult.Finished
                     },

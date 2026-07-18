@@ -21,7 +21,9 @@ import priv.kit.ui.PrivilegeUiWirelessAdbStatus
 import priv.kit.ui.R
 import priv.kit.ui.toPrivilegeUiPairingCodeDigits
 import priv.kit.ui.adb.currentTcpModePort
+import priv.kit.ui.state.PrivilegeUiFailureKind
 import priv.kit.ui.state.PrivilegeUiViewModelStore
+import priv.kit.ui.state.toPrivilegeUiDiagnosticString
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -163,7 +165,7 @@ internal class PrivilegeUiAdbPairingActions(
             }
             PrivilegeUiPermissionState.NotGranted.Denied -> {
                 startPairingSession()
-                store.showFailure(store.text(R.string.priv_ui_notification_permission_required))
+                store.showFailure(PrivilegeUiFailureKind.NOTIFICATION_PERMISSION_REQUIRED)
             }
             PrivilegeUiPermissionState.NotGranted.PermanentlyDenied -> {
                 store.updateState {
@@ -303,7 +305,7 @@ internal class PrivilegeUiAdbPairingActions(
                 status = PrivilegeUiAdbPairingStatus.FAILED,
                 message = message,
             )
-            store.showFailure(message)
+            store.showFailure(PrivilegeUiFailureKind.PAIRING_CODE_REQUIRED)
             return
         }
         val port = pairingPort?.takeIf { it in 1..65535 }
@@ -313,7 +315,7 @@ internal class PrivilegeUiAdbPairingActions(
                 status = PrivilegeUiAdbPairingStatus.SEARCHING,
                 message = message,
             )
-            store.showFailure(message)
+            store.showFailure(PrivilegeUiFailureKind.PAIRING_PORT_UNAVAILABLE)
             return
         }
 
@@ -363,13 +365,14 @@ internal class PrivilegeUiAdbPairingActions(
                 pairingJob = null
                 pairingPort = port
                 requestedAdbDeviceName = adbDeviceName
-                val message = store.text(R.string.priv_ui_pairing_failed_text, throwable.failureMessage())
+                val failureKind = PrivilegeUiFailureKind.PAIRING_FAILED
+                val message = store.text(failureKind.messageResId)
                 updatePairingStatus(
                     status = PrivilegeUiAdbPairingStatus.FAILED,
                     message = message,
                 )
-                store.appendLog(message)
-                store.showFailure(message)
+                store.appendLog(throwable.toPrivilegeUiDiagnosticString())
+                store.showFailure(failureKind)
                 launchPairingDiscovery(
                     session = session,
                     adbDeviceName = adbDeviceName,
@@ -393,14 +396,13 @@ internal class PrivilegeUiAdbPairingActions(
             )
         } catch (throwable: Throwable) {
             startFailure = throwable
-            store.showFailure(
-                store.text(R.string.priv_ui_pairing_foreground_failed, throwable.failureMessage()),
-            )
+            store.showFailure(PrivilegeUiFailureKind.PAIRING_NOTIFICATION_FAILED)
+            store.appendLog(throwable.toPrivilegeUiDiagnosticString())
             false
         }
         store.updateState { it.copy(notificationPairingRunning = started) }
         if (!started && startFailure == null) {
-            store.showFailure(store.text(R.string.priv_ui_notification_permission_required))
+            store.showFailure(PrivilegeUiFailureKind.NOTIFICATION_PERMISSION_REQUIRED)
         }
     }
 
@@ -438,7 +440,7 @@ internal class PrivilegeUiAdbPairingActions(
             }
             is PrivilegeAdbPairingNotificationEvent.Unavailable -> {
                 store.updateState { it.copy(notificationPairingRunning = false) }
-                store.showFailure(event.message)
+                store.showFailure(event.reason.toPrivilegeUiFailureKind())
             }
             is PrivilegeAdbPairingNotificationEvent.Stop -> {
                 stopPairingSession(
@@ -504,8 +506,6 @@ internal class PrivilegeUiAdbPairingActions(
             true
         }
 
-    private fun Throwable.failureMessage(): String =
-        message ?: javaClass.simpleName
 }
 
 internal fun privilegeAdbPairingDiscoveryTransition(

@@ -111,12 +111,8 @@ internal class PrivilegeUiViewModelStore(
         snackbarMessageState.tryEmit(message)
     }
 
-    fun showFailure(message: String) {
-        showSnackbar(message)
-    }
-
-    fun showFailure(throwable: Throwable) {
-        showFailure(throwable.failureMessage())
+    fun showFailure(failureKind: PrivilegeUiFailureKind) {
+        showSnackbar(text(failureKind.messageResId))
     }
 
     fun appendStartupLog(line: PrivilegeStartupLogLine) {

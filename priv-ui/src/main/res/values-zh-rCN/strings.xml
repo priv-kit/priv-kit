@@ -16,8 +16,12 @@
     <string name="priv_ui_service_start_action_description">启动服务</string>
     <string name="priv_ui_service_stop_action_description">停止服务</string>
     <string name="priv_ui_start_failed">启动失败</string>
+    <string name="priv_ui_root_start_failed">Root 启动失败，请查看启动日志</string>
+    <string name="priv_ui_adb_start_failed">ADB 启动失败，请查看启动日志</string>
+    <string name="priv_ui_external_start_failed">外部授权启动失败，请查看启动日志</string>
     <string name="priv_ui_stopping_service">正在停止特权服务...</string>
     <string name="priv_ui_service_stopped">特权服务已停止</string>
+    <string name="priv_ui_stop_service_failed">停止特权服务失败，请重试</string>
     <string name="priv_ui_stop_service_dialog_title">停止服务？</string>
     <string name="priv_ui_stop_service_dialog_message">当前授权连接将被关闭</string>
     <string name="priv_ui_stop_service_confirm">停止</string>
@@ -27,6 +31,7 @@
     <string name="priv_ui_connected">已连接</string>
     <string name="priv_ui_binder_died">Binder 已断开</string>
     <string name="priv_ui_starting_root">正在启动 Root 运行时...</string>
+    <string name="priv_ui_root_unavailable">Root 权限不可用</string>
     <string name="priv_ui_startup_interrupted">启动已取消</string>
     <string name="priv_ui_startup_source">启动来源：%1$s</string>
     <string name="priv_ui_startup_log_title">启动日志</string>
@@ -99,6 +104,7 @@
     <string name="priv_ui_wireless_adb_starting">正在通过无线调试启动...</string>
     <string name="priv_ui_tcp_enabling">正在打开静态 ADB 端口...</string>
     <string name="priv_ui_tcp_enabled">静态 ADB 端口已开启</string>
+    <string name="priv_ui_tcp_enable_failed">无法打开静态 ADB 端口，请重试</string>
     <string name="priv_ui_tcp_starting">正在继续启动...</string>
     <string name="priv_ui_tcp_authorization_requesting">请在系统弹窗中点“允许”...</string>
     <string name="priv_ui_tcp_authorization_waiting_action">等待系统确认</string>
@@ -107,7 +113,7 @@
     <string name="priv_ui_tcp_authorization_waiting">等待确认</string>
     <string name="priv_ui_tcp_authorization_authorized">已允许</string>
     <string name="priv_ui_tcp_authorization_unauthorized">未允许</string>
-    <string name="priv_ui_tcp_authorization_failed">需要重试</string>
+    <string name="priv_ui_tcp_authorization_failed">ADB 授权失败，请重试</string>
     <string name="priv_ui_notification_permission_required">需要通知权限</string>
     <string name="priv_ui_notification_permission_unavailable_title">通知权限不可用</string>
     <string name="priv_ui_notification_permission_unavailable_message">将无法使用通知栏输入配对码，只能使用分屏输入，是否继续？</string>
@@ -135,6 +141,7 @@
     <string name="priv_ui_pairing_with_port">正在连接无线调试...</string>
     <string name="priv_ui_pairing_success_text">无线调试已配对</string>
     <string name="priv_ui_pairing_failed_text">配对失败：%1$s</string>
+    <string name="priv_ui_pairing_failed">无线调试配对失败，请检查配对码后重试</string>
     <string name="priv_ui_pairing_stopped">已停止配对</string>
     <string name="priv_ui_pairing_reply_notification_title">配对码输入</string>
     <string name="priv_ui_pairing_reply_notification_text">在这里回复设置页面显示的配对码</string>
@@ -157,4 +164,5 @@
     <string name="priv_ui_pairing_submit_action">配对</string>
     <string name="priv_ui_pairing_stop_action">停止</string>
     <string name="priv_ui_pairing_foreground_failed">无法保持配对通知显示：%1$s</string>
+    <string name="priv_ui_pairing_notification_failed">无法显示配对通知，请在应用内继续配对</string>
 </resources>

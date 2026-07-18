@@ -14,7 +14,9 @@ import priv.kit.ui.R
 import priv.kit.ui.runtime.PrivilegeUiRuntimeActions
 import priv.kit.ui.runtime.PrivilegeUiRuntimeStartAttempt
 import priv.kit.ui.runtime.PrivilegeUiRuntimeStartSession
+import priv.kit.ui.state.PrivilegeUiFailureKind
 import priv.kit.ui.state.PrivilegeUiViewModelStore
+import priv.kit.ui.state.privilegeUiTcpAuthorizationFailureKind
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 
@@ -34,6 +36,7 @@ internal class PrivilegeUiAdbTcpActions(
         val tcpPort = store.config.tcpPort
         runtimeActions.runBusy(
             message = store.text(R.string.priv_ui_tcp_enabling),
+            failureKind = PrivilegeUiFailureKind.TCP_ENABLE_FAILED,
             onFailure = {
                 store.updateTcpModePort(null)
             },
@@ -286,19 +289,20 @@ internal class PrivilegeUiAdbTcpActions(
         } else {
             result.endReason.toUiTcpAuthorizationStatus()
         }
-        val message = if (result.authorized) {
-            store.text(R.string.priv_ui_tcp_authorization_allowed)
-        } else {
-            result.failureMessage ?: store.text(R.string.priv_ui_tcp_authorization_not_completed)
-        }
         store.updateState { current ->
             current.copy(tcpAuthorizationStatus = status)
         }
         if (result.authorized) {
-            session.appendStartupLog(message)
-        } else if (showFailure) {
-            store.showFailure(message)
-            session.appendStartupLog(message)
+            session.appendStartupLog(store.text(R.string.priv_ui_tcp_authorization_allowed))
+        } else {
+            val failureKind = privilegeUiTcpAuthorizationFailureKind(result.endReason)
+            result.failureMessage
+                ?.takeIf { it.isNotBlank() }
+                ?.let(session::appendStartupLog)
+            if (showFailure) {
+                store.showFailure(failureKind)
+                session.appendStartupLog(store.text(failureKind.messageResId))
+            }
         }
         return result.authorized
     }
