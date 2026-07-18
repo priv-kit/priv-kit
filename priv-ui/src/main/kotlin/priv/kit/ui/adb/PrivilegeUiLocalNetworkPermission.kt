@@ -13,7 +13,7 @@ internal fun privilegeUiRequiredLocalNetworkPermission(context: Context): String
 }
 
 private fun privilegeUiLocalNetworkPermissionName(): String? =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
+    if (privilegeUiRequiresLocalNetworkPermissionForSdk(Build.VERSION.SDK_INT)) {
         Manifest.permission.ACCESS_LOCAL_NETWORK
     } else {
         null

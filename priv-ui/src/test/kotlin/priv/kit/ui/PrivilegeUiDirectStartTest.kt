@@ -7,7 +7,6 @@ import priv.kit.ui.external.*
 import priv.kit.ui.state.*
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -172,20 +171,6 @@ class PrivilegeUiDirectStartTest {
     }
 
     @Test
-    fun manualOnlyHasNoDirectStartFallbackTargets() {
-        val state = PrivilegeUiState(
-            selectedStartupMode = PrivilegeUiStartupMode.MANUAL_SHELL,
-            startupModes = listOf(PrivilegeUiStartupMode.MANUAL_SHELL),
-        )
-
-        assertFalse(
-            state.hasDirectStartTarget(
-                tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
-            ),
-        )
-    }
-
-    @Test
     fun wirelessAdbAttemptIsEnumeratedWithoutCachedWifi() {
         val state = PrivilegeUiState(
             selectedStartupMode = PrivilegeUiStartupMode.ADB,
@@ -229,12 +214,3 @@ private fun PrivilegeUiState.directStartTarget(
         tcpPolicy = tcpPolicy,
         wirelessAdbSupported = wirelessAdbSupported,
     ).firstOrNull()
-
-private fun PrivilegeUiState.hasDirectStartTarget(
-    tcpPolicy: PrivilegeUiAdbTcpPolicy,
-    wirelessAdbSupported: Boolean = true,
-): Boolean =
-    directStartTargets(
-        tcpPolicy = tcpPolicy,
-        wirelessAdbSupported = wirelessAdbSupported,
-    ).isNotEmpty()

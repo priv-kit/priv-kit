@@ -372,13 +372,6 @@ class PrivilegeUiAdbActionsTest {
     }
 
     @Test
-    fun managedWirelessAdbStatusIsHiddenWhenPermissionIsUndeclared() {
-        assertFalse(
-            PrivilegeUiManagedWirelessAdbStatus.UNDECLARED.isVisibleManagedWirelessAdbStatus(),
-        )
-    }
-
-    @Test
     fun localNetworkPermissionOnlyAppliesFromAndroid17() {
         assertFalse(privilegeUiRequiresLocalNetworkPermissionForSdk(Build.VERSION_CODES.BAKLAVA))
         assertTrue(privilegeUiRequiresLocalNetworkPermissionForSdk(Build.VERSION_CODES.CINNAMON_BUN))

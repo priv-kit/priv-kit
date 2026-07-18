@@ -66,9 +66,6 @@ public enum class PrivilegeUiManagedWirelessAdbStatus {
     FAILED,
 }
 
-internal fun PrivilegeUiManagedWirelessAdbStatus.isVisibleManagedWirelessAdbStatus(): Boolean =
-    this != PrivilegeUiManagedWirelessAdbStatus.UNDECLARED
-
 public enum class PrivilegeUiAdbTcpAuthorizationStatus {
     UNKNOWN,
     CHECKING,

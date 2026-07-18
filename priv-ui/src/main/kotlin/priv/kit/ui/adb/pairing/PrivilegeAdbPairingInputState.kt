@@ -29,19 +29,6 @@ internal data class PrivilegeAdbPairingInputState(
 
     internal fun decrementDigit(): PrivilegeAdbPairingInputState =
         copy(code = code.replaceDigitAt(selectedIndex) { (it + 9) % 10 })
-
-    internal companion object {
-        internal fun fromPairingCode(
-            code: String,
-            selectedIndex: Int,
-        ): PrivilegeAdbPairingInputState =
-            PrivilegeAdbPairingInputState(
-                code = code.filter(Char::isDigit)
-                    .padEnd(PAIRING_INPUT_CODE_LENGTH, '0')
-                    .take(PAIRING_INPUT_CODE_LENGTH),
-                selectedIndex = selectedIndex.floorMod(PAIRING_INPUT_CODE_LENGTH),
-            )
-    }
 }
 
 internal fun String.isPrivilegeUiPairingCode(): Boolean =
@@ -52,9 +39,6 @@ private fun String.replaceDigitAt(
     transform: (Int) -> Int,
 ): String =
     replaceRange(index, index + 1, transform(this[index].digitToInt()).toString())
-
-private fun Int.floorMod(divisor: Int): Int =
-    ((this % divisor) + divisor) % divisor
 
 private const val PAIRING_INPUT_CODE_LENGTH = 6
 private const val DEFAULT_PAIRING_INPUT_CODE = "000000"

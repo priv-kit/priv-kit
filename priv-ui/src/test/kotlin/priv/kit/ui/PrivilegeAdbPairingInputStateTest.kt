@@ -54,18 +54,6 @@ class PrivilegeAdbPairingInputStateTest {
     }
 
     @Test
-    fun restoresDigitsAndWrappedIndex() {
-        val state = PrivilegeAdbPairingInputState.fromPairingCode(
-            code = "a12b",
-            selectedIndex = -1,
-        )
-
-        assertEquals("120000", state.code)
-        assertEquals(5, state.selectedIndex)
-        assertEquals("1 2 0 0 0 [0]", state.displayText)
-    }
-
-    @Test
     fun validatesExactlySixDigits() {
         assertTrue("123456".isPrivilegeUiPairingCode())
         assertFalse("12345".isPrivilegeUiPairingCode())
