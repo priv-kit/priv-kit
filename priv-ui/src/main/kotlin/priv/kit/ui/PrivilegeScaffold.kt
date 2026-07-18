@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import priv.kit.ui.component.AdbPanel
+import priv.kit.ui.component.AdbPermissionRestrictionWarning
 import priv.kit.ui.component.AuthorizationModeTabs
 import priv.kit.ui.component.ExternalStartPanel
 import priv.kit.ui.component.ManualShellPanel
@@ -187,6 +188,7 @@ public fun PrivilegeScaffold(
             verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.large),
         ) {
             screenScope.ServiceStatusPanel()
+            screenScope.AdbPermissionRestrictionWarning()
             screenScope.AuthorizationModeTabs()
             screenScope.AuthorizationModePanel()
             if (state.startupLogLines.isNotEmpty()) {

@@ -11,6 +11,8 @@
     <string name="priv_ui_service_source_root">Root</string>
     <string name="priv_ui_service_source_shell">Shell</string>
     <string name="priv_ui_service_source_unknown">Unknown</string>
+    <string name="priv_ui_adb_restricted_title">ADB permissions are restricted</string>
+    <string name="priv_ui_adb_restricted_message">This device restricts shell permissions, so operations such as changing file permissions or simulating taps may not work. Check the related security options in Developer options. Changes take effect immediately, and the status refreshes when you return to this screen.</string>
     <string name="priv_ui_service_start_action_description">Start service</string>
     <string name="priv_ui_service_stop_action_description">Stop service</string>
     <string name="priv_ui_start_failed">Startup failed</string>

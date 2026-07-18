@@ -19,6 +19,12 @@ public enum class PrivilegeUiRuntimeStartPhase {
     CANCELLING,
 }
 
+public enum class PrivilegeUiAdbRestrictionStatus {
+    UNKNOWN,
+    NOT_RESTRICTED,
+    RESTRICTED,
+}
+
 public enum class PrivilegeUiStartupMode {
     ROOT,
     MANUAL_SHELL,
@@ -199,6 +205,8 @@ public data class PrivilegeUiState public constructor(
     public val runtimeStartPhase: PrivilegeUiRuntimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
     public val runtimeStartProviderId: String? = null,
     public val configuredTcpModePort: Int? = null,
+    public val adbRestrictionStatus: PrivilegeUiAdbRestrictionStatus =
+        PrivilegeUiAdbRestrictionStatus.UNKNOWN,
 )
 
 internal fun String.toPrivilegeUiPairingCodeDigits(): String =

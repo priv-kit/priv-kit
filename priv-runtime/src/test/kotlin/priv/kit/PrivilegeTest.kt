@@ -117,6 +117,77 @@ class PrivilegeTest {
     }
 
     @Test
+    fun rootServerIsNeverAdbPermissionRestrictedWithoutPermissionCheck() {
+        val server = FakePrivilegeServer(
+            permissionResult = PackageManager.PERMISSION_DENIED,
+        )
+        Privilege.connectHandshake(
+            PrivilegeServerHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 0,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                serverBinder = server.asBinder(),
+            ),
+        )
+
+        assertFalse(Privilege.isAdbPermissionRestricted())
+        assertTrue(server.serverPermissionChecks.isEmpty())
+    }
+
+    @Test
+    fun nonRootServerAdbPermissionRestrictionUsesGrantPermission() {
+        val grantedServer = FakePrivilegeServer(
+            permissionResult = PackageManager.PERMISSION_GRANTED,
+        )
+        Privilege.connectHandshake(
+            PrivilegeServerHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                serverBinder = grantedServer.asBinder(),
+            ),
+        )
+
+        assertFalse(Privilege.isAdbPermissionRestricted())
+        assertEquals(
+            listOf("android.permission.GRANT_RUNTIME_PERMISSIONS"),
+            grantedServer.serverPermissionChecks,
+        )
+
+        Privilege.shutdownServer()
+        val deniedServer = FakePrivilegeServer(
+            permissionResult = PackageManager.PERMISSION_DENIED,
+        )
+        Privilege.connectHandshake(
+            PrivilegeServerHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 5678,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                serverBinder = deniedServer.asBinder(),
+            ),
+        )
+
+        assertTrue(Privilege.isAdbPermissionRestricted())
+        assertEquals(
+            listOf("android.permission.GRANT_RUNTIME_PERMISSIONS"),
+            deniedServer.serverPermissionChecks,
+        )
+    }
+
+    @Test
+    fun adbPermissionRestrictionWithoutServerThrowsDisconnectedException() {
+        assertThrows(PrivilegeServerUnavailableException::class.java) {
+            Privilege.isAdbPermissionRestricted()
+        }
+    }
+
+    @Test
     fun checkPermissionReturnsPackageManagerResult() {
         val server = FakePrivilegeServer(
             permissionResult = PackageManager.PERMISSION_GRANTED,

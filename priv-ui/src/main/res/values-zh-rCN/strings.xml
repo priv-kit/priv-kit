@@ -11,6 +11,8 @@
     <string name="priv_ui_service_source_root">Root</string>
     <string name="priv_ui_service_source_shell">Shell</string>
     <string name="priv_ui_service_source_unknown">未知</string>
+    <string name="priv_ui_adb_restricted_title">ADB 权限受限</string>
+    <string name="priv_ui_adb_restricted_message">当前系统限制了 ADB 权限，修改应用权限、模拟点击等操作可能无法正常工作，请检查并修改开发者选项中的相关安全设置。</string>
     <string name="priv_ui_service_start_action_description">启动服务</string>
     <string name="priv_ui_service_stop_action_description">停止服务</string>
     <string name="priv_ui_start_failed">启动失败</string>

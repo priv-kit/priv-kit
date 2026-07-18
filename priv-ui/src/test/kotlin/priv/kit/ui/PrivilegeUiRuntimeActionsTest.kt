@@ -40,6 +40,127 @@ import kotlinx.coroutines.withTimeoutOrNull
 @Config(sdk = [36])
 class PrivilegeUiRuntimeActionsTest {
     @Test
+    fun connectionForegroundRefreshAndDisconnectUpdateAdbRestrictionStatus() = runBlocking {
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val restricted = AtomicBoolean(true)
+        val actions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+            isAdbPermissionRestricted = restricted::get,
+        )
+        try {
+            actions.connectForTest(shellServerInfo())
+
+            assertTrue(waitUntil {
+                store.state.value.adbRestrictionStatus ==
+                    PrivilegeUiAdbRestrictionStatus.RESTRICTED
+            })
+
+            restricted.set(false)
+            actions.refreshAdbPermissionRestrictionStatus()
+
+            assertTrue(waitUntil {
+                store.state.value.adbRestrictionStatus ==
+                    PrivilegeUiAdbRestrictionStatus.NOT_RESTRICTED
+            })
+
+            actions.disconnectForTest()
+
+            assertEquals(
+                PrivilegeUiAdbRestrictionStatus.UNKNOWN,
+                store.state.value.adbRestrictionStatus,
+            )
+        } finally {
+            actions.close()
+            scope.cancel()
+            store.close()
+        }
+    }
+
+    @Test
+    fun staleAdbRestrictionRefreshCannotOverwriteNewerResult() = runBlocking {
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val firstRefreshEntered = CountDownLatch(1)
+        val releaseFirstRefresh = CountDownLatch(1)
+        val refreshCount = AtomicInteger(0)
+        val actions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+            isAdbPermissionRestricted = {
+                if (refreshCount.incrementAndGet() == 1) {
+                    firstRefreshEntered.countDown()
+                    releaseFirstRefresh.await(2, TimeUnit.SECONDS)
+                    true
+                } else {
+                    false
+                }
+            },
+        )
+        try {
+            actions.connectForTest(shellServerInfo())
+            assertTrue(firstRefreshEntered.await(2, TimeUnit.SECONDS))
+
+            actions.refreshAdbPermissionRestrictionStatus()
+            assertTrue(waitUntil {
+                store.state.value.adbRestrictionStatus ==
+                    PrivilegeUiAdbRestrictionStatus.NOT_RESTRICTED
+            })
+
+            releaseFirstRefresh.countDown()
+            delay(50L)
+
+            assertEquals(
+                PrivilegeUiAdbRestrictionStatus.NOT_RESTRICTED,
+                store.state.value.adbRestrictionStatus,
+            )
+        } finally {
+            releaseFirstRefresh.countDown()
+            actions.close()
+            scope.cancel()
+            store.close()
+        }
+    }
+
+    @Test
+    fun failedAdbRestrictionRefreshPreservesLastKnownStatus() = runBlocking {
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val failRefresh = AtomicBoolean(false)
+        val refreshCount = AtomicInteger(0)
+        val actions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+            isAdbPermissionRestricted = {
+                refreshCount.incrementAndGet()
+                if (failRefresh.get()) error("restriction check failed")
+                true
+            },
+        )
+        try {
+            actions.connectForTest(shellServerInfo())
+            assertTrue(waitUntil {
+                store.state.value.adbRestrictionStatus ==
+                    PrivilegeUiAdbRestrictionStatus.RESTRICTED
+            })
+
+            failRefresh.set(true)
+            actions.refreshAdbPermissionRestrictionStatus()
+            assertTrue(waitUntil { refreshCount.get() >= 2 })
+
+            assertEquals(
+                PrivilegeUiAdbRestrictionStatus.RESTRICTED,
+                store.state.value.adbRestrictionStatus,
+            )
+        } finally {
+            actions.close()
+            scope.cancel()
+            store.close()
+        }
+    }
+
+    @Test
     fun staleDisconnectedRefreshCannotOverwriteNewConnection() {
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

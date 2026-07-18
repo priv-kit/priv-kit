@@ -242,6 +242,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     private fun refreshHostResumeState() {
+        runtimeActions.refreshAdbPermissionRestrictionStatus()
         syncWirelessAdbStatusPolling()
         syncTcpModeStatusPolling()
         syncExternalStartStatusPolling()

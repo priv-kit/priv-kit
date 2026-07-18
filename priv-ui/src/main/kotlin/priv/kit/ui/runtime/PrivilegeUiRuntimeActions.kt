@@ -4,6 +4,7 @@ import priv.kit.ui.*
 import priv.kit.ui.state.*
 
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -27,12 +28,15 @@ internal class PrivilegeUiRuntimeActions(
     private val store: PrivilegeUiViewModelStore,
     private val coroutineScope: CoroutineScope,
     private val shutdownServer: () -> Unit = { Privilege.shutdownServer() },
+    private val isAdbPermissionRestricted: () -> Boolean =
+        Privilege::isAdbPermissionRestricted,
 ) : AutoCloseable {
     private val closed = AtomicBoolean(false)
     private val runtimeStartScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var nextStopOperationId = 0L
     private val activeStopOperationIds = mutableSetOf<Long>()
+    private val adbRestrictionRefreshGeneration = AtomicLong(0L)
 
     internal val isClosed: Boolean
         get() = closed.get()
@@ -88,6 +92,7 @@ internal class PrivilegeUiRuntimeActions(
                             runtimeStartSource = null,
                             runtimeStartProviderId = null,
                             serverInfo = null,
+                            adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
                             runtimeProgressMessage = null,
                         )
                     }
@@ -160,6 +165,20 @@ internal class PrivilegeUiRuntimeActions(
         }
     }
 
+    fun refreshAdbPermissionRestrictionStatus() {
+        synchronized(store) {
+            val current = store.state.value
+            if (
+                closed.get() ||
+                current.runtimeStatus != PrivilegeUiRuntimeStatus.CONNECTED ||
+                current.serverInfo == null
+            ) {
+                return
+            }
+            scheduleAdbPermissionRestrictionRefresh(current.connectionSerial)
+        }
+    }
+
     private fun updateDisconnectedIfIdle(expectedConnectionSerial: Long) {
         if (closed.get()) return
         store.updateState {
@@ -175,6 +194,7 @@ internal class PrivilegeUiRuntimeActions(
                     runtimeStartSource = null,
                     runtimeStartProviderId = null,
                     serverInfo = null,
+                    adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
                     runtimeProgressMessage = null,
                 )
             }
@@ -257,6 +277,7 @@ internal class PrivilegeUiRuntimeActions(
 
     override fun close() {
         if (!synchronized(store) { closed.compareAndSet(false, true) }) return
+        adbRestrictionRefreshGeneration.incrementAndGet()
         val hadRuntimeStart = requestRuntimeStartCancellation(ownerClosing = true)
         runtimeStartScope.cancel()
         if (!hadRuntimeStart) cleanupScope.cancel()
@@ -687,7 +708,9 @@ internal class PrivilegeUiRuntimeActions(
     private fun publishConnectedServerLocked(serverInfo: PrivilegeServerInfo) {
         val shouldAppendLog = store.state.value.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE ||
             store.state.value.runtimeStatus == PrivilegeUiRuntimeStatus.STARTING
-        store.updateState {
+        val connectionSerial = store.state.value.connectionSerial + 1L
+        val connectedMessage = store.text(R.string.priv_ui_connected).takeIf { shouldAppendLog }
+        store.updateStateAndAppendStartupLog(connectedMessage) {
             it.copy(
                 busy = false,
                 runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
@@ -695,12 +718,39 @@ internal class PrivilegeUiRuntimeActions(
                 runtimeStartSource = null,
                 runtimeStartProviderId = null,
                 serverInfo = serverInfo,
+                adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
                 runtimeProgressMessage = null,
-                connectionSerial = it.connectionSerial + 1L,
+                connectionSerial = connectionSerial,
             )
         }
-        if (shouldAppendLog && !closed.get()) {
-            store.appendStartupLog(store.text(R.string.priv_ui_connected))
+        scheduleAdbPermissionRestrictionRefresh(connectionSerial)
+    }
+
+    private fun scheduleAdbPermissionRestrictionRefresh(expectedConnectionSerial: Long) {
+        val generation = adbRestrictionRefreshGeneration.incrementAndGet()
+        coroutineScope.launch(
+            Dispatchers.IO + CoroutineName("priv-ui-refresh-adb-restriction"),
+        ) {
+            val restrictionStatus = runCatching {
+                if (isAdbPermissionRestricted()) {
+                    PrivilegeUiAdbRestrictionStatus.RESTRICTED
+                } else {
+                    PrivilegeUiAdbRestrictionStatus.NOT_RESTRICTED
+                }
+            }.getOrNull() ?: return@launch
+            store.updateState { current ->
+                if (
+                    closed.get() ||
+                    adbRestrictionRefreshGeneration.get() != generation ||
+                    current.connectionSerial != expectedConnectionSerial ||
+                    current.runtimeStatus != PrivilegeUiRuntimeStatus.CONNECTED ||
+                    current.serverInfo == null
+                ) {
+                    current
+                } else {
+                    current.copy(adbRestrictionStatus = restrictionStatus)
+                }
+            }
         }
     }
 
@@ -796,7 +846,7 @@ internal class PrivilegeUiRuntimeActions(
         }
         synchronized(store) {
             store.runtimeStartSession?.recordDisconnectedServer()
-            store.updateState {
+            store.updateStateAndAppendStartupLog(message) {
                 if (it.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.IDLE) {
                     it.copy(
                         busy = false,
@@ -804,17 +854,18 @@ internal class PrivilegeUiRuntimeActions(
                         runtimeStartSource = null,
                         runtimeStartProviderId = null,
                         serverInfo = null,
+                        adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
                         runtimeProgressMessage = null,
                     )
                 } else {
                     it.copy(
                         runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
                         serverInfo = null,
+                        adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
                     )
                 }
             }
         }
-        store.appendLog(message)
     }
 
     private fun PrivilegeUiState.startingAttempt(
@@ -837,6 +888,7 @@ internal class PrivilegeUiRuntimeActions(
                 runtimeStartSource = attempt.runtimeStartSource,
                 runtimeStartProviderId = attempt.runtimeStartProviderId,
                 serverInfo = null,
+                adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
                 runtimeProgressMessage = attempt.message,
             )
         }
@@ -861,6 +913,7 @@ internal class PrivilegeUiRuntimeActions(
                 runtimeStartSource = null,
                 runtimeStartProviderId = null,
                 serverInfo = null,
+                adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
                 runtimeProgressMessage = null,
             )
         }
@@ -876,6 +929,7 @@ internal class PrivilegeUiRuntimeActions(
                 runtimeStartSource = null,
                 runtimeStartProviderId = null,
                 serverInfo = null,
+                adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
                 runtimeProgressMessage = null,
             )
         }

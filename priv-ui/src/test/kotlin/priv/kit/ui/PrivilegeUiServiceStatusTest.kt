@@ -5,10 +5,39 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import priv.kit.ui.component.PrivilegeUiServiceStatusAction
+import priv.kit.ui.component.privilegeUiAdbPermissionRestrictionWarningVisible
 import priv.kit.ui.component.privilegeUiServiceStatusAction
 import priv.kit.ui.component.privilegeUiServiceStatusActionEnabled
 
 class PrivilegeUiServiceStatusTest {
+    @Test
+    fun adbRestrictionWarningRequiresConnectedRestrictedServer() {
+        assertTrue(
+            privilegeUiAdbPermissionRestrictionWarningVisible(
+                runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
+                restrictionStatus = PrivilegeUiAdbRestrictionStatus.RESTRICTED,
+            ),
+        )
+        assertFalse(
+            privilegeUiAdbPermissionRestrictionWarningVisible(
+                runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                restrictionStatus = PrivilegeUiAdbRestrictionStatus.RESTRICTED,
+            ),
+        )
+        assertFalse(
+            privilegeUiAdbPermissionRestrictionWarningVisible(
+                runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
+                restrictionStatus = PrivilegeUiAdbRestrictionStatus.NOT_RESTRICTED,
+            ),
+        )
+        assertFalse(
+            privilegeUiAdbPermissionRestrictionWarningVisible(
+                runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
+                restrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
+            ),
+        )
+    }
+
     @Test
     fun runningStartOffersCancelAction() {
         val action = privilegeUiServiceStatusAction(

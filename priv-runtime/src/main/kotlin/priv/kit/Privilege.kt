@@ -192,6 +192,20 @@ public object Privilege {
     public fun getServerInfo(): PrivilegeServerInfo =
         requireServerConnection().serverInfo
 
+    /**
+     * Returns whether the connected non-root server is missing the Android permission commonly
+     * restricted by device manufacturers for ADB shell processes.
+     *
+     * Root servers are always treated as unrestricted without making a permission Binder call.
+     */
+    public fun isAdbPermissionRestricted(): Boolean {
+        val connection = requireServerConnection()
+        if (connection.serverInfo.uid == ROOT_UID) return false
+        return serverControlCall {
+            !connection.server.canGrantRuntimePermissions()
+        }
+    }
+
     public fun checkServerPermission(permission: String): Int {
         require(permission.isNotBlank()) { "permission must not be blank" }
         return serverControlCall {

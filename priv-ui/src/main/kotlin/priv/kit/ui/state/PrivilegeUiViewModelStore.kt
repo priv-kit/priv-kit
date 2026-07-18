@@ -72,6 +72,24 @@ internal class PrivilegeUiViewModelStore(
         state.update(transform)
     }
 
+    fun updateStateAndAppendStartupLog(
+        line: String?,
+        transform: (PrivilegeUiState) -> PrivilegeUiState,
+    ) {
+        val lines = line?.toPrivilegeUiStartupLogLines().orEmpty()
+        state.update { current ->
+            val updated = transform(current)
+            if (lines.isEmpty()) {
+                updated
+            } else {
+                updated.copy(
+                    startupLogLines = (updated.startupLogLines + lines)
+                        .takeLast(MAX_STARTUP_LOG_LINES),
+                )
+            }
+        }
+    }
+
     fun updateExternalStartItem(
         id: String,
         transform: (PrivilegeUiExternalStartItemState) -> PrivilegeUiExternalStartItemState,

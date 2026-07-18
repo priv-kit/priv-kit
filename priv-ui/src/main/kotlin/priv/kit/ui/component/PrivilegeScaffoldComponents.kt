@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import priv.kit.PrivilegeServerInfo
+import priv.kit.ui.PrivilegeUiAdbRestrictionStatus
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
 import priv.kit.ui.PrivilegeUiRuntimeStatus
@@ -75,6 +76,60 @@ internal fun ItemPanel(content: @Composable ColumnScope.() -> Unit) {
         )
     }
 }
+
+@Composable
+internal fun PrivilegeUiScreenScope.AdbPermissionRestrictionWarning() {
+    if (
+        !privilegeUiAdbPermissionRestrictionWarningVisible(
+            runtimeStatus = state.runtimeStatus,
+            restrictionStatus = state.adbRestrictionStatus,
+        )
+    ) {
+        return
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        shape = MaterialTheme.shapes.medium,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(PrivilegeUiSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.extraSmall),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    modifier = Modifier.size(24.dp),
+                    imageVector = PrivilegeUiIcons.Warning,
+                    contentDescription = null,
+                )
+                Spacer(modifier = Modifier.width(PrivilegeUiSpacing.medium))
+                Text(
+                    modifier = Modifier.weight(1f),
+                    text = stringResource(R.string.priv_ui_adb_restricted_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Text(
+                text = stringResource(R.string.priv_ui_adb_restricted_message),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+internal fun privilegeUiAdbPermissionRestrictionWarningVisible(
+    runtimeStatus: PrivilegeUiRuntimeStatus,
+    restrictionStatus: PrivilegeUiAdbRestrictionStatus,
+): Boolean =
+    runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED &&
+        restrictionStatus == PrivilegeUiAdbRestrictionStatus.RESTRICTED
 
 @Composable
 internal fun CommandBlock(commandLine: String) {
