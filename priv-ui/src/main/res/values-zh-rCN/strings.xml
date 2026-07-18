@@ -44,6 +44,10 @@
     <string name="priv_ui_adb_authorization_action">启动</string>
     <string name="priv_ui_adb_key_fingerprint">设备指纹</string>
     <string name="priv_ui_adb_key_fingerprint_unavailable">暂未生成</string>
+    <string name="priv_ui_battery_optimization_title">保持后台连接</string>
+    <string name="priv_ui_battery_optimization_message">部分系统会在应用处于后台时禁止访问网络，导致无法配对或启动 ADB，建议忽略电池优化</string>
+    <string name="priv_ui_battery_optimization_settings_action">允许忽略电池优化</string>
+    <string name="priv_ui_battery_optimization_settings_unavailable">无法发起电池优化豁免申请</string>
     <string name="priv_ui_adb_tab_wireless">无线调试</string>
     <string name="priv_ui_adb_tab_static">静态端口</string>
     <string name="priv_ui_adb_unavailable">当前没有可用的 ADB 启动入口</string>

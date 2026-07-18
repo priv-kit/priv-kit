@@ -1,7 +1,6 @@
 package priv.kit.ui
 
-import android.content.Context
-import android.content.ContextWrapper
+import android.view.ViewTreeObserver
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,9 +29,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import priv.kit.ui.component.AdbPanel
@@ -64,6 +65,8 @@ public fun PrivilegeScaffold(
 ) {
     val context = LocalContext.current
     val activity = LocalActivity.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val view = LocalView.current
     val state by viewModel.state.collectAsState()
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -131,20 +134,27 @@ public fun PrivilegeScaffold(
             snackbarHostState.showSnackbar(message = message)
         }
     }
-    DisposableEffect(viewModel, context) {
-        val lifecycleOwner = context.findLifecycleOwner()
-        val lifecycle = lifecycleOwner?.lifecycle
-        if (lifecycle == null) {
-            onDispose {}
-        } else {
-            val observer = LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_RESUME) {
-                    viewModel.onHostResume()
-                }
+    DisposableEffect(viewModel, lifecycleOwner, view) {
+        val lifecycle = lifecycleOwner.lifecycle
+        val refreshObserver = PrivilegeUiHostStateRefreshObserver(
+            isHostResumed = {
+                lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            },
+            onHostResume = viewModel::dispatchHostResume,
+            onHostWindowFocus = viewModel::dispatchHostWindowFocus,
+        )
+        val viewTreeObserver = view.viewTreeObserver
+        viewTreeObserver.addOnWindowFocusChangeListener(refreshObserver)
+        lifecycle.addObserver(refreshObserver)
+        onDispose {
+            lifecycle.removeObserver(refreshObserver)
+            val removalObserver = if (viewTreeObserver.isAlive) {
+                viewTreeObserver
+            } else {
+                view.viewTreeObserver
             }
-            lifecycle.addObserver(observer)
-            onDispose {
-                lifecycle.removeObserver(observer)
+            if (removalObserver.isAlive) {
+                removalObserver.removeOnWindowFocusChangeListener(refreshObserver)
             }
         }
     }
@@ -194,12 +204,26 @@ internal class PrivilegeUiScreenScope(
     internal val showFeedback: (String) -> Unit,
 )
 
-private tailrec fun Context.findLifecycleOwner(): LifecycleOwner? =
-    when (this) {
-        is LifecycleOwner -> this
-        is ContextWrapper -> baseContext.findLifecycleOwner()
-        else -> null
+internal class PrivilegeUiHostStateRefreshObserver(
+    private val isHostResumed: () -> Boolean,
+    private val onHostResume: () -> Unit,
+    private val onHostWindowFocus: () -> Unit,
+) : LifecycleEventObserver, ViewTreeObserver.OnWindowFocusChangeListener {
+    override fun onStateChanged(
+        source: LifecycleOwner,
+        event: Lifecycle.Event,
+    ) {
+        if (event == Lifecycle.Event.ON_RESUME) {
+            onHostResume()
+        }
     }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        if (hasFocus && isHostResumed()) {
+            onHostWindowFocus()
+        }
+    }
+}
 
 @Composable
 private fun PrivilegeUiScreenScope.AuthorizationModePanel() {

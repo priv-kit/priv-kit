@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +43,7 @@ import priv.kit.ui.PrivilegeUiRuntimeStartSource
 import priv.kit.ui.PrivilegeUiScreenScope
 import priv.kit.ui.PrivilegeUiWirelessAdbStatus
 import priv.kit.ui.R
+import priv.kit.ui.requestPrivilegeUiBatteryOptimizationExemption
 import priv.kit.ui.adb.PrivilegeUiAdbStartupSection
 import priv.kit.ui.adb.PrivilegeUiStaticTcpPanelStatus
 import priv.kit.ui.adb.PrivilegeUiWirelessAdbPanelStatus
@@ -62,25 +64,65 @@ import priv.kit.ui.state.privilegeUiStaticTcpOpenCommand
 
 @Composable
 internal fun PrivilegeUiScreenScope.AdbPanel() {
-    Panel {
-        val sections = privilegeUiAdbStartupSections(
-            wirelessAdbSupported = isPrivilegeUiWirelessAdbSupported(),
-            tcpPolicy = viewModel.config.adbTcpPolicy,
-        )
-        AdbFingerprintRow(fingerprint = state.adbKeyFingerprint)
-        if (sections.isEmpty()) {
-            StatusText(stringResource(R.string.priv_ui_adb_unavailable))
-        } else {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            sections.forEachIndexed { index, section ->
-                if (index > 0) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                }
-                when (section) {
-                    PrivilegeUiAdbStartupSection.WIRELESS -> WirelessAdbSection()
-                    PrivilegeUiAdbStartupSection.STATIC_TCP -> StaticTcpAdbSection()
+    val batteryOptimizationPromptVisible by
+        viewModel.batteryOptimizationPromptVisible.collectAsState()
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.large),
+    ) {
+        if (batteryOptimizationPromptVisible) {
+            BatteryOptimizationPromptPanel()
+        }
+        Panel {
+            val sections = privilegeUiAdbStartupSections(
+                wirelessAdbSupported = isPrivilegeUiWirelessAdbSupported(),
+                tcpPolicy = viewModel.config.adbTcpPolicy,
+            )
+            AdbFingerprintRow(fingerprint = state.adbKeyFingerprint)
+            if (sections.isEmpty()) {
+                StatusText(stringResource(R.string.priv_ui_adb_unavailable))
+            } else {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                sections.forEachIndexed { index, section ->
+                    if (index > 0) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                    when (section) {
+                        PrivilegeUiAdbStartupSection.WIRELESS -> WirelessAdbSection()
+                        PrivilegeUiAdbStartupSection.STATIC_TCP -> StaticTcpAdbSection()
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PrivilegeUiScreenScope.BatteryOptimizationPromptPanel() {
+    val context = LocalContext.current
+    val settingsUnavailable = stringResource(
+        R.string.priv_ui_battery_optimization_settings_unavailable,
+    )
+    Panel {
+        Text(
+            text = stringResource(R.string.priv_ui_battery_optimization_title),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.priv_ui_battery_optimization_message),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedButton(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = {
+                if (!context.requestPrivilegeUiBatteryOptimizationExemption()) {
+                    showFeedback(settingsUnavailable)
+                }
+            },
+        ) {
+            Text(stringResource(R.string.priv_ui_battery_optimization_settings_action))
         }
     }
 }

@@ -9,6 +9,10 @@ import priv.kit.ui.state.*
 import android.Manifest
 import android.app.Application
 import android.content.Context
+import android.os.Looper
+import android.os.PowerManager
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -229,6 +233,117 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
+    fun hostResumeRefreshesBatteryOptimizationPromptVisibility() {
+        val application = application()
+        val powerManager = application.getSystemService(PowerManager::class.java)
+        val shadowPowerManager = shadowOf(powerManager)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, false)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+
+        assertTrue(viewModel.batteryOptimizationPromptVisible.value)
+
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, true)
+        viewModel.dispatchHostResume()
+
+        assertFalse(viewModel.batteryOptimizationPromptVisible.value)
+
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, false)
+        viewModel.dispatchHostResume()
+
+        assertTrue(viewModel.batteryOptimizationPromptVisible.value)
+    }
+
+    @Test
+    fun foregroundDispatchRefreshesBatteryOptimizationBeforeCallingHostOverride() {
+        val application = application()
+        val powerManager = application.getSystemService(PowerManager::class.java)
+        val shadowPowerManager = shadowOf(powerManager)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, true)
+        val viewModel = HostResumePrivilegeUiViewModel(application)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, false)
+
+        viewModel.dispatchHostResume()
+
+        assertTrue(viewModel.batteryOptimizationPromptVisible.value)
+        assertEquals(1, viewModel.hostResumeCount)
+        assertEquals(true, viewModel.promptVisibleDuringHostResume)
+    }
+
+    @Test
+    fun windowFocusDispatchRefreshesWithoutCallingHostResumeOverride() {
+        val application = application()
+        val powerManager = application.getSystemService(PowerManager::class.java)
+        val shadowPowerManager = shadowOf(powerManager)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, true)
+        val viewModel = HostResumePrivilegeUiViewModel(application)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, false)
+
+        viewModel.dispatchHostWindowFocus()
+
+        assertTrue(viewModel.batteryOptimizationPromptVisible.value)
+        assertEquals(0, viewModel.hostResumeCount)
+    }
+
+    @Test
+    fun hostRefreshRechecksBatteryOptimizationAfterOemAsyncUpdate() {
+        val application = application()
+        val powerManager = application.getSystemService(PowerManager::class.java)
+        val shadowPowerManager = shadowOf(powerManager)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, false)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+
+        viewModel.dispatchHostWindowFocus()
+        assertTrue(viewModel.batteryOptimizationPromptVisible.value)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, true)
+
+        shadowOf(Looper.getMainLooper()).idleFor(3, TimeUnit.SECONDS)
+
+        assertFalse(viewModel.batteryOptimizationPromptVisible.value)
+    }
+
+    @Test
+    fun hostRefreshRechecksBatteryOptimizationAfterOemAsyncRevocation() {
+        val application = application()
+        val powerManager = application.getSystemService(PowerManager::class.java)
+        val shadowPowerManager = shadowOf(powerManager)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, true)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+
+        viewModel.dispatchHostWindowFocus()
+        assertFalse(viewModel.batteryOptimizationPromptVisible.value)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, false)
+
+        shadowOf(Looper.getMainLooper()).idleFor(3, TimeUnit.SECONDS)
+
+        assertTrue(viewModel.batteryOptimizationPromptVisible.value)
+    }
+
+    @Test
+    fun hostStateRefreshObserverRoutesResumeAndFocusedWindowReturns() {
+        var hostResumed = false
+        var resumeCount = 0
+        var windowFocusCount = 0
+        val observer = PrivilegeUiHostStateRefreshObserver(
+            isHostResumed = { hostResumed },
+            onHostResume = { resumeCount += 1 },
+            onHostWindowFocus = { windowFocusCount += 1 },
+        )
+
+        observer.onWindowFocusChanged(true)
+        observer.onStateChanged(TestLifecycleOwner, Lifecycle.Event.ON_START)
+        assertEquals(0, resumeCount)
+        assertEquals(0, windowFocusCount)
+
+        hostResumed = true
+        observer.onStateChanged(TestLifecycleOwner, Lifecycle.Event.ON_RESUME)
+        observer.onWindowFocusChanged(false)
+        observer.onWindowFocusChanged(true)
+
+        assertEquals(1, resumeCount)
+        assertEquals(1, windowFocusCount)
+    }
+
+    @Test
     fun hostEventsAreOverridableAndConnectionsAreDeliveredOncePerSerial() {
         val viewModel = HostEventPrivilegeUiViewModel(application())
         val first = PrivilegeServerInfo(uid = 2000, pid = 10, protocolVersion = 1)
@@ -323,6 +438,26 @@ class PrivilegeUiViewModelTest {
         }
     }
 
+    private class HostResumePrivilegeUiViewModel(
+        application: Application,
+    ) : PrivilegeUiViewModel(
+        application = application,
+        config = PrivilegeUiConfig(
+            startupModes = setOf(PrivilegeUiStartupMode.ROOT),
+            adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+        ),
+    ) {
+        var hostResumeCount = 0
+            private set
+        var promptVisibleDuringHostResume: Boolean? = null
+            private set
+
+        override fun onHostResume() {
+            hostResumeCount += 1
+            promptVisibleDuringHostResume = batteryOptimizationPromptVisible.value
+        }
+    }
+
     private object TestExternalStartProvider : PrivilegeUiExternalStartProvider {
         override val id: String = "test"
         override val label: CharSequence = "Test"
@@ -331,6 +466,11 @@ class PrivilegeUiViewModelTest {
             context: Context,
             commandLine: String,
         ) = Unit
+    }
+
+    private object TestLifecycleOwner : LifecycleOwner {
+        override val lifecycle: Lifecycle
+            get() = throw UnsupportedOperationException()
     }
 
     private fun configuredViewModel(config: PrivilegeUiConfig): ConfiguredPrivilegeUiViewModel =

@@ -4,11 +4,15 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import priv.kit.PrivilegeServerInfo
 import priv.kit.ui.adb.PrivilegeUiAdbActions
 import priv.kit.ui.external.PrivilegeUiExternalStartActions
@@ -47,11 +51,16 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     private var wirelessStatusPollingHandle: AutoCloseable? = null
     private var tcpModeStatusPollingHandle: AutoCloseable? = null
     private var externalStartStatusPollingHandle: AutoCloseable? = null
+    private var batteryOptimizationRefreshJob: Job? = null
     private var deliveredConnectionSerial = 0L
+    private var hostResumeDispatchInProgress = false
     private val permissionRequestChannel = Channel<PrivilegeUiPermissionRequest>(Channel.BUFFERED)
+    private val batteryOptimizationPromptVisibleState = MutableStateFlow(false)
     public val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
     internal val snackbarMessages: SharedFlow<String> = store.snackbarMessages
     internal val permissionRequests = permissionRequestChannel.receiveAsFlow()
+    internal val batteryOptimizationPromptVisible: StateFlow<Boolean> =
+        batteryOptimizationPromptVisibleState.asStateFlow()
 
     init {
         addCloseable { closeOwner() }
@@ -65,6 +74,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         runtimeActions.installRuntimeWatchers()
         store.initializeState(config)
 
+        refreshBatteryOptimizationState()
         runtimeActions.refreshRuntimeStatus()
         manualShellActions.loadCommand()
         externalStartActions.refreshExternalStartStatus()
@@ -220,6 +230,18 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     public open fun onHostResume() {
+        if (!hostResumeDispatchInProgress) {
+            refreshHostInteractiveState()
+        }
+    }
+
+    private fun refreshHostInteractiveState() {
+        refreshBatteryOptimizationState()
+        refreshHostResumeState()
+        scheduleBatteryOptimizationStateRechecks()
+    }
+
+    private fun refreshHostResumeState() {
         syncWirelessAdbStatusPolling()
         syncTcpModeStatusPolling()
         syncExternalStartStatusPolling()
@@ -233,6 +255,35 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
             externalStartActions.refreshExternalStartStatus()
         }
         refreshTcpModeEnabledIfSelected()
+    }
+
+    internal fun dispatchHostResume() {
+        refreshHostInteractiveState()
+        hostResumeDispatchInProgress = true
+        try {
+            onHostResume()
+        } finally {
+            hostResumeDispatchInProgress = false
+        }
+    }
+
+    internal fun dispatchHostWindowFocus() {
+        refreshHostInteractiveState()
+    }
+
+    private fun refreshBatteryOptimizationState() {
+        batteryOptimizationPromptVisibleState.value = store.requireContext()
+            .isPrivilegeUiBatteryOptimizationPromptVisible()
+    }
+
+    private fun scheduleBatteryOptimizationStateRechecks() {
+        batteryOptimizationRefreshJob?.cancel()
+        batteryOptimizationRefreshJob = viewModelScope.launch {
+            for (delayMillis in BATTERY_OPTIMIZATION_RECHECK_DELAYS_MILLIS) {
+                delay(delayMillis)
+                refreshBatteryOptimizationState()
+            }
+        }
     }
 
     public open fun stopWirelessAdbStatusPolling() {
@@ -342,6 +393,8 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
     private fun closeOwner() {
         if (!ownerClosed.compareAndSet(false, true)) return
+        batteryOptimizationRefreshJob?.cancel()
+        batteryOptimizationRefreshJob = null
         runtimeActions.close()
         runCatching { externalStartActions.close() }
         runCatching { adbActions.close() }
@@ -349,6 +402,8 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         permissionRequestChannel.close()
     }
 }
+
+private val BATTERY_OPTIMIZATION_RECHECK_DELAYS_MILLIS = listOf(250L, 750L, 1_500L)
 
 internal sealed interface PrivilegeUiPermissionRequest {
     data object Notification : PrivilegeUiPermissionRequest

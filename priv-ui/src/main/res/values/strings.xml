@@ -44,6 +44,10 @@
     <string name="priv_ui_adb_authorization_action">Start</string>
     <string name="priv_ui_adb_key_fingerprint">Device fingerprint</string>
     <string name="priv_ui_adb_key_fingerprint_unavailable">Not generated yet</string>
+    <string name="priv_ui_battery_optimization_title">Keep the background connection active</string>
+    <string name="priv_ui_battery_optimization_message">Some systems block network access while the app is in the background, preventing ADB pairing or startup. We recommend allowing this app to ignore battery optimizations.</string>
+    <string name="priv_ui_battery_optimization_settings_action">Allow battery optimization exemption</string>
+    <string name="priv_ui_battery_optimization_settings_unavailable">Unable to request a battery optimization exemption</string>
     <string name="priv_ui_adb_tab_wireless">Wireless debugging</string>
     <string name="priv_ui_adb_tab_static">Static port</string>
     <string name="priv_ui_adb_unavailable">No ADB startup entry is available</string>

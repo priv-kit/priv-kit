@@ -39,11 +39,36 @@ The UI covers ordinary user-facing authorization only:
 - Root startup.
 - Manual shell command copy.
 - ADB authorization, including Wireless ADB pairing, notification pairing, status polling, startup, and optional TCP reuse.
+- Contextual battery-optimization guidance above the ADB panel when the host app is not exempt, refreshed whenever the host returns to the foreground.
 - Managed Wireless Debugging status when runtime can temporarily enable Wireless Debugging through `WRITE_SECURE_SETTINGS`.
 - Static-TCP status that distinguishes a missing port configuration from a configured port whose ADB listener is not running.
 - External startup through app-provided `PrivilegeUiExternalStartProvider` implementations, with status refreshed on foreground resume and while the External tab is selected.
 - Realtime startup transcript for Root, ADB, and streaming external startup providers.
 - Service started/not-started status.
+
+Battery-optimization guidance directly opens Android's exemption confirmation for the
+host package and rechecks the result when the page returns to the foreground. `priv-ui`
+manifest-merges the permission required by Android for this direct confirmation:
+
+```xml
+<uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+```
+
+Apps distributed through Google Play must ensure that direct exemption is appropriate for
+their core functionality and complies with current power-management policy. A host that
+does not want the direct request can remove the merged permission in its own manifest:
+
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission
+        android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+        tools:node="remove" />
+</manifest>
+```
+
+When the permission is removed or the direct confirmation is unavailable, the UI falls
+back to Android's battery optimization list and then the host application's details page.
 
 It does not include built-in Shizuku integration, app-owned service management, stop-service controls, package management, input injection, settings, app-ops, a general diagnostic log console, or other high-level Android system operation UI. Shizuku-style support belongs in the app or an optional integration as a `PrivilegeUiExternalStartProvider`; the external privileged process can call `PrivilegeExternalStartup.runInCurrentProcess(...)`, while the main process can bridge returned source/message pairs into the UI through `PrivilegeExternalStartup.createReceiver(...)`.
 
