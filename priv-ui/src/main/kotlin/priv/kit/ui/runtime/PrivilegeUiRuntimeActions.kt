@@ -79,16 +79,7 @@ internal class PrivilegeUiRuntimeActions(
                 synchronized(store) {
                     if (!ownsStopOperationLocked(operationId, connectionSerial)) return@synchronized
                     store.updateState {
-                        it.copy(
-                            busy = false,
-                            runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
-                            runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
-                            runtimeStartSource = null,
-                            runtimeStartProviderId = null,
-                            serverInfo = null,
-                            adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
-                            runtimeProgressMessage = null,
-                        )
+                        it.toDisconnectedRuntimeIdle()
                     }
                 }
             } catch (_: CancellationException) {
@@ -242,15 +233,7 @@ internal class PrivilegeUiRuntimeActions(
             store.runtimeStartSession?.recordDisconnectedServer()
             store.updateStateAndAppendStartupLog(message) {
                 if (it.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.IDLE) {
-                    it.copy(
-                        busy = false,
-                        runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
-                        runtimeStartSource = null,
-                        runtimeStartProviderId = null,
-                        serverInfo = null,
-                        adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
-                        runtimeProgressMessage = null,
-                    )
+                    it.toDisconnectedRuntimeIdle()
                 } else {
                     it.copy(
                         runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
@@ -271,15 +254,7 @@ internal class PrivilegeUiRuntimeActions(
             ) {
                 it
             } else {
-                it.copy(
-                    busy = false,
-                    runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
-                    runtimeStartSource = null,
-                    runtimeStartProviderId = null,
-                    serverInfo = null,
-                    adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
-                    runtimeProgressMessage = null,
-                )
+                it.toDisconnectedRuntimeIdle()
             }
         }
     }
@@ -290,15 +265,8 @@ internal class PrivilegeUiRuntimeActions(
         val connectionSerial = store.state.value.connectionSerial + 1L
         val connectedMessage = store.text(R.string.priv_ui_connected).takeIf { shouldAppendLog }
         store.updateStateAndAppendStartupLog(connectedMessage) {
-            it.copy(
-                busy = false,
-                runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
-                runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
-                runtimeStartSource = null,
-                runtimeStartProviderId = null,
+            it.toConnectedRuntimeIdle(
                 serverInfo = serverInfo,
-                adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
-                runtimeProgressMessage = null,
                 connectionSerial = connectionSerial,
             )
         }

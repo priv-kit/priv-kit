@@ -3,9 +3,10 @@ package priv.kit.adb.crypto.pairing
 import java.security.SecureRandom
 
 public class PrivilegeAdbPairingCryptoContext private constructor(
-    private var spake2: Spake25519Context?,
+    initialSpake2: Spake25519Context,
 ) {
-    public val msg: ByteArray = checkNotNull(spake2).msg.copyOf()
+    public val msg: ByteArray = initialSpake2.msg.copyOf()
+    private var spake2: Spake25519Context? = initialSpake2
     private var cipher: Aes128Gcm? = null
 
     public fun initCipher(theirMsg: ByteArray): Boolean {

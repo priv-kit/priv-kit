@@ -8,7 +8,6 @@ internal object PrivilegeUiSpacing {
     val medium = 12.dp
     val large = 16.dp
     val extraLarge = 20.dp
-    val doubleExtraLarge = 24.dp
 }
 
 internal object PrivilegeUiSize {

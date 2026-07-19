@@ -12,11 +12,8 @@ class PrivilegeAdbIdentityTest {
     }
 
     @Test
-    fun ownerTokenIdentityUsesDeviceName() {
-        val identity = PrivilegeAdbIdentity.forOwnerToken(
-            ownerToken = " owner-token ",
-            deviceName = " Demo App ",
-        )
+    fun identityUsesDeviceName() {
+        val identity = PrivilegeAdbIdentity.default(deviceName = " Demo App ")
 
         assertEquals("DemoApp", identity.adbDeviceName)
     }
@@ -30,20 +27,7 @@ class PrivilegeAdbIdentityTest {
     }
 
     @Test(expected = IllegalArgumentException::class)
-    fun blankOwnerTokenFails() {
-        PrivilegeAdbIdentity.forOwnerToken(" ")
-    }
-
-    @Test(expected = IllegalArgumentException::class)
-    fun lineBreakInOwnerTokenFails() {
-        PrivilegeAdbIdentity.forOwnerToken("priv\nkit")
-    }
-
-    @Test(expected = IllegalArgumentException::class)
     fun lineBreakInDeviceNameFails() {
-        PrivilegeAdbIdentity.forOwnerToken(
-            ownerToken = "owner-token",
-            deviceName = "priv\nkit",
-        )
+        PrivilegeAdbIdentity.default(deviceName = "priv\nkit")
     }
 }

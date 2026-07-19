@@ -47,7 +47,6 @@ internal object DerEncoding {
         byteArrayOf(tag.toByte()) + length(body.size) + body
 
     private fun length(size: Int): ByteArray {
-        require(size >= 0) { "Negative DER length" }
         if (size < 0x80) return byteArrayOf(size.toByte())
 
         var current = size

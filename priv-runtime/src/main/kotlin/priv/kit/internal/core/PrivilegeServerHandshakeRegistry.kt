@@ -15,7 +15,7 @@ internal object PrivilegeServerHandshakeRegistry {
         require(token.isNotBlank()) { "token must not be blank" }
         val handshake = PrivilegePendingHandshake()
         val previous = pendingHandshakes.putIfAbsent(token, handshake)
-        require(previous == null) { "token is already pending" }
+        check(previous == null) { "token is already pending" }
         readyHandshakes.remove(token)?.let(handshake::complete)
         return handshake
     }

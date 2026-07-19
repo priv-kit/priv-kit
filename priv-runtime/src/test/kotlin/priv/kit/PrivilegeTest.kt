@@ -11,9 +11,9 @@ import org.junit.Test
 import priv.kit.internal.binder.IPrivilegeServer
 import priv.kit.binder.PrivilegeServerUnavailableException
 import priv.kit.internal.core.PrivilegeAndroidUsers
+import priv.kit.internal.core.PrivilegeHandshakeContract
 import priv.kit.internal.core.PrivilegeProtocol
 import priv.kit.internal.core.PrivilegeServerHandshakeResult
-import priv.kit.internal.runtime.PrivilegeServerLaunchCommandBuilder
 import priv.kit.testing.TestBinder
 import java.io.File
 
@@ -37,10 +37,12 @@ class PrivilegeTest {
             it.writeText("apk")
         }
 
-        val identity = PrivilegeServerLaunchCommandBuilder.buildClasspathIdentity(apk.path)
+        val identity = PrivilegeHandshakeContract.classpathIdentity(apk.path)
 
-        assertTrue(identity.contains(apk.path))
-        assertTrue(identity.contains("@${apk.length()}@${apk.lastModified() / 1000L}"))
+        assertEquals(
+            "${apk.path}@${apk.length()}@${apk.lastModified() / 1000L}",
+            identity,
+        )
     }
 
     @Test

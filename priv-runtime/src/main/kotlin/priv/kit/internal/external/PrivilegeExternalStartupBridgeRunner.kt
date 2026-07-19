@@ -6,7 +6,6 @@ import android.os.ResultReceiver
 import priv.kit.PrivilegeExternalStartup
 import priv.kit.PrivilegeExternalStartupBridge
 import priv.kit.PrivilegeExternalStartupBridgeOptions
-import priv.kit.PrivilegeExternalStartupResult
 import priv.kit.PrivilegeStartupException
 import priv.kit.PrivilegeStartupLogListener
 import priv.kit.StartupTranscript
@@ -22,7 +21,7 @@ internal class PrivilegeExternalStartupBridgeRunner {
         bridge: PrivilegeExternalStartupBridge,
         options: PrivilegeExternalStartupBridgeOptions,
         startupLogListener: PrivilegeStartupLogListener?,
-    ): PrivilegeExternalStartupResult {
+    ): String {
         require(commandLine.isNotBlank()) { "commandLine must not be blank" }
         val forwardedListener = startupLogListener?.let { listener ->
             val receiver = PrivilegeExternalStartup.createReceiver(
@@ -118,7 +117,7 @@ internal class PrivilegeExternalStartupBridgeRunner {
             streamFailureRef.get()?.let { throwable ->
                 throw PrivilegeStartupException("Failed to read external startup bridge output", throwable)
             }
-            return PrivilegeExternalStartupResult(output = transcript.text())
+            return transcript.text()
         } finally {
             stdoutPipe.closeAll()
             stderrPipe.closeAll()

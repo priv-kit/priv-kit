@@ -56,7 +56,7 @@ internal class PrivilegeSampleShizukuExternalStarter(
                 activeService.start(bridgeCommand, stdout, stderr, resultReceiver)
             },
             startupLogListener = startupLogListener,
-        ).output
+        )
     }
 
     override fun close() {

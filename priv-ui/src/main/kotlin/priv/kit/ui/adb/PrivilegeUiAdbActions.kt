@@ -422,10 +422,10 @@ internal class PrivilegeUiAdbActions(
                 ),
             )
             Thread.sleep(PRIVILEGE_UI_TCP_START_DELAY_MILLIS)
-            val tcpStartCheck = tcpActions.requireStaticTcpReady(starter, this)
+            val activeTcpPort = tcpActions.requireStaticTcpReady(starter, this)
             appendStartupLog(store.text(R.string.priv_ui_tcp_enabled))
             appendStartupLog(store.text(R.string.priv_ui_tcp_starting))
-            tcpActions.startTcpAdbNow(tcpStartCheck.tcpPort, this)
+            tcpActions.startTcpAdbNow(activeTcpPort, this)
         }
     }
 

@@ -24,10 +24,6 @@ public data class PrivilegeExternalStartupOptions @JvmOverloads public construct
     }
 }
 
-public data class PrivilegeExternalStartupResult public constructor(
-    public val output: String,
-)
-
 public object PrivilegeExternalStartup {
     @JvmStatic
     @JvmOverloads
@@ -36,7 +32,7 @@ public object PrivilegeExternalStartup {
         commandLine: String,
         options: PrivilegeExternalStartupOptions = PrivilegeExternalStartupOptions(),
         startupLogListener: PrivilegeStartupLogListener? = null,
-    ): PrivilegeExternalStartupResult =
+    ): String =
         PrivilegeExternalStartupProcessRunner().run(
             commandLine = commandLine,
             options = options,
@@ -62,7 +58,7 @@ public object PrivilegeExternalStartup {
         bridge: PrivilegeExternalStartupBridge,
         options: PrivilegeExternalStartupBridgeOptions = PrivilegeExternalStartupBridgeOptions(),
         startupLogListener: PrivilegeStartupLogListener? = null,
-    ): PrivilegeExternalStartupResult =
+    ): String =
         PrivilegeExternalStartupBridgeRunner().run(
             commandLine = commandLine,
             bridge = bridge,
@@ -76,7 +72,7 @@ public object PrivilegeExternalStartup {
         commandLine: String,
         bridge: PrivilegeExternalStartupBridge,
         startupLogListener: PrivilegeStartupLogListener,
-    ): PrivilegeExternalStartupResult =
+    ): String =
         runThroughBridge(
             commandLine = commandLine,
             bridge = bridge,
@@ -138,7 +134,7 @@ internal class PrivilegeExternalStartupProcessRunner(
         commandLine: String,
         options: PrivilegeExternalStartupOptions,
         startupLogListener: PrivilegeStartupLogListener?,
-    ): PrivilegeExternalStartupResult {
+    ): String {
         require(commandLine.isNotBlank()) { "commandLine must not be blank" }
         val transcript = StartupTranscript(
             maxCapturedLines = options.maxCapturedLines,
@@ -196,9 +192,7 @@ internal class PrivilegeExternalStartupProcessRunner(
                 "External startup command exited code=$exitCode: ${transcript.text()}",
             )
         }
-        return PrivilegeExternalStartupResult(
-            output = transcript.text(),
-        )
+        return transcript.text()
     }
 
     private fun consume(

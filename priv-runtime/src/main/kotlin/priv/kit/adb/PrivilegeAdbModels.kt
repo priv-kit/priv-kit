@@ -21,29 +21,9 @@ public class PrivilegeAdbIdentity private constructor(
     internal companion object {
         internal const val DEFAULT_DEVICE_NAME: String = "priv-kit"
         internal const val MAX_DEVICE_NAME_LENGTH: Int = 128
-        private const val MAX_OWNER_TOKEN_LENGTH = 128
 
         internal fun default(deviceName: String = DEFAULT_DEVICE_NAME): PrivilegeAdbIdentity =
             PrivilegeAdbIdentity(deviceName = deviceName)
-
-        internal fun forOwnerToken(
-            ownerToken: String,
-            deviceName: String = DEFAULT_DEVICE_NAME,
-        ): PrivilegeAdbIdentity {
-            validateOwnerToken(ownerToken)
-            return PrivilegeAdbIdentity(deviceName = deviceName)
-        }
-
-        private fun validateOwnerToken(ownerToken: String) {
-            val normalizedOwnerToken = ownerToken.trim()
-            require(normalizedOwnerToken.isNotBlank()) { "ownerToken must not be blank" }
-            require(normalizedOwnerToken.length <= MAX_OWNER_TOKEN_LENGTH) {
-                "ownerToken must be at most $MAX_OWNER_TOKEN_LENGTH characters"
-            }
-            require(normalizedOwnerToken.none { it == '\u0000' || it == '\r' || it == '\n' }) {
-                "ownerToken must not contain control line characters"
-            }
-        }
     }
 }
 

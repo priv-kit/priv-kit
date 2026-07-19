@@ -18,4 +18,10 @@ class PrivilegeAdbPairingCodeTest {
     fun returnsBlankWhenNoDigitsExist() {
         assertEquals("", "pairing failed".toPrivilegeAdbPairingCode())
     }
+
+    @Test
+    fun rejectsIncompleteOrNonAsciiCodes() {
+        assertEquals("", "Pairing code: 12345".toPrivilegeAdbPairingCode())
+        assertEquals("", "Pairing code: ١٢٣٤٥٦".toPrivilegeAdbPairingCode())
+    }
 }

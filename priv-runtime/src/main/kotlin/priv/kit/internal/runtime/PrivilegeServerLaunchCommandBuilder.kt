@@ -1,30 +1,21 @@
 package priv.kit.internal.runtime
 
-import priv.kit.internal.core.PrivilegeAndroidUsers
 import priv.kit.internal.core.PrivilegeHandshakeContract
-import priv.kit.internal.core.PrivilegeProtocol
 import priv.kit.internal.core.PrivilegeServerLaunchCommand
-import java.io.File
 
 internal object PrivilegeServerLaunchCommandBuilder {
     fun build(): PrivilegeServerLaunchCommand {
         val context = PrivilegeContext.require()
         val packageName = context.packageName
-        val userId = PrivilegeAndroidUsers.userIdFromUid(context.applicationInfo.uid)
         val classpath = buildClasspath()
-        val classpathIdentity = buildClasspathIdentity(classpath)
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(packageName)
         val starterCommandLine = buildNativeStarterCommand()
 
         return PrivilegeServerLaunchCommand(
             commandLine = starterCommandLine,
             classpath = classpath,
-            classpathIdentity = classpathIdentity,
             mainClass = SERVER_MAIN_CLASS,
             providerAuthority = providerAuthority,
-            packageName = packageName,
-            userId = userId,
-            protocolVersion = PrivilegeProtocol.VERSION,
         )
     }
 
@@ -52,14 +43,6 @@ internal object PrivilegeServerLaunchCommandBuilder {
         }
         return apkPaths.joinToString(":")
     }
-
-    internal fun buildClasspathIdentity(classpath: String): String =
-        classpath.split(':')
-            .filter { it.isNotBlank() }
-            .joinToString(":") { path ->
-                val file = File(path)
-                "$path@${file.length()}@${file.lastModified() / 1000L}"
-            }
 
     private fun isShellBareChar(char: Char): Boolean =
         char in 'A'..'Z' ||

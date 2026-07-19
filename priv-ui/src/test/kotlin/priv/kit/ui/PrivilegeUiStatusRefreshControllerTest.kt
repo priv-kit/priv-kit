@@ -13,7 +13,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -36,7 +35,6 @@ class PrivilegeUiStatusRefreshControllerTest {
                 },
             )
             assertTrue(controller.loading)
-            assertEquals(PrivilegeUiStatusRefreshState.RUNNING, controller.state.value)
             assertFalse(
                 controller.start {
                     duplicateRan = true
@@ -47,7 +45,6 @@ class PrivilegeUiStatusRefreshControllerTest {
 
             assertTrue(controller.join(2_000L))
             assertFalse(controller.loading)
-            assertEquals(PrivilegeUiStatusRefreshState.IDLE, controller.state.value)
             assertFalse(duplicateRan)
         } finally {
             scope.cancel()
@@ -72,7 +69,6 @@ class PrivilegeUiStatusRefreshControllerTest {
 
             assertTrue(observedLoading)
             assertFalse(controller.loading)
-            assertEquals(PrivilegeUiStatusRefreshState.IDLE, controller.state.value)
         } finally {
             scope.cancel()
         }

@@ -1,5 +1,6 @@
 package priv.kit.ui
 
+import android.Manifest
 import android.app.Activity
 import android.app.Application
 import android.content.ActivityNotFoundException
@@ -66,6 +67,35 @@ class PrivilegeUiBatteryOptimizationTest {
         } finally {
             controller.pause().stop().destroy()
         }
+    }
+
+    @Test
+    @Config(sdk = [28, 36])
+    fun requestActionSkipsDirectRequestWhenPermissionIsRemovedFromMergedManifest() {
+        val application = application()
+        val packageInfo = application.packageManager
+            .getPackageInfo(application.packageName, 0)
+            .apply {
+                requestedPermissions = requestedPermissions
+                    ?.filterNot {
+                        it == Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                    }
+                    ?.toTypedArray()
+                    ?: emptyArray()
+            }
+        shadowOf(application.packageManager).installPackage(packageInfo)
+        val context = RecordingSettingsContext(application)
+
+        assertTrue(context.requestPrivilegeUiBatteryOptimizationExemption())
+
+        assertEquals(
+            listOf(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+            context.attemptedActions,
+        )
+        assertEquals(
+            Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS,
+            context.startedIntent?.action,
+        )
     }
 
     @Test

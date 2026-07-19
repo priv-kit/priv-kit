@@ -17,9 +17,10 @@ import priv.kit.PrivilegeServerInfo
 import priv.kit.ui.adb.PrivilegeUiAdbActions
 import priv.kit.ui.external.PrivilegeUiExternalStartActions
 import priv.kit.ui.runtime.PrivilegeUiDirectStartTarget
-import priv.kit.ui.runtime.PrivilegeUiManualShellActions
 import priv.kit.ui.runtime.PrivilegeUiRuntimeActions
+import priv.kit.ui.runtime.copyManualShellCommand
 import priv.kit.ui.runtime.directStartTargets
+import priv.kit.ui.runtime.loadManualShellCommand
 import priv.kit.ui.state.PrivilegeUiNoopCloseable
 import priv.kit.ui.state.PrivilegeUiViewModelStore
 import priv.kit.ui.state.copyToClipboard
@@ -36,7 +37,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         store = store,
         coroutineScope = viewModelScope,
     )
-    private val manualShellActions = PrivilegeUiManualShellActions(store)
     private val adbActions = PrivilegeUiAdbActions(
         store = store,
         runtimeActions = runtimeActions,
@@ -76,7 +76,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
         refreshBatteryOptimizationState()
         runtimeActions.refreshRuntimeStatus()
-        manualShellActions.loadCommand()
+        store.loadManualShellCommand()
         externalStartActions.refreshExternalStartStatus()
         adbActions.refreshAdbIdentityInfo()
         syncWirelessAdbStatusPolling()
@@ -158,7 +158,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     public open fun copyManualCommand(context: Context) {
-        manualShellActions.copyCommand(context)
+        store.copyManualShellCommand(context)
     }
 
     public open fun copyStaticTcpCommand(context: Context) {

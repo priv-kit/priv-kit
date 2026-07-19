@@ -230,7 +230,7 @@ public class PrivilegeAdbStarter private constructor(
         }
         val normalizedPairingCode = pairingCode.toPrivilegeAdbPairingCode()
         require(port == null || port in 1..65535) { "port must be between 1 and 65535" }
-        require(normalizedPairingCode.isNotBlank()) { "pairingCode must contain digits" }
+        require(normalizedPairingCode.isNotBlank()) { "pairingCode must contain six ASCII digits" }
         require(portDiscoveryTimeoutMillis > 0L) { "portDiscoveryTimeoutMillis must be positive" }
 
         return try {
@@ -717,16 +717,12 @@ public class PrivilegeAdbStarter private constructor(
     }
 
     internal companion object {
-        internal fun forOwnerToken(
-            ownerToken: String,
+        internal fun create(
             adbDeviceName: String = PrivilegeAdbIdentity.DEFAULT_DEVICE_NAME,
         ): PrivilegeAdbStarter =
             PrivilegeContext.require().let { applicationContext ->
                 PrivilegeAdbStarter(
-                    identity = PrivilegeAdbIdentity.forOwnerToken(
-                        ownerToken = ownerToken,
-                        deviceName = adbDeviceName,
-                    ),
+                    identity = PrivilegeAdbIdentity.default(deviceName = adbDeviceName),
                     loadKeyBytes = { PrivilegeAdbKeyStore.readOrCreate() },
                     nsdManagerProvider = { requireNsdManager(applicationContext) },
                     wirelessDebuggingControllerProvider = {

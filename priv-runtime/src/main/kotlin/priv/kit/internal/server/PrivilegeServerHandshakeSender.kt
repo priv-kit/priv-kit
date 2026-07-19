@@ -37,7 +37,10 @@ internal object PrivilegeServerHandshakeSender {
             }
             putBinder(PrivilegeHandshakeContract.EXTRA_SERVER_BINDER, serverBinder.asBinder())
             putInt(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION, config.protocolVersion)
-            putString(PrivilegeHandshakeContract.EXTRA_CLASSPATH_IDENTITY, buildClasspathIdentity(config.classpath))
+            putString(
+                PrivilegeHandshakeContract.EXTRA_CLASSPATH_IDENTITY,
+                PrivilegeHandshakeContract.classpathIdentity(config.classpath),
+            )
         }
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(config.packageName)
         Log.i(TAG, "Calling handshake provider authority=$providerAuthority")
@@ -131,14 +134,6 @@ internal object PrivilegeServerHandshakeSender {
         require(containsKey(key)) { "Accepted initial handshake response is missing $key" }
         return getBoolean(key)
     }
-
-    private fun buildClasspathIdentity(classpath: String): String =
-        classpath.split(':')
-            .filter { it.isNotBlank() }
-            .joinToString(":") { path ->
-                val file = File(path)
-                "$path@${file.length()}@${file.lastModified() / 1000L}"
-            }
 
     private const val TAG = "PrivKitServer"
 }

@@ -139,8 +139,7 @@ internal class PrivilegeAdbKey(
         }
     }
 
-    fun sign(data: ByteArray?): ByteArray {
-        val token = requireNotNull(data) { "ADB auth token is null" }
+    fun sign(token: ByteArray): ByteArray {
         val cipher = Cipher.getInstance(RSA_AUTH_SIGNATURE_TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, privateKey)
         cipher.update(PADDING)
@@ -184,11 +183,14 @@ internal class PrivilegeAdbKey(
             0x04, 0x14,
         )
         private val PADDING = byteArrayOf(0x00, 0x01) +
-            ByteArray(ANDROID_PUBKEY_MODULUS_SIZE - 3 - SHA1_DIGEST_INFO_PREFIX.size - SHA1_SIZE_BYTES) { (-1).toByte() } +
+            ByteArray(
+                ANDROID_PUBKEY_MODULUS_SIZE -
+                    3 -
+                    SHA1_DIGEST_INFO_PREFIX.size -
+                    PrivilegeAdbProtocol.ADB_AUTH_TOKEN_LENGTH,
+            ) { (-1).toByte() } +
             byteArrayOf(0x00) +
             SHA1_DIGEST_INFO_PREFIX
-
-        private const val SHA1_SIZE_BYTES = 20
     }
 }
 

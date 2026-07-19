@@ -15,6 +15,7 @@ internal object PrivilegeAdbProtocol {
     const val A_STLS_VERSION = 0x01000000
 
     const val ADB_AUTH_TOKEN = 1
+    const val ADB_AUTH_TOKEN_LENGTH = 20
     const val ADB_AUTH_SIGNATURE = 2
     const val ADB_AUTH_RSAPUBLICKEY = 3
 }

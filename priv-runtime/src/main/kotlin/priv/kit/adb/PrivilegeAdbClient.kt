@@ -23,7 +23,7 @@ internal interface PrivilegeAdbAuthorizationConnection : PrivilegeAdbConnection 
 
 internal class PrivilegeAdbClient private constructor(
     private val endpoint: PrivilegeAdbEndpoint,
-    private val signAuthToken: (ByteArray?) -> ByteArray,
+    private val signAuthToken: (ByteArray) -> ByteArray,
     private val adbPublicKey: ByteArray,
     private val sslContextProvider: () -> SSLContext,
     private val socketReadTimeoutMillis: Int,
@@ -52,7 +52,7 @@ internal class PrivilegeAdbClient private constructor(
 
     internal constructor(
         port: Int,
-        signAuthToken: (ByteArray?) -> ByteArray,
+        signAuthToken: (ByteArray) -> ByteArray,
         adbPublicKey: ByteArray,
         socketReadTimeoutMillis: Int,
     ) : this(
@@ -169,12 +169,18 @@ internal class PrivilegeAdbClient private constructor(
                 if (message.arg0 != PrivilegeAdbProtocol.ADB_AUTH_TOKEN) {
                     privilegeAdbError("ADB auth did not provide a token")
                 }
+                val token = message.data
+                if (token == null || token.size != PrivilegeAdbProtocol.ADB_AUTH_TOKEN_LENGTH) {
+                    privilegeAdbError(
+                        "ADB auth token must be ${PrivilegeAdbProtocol.ADB_AUTH_TOKEN_LENGTH} bytes",
+                    )
+                }
                 output.diagnostic("ADB requested RSA auth signature")
                 write(
                     PrivilegeAdbProtocol.A_AUTH,
                     PrivilegeAdbProtocol.ADB_AUTH_SIGNATURE,
                     0,
-                    signAuthToken(message.data),
+                    signAuthToken(token),
                 )
                 message = read()
                 output.diagnostic("ADB auth response after signature: ${message.toStringShort()}")
@@ -283,6 +289,9 @@ internal class PrivilegeAdbClient private constructor(
         val dataLength = buffer.int
         val checksum = buffer.int
         val magic = buffer.int
+        if (dataLength !in 0..PrivilegeAdbProtocol.A_MAXDATA) {
+            privilegeAdbError("Invalid ADB payload length: $dataLength")
+        }
         val data = if (dataLength > 0) {
             ByteArray(dataLength).also { inputStream.readFully(it, 0, dataLength) }
         } else {

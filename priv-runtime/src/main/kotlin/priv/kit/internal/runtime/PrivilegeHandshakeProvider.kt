@@ -140,7 +140,7 @@ internal class PrivilegeHandshakeProvider public constructor() : ContentProvider
         return Bundle().apply {
             putBoolean(PrivilegeUserServiceContract.KEY_SUCCESS, ready != null)
             if (ready != null) {
-                putBinder(PrivilegeUserServiceContract.EXTRA_PROCESS_BINDER, ready.processBinder)
+                putBinder(PrivilegeUserServiceContract.EXTRA_PROCESS_BINDER, ready)
             }
         }
     }
@@ -228,7 +228,7 @@ internal class PrivilegeHandshakeProvider public constructor() : ContentProvider
     }
 
     private fun Bundle.classpathIdentityMatches(): Boolean {
-        val expected = PrivilegeServerLaunchCommandBuilder.buildClasspathIdentity(
+        val expected = PrivilegeHandshakeContract.classpathIdentity(
             PrivilegeServerLaunchCommandBuilder.buildClasspath(),
         )
         return getString(PrivilegeHandshakeContract.EXTRA_CLASSPATH_IDENTITY) == expected

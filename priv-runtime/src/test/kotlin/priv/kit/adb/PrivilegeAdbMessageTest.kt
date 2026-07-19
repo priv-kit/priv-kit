@@ -5,6 +5,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 class PrivilegeAdbMessageTest {
     @Test
@@ -16,13 +18,19 @@ class PrivilegeAdbMessageTest {
             data = "shell:id",
         )
 
-        val parsed = PrivilegeAdbMessage.fromByteArray(message.toByteArray())
+        val buffer = ByteBuffer.wrap(message.toByteArray()).order(ByteOrder.LITTLE_ENDIAN)
 
-        assertEquals(message.command, parsed.command)
-        assertEquals(message.arg0, parsed.arg0)
-        assertEquals(message.arg1, parsed.arg1)
-        assertArrayEquals("shell:id\u0000".toByteArray(), parsed.data)
-        assertTrue(parsed.validate())
+        assertEquals(message.command, buffer.int)
+        assertEquals(message.arg0, buffer.int)
+        assertEquals(message.arg1, buffer.int)
+        assertEquals(message.dataLength, buffer.int)
+        assertEquals(message.dataCrc32, buffer.int)
+        assertEquals(message.magic, buffer.int)
+        assertArrayEquals(
+            "shell:id\u0000".toByteArray(),
+            ByteArray(message.dataLength).also { buffer.get(it) },
+        )
+        assertTrue(message.validate())
     }
 
     @Test

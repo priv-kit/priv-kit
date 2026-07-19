@@ -1,5 +1,6 @@
 package priv.kit.ui.runtime
 
+import priv.kit.PrivilegeServerInfo
 import priv.kit.ui.PrivilegeUiAdbRestrictionStatus
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
 import priv.kit.ui.PrivilegeUiRuntimeStatus
@@ -39,34 +40,41 @@ internal fun PrivilegeUiState.finishRuntimeStartPreservingStatus(): PrivilegeUiS
         runtimeProgressMessage = null,
     )
 
+internal fun PrivilegeUiState.toDisconnectedRuntimeIdle(): PrivilegeUiState =
+    finishRuntimeStartPreservingStatus().copy(
+        runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+        serverInfo = null,
+        adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
+    )
+
+internal fun PrivilegeUiState.toFailedRuntimeIdle(): PrivilegeUiState =
+    finishRuntimeStartPreservingStatus().copy(
+        runtimeStatus = PrivilegeUiRuntimeStatus.FAILED,
+        serverInfo = null,
+        adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
+    )
+
+internal fun PrivilegeUiState.toConnectedRuntimeIdle(
+    serverInfo: PrivilegeServerInfo,
+    connectionSerial: Long,
+): PrivilegeUiState =
+    finishRuntimeStartPreservingStatus().copy(
+        runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
+        serverInfo = serverInfo,
+        adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
+        connectionSerial = connectionSerial,
+    )
+
 internal fun PrivilegeUiState.finishRuntimeStartDisconnected(): PrivilegeUiState =
     if (runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
         finishRuntimeStartPreservingStatus()
     } else {
-        copy(
-            busy = false,
-            runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
-            runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
-            runtimeStartSource = null,
-            runtimeStartProviderId = null,
-            serverInfo = null,
-            adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
-            runtimeProgressMessage = null,
-        )
+        toDisconnectedRuntimeIdle()
     }
 
 internal fun PrivilegeUiState.finishRuntimeStartFailed(): PrivilegeUiState =
     if (runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
         finishRuntimeStartPreservingStatus()
     } else {
-        copy(
-            busy = false,
-            runtimeStatus = PrivilegeUiRuntimeStatus.FAILED,
-            runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
-            runtimeStartSource = null,
-            runtimeStartProviderId = null,
-            serverInfo = null,
-            adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
-            runtimeProgressMessage = null,
-        )
+        toFailedRuntimeIdle()
     }

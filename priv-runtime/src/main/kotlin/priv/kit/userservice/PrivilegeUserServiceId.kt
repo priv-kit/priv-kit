@@ -4,11 +4,6 @@ internal data class PrivilegeUserServiceId(
     val serviceClassName: String,
     val tag: String = PrivilegeUserServiceSpec.DEFAULT_TAG,
 ) {
-    init {
-        require(serviceClassName.isNotBlank()) { "serviceClassName must not be blank" }
-        require(tag.isNotBlank()) { "tag must not be blank" }
-    }
-
     internal companion object {
         internal fun from(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceId =
             PrivilegeUserServiceId(

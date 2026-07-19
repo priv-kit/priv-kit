@@ -101,23 +101,6 @@ internal class PrivilegeAdbMessage(
     companion object {
         const val HEADER_LENGTH = 24
 
-        fun fromByteArray(bytes: ByteArray): PrivilegeAdbMessage {
-            require(bytes.size >= HEADER_LENGTH) { "ADB message is too short" }
-            val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-            val command = buffer.int
-            val arg0 = buffer.int
-            val arg1 = buffer.int
-            val dataLength = buffer.int
-            val checksum = buffer.int
-            val magic = buffer.int
-            val data = if (dataLength > 0) {
-                ByteArray(dataLength).also { buffer.get(it) }
-            } else {
-                null
-            }
-            return PrivilegeAdbMessage(command, arg0, arg1, dataLength, checksum, magic, data)
-        }
-
         private fun crc32(data: ByteArray?): Int {
             if (data == null) return 0
             var result = 0

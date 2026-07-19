@@ -75,24 +75,6 @@ private class PairingPacketHeader(
     }
 }
 
-internal class PrivilegeAdbPairingContext private constructor(
-    private val context: PrivilegeAdbPairingCryptoContext,
-) {
-    val msg: ByteArray = context.msg
-
-    fun initCipher(theirMsg: ByteArray): Boolean = context.initCipher(theirMsg)
-    fun encrypt(input: ByteArray): ByteArray? = context.encrypt(input)
-    fun decrypt(input: ByteArray): ByteArray? = context.decrypt(input)
-    fun destroy() = context.destroy()
-
-    companion object {
-        fun create(password: ByteArray): PrivilegeAdbPairingContext {
-            val context = PrivilegeAdbPairingCryptoContext.createClient(password)
-            return PrivilegeAdbPairingContext(context)
-        }
-    }
-}
-
 internal class PrivilegeAdbPairingClient(
     private val endpoint: PrivilegeAdbEndpoint,
     private val pairCode: String,
@@ -102,14 +84,14 @@ internal class PrivilegeAdbPairingClient(
     private lateinit var inputStream: DataInputStream
     private lateinit var outputStream: DataOutputStream
     private val peerInfo = PeerInfo(PeerInfo.ADB_RSA_PUB_KEY, key.adbPublicKey)
-    private var pairingContext: PrivilegeAdbPairingContext? = null
+    private var pairingContext: PrivilegeAdbPairingCryptoContext? = null
 
     fun start(): Boolean {
-        setupTlsConnection()
-        return doExchangeMsgs() && doExchangePeerInfo()
+        val context = setupTlsConnection()
+        return doExchangeMsgs(context) && doExchangePeerInfo(context)
     }
 
-    private fun setupTlsConnection() {
+    private fun setupTlsConnection(): PrivilegeAdbPairingCryptoContext {
         val plainSocket = Socket()
         plainSocket.connect(InetSocketAddress(endpoint.host, endpoint.port), CONNECT_TIMEOUT_MILLIS)
         plainSocket.soTimeout = READ_TIMEOUT_MILLIS
@@ -134,11 +116,12 @@ internal class PrivilegeAdbPairingClient(
         pairCodeBytes.copyInto(passwordBytes)
         keyMaterial.copyInto(passwordBytes, pairCodeBytes.size)
 
-        pairingContext = PrivilegeAdbPairingContext.create(passwordBytes)
+        return PrivilegeAdbPairingCryptoContext.createClient(passwordBytes).also {
+            pairingContext = it
+        }
     }
 
-    private fun doExchangeMsgs(): Boolean {
-        val context = checkNotNull(pairingContext)
+    private fun doExchangeMsgs(context: PrivilegeAdbPairingCryptoContext): Boolean {
         val msg = context.msg
         writeHeader(createHeader(PairingPacketHeader.TYPE_SPAKE2_MSG, msg.size), msg)
 
@@ -150,8 +133,7 @@ internal class PrivilegeAdbPairingClient(
         return context.initCipher(theirMessage)
     }
 
-    private fun doExchangePeerInfo(): Boolean {
-        val context = checkNotNull(pairingContext)
+    private fun doExchangePeerInfo(context: PrivilegeAdbPairingCryptoContext): Boolean {
         val buffer = ByteBuffer.allocate(MAX_PEER_INFO_SIZE).order(ByteOrder.BIG_ENDIAN)
         peerInfo.writeTo(buffer)
 

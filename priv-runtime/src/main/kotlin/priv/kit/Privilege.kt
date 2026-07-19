@@ -108,10 +108,7 @@ public object Privilege {
     public fun createAdbStarter(
         adbDeviceName: String? = null,
     ): PrivilegeAdbStarter =
-        buildAdbStarter(
-            ownerToken = ownerTokenStore().readOrCreate(),
-            adbDeviceName = adbDeviceName,
-        )
+        buildAdbStarter(adbDeviceName = adbDeviceName)
 
     @Throws(PrivilegeStartupException::class)
     public fun connectReadyServer(): PrivilegeServerInfo? {
@@ -143,7 +140,6 @@ public object Privilege {
     ): PrivilegeServerInfo {
         val token = ownerTokenStore().readOrCreate()
         val adbStarter = buildAdbStarter(
-            ownerToken = token,
             adbDeviceName = adbDeviceName,
         )
         val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
@@ -488,11 +484,9 @@ public object Privilege {
         PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath()
 
     private fun buildAdbStarter(
-        ownerToken: String,
         adbDeviceName: String?,
     ): PrivilegeAdbStarter {
-        return PrivilegeAdbStarter.forOwnerToken(
-            ownerToken = ownerToken,
+        return PrivilegeAdbStarter.create(
             adbDeviceName = resolveAdbDeviceName(adbDeviceName),
         )
     }

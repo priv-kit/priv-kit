@@ -4,7 +4,7 @@ import android.os.IBinder
 import java.util.concurrent.ConcurrentHashMap
 
 internal object PrivilegeUserServiceHandshakeRegistry {
-    private val readyProcesses = ConcurrentHashMap<String, ReadyProcess>()
+    private val readyProcesses = ConcurrentHashMap<String, IBinder>()
 
     fun deliverReady(
         token: String?,
@@ -13,20 +13,14 @@ internal object PrivilegeUserServiceHandshakeRegistry {
         if (token.isNullOrBlank() || processBinder == null) {
             return false
         }
-        readyProcesses[token] = ReadyProcess(
-            processBinder = processBinder,
-        )
+        readyProcesses[token] = processBinder
         return true
     }
 
-    fun claimReady(token: String?): ReadyProcess? {
+    fun claimReady(token: String?): IBinder? {
         if (token.isNullOrBlank()) {
             return null
         }
         return readyProcesses.remove(token)
     }
-
-    data class ReadyProcess(
-        val processBinder: IBinder,
-    )
 }

@@ -6,25 +6,21 @@ import priv.kit.ui.state.*
 import android.content.Context
 import priv.kit.Privilege
 
-internal class PrivilegeUiManualShellActions(
-    private val store: PrivilegeUiViewModelStore,
-) {
-    fun loadCommand() {
-        val commandLine = runCatching {
-            Privilege.createShellStartCommand()
-                .toPrivilegeUiHostAdbShellCommand()
-        }.getOrElse { throwable ->
-            store.appendLog(throwable.toPrivilegeUiDiagnosticString())
-            null
-        }
-        store.updateState { it.copy(manualShellCommandLine = commandLine) }
+internal fun PrivilegeUiViewModelStore.loadManualShellCommand() {
+    val commandLine = runCatching {
+        Privilege.createShellStartCommand()
+            .toPrivilegeUiHostAdbShellCommand()
+    }.getOrElse { throwable ->
+        appendLog(throwable.toPrivilegeUiDiagnosticString())
+        null
     }
+    updateState { it.copy(manualShellCommandLine = commandLine) }
+}
 
-    fun copyCommand(context: Context) {
-        val commandLine = store.state.value.manualShellCommandLine ?: return
-        context.copyToClipboard(
-            label = store.text(R.string.priv_ui_manual_command_clip_label),
-            text = commandLine,
-        )
-    }
+internal fun PrivilegeUiViewModelStore.copyManualShellCommand(context: Context) {
+    val commandLine = state.value.manualShellCommandLine ?: return
+    context.copyToClipboard(
+        label = text(R.string.priv_ui_manual_command_clip_label),
+        text = commandLine,
+    )
 }

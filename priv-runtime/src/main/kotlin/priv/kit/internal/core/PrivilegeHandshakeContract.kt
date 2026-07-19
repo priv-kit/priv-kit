@@ -1,5 +1,7 @@
 package priv.kit.internal.core
 
+import java.io.File
+
 internal object PrivilegeHandshakeContract {
     const val METHOD_SERVER_READY: String = "privilege_server_ready"
 
@@ -16,4 +18,12 @@ internal object PrivilegeHandshakeContract {
     const val RESULT_REPLACEMENT_COMMAND: String = "privilege_replacement_command"
 
     fun providerAuthority(packageName: String): String = "$packageName.privilege.handshake"
+
+    fun classpathIdentity(classpath: String): String =
+        classpath.split(':')
+            .filter { it.isNotBlank() }
+            .joinToString(":") { path ->
+                val file = File(path)
+                "$path@${file.length()}@${file.lastModified() / 1000L}"
+            }
 }

@@ -17,14 +17,9 @@ constexpr const char* DEFAULT_MAIN_CLASS = "priv.kit.internal.server.PrivilegeSe
 constexpr const char* DEFAULT_PROCESS_SUFFIX = ":priv-kit-server";
 
 struct StarterConfig {
-    const char* classpath = nullptr;
-    const char* main_class = DEFAULT_MAIN_CLASS;
-    const char* process_name = nullptr;
-    const char* package_name = nullptr;
-
-    char classpath_buffer[MAX_CLASSPATH_LENGTH] = {};
-    char package_name_buffer[256] = {};
-    char process_name_buffer[320] = {};
+    char classpath[MAX_CLASSPATH_LENGTH] = {};
+    char package_name[256] = {};
+    char process_name[320] = {};
 };
 
 bool string_copy(char* output, size_t output_size, const char* value) {
@@ -188,25 +183,16 @@ bool infer_defaults(char** argv, StarterConfig* config) {
         return false;
     }
 
-    if (config->package_name == nullptr) {
-        if (!infer_package_name(install_dir, config->package_name_buffer, sizeof(config->package_name_buffer))) {
-            return false;
-        }
-        config->package_name = config->package_name_buffer;
+    if (!infer_package_name(install_dir, config->package_name, sizeof(config->package_name))) {
+        return false;
     }
-    if (config->classpath == nullptr) {
-        if (!build_classpath(install_dir, config->classpath_buffer, sizeof(config->classpath_buffer))) {
-            return false;
-        }
-        config->classpath = config->classpath_buffer;
+    if (!build_classpath(install_dir, config->classpath, sizeof(config->classpath))) {
+        return false;
     }
-    if (config->process_name == nullptr) {
-        if (!string_copy(config->process_name_buffer, sizeof(config->process_name_buffer), config->package_name) ||
-            !string_append(config->process_name_buffer, sizeof(config->process_name_buffer), DEFAULT_PROCESS_SUFFIX)) {
-            fprintf(stderr, "fatal: process name is too long\n");
-            return false;
-        }
-        config->process_name = config->process_name_buffer;
+    if (!string_copy(config->process_name, sizeof(config->process_name), config->package_name) ||
+        !string_append(config->process_name, sizeof(config->process_name), DEFAULT_PROCESS_SUFFIX)) {
+        fprintf(stderr, "fatal: process name is too long\n");
+        return false;
     }
     return true;
 }
@@ -296,7 +282,7 @@ void exec_app_process(const StarterConfig& config) {
     app_argv[index++] = classpath_arg;
     app_argv[index++] = const_cast<char*>("/system/bin");
     app_argv[index++] = nice_name_arg;
-    app_argv[index++] = const_cast<char*>(config.main_class);
+    app_argv[index++] = const_cast<char*>(DEFAULT_MAIN_CLASS);
     app_argv[index] = nullptr;
 
     setenv("CLASSPATH", config.classpath, 1);

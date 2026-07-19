@@ -44,10 +44,8 @@ import priv.kit.ui.PrivilegeUiScreenScope
 import priv.kit.ui.PrivilegeUiWirelessAdbStatus
 import priv.kit.ui.R
 import priv.kit.ui.requestPrivilegeUiBatteryOptimizationExemption
-import priv.kit.ui.adb.PrivilegeUiAdbStartupSection
 import priv.kit.ui.adb.PrivilegeUiStaticTcpPanelStatus
 import priv.kit.ui.adb.PrivilegeUiWirelessAdbPanelStatus
-import priv.kit.ui.adb.privilegeUiAdbStartupSections
 import priv.kit.ui.adb.privilegeUiWirelessAdbStartAction
 import priv.kit.ui.adb.privilegeUiWirelessAdbStartActionEnabled
 import priv.kit.ui.adb.privilegeUiWirelessAdbStartActionLabel
@@ -74,23 +72,21 @@ internal fun PrivilegeUiScreenScope.AdbPanel() {
             BatteryOptimizationPromptPanel()
         }
         Panel {
-            val sections = privilegeUiAdbStartupSections(
-                wirelessAdbSupported = isPrivilegeUiWirelessAdbSupported(),
-                tcpPolicy = viewModel.config.adbTcpPolicy,
-            )
+            val wirelessAdbVisible = isPrivilegeUiWirelessAdbSupported()
+            val staticTcpVisible = viewModel.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED
             AdbFingerprintRow(fingerprint = state.adbKeyFingerprint)
-            if (sections.isEmpty()) {
+            if (!wirelessAdbVisible && !staticTcpVisible) {
                 StatusText(stringResource(R.string.priv_ui_adb_unavailable))
             } else {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                sections.forEachIndexed { index, section ->
-                    if (index > 0) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    }
-                    when (section) {
-                        PrivilegeUiAdbStartupSection.WIRELESS -> WirelessAdbSection()
-                        PrivilegeUiAdbStartupSection.STATIC_TCP -> StaticTcpAdbSection()
-                    }
+                if (wirelessAdbVisible) {
+                    WirelessAdbSection()
+                }
+                if (wirelessAdbVisible && staticTcpVisible) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+                if (staticTcpVisible) {
+                    StaticTcpAdbSection()
                 }
             }
         }
