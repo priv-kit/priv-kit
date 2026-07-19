@@ -45,7 +45,7 @@ private fun Context.hasPrivilegeUiBatteryOptimizationPermissionDeclaration(): Bo
             ?.contains(Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS) == true
     }.getOrDefault(false)
 
-private fun Context.tryStartPrivilegeUiSettingsActivity(intent: Intent): Boolean {
+internal fun Context.tryStartPrivilegeUiSettingsActivity(intent: Intent): Boolean {
     val launchIntent = Intent(intent).apply {
         if (findPrivilegeUiActivity() == null) {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

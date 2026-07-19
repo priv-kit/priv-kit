@@ -60,6 +60,10 @@ internal class PrivilegeUiAdbActions(
         pairingActions.continuePairingWithoutNotification()
     }
 
+    fun continuePendingPairingIfNotificationPermissionGranted() {
+        pairingActions.continuePendingPairingIfNotificationPermissionGranted()
+    }
+
     fun closePairingDialog() {
         pairingActions.closePairingDialog()
     }

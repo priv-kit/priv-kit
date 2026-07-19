@@ -11,10 +11,12 @@ import android.app.Application
 import android.content.Context
 import android.os.Looper
 import android.os.PowerManager
+import android.provider.Settings
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -366,6 +368,131 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
+    fun notificationPermissionSettingsRequestKeepsWarningAndOpensCurrentAppSettings() {
+        val application = application()
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        val store = viewModel.storeForTest()
+        store.updateState {
+            it.copy(pairingNotificationPermissionWarningVisible = true)
+        }
+        val startedMessage = application.getString(R.string.priv_ui_notification_pairing_started)
+        val startedLogCountBefore = viewModel.state.value.startupLogLines.count {
+            it == startedMessage
+        }
+
+        viewModel.dispatchNotificationPermissionSettingsRequest(application)
+
+        val intent = shadowOf(application).nextStartedActivity
+        assertEquals(Settings.ACTION_APP_NOTIFICATION_SETTINGS, intent.action)
+        assertEquals(
+            application.packageName,
+            intent.getStringExtra(Settings.EXTRA_APP_PACKAGE),
+        )
+        assertTrue(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+        assertFalse(viewModel.state.value.pairingDialogVisible)
+        assertEquals(PrivilegeUiAdbPairingStatus.NOT_PAIRED, viewModel.state.value.pairingStatus)
+        assertFalse(viewModel.state.value.notificationPairingRunning)
+        assertEquals(
+            startedLogCountBefore,
+            viewModel.state.value.startupLogLines.count { it == startedMessage },
+        )
+    }
+
+    @Test
+    fun notificationPermissionSettingsRequestIsOverridable() {
+        val application = application()
+        val viewModel = NotificationSettingsPrivilegeUiViewModel(application)
+        viewModel.storeForTest().updateState {
+            it.copy(pairingNotificationPermissionWarningVisible = true)
+        }
+
+        viewModel.dispatchNotificationPermissionSettingsRequest(application)
+
+        assertSame(application, viewModel.openedContext)
+        assertNull(shadowOf(application).nextStartedActivity)
+        assertTrue(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+    }
+
+    @Test
+    fun hostResumeContinuesPendingPairingWithNotificationAfterPermissionIsGranted() {
+        val application = application()
+        val shadowApplication = shadowOf(application)
+        shadowApplication.denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.storeForTest().updateState {
+            it.copy(pairingNotificationPermissionWarningVisible = true)
+        }
+        shadowApplication.grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+
+        try {
+            viewModel.dispatchHostResume()
+
+            val startedMessage = application.getString(R.string.priv_ui_notification_pairing_started)
+            assertFalse(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+            assertEquals(
+                PrivilegeUiAdbPairingStatus.SEARCHING,
+                viewModel.state.value.pairingStatus,
+            )
+            assertTrue(viewModel.state.value.pairingDialogVisible)
+            assertTrue(viewModel.state.value.notificationPairingRunning)
+            assertEquals(1, viewModel.state.value.startupLogLines.count { it == startedMessage })
+
+            viewModel.dispatchHostWindowFocus()
+
+            assertEquals(1, viewModel.state.value.startupLogLines.count { it == startedMessage })
+        } finally {
+            viewModel.stopNotificationPairing()
+        }
+    }
+
+    @Test
+    fun hostResumeKeepsWarningWhenNotificationPermissionRemainsUnavailable() {
+        val application = application()
+        shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.storeForTest().updateState {
+            it.copy(pairingNotificationPermissionWarningVisible = true)
+        }
+        val startedMessage = application.getString(R.string.priv_ui_notification_pairing_started)
+        val startedLogCountBefore = viewModel.state.value.startupLogLines.count {
+            it == startedMessage
+        }
+
+        viewModel.dispatchHostResume()
+
+        assertTrue(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+        assertFalse(viewModel.state.value.pairingDialogVisible)
+        assertEquals(PrivilegeUiAdbPairingStatus.NOT_PAIRED, viewModel.state.value.pairingStatus)
+        assertFalse(viewModel.state.value.notificationPairingRunning)
+        assertEquals(
+            startedLogCountBefore,
+            viewModel.state.value.startupLogLines.count { it == startedMessage },
+        )
+    }
+
+    @Test
+    fun hostResumeDoesNotStartPairingWithoutPendingWarning() {
+        val application = application()
+        shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        val startedMessage = application.getString(R.string.priv_ui_notification_pairing_started)
+        val startedLogCountBefore = viewModel.state.value.startupLogLines.count {
+            it == startedMessage
+        }
+
+        viewModel.dispatchHostResume()
+
+        assertFalse(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+        assertFalse(viewModel.state.value.pairingDialogVisible)
+        assertEquals(PrivilegeUiAdbPairingStatus.NOT_PAIRED, viewModel.state.value.pairingStatus)
+        assertFalse(viewModel.state.value.notificationPairingRunning)
+        assertEquals(
+            startedLogCountBefore,
+            viewModel.state.value.startupLogLines.count { it == startedMessage },
+        )
+    }
+
+    @Test
     fun permanentlyDeniedNotificationPermissionShowsWarningBeforePairingSessionStarts() = runBlocking {
         val application = application()
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
@@ -455,6 +582,23 @@ class PrivilegeUiViewModelTest {
         override fun onHostResume() {
             hostResumeCount += 1
             promptVisibleDuringHostResume = batteryOptimizationPromptVisible.value
+        }
+    }
+
+    private class NotificationSettingsPrivilegeUiViewModel(
+        application: Application,
+    ) : PrivilegeUiViewModel(
+        application = application,
+        config = PrivilegeUiConfig(
+            startupModes = setOf(PrivilegeUiStartupMode.ROOT),
+            adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+        ),
+    ) {
+        var openedContext: Context? = null
+            private set
+
+        override fun onNotificationPermissionSettingsRequested(context: Context) {
+            openedContext = context
         }
     }
 

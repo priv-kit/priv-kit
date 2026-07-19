@@ -114,10 +114,14 @@ continues to use the supplied host.
 
 `PrivilegeScaffold` owns its Activity Result launchers for notification and local-network
 permissions and returns the notification result to the ViewModel. Host subclasses may
-override `onBackClick()` and `onConnected(...)`. These hooks
-should update host state or emit host events; a ViewModel must not retain an `Activity`,
-`NavController`, Compose state holder, or Activity Result launcher. Returning `false`
-from `onBackClick()` delegates to the system back dispatcher. Hosts that need custom
-top-bar actions should supply their own `topBar`.
+override `onBackClick()`, `onConnected(...)`, and
+`onNotificationPermissionSettingsRequested(...)`. These hooks should update host state,
+emit host events, or customize notification-settings navigation; a ViewModel must not retain
+the settings hook's `Context`, an `Activity`, `NavController`, Compose state holder, or
+Activity Result launcher. Returning `false` from `onBackClick()` delegates to the system back
+dispatcher. While the notification-permission warning is pending, each host foreground refresh
+checks `POST_NOTIFICATIONS` and continues notification pairing automatically once it is granted.
+This check is independent of notification-settings navigation; the settings hook only opens the
+destination. Hosts that need custom top-bar actions should supply their own `topBar`.
 
 All static UI and notification text lives in `src/main/res/values/strings.xml` with the `priv_ui_` prefix so apps can override or localize it.

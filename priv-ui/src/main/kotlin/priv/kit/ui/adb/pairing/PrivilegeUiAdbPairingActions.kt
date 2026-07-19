@@ -96,9 +96,7 @@ internal class PrivilegeUiAdbPairingActions(
             return
         }
         val context = store.requireContext()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
+        if (!isNotificationPermissionGranted()) {
             resetPairingSessionForNotificationPermission()
             PrivilegeAdbPairingService.stop(context, notificationOwnerId)
             store.startNotificationPairingAfterPermission = true
@@ -112,8 +110,7 @@ internal class PrivilegeUiAdbPairingActions(
             }
             return
         }
-        startPairingSession()
-        startNotificationUi()
+        startPairingWithNotification()
     }
 
     fun stopNotificationPairing() {
@@ -139,6 +136,12 @@ internal class PrivilegeUiAdbPairingActions(
         startPairingSession()
     }
 
+    fun continuePendingPairingIfNotificationPermissionGranted() {
+        if (!store.state.value.pairingNotificationPermissionWarningVisible) return
+        if (!isNotificationPermissionGranted()) return
+        startPairingWithNotification()
+    }
+
     fun closePairingDialog() {
         store.updateState {
             it.copy(
@@ -160,8 +163,7 @@ internal class PrivilegeUiAdbPairingActions(
 
         when (permissionState) {
             PrivilegeUiPermissionState.Granted -> {
-                startPairingSession()
-                startNotificationUi()
+                startPairingWithNotification()
             }
             PrivilegeUiPermissionState.NotGranted.Denied -> {
                 startPairingSession()
@@ -226,6 +228,16 @@ internal class PrivilegeUiAdbPairingActions(
         )
     }
 
+    private fun startPairingWithNotification() {
+        startPairingSession()
+        startNotificationUi()
+    }
+
+    private fun isNotificationPermissionGranted(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            store.requireContext().checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+
     private fun launchPairingDiscovery(
         session: Int,
         adbDeviceName: String?,
@@ -273,7 +285,7 @@ internal class PrivilegeUiAdbPairingActions(
                 }
 
                 while (isActive && isCurrentPairingSession(session)) {
-                    val port = monitoredPort ?: break
+                    val port = monitoredPort
                     val portListening = runInterruptible(Dispatchers.IO) {
                         isLocalPairingPortListening(port)
                     }

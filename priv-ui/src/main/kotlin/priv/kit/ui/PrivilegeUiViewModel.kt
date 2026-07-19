@@ -2,6 +2,8 @@ package priv.kit.ui
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -91,7 +93,24 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     /** Called once for each connection serial while this ViewModel is alive. */
     protected open fun onConnected(serverInfo: PrivilegeServerInfo): Unit = Unit
 
+    /**
+     * Called when the built-in UI requests the host application's notification settings.
+     * Implementations must not retain [context].
+     */
+    protected open fun onNotificationPermissionSettingsRequested(context: Context) {
+        context.tryStartPrivilegeUiSettingsActivity(
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(
+                Settings.EXTRA_APP_PACKAGE,
+                context.packageName,
+            ),
+        )
+    }
+
     internal fun dispatchBackClick(): Boolean = onBackClick()
+
+    internal fun dispatchNotificationPermissionSettingsRequest(context: Context) {
+        onNotificationPermissionSettingsRequested(context)
+    }
 
     internal fun dispatchConnected(
         connectionSerial: Long,
@@ -236,6 +255,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     private fun refreshHostInteractiveState() {
+        adbActions.continuePendingPairingIfNotificationPermissionGranted()
         refreshBatteryOptimizationState()
         refreshHostResumeState()
         scheduleBatteryOptimizationStateRechecks()

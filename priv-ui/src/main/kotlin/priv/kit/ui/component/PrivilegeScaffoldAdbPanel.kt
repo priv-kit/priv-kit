@@ -194,6 +194,7 @@ private fun PrivilegeUiScreenScope.WirelessAdbSection() {
 
 @Composable
 private fun PrivilegeUiScreenScope.WirelessAdbPairingNotificationPermissionWarningDialog() {
+    val context = LocalContext.current
     AlertDialog(
         onDismissRequest = viewModel::cancelPendingPairingStart,
         properties = DialogProperties(dismissOnClickOutside = false),
@@ -211,6 +212,13 @@ private fun PrivilegeUiScreenScope.WirelessAdbPairingNotificationPermissionWarni
         dismissButton = {
             TextButton(onClick = viewModel::cancelPendingPairingStart) {
                 Text(stringResource(R.string.priv_ui_pairing_cancel_action))
+            }
+            TextButton(
+                onClick = {
+                    viewModel.dispatchNotificationPermissionSettingsRequest(context)
+                },
+            ) {
+                Text(stringResource(R.string.priv_ui_notification_permission_settings_action))
             }
         },
     )
