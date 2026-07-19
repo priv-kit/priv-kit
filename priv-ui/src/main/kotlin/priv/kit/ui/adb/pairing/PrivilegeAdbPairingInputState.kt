@@ -1,8 +1,8 @@
 package priv.kit.ui.adb.pairing
 
 internal data class PrivilegeAdbPairingInputState(
-    internal val code: String = DEFAULT_PAIRING_INPUT_CODE,
-    internal val selectedIndex: Int = 0,
+    val code: String = DEFAULT_PAIRING_INPUT_CODE,
+    val selectedIndex: Int = 0,
 ) {
     init {
         require(code.length == PAIRING_INPUT_CODE_LENGTH && code.all(Char::isDigit)) {
@@ -13,21 +13,21 @@ internal data class PrivilegeAdbPairingInputState(
         }
     }
 
-    internal val displayText: String
+    val displayText: String
         get() = code.mapIndexed { index, digit ->
             if (index == selectedIndex) "[$digit]" else digit.toString()
         }.joinToString(" ")
 
-    internal fun moveLeft(): PrivilegeAdbPairingInputState =
+    fun moveLeft(): PrivilegeAdbPairingInputState =
         copy(selectedIndex = (selectedIndex + PAIRING_INPUT_CODE_LENGTH - 1) % PAIRING_INPUT_CODE_LENGTH)
 
-    internal fun moveRight(): PrivilegeAdbPairingInputState =
+    fun moveRight(): PrivilegeAdbPairingInputState =
         copy(selectedIndex = (selectedIndex + 1) % PAIRING_INPUT_CODE_LENGTH)
 
-    internal fun incrementDigit(): PrivilegeAdbPairingInputState =
+    fun incrementDigit(): PrivilegeAdbPairingInputState =
         copy(code = code.replaceDigitAt(selectedIndex) { (it + 1) % 10 })
 
-    internal fun decrementDigit(): PrivilegeAdbPairingInputState =
+    fun decrementDigit(): PrivilegeAdbPairingInputState =
         copy(code = code.replaceDigitAt(selectedIndex) { (it + 9) % 10 })
 }
 

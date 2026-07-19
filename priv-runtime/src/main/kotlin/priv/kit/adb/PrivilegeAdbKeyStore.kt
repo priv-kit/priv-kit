@@ -14,7 +14,7 @@ internal object PrivilegeAdbKeyStore {
         synchronized(lock) {
             cachedKeyBytes?.let { return@synchronized it.copyOf() }
 
-            val file = adbKeyFile()
+            val file = PrivilegeStorage.file(KEY_FILE_NAME)
             val existingBytes = runCatching {
                 PrivilegeBinaryFileStore.readIfExists(file)
             }.getOrElse { throwable ->
@@ -60,7 +60,4 @@ internal object PrivilegeAdbKeyStore {
         cachedKeyBytes = copy
         return copy.copyOf()
     }
-
-    private fun adbKeyFile(): File =
-        PrivilegeStorage.file(KEY_FILE_NAME)
 }

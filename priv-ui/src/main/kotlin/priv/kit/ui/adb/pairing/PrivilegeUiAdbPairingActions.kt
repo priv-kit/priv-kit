@@ -2,7 +2,7 @@ package priv.kit.ui.adb.pairing
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.os.Build
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -19,6 +19,7 @@ import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiPermissionState
 import priv.kit.ui.PrivilegeUiWirelessAdbStatus
 import priv.kit.ui.R
+import priv.kit.ui.isPrivilegeUiNotificationPermissionSupported
 import priv.kit.ui.toPrivilegeUiPairingCodeDigits
 import priv.kit.ui.adb.currentTcpModePort
 import priv.kit.ui.state.PrivilegeUiFailureKind
@@ -234,8 +235,11 @@ internal class PrivilegeUiAdbPairingActions(
     }
 
     private fun isNotificationPermissionGranted(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            store.requireContext().checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+        !isPrivilegeUiNotificationPermissionSupported() ||
+            ContextCompat.checkSelfPermission(
+                store.requireContext(),
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) ==
             PackageManager.PERMISSION_GRANTED
 
     private fun launchPairingDiscovery(
@@ -443,7 +447,7 @@ internal class PrivilegeUiAdbPairingActions(
         }
     }
 
-    internal fun handleNotificationEvent(event: PrivilegeAdbPairingNotificationEvent) {
+    fun handleNotificationEvent(event: PrivilegeAdbPairingNotificationEvent) {
         if (event.ownerId != notificationOwnerId) return
         when (event) {
             is PrivilegeAdbPairingNotificationEvent.Submit -> {

@@ -19,7 +19,6 @@ import priv.kit.internal.core.PrivilegeAndroidUsers
 import priv.kit.internal.core.PrivilegeProtocol
 import priv.kit.internal.core.PrivilegeServerHandshakeRegistry
 import priv.kit.internal.core.PrivilegeServerHandshakeResult
-import priv.kit.internal.core.PrivilegeServerLaunchCommand
 import priv.kit.internal.runtime.PrivilegeOwnerTokenStore
 import priv.kit.internal.runtime.PrivilegeRootProcess
 import priv.kit.internal.runtime.PrivilegeRootStarter
@@ -57,7 +56,7 @@ public object Privilege {
         try {
             startupLogListener.emitStartupLog("runtime", "Starting with root")
             rootProcess = PrivilegeRootStarter.start(
-                buildRootCommandLine(),
+                buildShortNativeStarterCommand(),
                 startupLogListener = startupLogListener,
             )
             startupLogListener.emitStartupLog("runtime", "Waiting for Privileged Server handshake")
@@ -101,7 +100,7 @@ public object Privilege {
     @Throws(PrivilegeStartupException::class)
     public fun createShellStartCommand(): String {
         ownerTokenStore().readOrCreate()
-        return buildShellStartCommandLine()
+        return buildShortNativeStarterCommand()
     }
 
     @Throws(PrivilegeStartupException::class)
@@ -149,7 +148,7 @@ public object Privilege {
             Log.i(TAG, "Starting through ADB keySignature=<redacted>")
             startupLogListener.emitStartupLog("runtime", "Starting through ADB")
             val adbStartResult = adbStarter.start(
-                buildServerLaunchCommand(),
+                PrivilegeServerLaunchCommandBuilder.build(),
                 options,
                 startupLogListener = startupLogListener,
             )
@@ -469,19 +468,10 @@ public object Privilege {
         }
     }
 
-    private fun buildShellStartCommandLine(): String =
-        buildShortNativeStarterCommand()
-
-    private fun buildRootCommandLine(): String =
-        buildShortNativeStarterCommand()
-
     internal fun buildShortNativeStarterCommand(
-        starterPath: String = buildNativeStarterPath(),
+        starterPath: String = PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath(),
     ): String =
         PrivilegeServerLaunchCommandBuilder.shellArg(starterPath)
-
-    private fun buildNativeStarterPath(): String =
-        PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath()
 
     private fun buildAdbStarter(
         adbDeviceName: String?,
@@ -531,9 +521,6 @@ public object Privilege {
         }
         return "\n[server diagnostics]\n$output"
     }
-
-    private fun buildServerLaunchCommand(): PrivilegeServerLaunchCommand =
-        PrivilegeServerLaunchCommandBuilder.build()
 
     private fun PrivilegeServerInfo.matchesCurrentRuntime(): Boolean =
         protocolVersion == PrivilegeProtocol.VERSION

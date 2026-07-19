@@ -1,5 +1,6 @@
 package priv.kit.ui
 
+import android.Manifest
 import android.view.ViewTreeObserver
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -22,18 +23,16 @@ import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import priv.kit.ui.component.AdbPanel
@@ -64,16 +63,22 @@ public fun PrivilegeScaffold(
     contentColor: Color = contentColorFor(containerColor),
     contentWindowInsets: WindowInsets = ScaffoldDefaults.contentWindowInsets,
 ) {
-    val context = LocalContext.current
     val activity = LocalActivity.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val view = LocalView.current
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val notificationPermission = if (isPrivilegeUiNotificationPermissionSupported()) {
+        Manifest.permission.POST_NOTIFICATIONS
+    } else {
+        null
+    }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { granted ->
-            val permissionState = activity?.let {
-                privilegeUiPermissionState(it, POST_NOTIFICATIONS_PERMISSION)
+            val permissionState = activity?.let { currentActivity ->
+                notificationPermission?.let { permission ->
+                    privilegeUiPermissionState(currentActivity, permission)
+                }
             } ?: if (granted) {
                 PrivilegeUiPermissionState.Granted
             } else {
@@ -109,15 +114,16 @@ public fun PrivilegeScaffold(
         viewModel.permissionRequests.collect { request ->
             when (request) {
                 PrivilegeUiPermissionRequest.Notification -> {
+                    val permission = notificationPermission ?: return@collect
                     val permissionState = activity?.let {
-                        privilegeUiPermissionState(it, POST_NOTIFICATIONS_PERMISSION)
+                        privilegeUiPermissionState(it, permission)
                     }
                     if (
                         permissionState == null ||
                         permissionState.shouldLaunchPermissionRequest()
                     ) {
-                        markPrivilegeUiPermissionRequested(POST_NOTIFICATIONS_PERMISSION)
-                        notificationPermissionLauncher.launch(POST_NOTIFICATIONS_PERMISSION)
+                        markPrivilegeUiPermissionRequested(permission)
+                        notificationPermissionLauncher.launch(permission)
                     } else {
                         viewModel.handleNotificationPermissionResult(permissionState)
                     }
@@ -135,20 +141,21 @@ public fun PrivilegeScaffold(
             snackbarHostState.showSnackbar(message = message)
         }
     }
+    LifecycleEventEffect(
+        event = Lifecycle.Event.ON_RESUME,
+        lifecycleOwner = lifecycleOwner,
+        onEvent = viewModel::dispatchHostResume,
+    )
     DisposableEffect(viewModel, lifecycleOwner, view) {
         val lifecycle = lifecycleOwner.lifecycle
-        val refreshObserver = PrivilegeUiHostStateRefreshObserver(
-            isHostResumed = {
-                lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
-            },
-            onHostResume = viewModel::dispatchHostResume,
-            onHostWindowFocus = viewModel::dispatchHostWindowFocus,
-        )
+        val refreshObserver = ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
+            if (hasFocus && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                viewModel.dispatchHostWindowFocus()
+            }
+        }
         val viewTreeObserver = view.viewTreeObserver
         viewTreeObserver.addOnWindowFocusChangeListener(refreshObserver)
-        lifecycle.addObserver(refreshObserver)
         onDispose {
-            lifecycle.removeObserver(refreshObserver)
             val removalObserver = if (viewTreeObserver.isAlive) {
                 viewTreeObserver
             } else {
@@ -198,34 +205,11 @@ public fun PrivilegeScaffold(
     }
 }
 
-private const val POST_NOTIFICATIONS_PERMISSION = "android.permission.POST_NOTIFICATIONS"
-
 internal class PrivilegeUiScreenScope(
-    internal val state: PrivilegeUiState,
-    internal val viewModel: PrivilegeUiViewModel,
-    internal val showFeedback: (String) -> Unit,
+    val state: PrivilegeUiState,
+    val viewModel: PrivilegeUiViewModel,
+    val showFeedback: (String) -> Unit,
 )
-
-internal class PrivilegeUiHostStateRefreshObserver(
-    private val isHostResumed: () -> Boolean,
-    private val onHostResume: () -> Unit,
-    private val onHostWindowFocus: () -> Unit,
-) : LifecycleEventObserver, ViewTreeObserver.OnWindowFocusChangeListener {
-    override fun onStateChanged(
-        source: LifecycleOwner,
-        event: Lifecycle.Event,
-    ) {
-        if (event == Lifecycle.Event.ON_RESUME) {
-            onHostResume()
-        }
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        if (hasFocus && isHostResumed()) {
-            onHostWindowFocus()
-        }
-    }
-}
 
 @Composable
 private fun PrivilegeUiScreenScope.AuthorizationModePanel() {

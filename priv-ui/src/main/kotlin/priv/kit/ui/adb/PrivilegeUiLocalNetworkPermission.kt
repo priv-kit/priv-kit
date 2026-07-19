@@ -4,20 +4,20 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.annotation.ChecksSdkIntAtLeast
+import androidx.core.content.ContextCompat
 
 internal fun privilegeUiRequiredLocalNetworkPermission(context: Context): String? {
-    val permission = privilegeUiLocalNetworkPermissionName() ?: return null
+    if (!isPrivilegeUiLocalNetworkPermissionSupported()) return null
+    val permission = Manifest.permission.ACCESS_LOCAL_NETWORK
     return permission.takeIf {
-        context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
+        ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
     }
 }
 
-private fun privilegeUiLocalNetworkPermissionName(): String? =
-    if (privilegeUiRequiresLocalNetworkPermissionForSdk(Build.VERSION.SDK_INT)) {
-        Manifest.permission.ACCESS_LOCAL_NETWORK
-    } else {
-        null
-    }
+@ChecksSdkIntAtLeast(api = Build.VERSION_CODES.CINNAMON_BUN)
+private fun isPrivilegeUiLocalNetworkPermissionSupported(): Boolean =
+    privilegeUiRequiresLocalNetworkPermissionForSdk(Build.VERSION.SDK_INT)
 
 internal fun privilegeUiRequiresLocalNetworkPermissionForSdk(sdkInt: Int): Boolean =
     sdkInt >= Build.VERSION_CODES.CINNAMON_BUN

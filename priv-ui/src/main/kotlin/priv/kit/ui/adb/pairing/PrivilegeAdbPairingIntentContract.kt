@@ -1,38 +1,25 @@
 package priv.kit.ui.adb.pairing
 
-import android.app.PendingIntent
-import android.os.Build
-
 internal object PrivilegeAdbPairingIntentContract {
-    internal const val ACTION_START: String = "priv.kit.ui.action.START_ADB_PAIRING_NOTIFICATION"
-    internal const val ACTION_REPLY: String = "priv.kit.ui.action.REPLY_ADB_PAIRING_NOTIFICATION"
-    internal const val ACTION_INPUT_LEFT: String = "priv.kit.ui.action.ADB_PAIRING_INPUT_LEFT"
-    internal const val ACTION_INPUT_UP: String = "priv.kit.ui.action.ADB_PAIRING_INPUT_UP"
-    internal const val ACTION_INPUT_DOWN: String = "priv.kit.ui.action.ADB_PAIRING_INPUT_DOWN"
-    internal const val ACTION_INPUT_RIGHT: String = "priv.kit.ui.action.ADB_PAIRING_INPUT_RIGHT"
-    internal const val ACTION_INPUT_SUBMIT: String = "priv.kit.ui.action.ADB_PAIRING_INPUT_SUBMIT"
-    internal const val ACTION_STOP: String = "priv.kit.ui.action.STOP_ADB_PAIRING_NOTIFICATION"
+    const val ACTION_START: String = "priv.kit.ui.action.START_ADB_PAIRING_NOTIFICATION"
+    const val ACTION_REPLY: String = "priv.kit.ui.action.REPLY_ADB_PAIRING_NOTIFICATION"
+    const val ACTION_INPUT_LEFT: String = "priv.kit.ui.action.ADB_PAIRING_INPUT_LEFT"
+    const val ACTION_INPUT_UP: String = "priv.kit.ui.action.ADB_PAIRING_INPUT_UP"
+    const val ACTION_INPUT_DOWN: String = "priv.kit.ui.action.ADB_PAIRING_INPUT_DOWN"
+    const val ACTION_INPUT_RIGHT: String = "priv.kit.ui.action.ADB_PAIRING_INPUT_RIGHT"
+    const val ACTION_INPUT_SUBMIT: String = "priv.kit.ui.action.ADB_PAIRING_INPUT_SUBMIT"
+    const val ACTION_STOP: String = "priv.kit.ui.action.STOP_ADB_PAIRING_NOTIFICATION"
 
-    internal const val REMOTE_INPUT_PAIRING_CODE: String = "pairing_code"
-    internal const val EXTRA_NOTIFICATION_OWNER_ID: String = "notification_owner_id"
-    internal const val NOTIFICATION_CHANNEL_ID: String = "priv_ui_adb_pairing"
-    internal const val NOTIFICATION_ID: Int = 201
-    internal const val INPUT_NOTIFICATION_ID: Int = 202
-    internal const val REQUEST_REPLY: Int = 1
-    internal const val REQUEST_STOP: Int = 3
-    internal const val REQUEST_INPUT_LEFT: Int = 5
-    internal const val REQUEST_INPUT_UP: Int = 6
-    internal const val REQUEST_INPUT_DOWN: Int = 7
-    internal const val REQUEST_INPUT_RIGHT: Int = 8
-    internal const val REQUEST_INPUT_SUBMIT: Int = 9
-
-    internal fun mutablePendingIntentFlags(): Int =
-        PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            PendingIntent.FLAG_MUTABLE
-        } else {
-            0
-        }
-
-    internal fun immutablePendingIntentFlags(): Int =
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    const val REMOTE_INPUT_PAIRING_CODE: String = "pairing_code"
+    const val EXTRA_NOTIFICATION_OWNER_ID: String = "notification_owner_id"
+    const val NOTIFICATION_CHANNEL_ID: String = "priv_ui_adb_pairing"
+    const val NOTIFICATION_ID: Int = 201
+    const val INPUT_NOTIFICATION_ID: Int = 202
+    const val REQUEST_REPLY: Int = 1
+    const val REQUEST_STOP: Int = 3
+    const val REQUEST_INPUT_LEFT: Int = 5
+    const val REQUEST_INPUT_UP: Int = 6
+    const val REQUEST_INPUT_DOWN: Int = 7
+    const val REQUEST_INPUT_RIGHT: Int = 8
+    const val REQUEST_INPUT_SUBMIT: Int = 9
 }

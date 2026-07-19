@@ -32,7 +32,7 @@ internal class PrivilegeUiRuntimeActions(
         publishConnectedServer = ::publishConnectedServerLocked,
     )
 
-    internal val isClosed: Boolean
+    val isClosed: Boolean
         get() = closed.get()
 
     fun startRoot() {

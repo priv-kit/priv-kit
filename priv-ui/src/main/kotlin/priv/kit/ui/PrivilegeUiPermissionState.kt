@@ -2,6 +2,8 @@ package priv.kit.ui
 
 import android.app.Activity
 import android.content.pm.PackageManager
+import android.os.Build
+import androidx.annotation.ChecksSdkIntAtLeast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.util.concurrent.ConcurrentHashMap
@@ -34,6 +36,10 @@ internal fun privilegeUiPermissionState(
 internal fun markPrivilegeUiPermissionRequested(permission: String) {
     PrivilegeUiPermissionRequestHistory.add(permission)
 }
+
+@ChecksSdkIntAtLeast(api = Build.VERSION_CODES.TIRAMISU)
+internal fun isPrivilegeUiNotificationPermissionSupported(): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
 
 internal fun PrivilegeUiPermissionState.shouldLaunchPermissionRequest(): Boolean =
     this == PrivilegeUiPermissionState.NotGranted.Denied

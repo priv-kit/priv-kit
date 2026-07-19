@@ -5,7 +5,6 @@ import android.app.Application
 import android.app.Instrumentation
 import android.content.Context
 import android.os.Looper
-import android.os.UserHandle
 import android.os.UserHandleHidden
 import android.util.Log
 import priv.kit.internal.hidden.castedHidden
@@ -187,15 +186,13 @@ internal object PrivilegeUserServiceLoader {
         val systemContext = findMethod(activityThread.javaClass, "getSystemContext")
             ?.invoke(activityThread) as? Context
             ?: throw IllegalStateException("ActivityThread system Context is unavailable")
-        val userHandle = createUserHandle(userId)
+        val userHandle = UserHandleHidden.of(userId)
         return systemContext.castedHidden.createPackageContextAsUser(
             packageName,
             Context.CONTEXT_INCLUDE_CODE or Context.CONTEXT_IGNORE_SECURITY,
             userHandle,
         )
     }
-
-    private fun createUserHandle(userId: Int): UserHandle = UserHandleHidden.of(userId)
 
     private fun makeApplication(
         activityThread: ActivityThread,

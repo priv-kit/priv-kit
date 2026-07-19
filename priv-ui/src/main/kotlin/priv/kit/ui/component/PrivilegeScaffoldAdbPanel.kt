@@ -18,7 +18,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import priv.kit.ui.PrivilegeUiAdbPairingStatus
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
@@ -63,7 +63,7 @@ import priv.kit.ui.state.privilegeUiStaticTcpOpenCommand
 @Composable
 internal fun PrivilegeUiScreenScope.AdbPanel() {
     val batteryOptimizationPromptVisible by
-        viewModel.batteryOptimizationPromptVisible.collectAsState()
+        viewModel.batteryOptimizationPromptVisible.collectAsStateWithLifecycle()
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.large),

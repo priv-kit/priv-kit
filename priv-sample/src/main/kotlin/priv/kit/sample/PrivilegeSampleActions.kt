@@ -388,17 +388,11 @@ private fun MainActivity.applyShizukuReadiness(readiness: ShizukuReadiness) {
         shizukuVersion = readiness.version,
         shizukuMessage = readiness.message,
         shizukuLastException = readiness.exceptionText,
-        message = readiness.toGlobalMessage(),
+        message = if (readiness.ready) "Shizuku ready" else readiness.message,
     )
     if (readiness.exceptionText.isNotBlank()) {
         appendLog(readiness.exceptionText)
     }
-}
-
-private fun MainActivity.releaseShizukuExternalStart() {
-    sampleViewModel.shizukuExternalStarter?.close()
-    sampleViewModel.shizukuExternalStarter = null
-    sampleViewModel.startShizukuExternalAfterPermission = false
 }
 
 internal fun MainActivity.pairWirelessAdb() {
@@ -728,7 +722,7 @@ private fun MainActivity.stopSampleUserService(label: String) {
         message = "Stopping $label UserService...",
         requireConnected = false,
     ) {
-        val spec = sampleUserServiceSpec(label, sampleUserServiceEmbedded(label))
+        val spec = sampleUserServiceSpec(label, embedded = label == "embedded")
         Privilege.stopUserService(spec)
         clearSampleUserService(label)
         UserServiceActionResult(
@@ -930,9 +924,6 @@ private data class ShizukuReadiness(
     val exceptionText: String = "",
     val pendingStartTerminal: Boolean = false,
 )
-
-private fun ShizukuReadiness.toGlobalMessage(): String =
-    if (ready) "Shizuku ready" else message
 
 private fun List<PrivilegeSampleUserInfo>.toBinderMessage(): String =
     buildString {
@@ -1165,8 +1156,6 @@ private fun sampleUserServiceSpec(
         version = 1,
         embedded = embedded,
     )
-
-private fun sampleUserServiceEmbedded(label: String): Boolean = label == "embedded"
 
 private fun sampleUserServiceClassName(label: String): String =
     if (label == "embedded") {

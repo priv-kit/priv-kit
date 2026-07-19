@@ -4,9 +4,10 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
+import androidx.annotation.ChecksSdkIntAtLeast
 
 internal fun Context.copyToClipboard(label: String, text: String) {
-    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    val clipboard = getSystemService(ClipboardManager::class.java) ?: return
     clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
 }
 
@@ -29,6 +30,7 @@ internal fun String.toPrivilegeUiHostAdbShellCommand(): String {
 internal fun privilegeUiStaticTcpOpenCommand(tcpPort: Int): String =
     "adb tcpip $tcpPort"
 
+@ChecksSdkIntAtLeast(api = Build.VERSION_CODES.R)
 internal fun isPrivilegeUiWirelessAdbSupported(): Boolean =
     Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
 

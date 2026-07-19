@@ -120,7 +120,8 @@ internal class PrivilegeAdbKey(
         KeyFactory.getInstance(PrivilegeAdbKeyBytes.RSA_KEY_ALGORITHM).generatePublic(
             RSAPublicKeySpec(privateKey.modulus, RSAKeyGenParameterSpec.F4),
         ) as RSAPublicKey
-    private val certificate: X509Certificate = createCertificate()
+    private val certificate: X509Certificate =
+        PrivilegeAdbCertificateFactory.createRsaCertificate(privateKey, publicKey)
     private val adbPublicKeyPayload: ByteArray by lazy(LazyThreadSafetyMode.NONE) {
         publicKey.adbEncodedPayload()
     }
@@ -145,9 +146,6 @@ internal class PrivilegeAdbKey(
         cipher.update(PADDING)
         return cipher.doFinal(token)
     }
-
-    private fun createCertificate(): X509Certificate =
-        PrivilegeAdbCertificateFactory.createRsaCertificate(privateKey, publicKey)
 
     private val keyManager: X509ExtendedKeyManager
         get() = object : X509ExtendedKeyManager() {

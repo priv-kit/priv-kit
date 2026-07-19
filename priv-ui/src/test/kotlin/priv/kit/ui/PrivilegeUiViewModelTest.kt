@@ -12,8 +12,6 @@ import android.content.Context
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleOwner
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -321,31 +319,6 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
-    fun hostStateRefreshObserverRoutesResumeAndFocusedWindowReturns() {
-        var hostResumed = false
-        var resumeCount = 0
-        var windowFocusCount = 0
-        val observer = PrivilegeUiHostStateRefreshObserver(
-            isHostResumed = { hostResumed },
-            onHostResume = { resumeCount += 1 },
-            onHostWindowFocus = { windowFocusCount += 1 },
-        )
-
-        observer.onWindowFocusChanged(true)
-        observer.onStateChanged(TestLifecycleOwner, Lifecycle.Event.ON_START)
-        assertEquals(0, resumeCount)
-        assertEquals(0, windowFocusCount)
-
-        hostResumed = true
-        observer.onStateChanged(TestLifecycleOwner, Lifecycle.Event.ON_RESUME)
-        observer.onWindowFocusChanged(false)
-        observer.onWindowFocusChanged(true)
-
-        assertEquals(1, resumeCount)
-        assertEquals(1, windowFocusCount)
-    }
-
-    @Test
     fun hostEventsAreOverridableAndConnectionsAreDeliveredOncePerSerial() {
         val viewModel = HostEventPrivilegeUiViewModel(application())
         val first = PrivilegeServerInfo(uid = 2000, pid = 10, protocolVersion = 1)
@@ -610,11 +583,6 @@ class PrivilegeUiViewModelTest {
             context: Context,
             commandLine: String,
         ) = Unit
-    }
-
-    private object TestLifecycleOwner : LifecycleOwner {
-        override val lifecycle: Lifecycle
-            get() = throw UnsupportedOperationException()
     }
 
     private fun configuredViewModel(config: PrivilegeUiConfig): ConfiguredPrivilegeUiViewModel =

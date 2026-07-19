@@ -170,7 +170,7 @@ internal class PrivilegeUiViewModelStore(
     }
 
     private companion object {
-        private const val MAX_STARTUP_LOG_LINES = 240
+        const val MAX_STARTUP_LOG_LINES = 240
 
         val USER_VISIBLE_AUTHORIZATION_MODE_ORDER = listOf(
             PrivilegeUiStartupMode.ROOT,

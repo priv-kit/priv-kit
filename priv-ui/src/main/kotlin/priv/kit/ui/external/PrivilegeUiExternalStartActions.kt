@@ -59,7 +59,7 @@ internal class PrivilegeUiExternalStartActions(
         }
     }
 
-    internal fun refreshExternalStartStatusNow(
+    fun refreshExternalStartStatusNow(
         stop: AtomicBoolean?,
         providerId: String?,
     ): Boolean =
