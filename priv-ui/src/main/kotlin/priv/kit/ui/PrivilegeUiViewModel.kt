@@ -6,9 +6,6 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -16,8 +13,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.ui.adb.PrivilegeUiAdbActions
@@ -28,14 +23,12 @@ import priv.kit.ui.runtime.PrivilegeUiStartGate
 import priv.kit.ui.runtime.PrivilegeUiStartGateState
 import priv.kit.ui.runtime.copyManualShellCommand
 import priv.kit.ui.runtime.directStartTargets
-import priv.kit.ui.runtime.loadManualShellCommand
 import priv.kit.ui.state.PrivilegeUiNoopCloseable
 import priv.kit.ui.state.PrivilegeUiViewModelStore
 import priv.kit.ui.state.copyToClipboard
 import priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported
 import priv.kit.ui.state.privilegeUiStaticTcpOpenCommand
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 
 public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     application: Application,
@@ -63,32 +56,35 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         acquireInteractivePermit = acquireInteractivePermit,
     )
     private val ownerClosed = AtomicBoolean(false)
-    private val uiEffectsLock = Any()
-    private var wirelessStatusPollingHandle: AutoCloseable? = null
-    private var tcpModeStatusPollingHandle: AutoCloseable? = null
-    private var externalStartStatusPollingHandle: AutoCloseable? = null
+    private val effectsCoordinator = PrivilegeUiEffectsCoordinator(
+        store = store,
+        interactiveStartOwner = interactiveStartOwner,
+        runtimeActions = runtimeActions,
+        adbActions = adbActions,
+        externalStartActions = externalStartActions,
+        coroutineScope = viewModelScope,
+    )
+    private val permissionCoordinator = PrivilegeUiPermissionCoordinator(
+        coroutineScope = viewModelScope,
+        acquireInteractivePermit = acquireInteractivePermit,
+        interactionsEnabled = { uiInteractionsEnabled },
+        ownerClosed = ownerClosed::get,
+        handleNotificationPermissionResult = adbActions::handleNotificationPermissionResult,
+        cancelNotificationPermissionRequest = adbActions::cancelNotificationPermissionRequest,
+        cancelPairingWithoutInteractionHost = adbActions::cancelPairingWithoutInteractionHost,
+    )
     private var batteryOptimizationRefreshJob: Job? = null
     private var deliveredConnectionSerial = 0L
     private var hostResumeDispatchInProgress = false
-    private val permissionRequestLock = Any()
-    private val attachedPermissionHostIds = mutableSetOf<String>()
-    private val detachedPermissionHostSerials = mutableMapOf<String, Long>()
-    private val permissionHostRebindJobs = mutableMapOf<String, Job>()
-    private val permissionHostDetachSerial = AtomicLong(0L)
-    private val queuedPermissionRequests = ArrayDeque<PrivilegeUiPermissionRequest>()
-    private val activePermissionRequestState = MutableStateFlow<PrivilegeUiPermissionRequest?>(null)
     private val batteryOptimizationPromptVisibleState = MutableStateFlow(false)
-    private val uiEffectsEnabledState = MutableStateFlow(false)
-    private val reconciledSilentCompletionSerial = AtomicLong(Long.MIN_VALUE)
     public val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
     internal val startGateState: StateFlow<PrivilegeUiStartGateState> =
-        PrivilegeUiStartGate.state
-    internal val uiEffectsEnabled: StateFlow<Boolean> = uiEffectsEnabledState.asStateFlow()
+        effectsCoordinator.startGateState
+    internal val uiEffectsEnabled: StateFlow<Boolean> = effectsCoordinator.enabled
     internal val uiInteractionsEnabled: Boolean
-        get() = uiEffectsAllowed(startGateState.value)
+        get() = effectsCoordinator.interactionsEnabled
     internal val snackbarMessages: SharedFlow<String> = store.snackbarMessages
-    internal val permissionRequests: Flow<PrivilegeUiPermissionRequest> =
-        activePermissionRequestState.filterNotNull()
+    internal val permissionRequests: Flow<PrivilegeUiPermissionRequest> = permissionCoordinator.requests
     internal val batteryOptimizationPromptVisible: StateFlow<Boolean> =
         batteryOptimizationPromptVisibleState.asStateFlow()
 
@@ -103,77 +99,13 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         adbActions.observePairingNotificationEvents()
         store.initializeState(config)
         runtimeActions.installRuntimeWatchers()
-        reconcileInitialUiEffects(startGateState.value)
-        observeSilentStartCompletions()
+        effectsCoordinator.initialize()
 
         refreshBatteryOptimizationState()
     }
 
-    private fun observeSilentStartCompletions() {
-        viewModelScope.launch(
-            Dispatchers.IO + CoroutineName("priv-ui-silent-start-completions"),
-        ) {
-            startGateState.collectLatest { gateState ->
-                reconcileUiEffects(gateState)
-            }
-        }
-    }
-
-    private fun reconcileInitialUiEffects(gateState: PrivilegeUiStartGateState) {
-        if (!beginUiEffectsReconciliation(gateState)) return
-        runtimeActions.refreshRuntimeStatus()
-        completeUiEffectsReconciliation(gateState)
-    }
-
-    private suspend fun reconcileUiEffects(gateState: PrivilegeUiStartGateState) {
-        if (!beginUiEffectsReconciliation(gateState)) return
-        runtimeActions.refreshRuntimeStatus()
-        completeUiEffectsReconciliation(gateState)
-    }
-
-    private fun beginUiEffectsReconciliation(gateState: PrivilegeUiStartGateState): Boolean =
-        synchronized(uiEffectsLock) {
-            if (!interactiveStartOwner.canInteract(gateState)) {
-                uiEffectsEnabledState.value = false
-                pauseUiEffectPolling()
-                return@synchronized false
-            }
-            if (
-                reconciledSilentCompletionSerial.get() == gateState.silentCompletionSerial &&
-                uiEffectsEnabledState.value
-            ) {
-                return@synchronized false
-            }
-
-            uiEffectsEnabledState.value = false
-            pauseUiEffectPolling()
-            true
-        }
-
-    private fun completeUiEffectsReconciliation(gateState: PrivilegeUiStartGateState) {
-        synchronized(uiEffectsLock) {
-            val currentGateState = startGateState.value
-            if (
-                interactiveStartOwner.canInteract(currentGateState) &&
-                currentGateState.silentCompletionSerial == gateState.silentCompletionSerial
-            ) {
-                reconciledSilentCompletionSerial.set(gateState.silentCompletionSerial)
-                resumeUiEffectsAfterReconciliation()
-                val resumedGateState = startGateState.value
-                if (
-                    interactiveStartOwner.canInteract(resumedGateState) &&
-                    resumedGateState.silentCompletionSerial == gateState.silentCompletionSerial
-                ) {
-                    uiEffectsEnabledState.value = true
-                }
-            }
-        }
-    }
-
     internal fun uiEffectsAllowed(gateState: PrivilegeUiStartGateState): Boolean =
-        uiEffectsEnabledState.value &&
-            interactiveStartOwner.canInteract(gateState) &&
-            reconciledSilentCompletionSerial.get() == gateState.silentCompletionSerial
+        effectsCoordinator.effectsAllowed(gateState)
 
     /** Return true when the host handled the back action; false uses the system back dispatcher. */
     protected open fun onBackClick(): Boolean = false
@@ -219,10 +151,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         if (!uiInteractionsEnabled) return
         if (mode !in store.state.value.startupModes) return
         store.updateState { it.copy(selectedStartupMode = mode) }
-        syncWirelessAdbStatusPolling()
-        syncTcpModeStatusPolling()
-        syncExternalStartStatusPolling()
-        refreshTcpModeEnabledIfSelected()
+        effectsCoordinator.onStartupModeSelected()
     }
 
     public open fun startRoot() {
@@ -231,14 +160,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     /** Starts the foreground provider sequence used by the service-status action. */
-    @Suppress("DEPRECATION")
     public open fun startInteractive() {
-        if (!uiInteractionsEnabled) return
-        startAvailable()
-    }
-
-    @Deprecated("Use startInteractive()", ReplaceWith("startInteractive()"))
-    public open fun startAvailable() {
         if (!uiInteractionsEnabled) return
         startInteractiveFallback()
     }
@@ -336,58 +258,20 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     internal fun completeNotificationPermissionRequest(
         hostId: String,
         permissionState: PrivilegeUiPermissionState,
-    ) {
-        val request = synchronized(permissionRequestLock) {
-            val activeRequest =
-                activePermissionRequestState.value as? PrivilegeUiPermissionRequest.Notification
-            activeRequest
-                ?.takeIf { it.tryClaimLaunchedCompletion(hostId) }
-                ?.also { advancePermissionRequestLocked() }
-        } ?: return
-        handleNotificationPermissionResult(request, permissionState)
-    }
+    ) = permissionCoordinator.completeNotificationPermissionRequest(hostId, permissionState)
 
     internal fun completeUnlaunchedNotificationPermissionRequest(
         hostId: String,
         request: PrivilegeUiPermissionRequest.Notification,
         permissionState: PrivilegeUiPermissionState,
-    ) {
-        val claimed = synchronized(permissionRequestLock) {
-            if (
-                hostId !in attachedPermissionHostIds ||
-                activePermissionRequestState.value !== request ||
-                !request.tryClaimUnlaunchedCompletion()
-            ) {
-                false
-            } else {
-                advancePermissionRequestLocked()
-                true
-            }
-        }
-        if (claimed) handleNotificationPermissionResult(request, permissionState)
-    }
+    ) = permissionCoordinator.completeUnlaunchedNotificationPermissionRequest(
+        hostId,
+        request,
+        permissionState,
+    )
 
-    private fun handleNotificationPermissionResult(
-        request: PrivilegeUiPermissionRequest.Notification,
-        permissionState: PrivilegeUiPermissionState,
-    ) {
-        try {
-            adbActions.handleNotificationPermissionResult(permissionState)
-        } finally {
-            request.close()
-        }
-    }
-
-    internal fun completeLocalNetworkPermissionRequest(hostId: String) {
-        val request = synchronized(permissionRequestLock) {
-            val activeRequest =
-                activePermissionRequestState.value as? PrivilegeUiPermissionRequest.LocalNetwork
-            activeRequest
-                ?.takeIf { it.tryClaimLaunchedCompletion(hostId) }
-                ?.also { advancePermissionRequestLocked() }
-        } ?: return
-        request.close()
-    }
+    internal fun completeLocalNetworkPermissionRequest(hostId: String) =
+        permissionCoordinator.completeLocalNetworkPermissionRequest(hostId)
 
     public open fun startWirelessAdb() {
         if (!uiInteractionsEnabled) return
@@ -425,28 +309,11 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         refreshBatteryOptimizationState()
         if (uiInteractionsEnabled) {
             adbActions.continuePendingPairingIfNotificationPermissionGranted()
-            refreshHostResumeState()
+            effectsCoordinator.refreshHostResumeState()
         } else {
-            pauseUiEffectPolling()
+            effectsCoordinator.pauseStatusPolling()
         }
         scheduleBatteryOptimizationStateRechecks()
-    }
-
-    private fun refreshHostResumeState() {
-        runtimeActions.refreshAdbPermissionRestrictionStatus()
-        syncWirelessAdbStatusPolling()
-        syncTcpModeStatusPolling()
-        syncExternalStartStatusPolling()
-        if (
-            store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB &&
-            isPrivilegeUiWirelessAdbSupported()
-        ) {
-            adbActions.refreshWirelessAdbStatus()
-        }
-        if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.EXTERNAL) {
-            externalStartActions.refreshExternalStartStatus()
-        }
-        refreshTcpModeEnabledIfSelected()
     }
 
     internal fun dispatchHostResume() {
@@ -479,11 +346,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     public open fun stopWirelessAdbStatusPolling() {
-        synchronized(uiEffectsLock) {
-            wirelessStatusPollingHandle?.close()
-            wirelessStatusPollingHandle = null
-            adbActions.stopWirelessAdbStatusPolling()
-        }
+        effectsCoordinator.stopWirelessStatusPolling()
     }
 
     public open fun startTcpModeStatusPolling(): AutoCloseable =
@@ -494,11 +357,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         }
 
     public open fun stopTcpModeStatusPolling() {
-        synchronized(uiEffectsLock) {
-            tcpModeStatusPollingHandle?.close()
-            tcpModeStatusPollingHandle = null
-            adbActions.stopTcpModeStatusPolling()
-        }
+        effectsCoordinator.stopTcpModeStatusPolling()
     }
 
     public open fun enableTcpMode() {
@@ -529,11 +388,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         }
 
     public open fun stopExternalStartStatusPolling() {
-        synchronized(uiEffectsLock) {
-            externalStartStatusPollingHandle?.close()
-            externalStartStatusPollingHandle = null
-            externalStartActions.stopExternalStartStatusPolling()
-        }
+        effectsCoordinator.stopExternalStartStatusPolling()
     }
 
     public open fun authorizeOrStartExternal(providerId: String) {
@@ -541,288 +396,31 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         externalStartActions.authorizeOrStartExternal(providerId)
     }
 
-    private fun syncWirelessAdbStatusPolling(allowDuringReconciliation: Boolean = false) {
-        synchronized(uiEffectsLock) {
-            if (!allowDuringReconciliation && !uiInteractionsEnabled) {
-                wirelessStatusPollingHandle?.close()
-                wirelessStatusPollingHandle = null
-                adbActions.stopWirelessAdbStatusPolling()
-                return@synchronized
-            }
-            if (
-                store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB &&
-                isPrivilegeUiWirelessAdbSupported()
-            ) {
-                if (wirelessStatusPollingHandle == null) {
-                    wirelessStatusPollingHandle = adbActions.startWirelessAdbStatusPolling()
-                }
-            } else {
-                wirelessStatusPollingHandle?.close()
-                wirelessStatusPollingHandle = null
-            }
-        }
-    }
-
-    private fun syncTcpModeStatusPolling(allowDuringReconciliation: Boolean = false) {
-        synchronized(uiEffectsLock) {
-            if (!allowDuringReconciliation && !uiInteractionsEnabled) {
-                tcpModeStatusPollingHandle?.close()
-                tcpModeStatusPollingHandle = null
-                adbActions.stopTcpModeStatusPolling()
-                return@synchronized
-            }
-            if (
-                store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB &&
-                store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED
-            ) {
-                if (tcpModeStatusPollingHandle == null) {
-                    tcpModeStatusPollingHandle = adbActions.startTcpModeStatusPolling()
-                }
-            } else {
-                tcpModeStatusPollingHandle?.close()
-                tcpModeStatusPollingHandle = null
-            }
-        }
-    }
-
-    private fun syncExternalStartStatusPolling(allowDuringReconciliation: Boolean = false) {
-        synchronized(uiEffectsLock) {
-            if (!allowDuringReconciliation && !uiInteractionsEnabled) {
-                externalStartStatusPollingHandle?.close()
-                externalStartStatusPollingHandle = null
-                externalStartActions.stopExternalStartStatusPolling()
-                return@synchronized
-            }
-            if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.EXTERNAL) {
-                if (externalStartStatusPollingHandle == null) {
-                    externalStartStatusPollingHandle =
-                        externalStartActions.startExternalStartStatusPolling()
-                }
-            } else {
-                externalStartStatusPollingHandle?.close()
-                externalStartStatusPollingHandle = null
-            }
-        }
-    }
-
-    private fun refreshTcpModeEnabledIfSelected(allowDuringReconciliation: Boolean = false) {
-        if (!allowDuringReconciliation && !uiInteractionsEnabled) return
-        if (
-            store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB &&
-            store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED
-        ) {
-            adbActions.refreshTcpModeEnabled()
-        }
-    }
-
-    private fun pauseUiEffectPolling() {
-        synchronized(uiEffectsLock) {
-            wirelessStatusPollingHandle?.close()
-            wirelessStatusPollingHandle = null
-            adbActions.stopWirelessAdbStatusPolling()
-            tcpModeStatusPollingHandle?.close()
-            tcpModeStatusPollingHandle = null
-            adbActions.stopTcpModeStatusPolling()
-            externalStartStatusPollingHandle?.close()
-            externalStartStatusPollingHandle = null
-            externalStartActions.stopExternalStartStatusPolling()
-        }
-    }
-
-    private fun resumeUiEffectsAfterReconciliation() {
-        store.loadManualShellCommand()
-        externalStartActions.refreshExternalStartStatus()
-        adbActions.refreshAdbIdentityInfo()
-        syncWirelessAdbStatusPolling(allowDuringReconciliation = true)
-        syncTcpModeStatusPolling(allowDuringReconciliation = true)
-        syncExternalStartStatusPolling(allowDuringReconciliation = true)
-        refreshTcpModeEnabledIfSelected(allowDuringReconciliation = true)
-    }
-
     private fun requestNotificationPermission(): Boolean {
-        if (!uiInteractionsEnabled) return false
-        val permit = acquireInteractivePermit() ?: return false
-        return enqueuePermissionRequest(PrivilegeUiPermissionRequest.Notification(permit))
+        return permissionCoordinator.requestNotificationPermission()
     }
 
     private fun hasPermissionInteractionHost(): Boolean =
-        synchronized(permissionRequestLock) {
-            attachedPermissionHostIds.isNotEmpty() || detachedPermissionHostSerials.isNotEmpty()
-        }
+        permissionCoordinator.hasInteractionHost()
 
     private fun requestLocalNetworkPermission(permission: String) {
-        if (!uiInteractionsEnabled) return
-        val permit = acquireInteractivePermit() ?: return
-        enqueuePermissionRequest(PrivilegeUiPermissionRequest.LocalNetwork(permission, permit))
+        permissionCoordinator.requestLocalNetworkPermission(permission)
     }
 
-    internal fun registerPermissionHost(hostId: String) {
-        val rebindJob = synchronized(permissionRequestLock) {
-            if (ownerClosed.get()) return
-            attachedPermissionHostIds += hostId
-            detachedPermissionHostSerials.remove(hostId)
-            permissionHostRebindJobs.remove(hostId)
-        }
-        rebindJob?.cancel()
-    }
+    internal fun registerPermissionHost(hostId: String) = permissionCoordinator.registerHost(hostId)
 
     internal fun unregisterPermissionHost(
         hostId: String,
         changingConfigurations: Boolean,
-    ) {
-        if (changingConfigurations) {
-            detachPermissionHostForConfigurationChange(hostId)
-            return
-        }
-        val (requestsToCancel, noInteractionHostsRemain) = synchronized(permissionRequestLock) {
-            if (!attachedPermissionHostIds.remove(hostId)) return
-            val activeRequest = activePermissionRequestState.value
-            val noHostsRemain =
-                attachedPermissionHostIds.isEmpty() && detachedPermissionHostSerials.isEmpty()
-            val requests = when {
-                noHostsRemain ->
-                    clearPermissionRequestsLocked()
-                activeRequest?.wasLaunchedBy(hostId) == true -> {
-                    if (activeRequest.tryClaimCancellation(hostId)) {
-                        advancePermissionRequestLocked()
-                        listOf(activeRequest)
-                    } else {
-                        emptyList()
-                    }
-                }
-                else -> emptyList()
-            }
-            requests to noHostsRemain
-        }
-        finishPermissionHostCleanup(requestsToCancel, noInteractionHostsRemain)
-    }
+    ) = permissionCoordinator.unregisterHost(hostId, changingConfigurations)
 
-    private fun detachPermissionHostForConfigurationChange(hostId: String) {
-        val serial = synchronized(permissionRequestLock) {
-            if (!attachedPermissionHostIds.remove(hostId) || ownerClosed.get()) return
-            permissionHostRebindJobs.remove(hostId)?.cancel()
-            permissionHostDetachSerial.incrementAndGet().also { detachSerial ->
-                detachedPermissionHostSerials[hostId] = detachSerial
-            }
-        }
-        val rebindJob = viewModelScope.launch(
-            CoroutineName("priv-ui-permission-host-rebind"),
-        ) {
-            delay(PERMISSION_HOST_REBIND_GRACE_MILLIS)
-            expireDetachedPermissionHost(hostId, serial)
-        }
-        synchronized(permissionRequestLock) {
-            if (detachedPermissionHostSerials[hostId] == serial && !ownerClosed.get()) {
-                permissionHostRebindJobs[hostId] = rebindJob
-            } else {
-                rebindJob.cancel()
-            }
-        }
-    }
-
-    private fun expireDetachedPermissionHost(
-        hostId: String,
-        serial: Long,
-    ) {
-        val (requestsToCancel, noInteractionHostsRemain) = synchronized(permissionRequestLock) {
-            if (detachedPermissionHostSerials[hostId] != serial) return
-            detachedPermissionHostSerials.remove(hostId)
-            permissionHostRebindJobs.remove(hostId)
-            val noHostsRemain =
-                attachedPermissionHostIds.isEmpty() && detachedPermissionHostSerials.isEmpty()
-            val requests = buildList {
-                val activeRequest = activePermissionRequestState.value
-                if (
-                    activeRequest?.wasLaunchedBy(hostId) == true &&
-                    activeRequest.tryClaimCancellation(hostId)
-                ) {
-                    advancePermissionRequestLocked()
-                    add(activeRequest)
-                }
-                if (noHostsRemain) {
-                    addAll(clearPermissionRequestsLocked())
-                }
-            }.distinct()
-            requests to noHostsRemain
-        }
-        finishPermissionHostCleanup(requestsToCancel, noInteractionHostsRemain)
-    }
-
-    private fun enqueuePermissionRequest(request: PrivilegeUiPermissionRequest): Boolean {
-        synchronized(permissionRequestLock) {
-            if (ownerClosed.get() || attachedPermissionHostIds.isEmpty()) {
-                request.close()
-                return false
-            }
-            if (activePermissionRequestState.value == null) {
-                activePermissionRequestState.value = request
-            } else {
-                queuedPermissionRequests += request
-            }
-        }
-        return true
-    }
-
-    internal fun completePermissionRequest(request: PrivilegeUiPermissionRequest) {
-        synchronized(permissionRequestLock) {
-            request.tryClaimCancellation()
-            if (activePermissionRequestState.value === request) {
-                advancePermissionRequestLocked()
-            } else {
-                queuedPermissionRequests.remove(request)
-            }
-        }
-        request.close()
-    }
+    internal fun completePermissionRequest(request: PrivilegeUiPermissionRequest) =
+        permissionCoordinator.completeRequest(request)
 
     internal fun cancelPermissionRequest(
         hostId: String,
         request: PrivilegeUiPermissionRequest,
-    ) {
-        val removed = synchronized(permissionRequestLock) {
-            if (
-                activePermissionRequestState.value !== request ||
-                !request.tryClaimCancellation(hostId)
-            ) {
-                false
-            } else {
-                advancePermissionRequestLocked()
-                true
-            }
-        }
-        if (removed) cancelPermissionRequests(listOf(request))
-    }
-
-    private fun advancePermissionRequestLocked() {
-        activePermissionRequestState.value = queuedPermissionRequests.removeFirstOrNull()
-    }
-
-    private fun clearPermissionRequestsLocked(): List<PrivilegeUiPermissionRequest> =
-        buildList {
-            activePermissionRequestState.value?.let(::add)
-            addAll(queuedPermissionRequests)
-        }.also {
-            it.forEach { request -> request.tryClaimCancellation() }
-            activePermissionRequestState.value = null
-            queuedPermissionRequests.clear()
-        }
-
-    private fun cancelPermissionRequests(requests: List<PrivilegeUiPermissionRequest>) {
-        if (requests.any { it is PrivilegeUiPermissionRequest.Notification }) {
-            adbActions.cancelNotificationPermissionRequest()
-        }
-        requests.forEach(PrivilegeUiPermissionRequest::close)
-    }
-
-    private fun finishPermissionHostCleanup(
-        requests: List<PrivilegeUiPermissionRequest>,
-        noInteractionHostsRemain: Boolean,
-    ) {
-        cancelPermissionRequests(requests)
-        if (noInteractionHostsRemain) {
-            adbActions.cancelPairingWithoutInteractionHost()
-        }
-    }
+    ) = permissionCoordinator.cancelRequest(hostId, request)
 
     override fun onCleared() {
         closeOwner()
@@ -832,98 +430,13 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         if (!ownerClosed.compareAndSet(false, true)) return
         batteryOptimizationRefreshJob?.cancel()
         batteryOptimizationRefreshJob = null
+        runCatching { effectsCoordinator.close() }
         runtimeActions.close()
         runCatching { externalStartActions.close() }
         runCatching { adbActions.close() }
-        val (permissionRequestsToClose, rebindJobsToCancel) = synchronized(permissionRequestLock) {
-            attachedPermissionHostIds.clear()
-            detachedPermissionHostSerials.clear()
-            val rebindJobs = permissionHostRebindJobs.values.toList()
-            permissionHostRebindJobs.clear()
-            clearPermissionRequestsLocked() to rebindJobs
-        }
-        rebindJobsToCancel.forEach { job -> job.cancel() }
-        permissionRequestsToClose.forEach(PrivilegeUiPermissionRequest::close)
+        permissionCoordinator.close()
         runCatching { store.close() }
     }
 }
 
-private const val PERMISSION_HOST_REBIND_GRACE_MILLIS = 10_000L
 private val BATTERY_OPTIMIZATION_RECHECK_DELAYS_MILLIS = listOf(250L, 750L, 1_500L)
-
-internal sealed class PrivilegeUiPermissionRequest(
-    private val interactionPermit: AutoCloseable,
-) : AutoCloseable {
-    private val stateLock = Any()
-    private var closed = false
-    private var completionClaimed = false
-    private var launchedHostId: String? = null
-    private val completion = CompletableDeferred<Unit>()
-
-    internal val wasLaunched: Boolean
-        get() = synchronized(stateLock) { launchedHostId != null }
-
-    internal fun tryMarkLaunched(hostId: String): Boolean =
-        synchronized(stateLock) {
-            if (closed || completionClaimed || launchedHostId != null) {
-                false
-            } else {
-                launchedHostId = hostId
-                true
-            }
-        }
-
-    internal fun wasLaunchedBy(hostId: String): Boolean =
-        synchronized(stateLock) { launchedHostId == hostId }
-
-    internal fun tryClaimLaunchedCompletion(hostId: String): Boolean =
-        synchronized(stateLock) {
-            tryClaimCompletionLocked(launchedHostId == hostId)
-        }
-
-    internal fun tryClaimUnlaunchedCompletion(): Boolean =
-        synchronized(stateLock) {
-            tryClaimCompletionLocked(launchedHostId == null)
-        }
-
-    internal fun tryClaimCancellation(hostId: String): Boolean =
-        synchronized(stateLock) {
-            tryClaimCompletionLocked(launchedHostId == null || launchedHostId == hostId)
-        }
-
-    internal fun tryClaimCancellation(): Boolean =
-        synchronized(stateLock) { tryClaimCompletionLocked(true) }
-
-    internal suspend fun awaitCompletion() {
-        completion.await()
-    }
-
-    final override fun close() {
-        val shouldClose = synchronized(stateLock) {
-            if (closed) {
-                false
-            } else {
-                closed = true
-                true
-            }
-        }
-        if (!shouldClose) return
-        runCatching { interactionPermit.close() }
-        completion.complete(Unit)
-    }
-
-    private fun tryClaimCompletionLocked(ownerMatches: Boolean): Boolean {
-        if (closed || completionClaimed || !ownerMatches) return false
-        completionClaimed = true
-        return true
-    }
-
-    class Notification(
-        interactionPermit: AutoCloseable,
-    ) : PrivilegeUiPermissionRequest(interactionPermit)
-
-    class LocalNetwork(
-        val permission: String,
-        interactionPermit: AutoCloseable,
-    ) : PrivilegeUiPermissionRequest(interactionPermit)
-}

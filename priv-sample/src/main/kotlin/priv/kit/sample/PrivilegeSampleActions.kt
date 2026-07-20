@@ -939,15 +939,7 @@ private fun MainActivity.runServerStart(
     startupSource: String? = null,
     start: () -> PrivilegeServerInfo,
 ) {
-    if (screenState.busy) return
-    screenState = screenState.copy(
-        busy = true,
-        status = PrivilegeSampleStatus.STARTING,
-        serverInfo = null,
-        message = message,
-    )
-    appendStartupSource(startupSource)
-    appendLog(message)
+    if (!beginServerStart(message, startupSource)) return
 
     sampleViewModel.executor.execute {
         try {
@@ -969,15 +961,7 @@ private fun MainActivity.runServerStartRequest(
     startupSource: String? = null,
     start: () -> String,
 ) {
-    if (screenState.busy) return
-    screenState = screenState.copy(
-        busy = true,
-        status = PrivilegeSampleStatus.STARTING,
-        serverInfo = null,
-        message = message,
-    )
-    appendStartupSource(startupSource)
-    appendLog(message)
+    if (!beginServerStart(message, startupSource)) return
 
     sampleViewModel.executor.execute {
         try {
@@ -997,6 +981,22 @@ private fun MainActivity.runServerStartRequest(
             }
         }
     }
+}
+
+private fun MainActivity.beginServerStart(
+    message: String,
+    startupSource: String?,
+): Boolean {
+    if (screenState.busy) return false
+    screenState = screenState.copy(
+        busy = true,
+        status = PrivilegeSampleStatus.STARTING,
+        serverInfo = null,
+        message = message,
+    )
+    appendStartupSource(startupSource)
+    appendLog(message)
+    return true
 }
 
 private fun MainActivity.appendStartupSource(startupSource: String?) {

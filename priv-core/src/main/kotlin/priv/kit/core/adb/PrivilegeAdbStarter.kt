@@ -91,16 +91,11 @@ public class PrivilegeAdbStarter private constructor(
             if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to start Privileged Server with ADB: ${output.text()}", throwable)
         } finally {
-            if (options.disableWirelessDebuggingAfterStart) {
-                managedWirelessDebuggingController?.let { controller ->
-                    runCatching {
-                        controller.setWirelessDebuggingEnabled(false)
-                        output.append("adb", "Wireless debugging disabled")
-                    }.onFailure { throwable ->
-                        output.append("diag", "Failed to disable Wireless debugging: ${throwable.toFailureMessage()}")
-                    }
-                }
-            }
+            disableManagedWirelessDebuggingAfterStart(
+                shouldDisable = options.disableWirelessDebuggingAfterStart,
+                controller = managedWirelessDebuggingController,
+                output = output,
+            )
         }
     }
 
@@ -150,14 +145,7 @@ public class PrivilegeAdbStarter private constructor(
 
     public fun getWirelessDebuggingControlStatus(): PrivilegeAdbWirelessDebuggingControlStatus =
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            PrivilegeAdbWirelessDebuggingControlStatus(
-                supported = false,
-                permissionDeclared = false,
-                permissionGranted = false,
-                wirelessDebuggingEnabled = false,
-                canManage = false,
-                failureMessage = "Wireless ADB requires Android 11 or above",
-            )
+            unsupportedWirelessDebuggingControlStatus()
         } else {
             wirelessDebuggingControllerProvider().status()
         }
@@ -310,14 +298,7 @@ public class PrivilegeAdbStarter private constructor(
     ): PrivilegeAdbEndpoint {
         val controller = wirelessDebuggingControllerProvider()
         val status = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            PrivilegeAdbWirelessDebuggingControlStatus(
-                supported = false,
-                permissionDeclared = false,
-                permissionGranted = false,
-                wirelessDebuggingEnabled = false,
-                canManage = false,
-                failureMessage = "Wireless ADB requires Android 11 or above",
-            )
+            unsupportedWirelessDebuggingControlStatus()
         } else {
             controller.status()
         }
@@ -449,16 +430,11 @@ public class PrivilegeAdbStarter private constructor(
             throwable.rethrowIfInterrupted()
             throw PrivilegeStartupException("Failed to switch ADB to TCP mode: ${output.text()}", throwable)
         } finally {
-            if (options?.disableWirelessDebuggingAfterStart == true) {
-                managedWirelessDebuggingController?.let { controller ->
-                    runCatching {
-                        controller.setWirelessDebuggingEnabled(false)
-                        output.append("adb", "Wireless debugging disabled")
-                    }.onFailure { throwable ->
-                        output.append("diag", "Failed to disable Wireless debugging: ${throwable.toFailureMessage()}")
-                    }
-                }
-            }
+            disableManagedWirelessDebuggingAfterStart(
+                shouldDisable = options?.disableWirelessDebuggingAfterStart == true,
+                controller = managedWirelessDebuggingController,
+                output = output,
+            )
         }
     }
 
@@ -748,6 +724,30 @@ internal fun shouldEnableWirelessDebuggingForStart(
     control != PrivilegeAdbWirelessDebuggingControl.NEVER &&
         !status.wirelessDebuggingEnabled &&
         status.canManage
+
+private fun unsupportedWirelessDebuggingControlStatus(): PrivilegeAdbWirelessDebuggingControlStatus =
+    PrivilegeAdbWirelessDebuggingControlStatus(
+        supported = false,
+        permissionDeclared = false,
+        permissionGranted = false,
+        wirelessDebuggingEnabled = false,
+        canManage = false,
+        failureMessage = "Wireless ADB requires Android 11 or above",
+    )
+
+private fun disableManagedWirelessDebuggingAfterStart(
+    shouldDisable: Boolean,
+    controller: PrivilegeAdbWirelessDebuggingController?,
+    output: PrivilegeAdbOutput,
+) {
+    if (!shouldDisable || controller == null) return
+    runCatching {
+        controller.setWirelessDebuggingEnabled(false)
+        output.append("adb", "Wireless debugging disabled")
+    }.onFailure { throwable ->
+        output.append("diag", "Failed to disable Wireless debugging: ${throwable.toFailureMessage()}")
+    }
+}
 
 internal fun shouldRejectWirelessDebuggingForStart(
     control: PrivilegeAdbWirelessDebuggingControl,

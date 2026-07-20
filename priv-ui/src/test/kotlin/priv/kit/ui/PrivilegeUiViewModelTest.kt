@@ -45,22 +45,14 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
-    fun interactiveStartPreservesLegacyStartAvailableOverride() {
-        val viewModel = LegacyStartOverridePrivilegeUiViewModel(application())
-
-        viewModel.startInteractive()
-
-        assertEquals(1, viewModel.startCount)
-    }
-
-    @Test
-    fun silentOwnerBlocksLegacyInteractiveEntryUntilRuntimeIsReconciled() = runBlocking {
+    fun silentOwnerBlocksInteractiveEntryUntilRuntimeIsReconciled() = runBlocking {
         val silentPermit = PrivilegeUiStartGate.tryAcquireSilent()!!
-        val viewModel = LegacyStartOverridePrivilegeUiViewModel(application())
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
         try {
             assertFalse(viewModel.uiInteractionsEnabled)
             viewModel.startInteractive()
-            assertEquals(0, viewModel.startCount)
+            assertFalse(viewModel.state.value.busy)
+            assertEquals(PrivilegeUiRuntimeStartPhase.IDLE, viewModel.state.value.runtimeStartPhase)
 
             silentPermit.close()
             withTimeout(TimeUnit.SECONDS.toMillis(2)) {
@@ -68,8 +60,6 @@ class PrivilegeUiViewModelTest {
             }
 
             assertTrue(viewModel.uiInteractionsEnabled)
-            viewModel.startInteractive()
-            assertEquals(1, viewModel.startCount)
         } finally {
             silentPermit.close()
         }
@@ -77,7 +67,7 @@ class PrivilegeUiViewModelTest {
 
     @Test
     fun fastSilentCompletionIsEventuallyReconciled() = runBlocking {
-        val viewModel = LegacyStartOverridePrivilegeUiViewModel(application())
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
         assertTrue(viewModel.uiInteractionsEnabled)
 
         val silentPermit = PrivilegeUiStartGate.tryAcquireSilent()!!
@@ -801,18 +791,6 @@ class PrivilegeUiViewModelTest {
             context: Context,
             commandLine: String,
         ) = Unit
-    }
-
-    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
-    private class LegacyStartOverridePrivilegeUiViewModel(
-        application: Application,
-    ) : PrivilegeUiViewModel(application) {
-        var startCount: Int = 0
-            private set
-
-        override fun startAvailable() {
-            startCount += 1
-        }
     }
 
     private fun configuredViewModel(config: PrivilegeUiConfig): ConfiguredPrivilegeUiViewModel =
