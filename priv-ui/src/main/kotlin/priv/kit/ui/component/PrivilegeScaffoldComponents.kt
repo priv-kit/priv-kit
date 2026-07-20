@@ -220,7 +220,9 @@ internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
 
     if (showStopConfirmation) {
         AlertDialog(
-            onDismissRequest = { showStopConfirmation = false },
+            onDismissRequest = {
+                if (interactionEnabled) showStopConfirmation = false
+            },
             title = {
                 Text(stringResource(R.string.priv_ui_stop_service_dialog_title))
             },
@@ -229,7 +231,9 @@ internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
             },
             confirmButton = {
                 TextButton(
+                    enabled = interactionEnabled,
                     onClick = {
+                        if (!viewModel.uiInteractionsEnabled) return@TextButton
                         showStopConfirmation = false
                         viewModel.stopServer()
                     },
@@ -238,7 +242,10 @@ internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showStopConfirmation = false }) {
+                TextButton(
+                    enabled = interactionEnabled,
+                    onClick = { showStopConfirmation = false },
+                ) {
                     Text(stringResource(R.string.priv_ui_stop_service_cancel))
                 }
             },
@@ -284,17 +291,19 @@ internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
             PrivilegeIconTooltip(text = iconDescription) {
                 FilledTonalIconButton(
                     modifier = Modifier.size(PrivilegeUiSize.minimumTouchTarget),
-                    enabled = privilegeUiServiceStatusActionEnabled(action, state.busy),
+                    enabled = interactionEnabled &&
+                        privilegeUiServiceStatusActionEnabled(action, state.busy),
                     colors = IconButtonDefaults.filledTonalIconButtonColors(
                         containerColor = actionContainer,
                         contentColor = actionForeground,
                     ),
                     onClick = {
+                        if (!viewModel.uiInteractionsEnabled) return@FilledTonalIconButton
                         when (action) {
                             PrivilegeUiServiceStatusAction.STOP -> showStopConfirmation = true
                             PrivilegeUiServiceStatusAction.CANCEL -> viewModel.stopCurrentStart()
                             PrivilegeUiServiceStatusAction.CANCELLING -> Unit
-                            PrivilegeUiServiceStatusAction.START -> viewModel.startAvailable()
+                            PrivilegeUiServiceStatusAction.START -> viewModel.startInteractive()
                         }
                     },
                 ) {
@@ -367,8 +376,9 @@ internal fun PrivilegeUiScreenScope.StartupLogPanel() {
             PrivilegeIconTooltip(text = copyLogDescription) {
                 IconButton(
                     modifier = Modifier.size(PrivilegeUiSize.minimumTouchTarget),
-                    enabled = lines.isNotEmpty(),
+                    enabled = interactionEnabled && lines.isNotEmpty(),
                     onClick = {
+                        if (!viewModel.uiInteractionsEnabled) return@IconButton
                         viewModel.copyStartupLog(context)
                         showFeedback(copiedMessage)
                     },

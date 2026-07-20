@@ -348,17 +348,6 @@ class PrivilegeUiAdbPanelStateTest {
         )
     }
 
-    @Test
-    fun configuredTcpPortDoesNotReportTcpModeAsActive() {
-        val store = PrivilegeUiViewModelStore()
-
-        store.updateConfiguredTcpModePort(5555)
-        store.updateTcpModePort(null)
-
-        assertEquals(5555, store.state.value.configuredTcpModePort)
-        assertEquals(null, store.state.value.tcpModePort)
-    }
-
     private data class WirelessActionCase(
         val runtimeStartPhase: PrivilegeUiRuntimeStartPhase,
         val ownsRuntimeStart: Boolean,

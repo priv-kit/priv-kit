@@ -15,11 +15,11 @@ Usage modes: Binder (local / remote) and UserService (embedded / dedicated proce
 ```kotlin
 dependencies {
     implementation("io.github.priv-kit:priv-runtime:<version>")
-    implementation("io.github.priv-kit:priv-ui:<version>") // Optional Compose authorization UI
+    implementation("io.github.priv-kit:priv-ui:<version>") // Optional Compose UI and silent replay
 }
 ```
 
-Only the compile-time APIs visible after an integrating app references `priv-runtime` / `priv-ui` are currently guaranteed. `priv-runtime` already includes the code needed for Binder, UserService, Root, ADB, manual shell, and external startup entry points. `priv-adb-crypto` is only an independent JVM implementation module and is not part of the Android integration API.
+Only the compile-time APIs visible after an integrating app references `priv-runtime` / `priv-ui` are currently guaranteed. `priv-runtime` already includes the code needed for Binder, UserService, Root, ADB, manual shell, and external startup entry points. `priv-shared` is an Android implementation dependency and `priv-adb-crypto` is a JVM implementation dependency; both are resolved transitively at runtime, are not direct Android integration APIs, and carry no compatibility guarantee for direct consumers.
 
 You must configure [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass).
 
@@ -44,6 +44,17 @@ val serverInfo = Privilege.startAdb()
 If the integrating app still declares and has been granted `WRITE_SECURE_SETTINGS`, ADB startup will temporarily enable Wireless Debugging when it needs a dynamic wireless debugging port, then turn it off after startup. Before an explicit static-TCP start, `PrivilegeAdbStarter.prepareTcpForStart()` can also re-enable the core ADB service without enabling Wireless Debugging when a persisted TCP port remains configured but `adbd` is no longer listening. After a Privileged Server is connected, the runtime attempts to grant that owner-app startup permission when the permission is still declared and the server is root or has `android.permission.GRANT_RUNTIME_PERMISSIONS`, so later starts can use these managed ADB paths. Without that manifest declaration, granted permission, or server grant capability, it falls back to the manual Wireless Debugging, pairing, or TCP-port paths. This is only an internal startup strategy and does not expose a general Settings API; PackageManager support is limited to explicit `checkPermission(...)` and `grantRuntimePermission(...)` pass-through calls.
 
 Blocking startup, discovery, and authorization checks preserve the thread interrupt flag and propagate `InterruptedException`. Java callers should handle that checked exception; coroutine callers may wrap these APIs with an interruptible dispatcher to use interruption as cooperative cancellation.
+
+When using `priv-ui`, keep one application-scoped `PrivilegeUiConfig` and pass the same instance to the foreground ViewModel and to the optional headless replay entry point:
+
+```kotlin
+val serverInfo = PrivilegeUi.startSilently(
+    context = applicationContext,
+    config = privilegeUiConfig,
+)
+```
+
+After a foreground UI-managed start reaches a successful Binder connection, `priv-ui` stores one raw method ID (`root`, `adb-wireless`, `adb-tcpip`, or `external:<providerId>`) in `filesDir/.priv-kit/ui-start-method`. Silent startup attempts only that exact method and returns `null` without requesting Android permissions, showing UI, or falling back to another method. Foreground and silent starts are process-locally exclusive: accepted foreground startup effects retain owner-scoped interactive leases until completion, while the built-in UI disables side-effecting entries during a silent attempt and refreshes runtime state before enabling them again. A root manager may still show its own authorization UI if its remembered grant is no longer valid. See the [priv-ui guide](priv-ui/README.md#foreground-and-silent-startup) for method-specific behavior.
 
 Have the user copy and run a command manually:
 

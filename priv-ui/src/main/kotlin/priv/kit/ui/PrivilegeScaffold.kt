@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
@@ -45,6 +46,7 @@ import priv.kit.ui.component.PrivilegeUiSpacing
 import priv.kit.ui.component.RootPanel
 import priv.kit.ui.component.ServiceStatusPanel
 import priv.kit.ui.component.StartupLogPanel
+import java.util.UUID
 
 @Composable
 public fun PrivilegeScaffold(
@@ -66,7 +68,11 @@ public fun PrivilegeScaffold(
     val activity = LocalActivity.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val view = LocalView.current
+    val permissionHostId = rememberSaveable { UUID.randomUUID().toString() }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val startGateState by viewModel.startGateState.collectAsStateWithLifecycle()
+    val uiEffectsEnabled by viewModel.uiEffectsEnabled.collectAsStateWithLifecycle()
+    val interactionEnabled = uiEffectsEnabled && viewModel.uiEffectsAllowed(startGateState)
     val notificationPermission = if (isPrivilegeUiNotificationPermissionSupported()) {
         Manifest.permission.POST_NOTIFICATIONS
     } else {
@@ -84,13 +90,22 @@ public fun PrivilegeScaffold(
             } else {
                 PrivilegeUiPermissionState.NotGranted.Denied
             }
-            viewModel.handleNotificationPermissionResult(permissionState)
+            viewModel.completeNotificationPermissionRequest(permissionHostId, permissionState)
         },
     )
     val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-        onResult = {},
+        onResult = { viewModel.completeLocalNetworkPermissionRequest(permissionHostId) },
     )
+    DisposableEffect(viewModel, activity, permissionHostId) {
+        viewModel.registerPermissionHost(permissionHostId)
+        onDispose {
+            viewModel.unregisterPermissionHost(
+                hostId = permissionHostId,
+                changingConfigurations = activity?.isChangingConfigurations == true,
+            )
+        }
+    }
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
     fun showFeedback(message: String) {
@@ -102,6 +117,7 @@ public fun PrivilegeScaffold(
     val screenScope = PrivilegeUiScreenScope(
         state = state,
         viewModel = viewModel,
+        interactionEnabled = interactionEnabled,
         showFeedback = ::showFeedback,
     )
     LaunchedEffect(state.connectionSerial) {
@@ -110,27 +126,50 @@ public fun PrivilegeScaffold(
             viewModel.dispatchConnected(state.connectionSerial, serverInfo)
         }
     }
-    LaunchedEffect(viewModel, activity) {
+    LaunchedEffect(viewModel, activity, permissionHostId) {
         viewModel.permissionRequests.collect { request ->
             when (request) {
-                PrivilegeUiPermissionRequest.Notification -> {
-                    val permission = notificationPermission ?: return@collect
-                    val permissionState = activity?.let {
-                        privilegeUiPermissionState(it, permission)
-                    }
-                    if (
-                        permissionState == null ||
-                        permissionState.shouldLaunchPermissionRequest()
-                    ) {
-                        markPrivilegeUiPermissionRequested(permission)
-                        notificationPermissionLauncher.launch(permission)
+                is PrivilegeUiPermissionRequest.Notification -> {
+                    if (request.wasLaunched) {
+                        request.awaitCompletion()
                     } else {
-                        viewModel.handleNotificationPermissionResult(permissionState)
+                        val permission = notificationPermission
+                        if (permission == null) {
+                            viewModel.cancelPermissionRequest(permissionHostId, request)
+                        } else {
+                            val permissionState = activity?.let {
+                                privilegeUiPermissionState(it, permission)
+                            }
+                            if (permissionState == null || permissionState.shouldLaunchPermissionRequest()) {
+                                if (request.tryMarkLaunched(permissionHostId)) {
+                                    markPrivilegeUiPermissionRequested(permission)
+                                    runCatching {
+                                        notificationPermissionLauncher.launch(permission)
+                                    }.onFailure {
+                                        viewModel.cancelPermissionRequest(permissionHostId, request)
+                                    }
+                                }
+                                request.awaitCompletion()
+                            } else {
+                                viewModel.completeUnlaunchedNotificationPermissionRequest(
+                                    permissionHostId,
+                                    request,
+                                    permissionState,
+                                )
+                            }
+                        }
                     }
                 }
                 is PrivilegeUiPermissionRequest.LocalNetwork -> {
-                    markPrivilegeUiPermissionRequested(request.permission)
-                    localNetworkPermissionLauncher.launch(request.permission)
+                    if (request.tryMarkLaunched(permissionHostId)) {
+                        markPrivilegeUiPermissionRequested(request.permission)
+                        runCatching {
+                            localNetworkPermissionLauncher.launch(request.permission)
+                        }.onFailure {
+                            viewModel.cancelPermissionRequest(permissionHostId, request)
+                        }
+                    }
+                    request.awaitCompletion()
                 }
             }
         }
@@ -208,6 +247,7 @@ public fun PrivilegeScaffold(
 internal class PrivilegeUiScreenScope(
     val state: PrivilegeUiState,
     val viewModel: PrivilegeUiViewModel,
+    val interactionEnabled: Boolean,
     val showFeedback: (String) -> Unit,
 )
 

@@ -3,7 +3,6 @@ package priv.kit
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.IBinder
 import android.os.Process
 import android.os.RemoteException
@@ -23,14 +22,19 @@ import priv.kit.internal.runtime.PrivilegeOwnerTokenStore
 import priv.kit.internal.runtime.PrivilegeRootProcess
 import priv.kit.internal.runtime.PrivilegeRootStarter
 import priv.kit.internal.runtime.PrivilegeContext
+import priv.kit.internal.runtime.PrivilegeRuntimeConnectionEvent
+import priv.kit.internal.runtime.PrivilegeRuntimeConnectionOrigin
+import priv.kit.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.internal.runtime.PrivilegeUserServiceClient
 import priv.kit.internal.runtime.PrivilegeServerLaunchCommandBuilder
+import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS
+import priv.kit.shared.PrivilegeManifestPermissions
+import priv.kit.shared.toPrivilegeAdbDeviceNameText
 import priv.kit.userservice.PrivilegeUserServiceSpec
 import java.io.Closeable
 import java.util.concurrent.CopyOnWriteArraySet
 
 public object Privilege {
-    private const val DEFAULT_START_TIMEOUT_MILLIS = 15_000L
     private const val GRANT_RUNTIME_PERMISSIONS = "android.permission.GRANT_RUNTIME_PERMISSIONS"
     private const val ROOT_UID = 0
     private const val TAG = "PrivKit"
@@ -41,28 +45,43 @@ public object Privilege {
     }
     private var currentServer: ServerConnection? = null
     private val disconnectedListeners = CopyOnWriteArraySet<() -> Unit>()
+    private val serverConnectionEventListeners =
+        CopyOnWriteArraySet<(PrivilegeRuntimeConnectionEvent) -> Unit>()
+    private val runtimeConnectionListenerLock = Any()
+    private var runtimeConnectionListener: Closeable? = null
     private val userServiceClient = PrivilegeUserServiceClient(::getUserServiceManagerBinder)
 
     @Throws(PrivilegeStartupException::class, InterruptedException::class)
     public fun startRoot(
-        timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
+        timeoutMillis: Long = PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS,
         startupLogListener: PrivilegeStartupLogListener? = null,
+    ): PrivilegeServerInfo = startRootWithLaunchId(
+        initialLaunchId = PrivilegeRuntimeStartCoordinator.newInitialLaunchId(),
+        timeoutMillis = timeoutMillis,
+        startupLogListener = startupLogListener,
+    )
+
+    internal fun startRootWithLaunchId(
+        initialLaunchId: String,
+        timeoutMillis: Long,
+        startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeServerInfo {
         val token = ownerTokenStore().readOrCreate()
-        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
+        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token, initialLaunchId)
         var rootProcess: PrivilegeRootProcess? = null
         var startupCompleted = false
 
         try {
             startupLogListener.emitStartupLog("runtime", "Starting with root")
             rootProcess = PrivilegeRootStarter.start(
-                buildShortNativeStarterCommand(),
+                buildShortNativeStarterCommand(initialLaunchId = initialLaunchId),
                 startupLogListener = startupLogListener,
             )
             startupLogListener.emitStartupLog("runtime", "Waiting for Privileged Server handshake")
             val handshakeResult = pendingHandshake.await(timeoutMillis)
             startupLogListener.emitStartupLog("runtime", "Privileged Server handshake received")
             val serverInfo = connectHandshake(handshakeResult, startupLogListener)
+            PrivilegeServerHandshakeRegistry.acknowledge(initialLaunchId)
             startupCompleted = true
             return serverInfo
         } catch (e: InterruptedException) {
@@ -89,10 +108,11 @@ public object Privilege {
             }
             throw e
         } finally {
-            PrivilegeServerHandshakeRegistry.cancel(token)
+            val deliveredServerPreserved =
+                PrivilegeServerHandshakeRegistry.cancel(initialLaunchId)
             cleanupRootProcessAfterStart(
                 process = rootProcess,
-                startupCompleted = startupCompleted,
+                startupCompleted = startupCompleted || deliveredServerPreserved,
             )
         }
     }
@@ -102,6 +122,9 @@ public object Privilege {
         ownerTokenStore().readOrCreate()
         return buildShortNativeStarterCommand()
     }
+
+    internal fun createShellStartCommandWithLaunchId(initialLaunchId: String): String =
+        buildShortNativeStarterCommand(initialLaunchId = initialLaunchId)
 
     @Throws(PrivilegeStartupException::class)
     public fun createAdbStarter(
@@ -120,35 +143,49 @@ public object Privilege {
     public fun addServerConnectedListener(
         onConnected: (PrivilegeServerInfo) -> Unit,
     ): Closeable {
-        val token = ownerTokenStore().readOrCreate()
-        return PrivilegeServerHandshakeRegistry.addReadyListener(token) { handshakeResult ->
-            try {
-                onConnected(connectHandshake(handshakeResult))
-            } catch (throwable: Throwable) {
-                Log.e(TAG, "Server connection handoff failed", throwable)
-            }
+        val eventListener: (PrivilegeRuntimeConnectionEvent) -> Unit = { event ->
+            onConnected(event.serverInfo)
+        }
+        serverConnectionEventListeners += eventListener
+        initializeRuntimeConnection()
+        return Closeable {
+            serverConnectionEventListeners -= eventListener
         }
     }
 
     @Throws(PrivilegeStartupException::class, InterruptedException::class)
     public fun startAdb(
         options: PrivilegeAdbStartOptions = PrivilegeAdbStartOptions(),
-        timeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
+        timeoutMillis: Long = PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS,
         adbDeviceName: String? = null,
         startupLogListener: PrivilegeStartupLogListener? = null,
+    ): PrivilegeServerInfo = startAdbWithLaunchId(
+        initialLaunchId = PrivilegeRuntimeStartCoordinator.newInitialLaunchId(),
+        options = options,
+        timeoutMillis = timeoutMillis,
+        adbDeviceName = adbDeviceName,
+        startupLogListener = startupLogListener,
+    )
+
+    internal fun startAdbWithLaunchId(
+        initialLaunchId: String,
+        options: PrivilegeAdbStartOptions,
+        timeoutMillis: Long,
+        adbDeviceName: String?,
+        startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeServerInfo {
         val token = ownerTokenStore().readOrCreate()
         val adbStarter = buildAdbStarter(
             adbDeviceName = adbDeviceName,
         )
-        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token)
+        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token, initialLaunchId)
         var startResult: PrivilegeAdbStartResult? = null
 
         try {
             Log.i(TAG, "Starting through ADB keySignature=<redacted>")
             startupLogListener.emitStartupLog("runtime", "Starting through ADB")
             val adbStartResult = adbStarter.start(
-                PrivilegeServerLaunchCommandBuilder.build(),
+                PrivilegeServerLaunchCommandBuilder.build(initialLaunchId),
                 options,
                 startupLogListener = startupLogListener,
             )
@@ -161,7 +198,9 @@ public object Privilege {
             val handshakeResult = pendingHandshake.await(timeoutMillis)
             Log.i(TAG, "ADB Binder handshake received")
             startupLogListener.emitStartupLog("runtime", "Privileged Server handshake received")
-            return connectHandshake(handshakeResult, startupLogListener)
+            val serverInfo = connectHandshake(handshakeResult, startupLogListener)
+            PrivilegeServerHandshakeRegistry.acknowledge(initialLaunchId)
+            return serverInfo
         } catch (e: PrivilegeStartupException) {
             Log.e(TAG, "ADB startup failed", e)
             startupLogListener.emitStartupLog("runtime", "ADB startup failed: ${e.message.orEmpty()}")
@@ -180,7 +219,7 @@ public object Privilege {
             }
             throw e
         } finally {
-            PrivilegeServerHandshakeRegistry.cancel(token)
+            PrivilegeServerHandshakeRegistry.cancel(initialLaunchId)
         }
     }
 
@@ -285,6 +324,53 @@ public object Privilege {
             startupLogListener = startupLogListener,
         )
 
+    internal fun initializeRuntimeConnection() {
+        synchronized(runtimeConnectionListenerLock) {
+            if (runtimeConnectionListener != null) return
+            val token = ownerTokenStore().readOrCreate()
+            runtimeConnectionListener = PrivilegeServerHandshakeRegistry.addReadyListener(
+                token = token,
+                listener = ::connectReadyHandshake,
+            )
+        }
+    }
+
+    internal fun addServerConnectionEventListener(
+        listener: (PrivilegeRuntimeConnectionEvent) -> Unit,
+    ): Closeable {
+        serverConnectionEventListeners += listener
+        initializeRuntimeConnection()
+        return Closeable {
+            serverConnectionEventListeners -= listener
+        }
+    }
+
+    internal fun <T> withServerConnectionLock(block: () -> T): T =
+        synchronized(serverLock) { block() }
+
+    private fun connectReadyHandshake(handshakeResult: PrivilegeServerHandshakeResult): Boolean =
+        try {
+            val serverInfo = connectHandshake(handshakeResult)
+            val event = PrivilegeRuntimeConnectionEvent(
+                serverInfo = serverInfo,
+                origin = when (handshakeResult.origin) {
+                    priv.kit.internal.core.PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH ->
+                        PrivilegeRuntimeConnectionOrigin.INITIAL_LAUNCH
+                    priv.kit.internal.core.PrivilegeServerHandshakeOrigin.OWNER_RECONNECT ->
+                        PrivilegeRuntimeConnectionOrigin.OWNER_RECONNECT
+                },
+                clientStartOperationId = handshakeResult.clientStartOperationId,
+                initialLaunchId = handshakeResult.initialLaunchId,
+            )
+            serverConnectionEventListeners.forEach { listener ->
+                runCatching { listener(event) }
+            }
+            true
+        } catch (throwable: Throwable) {
+            Log.e(TAG, "Server connection handoff failed", throwable)
+            false
+        }
+
     @Throws(PrivilegeStartupException::class)
     private fun connectServer(
         serverBinder: IBinder,
@@ -313,7 +399,7 @@ public object Privilege {
         val context = runCatching { PrivilegeContext.require() }.getOrNull() ?: return
         val userId = PrivilegeAndroidUsers.userIdFromUid(context.applicationInfo.uid)
         OWNER_STARTUP_PERMISSIONS.forEach { permission ->
-            if (!context.hasPermissionDeclaration(permission)) {
+            if (!PrivilegeManifestPermissions.isDeclared(context, permission)) {
                 Log.i(TAG, "Owner startup permission not declared; skipping grant: $permission")
                 return@forEach
             }
@@ -409,6 +495,7 @@ public object Privilege {
             next = newConnection
             previous = current
             currentServer = newConnection
+            PrivilegeRuntimeStartCoordinator.markServerConnected()
             newConnection
         }
         previous?.unlink()
@@ -439,6 +526,7 @@ public object Privilege {
                 false
             } else {
                 currentServer = null
+                PrivilegeRuntimeStartCoordinator.markServerDisconnected()
                 true
             }
         }
@@ -452,6 +540,9 @@ public object Privilege {
         val previous = synchronized(serverLock) {
             currentServer.also {
                 currentServer = null
+                if (it != null) {
+                    PrivilegeRuntimeStartCoordinator.markServerDisconnected()
+                }
             }
         }
         previous?.unlink()
@@ -469,9 +560,14 @@ public object Privilege {
     }
 
     internal fun buildShortNativeStarterCommand(
+        initialLaunchId: String? = null,
         starterPath: String = PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath(),
     ): String =
-        PrivilegeServerLaunchCommandBuilder.shellArg(starterPath)
+        PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
+            starterPath = starterPath,
+            initialLaunchId = initialLaunchId,
+            clearInheritedLaunchId = false,
+        )
 
     private fun buildAdbStarter(
         adbDeviceName: String?,
@@ -497,13 +593,9 @@ public object Privilege {
     }
 
     private fun String?.toSafeDefaultAdbDeviceName(): String? {
-        val value = this
-            ?.replace('\u0000', ' ')
-            ?.replace('\r', ' ')
-            ?.replace('\n', ' ')
-            ?.trim()
-            ?.take(PrivilegeAdbIdentity.MAX_DEVICE_NAME_LENGTH)
-        return value?.ifBlank { null }
+        return this
+            ?.toPrivilegeAdbDeviceNameText()
+            ?.ifBlank { null }
     }
 
     private fun readAdbServerDiagnostics(
@@ -528,23 +620,6 @@ public object Privilege {
     private fun IPrivilegeServer.canGrantRuntimePermissions(): Boolean =
         checkServerPermission(GRANT_RUNTIME_PERMISSIONS) ==
             PackageManager.PERMISSION_GRANTED
-
-    private fun Context.hasPermissionDeclaration(permission: String): Boolean =
-        runCatching {
-            val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                packageManager.getPackageInfo(
-                    packageName,
-                    PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()),
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                packageManager.getPackageInfo(
-                    packageName,
-                    PackageManager.GET_PERMISSIONS,
-                )
-            }
-            packageInfo.requestedPermissions?.contains(permission) == true
-        }.getOrDefault(false)
 
     private fun PrivilegeStartupLogListener?.emitStartupLog(
         source: String,

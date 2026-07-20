@@ -3,8 +3,8 @@ package priv.kit.adb
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import android.provider.Settings
+import priv.kit.shared.PrivilegeManifestPermissions
 
 public enum class PrivilegeAdbWirelessDebuggingControl {
     NEVER,
@@ -81,22 +81,10 @@ internal class AndroidPrivilegeAdbWirelessDebuggingController(
             PackageManager.PERMISSION_GRANTED
 
     private fun hasWriteSecureSettingsDeclaration(): Boolean =
-        runCatching {
-            val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.packageManager.getPackageInfo(
-                    context.packageName,
-                    PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()),
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                context.packageManager.getPackageInfo(
-                    context.packageName,
-                    PackageManager.GET_PERMISSIONS,
-                )
-            }
-            packageInfo.requestedPermissions
-                ?.contains(Manifest.permission.WRITE_SECURE_SETTINGS) == true
-        }.getOrDefault(false)
+        PrivilegeManifestPermissions.isDeclared(
+            context,
+            Manifest.permission.WRITE_SECURE_SETTINGS,
+        )
 
     private fun enforceWriteSecureSettingsPermission() {
         if (!hasWriteSecureSettingsDeclaration()) {

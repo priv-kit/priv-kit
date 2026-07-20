@@ -1,5 +1,6 @@
 package priv.kit.adb
 
+import priv.kit.shared.PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST
 import java.io.Closeable
 
 public class PrivilegeAdbTcpAuthorizationCheckSession internal constructor(
@@ -57,7 +58,7 @@ public class PrivilegeAdbTcpAuthorizationCheckSession internal constructor(
         // Settings UI saying ADB is enabled while the daemon no longer accepts starts.
         output.append(
             "diag",
-            "Reusing ADB TCP authorization check connection on $PRIVILEGE_ADB_LOCAL_HOST:$tcpPort",
+            "Reusing ADB TCP authorization check connection on $PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST:$tcpPort",
         )
         return try {
             activeClient.keepAlive(output)
@@ -69,7 +70,7 @@ public class PrivilegeAdbTcpAuthorizationCheckSession internal constructor(
             val failureMessage = throwable.toFailureMessage()
             output.append(
                 "diag",
-                "ADB TCP authorization check connection failed on $PRIVILEGE_ADB_LOCAL_HOST:$tcpPort: $failureMessage",
+                "ADB TCP authorization check connection failed on $PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST:$tcpPort: $failureMessage",
             )
             null
         }
@@ -87,11 +88,14 @@ public class PrivilegeAdbTcpAuthorizationCheckSession internal constructor(
         return try {
             output.append(
                 "diag",
-                "Opening persistent ADB TCP authorization check connection on $PRIVILEGE_ADB_LOCAL_HOST:$tcpPort",
+                "Opening persistent ADB TCP authorization check connection on $PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST:$tcpPort",
             )
             val status = newClient.checkAuthorization(output)
             if (status == PrivilegeAdbAuthorizationStatus.AUTHORIZED) {
-                output.append("diag", "ADB TCP authorization check succeeded on $PRIVILEGE_ADB_LOCAL_HOST:$tcpPort")
+                output.append(
+                    "diag",
+                    "ADB TCP authorization check succeeded on $PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST:$tcpPort",
+                )
                 successResult(output)
             } else {
                 closeClient(newClient)
@@ -106,7 +110,7 @@ public class PrivilegeAdbTcpAuthorizationCheckSession internal constructor(
             val failureMessage = throwable.toFailureMessage()
             output.append(
                 "diag",
-                "ADB TCP authorization check failed on $PRIVILEGE_ADB_LOCAL_HOST:$tcpPort: $failureMessage",
+                "ADB TCP authorization check failed on $PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST:$tcpPort: $failureMessage",
             )
             throwable.toTcpAuthorizationCheckResult(
                 output = output,

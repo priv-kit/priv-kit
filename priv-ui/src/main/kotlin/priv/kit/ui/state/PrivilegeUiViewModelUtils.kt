@@ -5,6 +5,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
 import androidx.annotation.ChecksSdkIntAtLeast
+import priv.kit.shared.toPrivilegeAdbDeviceNameText
+import priv.kit.shared.toPrivilegeDiagnosticString
 
 internal fun Context.copyToClipboard(label: String, text: String) {
     val clipboard = getSystemService(ClipboardManager::class.java) ?: return
@@ -12,11 +14,7 @@ internal fun Context.copyToClipboard(label: String, text: String) {
 }
 
 internal fun String.toPrivilegeUiAdbDeviceNameText(): String =
-    replace('\u0000', ' ')
-        .replace('\r', ' ')
-        .replace('\n', ' ')
-        .trim()
-        .take(MAX_ADB_DEVICE_NAME_LENGTH)
+    toPrivilegeAdbDeviceNameText()
 
 internal fun String.toPrivilegeUiHostAdbShellCommand(): String {
     val command = trim()
@@ -37,22 +35,7 @@ internal fun isPrivilegeUiWirelessAdbSupported(): Boolean =
 internal fun Throwable.failureMessage(): String =
     message ?: javaClass.simpleName
 
-internal fun Throwable.toPrivilegeUiDiagnosticString(): String {
-    val lines = mutableListOf<String>()
-    var current: Throwable? = this
-    var depth = 0
-    while (current != null && depth < MAX_DIAGNOSTIC_DEPTH) {
-        lines += "Cause[$depth]: ${current.javaClass.name}: ${current.message.orEmpty()}"
-        current.stackTrace.take(MAX_DIAGNOSTIC_STACK_LINES).forEach { frame ->
-            lines += "  at $frame"
-        }
-        current = current.cause
-        depth++
-    }
-    return lines.joinToString("\n")
-}
+internal fun Throwable.toPrivilegeUiDiagnosticString(): String =
+    toPrivilegeDiagnosticString()
 
-private const val MAX_ADB_DEVICE_NAME_LENGTH = 128
 private const val ADB_SHELL_PREFIX = "adb shell "
-private const val MAX_DIAGNOSTIC_DEPTH = 8
-private const val MAX_DIAGNOSTIC_STACK_LINES = 8

@@ -4,12 +4,12 @@ import priv.kit.internal.core.PrivilegeHandshakeContract
 import priv.kit.internal.core.PrivilegeServerLaunchCommand
 
 internal object PrivilegeServerLaunchCommandBuilder {
-    fun build(): PrivilegeServerLaunchCommand {
+    fun build(initialLaunchId: String): PrivilegeServerLaunchCommand {
         val context = PrivilegeContext.require()
         val packageName = context.packageName
         val classpath = buildClasspath()
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(packageName)
-        val starterCommandLine = buildNativeStarterCommand()
+        val starterCommandLine = buildNativeStarterCommand(initialLaunchId)
 
         return PrivilegeServerLaunchCommand(
             commandLine = starterCommandLine,
@@ -19,8 +19,27 @@ internal object PrivilegeServerLaunchCommandBuilder {
         )
     }
 
-    internal fun buildNativeStarterCommand(): String =
-        shellArg(buildNativeStarterPath())
+    internal fun buildNativeStarterCommand(
+        initialLaunchId: String? = null,
+        clearInheritedLaunchId: Boolean = false,
+    ): String = buildNativeStarterCommand(
+        starterPath = buildNativeStarterPath(),
+        initialLaunchId = initialLaunchId,
+        clearInheritedLaunchId = clearInheritedLaunchId,
+    )
+
+    internal fun buildNativeStarterCommand(
+        starterPath: String,
+        initialLaunchId: String?,
+        clearInheritedLaunchId: Boolean,
+    ): String {
+        val starter = shellArg(starterPath)
+        if (initialLaunchId == null && !clearInheritedLaunchId) return starter
+        return "${PrivilegeHandshakeContract.ENV_INITIAL_LAUNCH_ID}=" +
+            shellArg(initialLaunchId.orEmpty()) +
+            " " +
+            starter
+    }
 
     internal fun buildNativeStarterPath(): String {
         val nativeLibraryDir = PrivilegeContext.require().applicationInfo.nativeLibraryDir.trimEnd('/')

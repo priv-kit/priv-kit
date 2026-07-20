@@ -13,6 +13,7 @@ import priv.kit.ui.PrivilegeUiExternalStartItemState
 import priv.kit.ui.PrivilegeUiStartupMode
 import priv.kit.ui.PrivilegeUiState
 import priv.kit.ui.R
+import priv.kit.ui.effectiveStartupModes
 import priv.kit.ui.runtime.PrivilegeUiRuntimeStartSession
 import java.io.Closeable
 import java.util.UUID
@@ -161,23 +162,8 @@ internal class PrivilegeUiViewModelStore(
         runCatching { request?.close() }
     }
 
-    private fun PrivilegeUiConfig.effectiveStartupModes(): List<PrivilegeUiStartupMode> {
-        val modes = startupModes
-            .filterTo(mutableSetOf()) { it in USER_VISIBLE_AUTHORIZATION_MODE_ORDER }
-        if (externalStartProviders.isNotEmpty()) modes += PrivilegeUiStartupMode.EXTERNAL
-        if (modes.isEmpty()) modes += PrivilegeUiStartupMode.ROOT
-        return USER_VISIBLE_AUTHORIZATION_MODE_ORDER.filter { it in modes }
-    }
-
     private companion object {
         const val MAX_STARTUP_LOG_LINES = 240
-
-        val USER_VISIBLE_AUTHORIZATION_MODE_ORDER = listOf(
-            PrivilegeUiStartupMode.ROOT,
-            PrivilegeUiStartupMode.ADB,
-            PrivilegeUiStartupMode.MANUAL_SHELL,
-            PrivilegeUiStartupMode.EXTERNAL,
-        )
     }
 }
 

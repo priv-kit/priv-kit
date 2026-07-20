@@ -7,6 +7,7 @@ import priv.kit.PrivilegeExternalStartupOptions
 import priv.kit.PrivilegeExternalStartupProcessRunner
 import priv.kit.PrivilegeStartupLogLine
 import priv.kit.PrivilegeStartupLogListener
+import priv.kit.shared.toPrivilegeDiagnosticString
 import java.io.BufferedWriter
 import java.io.Closeable
 import java.io.OutputStreamWriter
@@ -187,7 +188,7 @@ private class ExternalStartupBridgeHostOutput(
 
     fun writeFailure(throwable: Throwable) {
         runCatching {
-            stderrWriter.writeLine(throwable.toDiagnosticString())
+            stderrWriter.writeLine(throwable.toPrivilegeDiagnosticString())
         }
     }
 
@@ -223,22 +224,5 @@ private fun Throwable.toResultData(): Bundle =
         )
     }
 
-private fun Throwable.toDiagnosticString(): String {
-    val lines = mutableListOf<String>()
-    var current: Throwable? = this
-    var depth = 0
-    while (current != null && depth < MAX_CAUSE_DEPTH) {
-        lines += "Cause[$depth]: ${current.javaClass.name}: ${current.message.orEmpty()}"
-        current.stackTrace.take(MAX_STACK_FRAMES).forEach { frame ->
-            lines += "  at $frame"
-        }
-        current = current.cause
-        depth++
-    }
-    return lines.joinToString("\n")
-}
-
 private const val STDOUT_SOURCE = "stdout"
 private const val MAX_RESULT_MESSAGE_CHARS = 512
-private const val MAX_CAUSE_DEPTH = 8
-private const val MAX_STACK_FRAMES = 8

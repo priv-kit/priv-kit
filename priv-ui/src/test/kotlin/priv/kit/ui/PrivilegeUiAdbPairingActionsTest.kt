@@ -13,6 +13,8 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,19 +25,53 @@ import org.robolectric.annotation.Config
 import priv.kit.ui.adb.pairing.PrivilegeAdbPairingNotificationEvent
 import priv.kit.ui.adb.pairing.PrivilegeAdbPairingNotificationUnavailableReason
 import priv.kit.ui.adb.pairing.PrivilegeUiAdbPairingActions
+import priv.kit.ui.runtime.PrivilegeUiStartGate
 import priv.kit.ui.state.PrivilegeUiViewModelStore
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class PrivilegeUiAdbPairingActionsTest {
     @Test
+    fun pendingPermissionFlowBlocksSilentStartUntilUserCancelsIt() {
+        withPairingActions { store, actions ->
+            denyNotificationPermission()
+            var permissionRequestCount = 0
+            actions.startNotificationPairing {
+                permissionRequestCount += 1
+                true
+            }
+            assertEquals(1, permissionRequestCount)
+            assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+
+            actions.handleNotificationPermissionResult(
+                PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
+            )
+
+            assertTrue(store.state.value.pairingNotificationPermissionWarningVisible)
+            assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+
+            actions.cancelPendingPairingStart()
+
+            val silentPermit = PrivilegeUiStartGate.tryAcquireSilent()
+            assertNotNull(silentPermit)
+            silentPermit!!.close()
+        }
+    }
+
+    @Test
     fun repeatedStartWhilePermissionIsPendingRequestsPermissionOnce() {
         withPairingActions { store, actions ->
             denyNotificationPermission()
             var permissionRequestCount = 0
 
-            actions.startNotificationPairing { permissionRequestCount += 1 }
-            actions.startNotificationPairing { permissionRequestCount += 1 }
+            actions.startNotificationPairing {
+                permissionRequestCount += 1
+                true
+            }
+            actions.startNotificationPairing {
+                permissionRequestCount += 1
+                true
+            }
 
             assertEquals(1, permissionRequestCount)
             assertTrue(store.startNotificationPairingAfterPermission)
@@ -51,6 +87,7 @@ class PrivilegeUiAdbPairingActionsTest {
 
             actions.startNotificationPairing {
                 permissionRequestCount += 1
+                true
             }
 
             assertEquals(1, permissionRequestCount)
@@ -64,6 +101,25 @@ class PrivilegeUiAdbPairingActionsTest {
             assertFalse(store.startNotificationPairingAfterPermission)
             assertTrue(store.state.value.pairingNotificationPermissionWarningVisible)
             assertPairingNotStarted(store)
+        }
+    }
+
+    @Test
+    fun rejectedPermissionDispatchDoesNotLeavePairingRequestStuck() {
+        withPairingActions { store, actions ->
+            denyNotificationPermission()
+            actions.startNotificationPairing { false }
+
+            assertFalse(store.startNotificationPairingAfterPermission)
+            assertPairingNotStarted(store)
+
+            var permissionRequestCount = 0
+            actions.startNotificationPairing {
+                permissionRequestCount += 1
+                true
+            }
+            assertEquals(1, permissionRequestCount)
+            assertTrue(store.startNotificationPairingAfterPermission)
         }
     }
 
@@ -256,6 +312,43 @@ class PrivilegeUiAdbPairingActionsTest {
         }
     }
 
+    @Test
+    fun detachedNotificationWithoutInteractionHostStopsPairingAndReleasesPermit() {
+        shadowOf(RuntimeEnvironment.getApplication())
+            .grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        withPairingActions(hasInteractionHost = { false }) { store, actions ->
+            actions.startNotificationPairing()
+            store.updateState { it.copy(notificationPairingRunning = true) }
+            assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+
+            actions.cancelPairingWithoutInteractionHost()
+            assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+
+            actions.handleNotificationEvent(
+                PrivilegeAdbPairingNotificationEvent.Detached(store.notificationPairingOwnerId),
+            )
+
+            assertEquals(PrivilegeUiAdbPairingStatus.NOT_PAIRED, store.state.value.pairingStatus)
+            assertFalse(store.state.value.pairingDialogVisible)
+            PrivilegeUiStartGate.tryAcquireSilent()!!.close()
+        }
+    }
+
+    @Test
+    fun stalePairingSubmitDoesNotAcquireInteractivePermit() {
+        withPairingActions { store, actions ->
+            actions.submitNotificationPairingCode()
+            actions.handleNotificationEvent(
+                PrivilegeAdbPairingNotificationEvent.Submit(
+                    ownerId = store.notificationPairingOwnerId,
+                    pairingCode = "123456",
+                ),
+            )
+
+            PrivilegeUiStartGate.tryAcquireSilent()!!.close()
+        }
+    }
+
     private fun showPermanentDenialWarning(actions: PrivilegeUiAdbPairingActions) {
         denyNotificationPermission()
         actions.startNotificationPairing()
@@ -277,6 +370,7 @@ class PrivilegeUiAdbPairingActionsTest {
     }
 
     private fun withPairingActions(
+        hasInteractionHost: () -> Boolean = { true },
         block: (PrivilegeUiViewModelStore, PrivilegeUiAdbPairingActions) -> Unit,
     ) {
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
@@ -286,6 +380,7 @@ class PrivilegeUiAdbPairingActionsTest {
             store = store,
             coroutineScope = scope,
             enableTcpMode = {},
+            hasInteractionHost = hasInteractionHost,
         )
         try {
             block(store, actions)

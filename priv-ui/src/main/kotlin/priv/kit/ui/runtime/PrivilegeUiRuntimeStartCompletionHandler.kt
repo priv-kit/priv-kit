@@ -1,24 +1,23 @@
 package priv.kit.ui.runtime
 
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
+import priv.kit.ui.PrivilegeUiRuntimeStatus
 import priv.kit.ui.R
 import priv.kit.ui.state.PrivilegeUiViewModelStore
 import priv.kit.ui.state.toPrivilegeUiDiagnosticString
 
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 import priv.kit.PrivilegeServerInfo
+import priv.kit.internal.runtime.PrivilegeRuntimeConnectionEvent
 
 internal class PrivilegeUiRuntimeStartCompletionHandler(
     private val store: PrivilegeUiViewModelStore,
-    private val coroutineScope: CoroutineScope,
     private val isClosed: () -> Boolean,
     private val isCurrentRuntimeStartLocked: (PrivilegeUiRuntimeStartSession) -> Boolean,
     private val ownsRuntimeStartLocked: (PrivilegeUiRuntimeStartSession) -> Boolean,
     private val publishConnectedServer: (PrivilegeServerInfo) -> Unit,
+    private val recordSuccessfulStartMethod: (PrivilegeUiStartMethod) -> Unit,
 ) {
     fun completeRuntimeStart(
         session: PrivilegeUiRuntimeStartSession,
@@ -28,6 +27,7 @@ internal class PrivilegeUiRuntimeStartCompletionHandler(
             handleServerConnected(
                 serverInfo = completion.serverInfo,
                 expectedSession = session,
+                belongsToExpectedSession = true,
             )
             return
         }
@@ -110,18 +110,35 @@ internal class PrivilegeUiRuntimeStartCompletionHandler(
             }
         }
         userAction?.let { callback ->
-            coroutineScope.launch(CoroutineName("priv-ui-runtime-user-action")) {
-                synchronized(store) {
-                    if (canDeliverPostCommitLocked(committedGeneration, committedConnectionSerial)) {
-                        runCatching(callback)
-                    }
+            synchronized(store) {
+                if (canDeliverPostCommitLocked(committedGeneration, committedConnectionSerial)) {
+                    runCatching(callback)
                 }
             }
         }
     }
 
-    fun handleServerConnected(serverInfo: PrivilegeServerInfo) {
-        handleServerConnected(serverInfo, expectedSession = null)
+    fun handleServerConnected(
+        event: PrivilegeRuntimeConnectionEvent,
+        deduplicatePassiveConnection: Boolean = false,
+    ) {
+        handleServerConnected(
+            serverInfo = event.serverInfo,
+            expectedSession = null,
+            connectionEvent = event,
+            deduplicatePassiveConnection = deduplicatePassiveConnection,
+        )
+    }
+
+    fun handlePassiveServerConnected(
+        serverInfo: PrivilegeServerInfo,
+        deduplicatePassiveConnection: Boolean = false,
+    ) {
+        handleServerConnected(
+            serverInfo = serverInfo,
+            expectedSession = null,
+            deduplicatePassiveConnection = deduplicatePassiveConnection,
+        )
     }
 
     fun appendCleanupFailure(
@@ -147,39 +164,77 @@ internal class PrivilegeUiRuntimeStartCompletionHandler(
     private fun handleServerConnected(
         serverInfo: PrivilegeServerInfo,
         expectedSession: PrivilegeUiRuntimeStartSession?,
+        connectionEvent: PrivilegeRuntimeConnectionEvent? = null,
+        belongsToExpectedSession: Boolean = false,
+        deduplicatePassiveConnection: Boolean = false,
     ) {
         if (isClosed()) return
         var activeSession: PrivilegeUiRuntimeStartSession? = null
         var activeStartJob: Job? = null
+        var successfulStartMethod: PrivilegeUiStartMethod? = null
         synchronized(store) {
             if (isClosed()) return
             if (expectedSession != null && !isCurrentRuntimeStartLocked(expectedSession)) return
+            val current = store.state.value
+            if (
+                deduplicatePassiveConnection &&
+                store.runtimeStartSession == null &&
+                current.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.IDLE &&
+                current.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED &&
+                current.serverInfo == serverInfo
+            ) {
+                return
+            }
             activeSession = store.runtimeStartSession
             val session = activeSession
-            if (session != null && !session.recordConnectedServer(serverInfo)) return
+            val belongsToCurrentStart = when {
+                session == null -> false
+                expectedSession != null -> belongsToExpectedSession
+                connectionEvent == null -> false
+                else -> session.ownsRuntimeConnection(
+                    origin = connectionEvent.origin,
+                    clientStartOperationId = connectionEvent.clientStartOperationId,
+                    initialLaunchId = connectionEvent.initialLaunchId,
+                )
+            }
+            val connectionClaim = session?.recordConnectedServer(
+                serverInfo = serverInfo,
+                belongsToCurrentStart = belongsToCurrentStart,
+            )
+            if (session != null && connectionClaim == null) return
             if (session == null) {
                 publishConnectedServer(serverInfo)
                 return
             }
+            successfulStartMethod = connectionClaim?.successfulMethod
             activeStartJob = store.runtimeStartJob
         }
         val session = activeSession ?: return
-        activeStartJob?.cancel(CancellationException("Runtime server connected"))
-        session.signalCompletion()
-        session.finish { throwable ->
-            appendCleanupFailure(session, throwable)
-        }
-        synchronized(store) {
-            if (isClosed() || !ownsRuntimeStartLocked(session)) return
-            store.runtimeStartGeneration.incrementAndGet()
-            store.runtimeStartSession = null
-            store.runtimeStartJob = null
-            val connectedServer = session.latestConnectedServer()
-            if (connectedServer == null) {
-                store.updateState { it.finishRuntimeStartDisconnected() }
-            } else {
-                publishConnectedServer(connectedServer)
+        try {
+            activeStartJob?.cancel(CancellationException("Runtime server connected"))
+            session.signalCompletion()
+            session.finish { throwable ->
+                appendCleanupFailure(session, throwable)
             }
+            synchronized(store) {
+                if (isClosed() || !ownsRuntimeStartLocked(session)) return
+                val connectedServer = session.latestConnectedServer()
+                if (connectedServer != null) {
+                    successfulStartMethod?.let { method ->
+                        runCatching { recordSuccessfulStartMethod(method) }
+                    }
+                }
+                store.runtimeStartGeneration.incrementAndGet()
+                store.runtimeStartSession = null
+                store.runtimeStartJob = null
+                if (connectedServer == null) {
+                    store.updateState { it.finishRuntimeStartDisconnected() }
+                } else {
+                    publishConnectedServer(connectedServer)
+                }
+            }
+        } finally {
+            session.markConnectionHandled()
         }
     }
 }

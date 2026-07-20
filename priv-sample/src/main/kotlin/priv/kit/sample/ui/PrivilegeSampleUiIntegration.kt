@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeStartupLogListener
+import priv.kit.sample.App
 import priv.kit.sample.PrivilegeSamplePrivilegeUiCallbacks
 import priv.kit.sample.PrivilegeSampleShizukuExternalStarter
 import priv.kit.sample.R
@@ -18,12 +19,10 @@ import priv.kit.ui.PrivilegeUiStartupMode
 import priv.kit.ui.PrivilegeUiViewModel
 import rikka.shizuku.Shizuku
 
-internal const val SAMPLE_SHIZUKU_EXTERNAL_START_ID = "shizuku"
-
 internal class PrivilegeSamplePrivilegeUiViewModel(
     application: Application,
     private val host: PrivilegeSamplePrivilegeUiCallbacks,
-) : PrivilegeUiViewModel(application, createPrivilegeSampleUiConfig(application)) {
+) : PrivilegeUiViewModel(application, (application as App).privilegeUiConfig) {
     override fun onBackClick(): Boolean {
         host.back()
         return true
@@ -66,7 +65,7 @@ internal fun stopPrivilegeSampleNotificationPairing(context: Context, ownerId: S
 private class PrivilegeSampleShizukuExternalStartProvider(
     override val label: CharSequence,
 ) : PrivilegeUiStreamingExternalStartProvider {
-    override val id: String = SAMPLE_SHIZUKU_EXTERNAL_START_ID
+    override val id: String = "shizuku"
 
     override fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot =
         runCatching {

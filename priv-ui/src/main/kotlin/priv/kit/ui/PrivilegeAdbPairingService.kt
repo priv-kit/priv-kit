@@ -307,6 +307,9 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         internal fun isRunning(ownerId: String): Boolean =
             activeService?.notificationOwnerId == ownerId
 
+        internal fun isRequested(ownerId: String): Boolean =
+            latestOwnerId == ownerId
+
         private fun notificationsAvailable(context: Context): Boolean {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 ContextCompat.checkSelfPermission(

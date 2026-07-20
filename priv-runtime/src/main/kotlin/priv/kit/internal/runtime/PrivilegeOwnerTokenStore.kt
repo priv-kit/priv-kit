@@ -2,6 +2,7 @@ package priv.kit.internal.runtime
 
 import android.util.Base64
 import priv.kit.PrivilegeStartupException
+import priv.kit.shared.PrivilegeBinaryFileStore
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.security.SecureRandom
@@ -34,7 +35,7 @@ internal object PrivilegeOwnerTokenStore {
 
     private fun readExisting(file: File): String {
         val token = runCatching {
-            String(PrivilegeBinaryFileStore.read(file), StandardCharsets.UTF_8).trim()
+            String(file.readBytes(), StandardCharsets.UTF_8).trim()
         }.getOrElse { throwable ->
             throw PrivilegeStartupException("Failed to read owner token file: ${file.absolutePath}", throwable)
         }

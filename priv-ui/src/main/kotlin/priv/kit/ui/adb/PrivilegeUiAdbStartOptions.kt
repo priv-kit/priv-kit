@@ -2,16 +2,16 @@ package priv.kit.ui.adb
 
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbWirelessDebuggingControl
+import priv.kit.shared.hasPrivilegeAdbCertificateUnknownMessage
+import priv.kit.shared.hasPrivilegeAdbKeyNotAuthorizedMessage
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiManagedWirelessAdbStatus
 
 internal fun Throwable.isAdbKeyNotAuthorizedFailure(): Boolean =
-    generateSequence(this) { it.cause }.any { throwable ->
-        val message = throwable.message.orEmpty()
-        message.contains("ADB key is not authorized") ||
-            message.contains("CERTIFICATE_UNKNOWN", ignoreCase = true) ||
-            message.contains("certificate unknown", ignoreCase = true)
-    }
+    hasPrivilegeAdbKeyNotAuthorizedMessage() ||
+        generateSequence(this) { it.cause }.any { throwable ->
+            throwable.message.orEmpty().hasPrivilegeAdbCertificateUnknownMessage()
+        }
 
 internal fun privilegeUiWirelessAdbStartOptions(
     tcpPolicy: PrivilegeUiAdbTcpPolicy,

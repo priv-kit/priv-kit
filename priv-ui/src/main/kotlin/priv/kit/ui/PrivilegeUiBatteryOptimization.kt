@@ -6,11 +6,10 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import priv.kit.shared.PrivilegeManifestPermissions
 
 internal fun Context.isPrivilegeUiBatteryOptimizationPromptVisible(): Boolean =
     runCatching {
@@ -19,9 +18,15 @@ internal fun Context.isPrivilegeUiBatteryOptimizationPromptVisible(): Boolean =
     }.getOrDefault(false)
 
 internal fun Context.requestPrivilegeUiBatteryOptimizationExemption(): Boolean {
+    val context = this
     val packageUri = Uri.fromParts("package", packageName, null)
     val intents = buildList {
-        if (hasPrivilegeUiBatteryOptimizationPermissionDeclaration()) {
+        if (
+            PrivilegeManifestPermissions.isDeclared(
+                context,
+                Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            )
+        ) {
             add(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, packageUri))
         }
         add(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
@@ -29,21 +34,6 @@ internal fun Context.requestPrivilegeUiBatteryOptimizationExemption(): Boolean {
     }
     return intents.any { intent -> tryStartPrivilegeUiSettingsActivity(intent) }
 }
-
-private fun Context.hasPrivilegeUiBatteryOptimizationPermissionDeclaration(): Boolean =
-    runCatching {
-        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            packageManager.getPackageInfo(
-                packageName,
-                PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()),
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            packageManager.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS)
-        }
-        packageInfo.requestedPermissions
-            ?.contains(Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS) == true
-    }.getOrDefault(false)
 
 internal fun Context.tryStartPrivilegeUiSettingsActivity(intent: Intent): Boolean {
     val launchIntent = Intent(intent).apply {

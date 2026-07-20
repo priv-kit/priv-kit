@@ -1,5 +1,10 @@
 package priv.kit.adb
 
+import priv.kit.shared.PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST
+import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_ADB_TCP_PORT
+import priv.kit.shared.PRIVILEGE_INTERNAL_MAX_ADB_DEVICE_NAME_LENGTH
+import priv.kit.shared.isPrivilegeAdbPort
+
 public class PrivilegeAdbIdentity private constructor(
     public val deviceName: String,
 ) {
@@ -20,7 +25,8 @@ public class PrivilegeAdbIdentity private constructor(
 
     internal companion object {
         internal const val DEFAULT_DEVICE_NAME: String = "priv-kit"
-        internal const val MAX_DEVICE_NAME_LENGTH: Int = 128
+        internal const val MAX_DEVICE_NAME_LENGTH: Int =
+            PRIVILEGE_INTERNAL_MAX_ADB_DEVICE_NAME_LENGTH
 
         internal fun default(deviceName: String = DEFAULT_DEVICE_NAME): PrivilegeAdbIdentity =
             PrivilegeAdbIdentity(deviceName = deviceName)
@@ -41,22 +47,19 @@ public data class PrivilegeAdbStartOptions public constructor(
         PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
     public val disableWirelessDebuggingAfterStart: Boolean = true,
     public val portDiscoveryTimeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
-    public val connectRetryCount: Int = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_COUNT,
+    public val connectRetryCount: Int = 5,
     public val connectRetryDelayMillis: Long = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
 ) {
     init {
-        require(port == null || port in 1..65535) { "port must be between 1 and 65535" }
-        require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
+        require(port == null || port.isPrivilegeAdbPort()) { "port must be between 1 and 65535" }
+        require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         require(portDiscoveryTimeoutMillis > 0L) { "portDiscoveryTimeoutMillis must be positive" }
         require(connectRetryCount > 0) { "connectRetryCount must be positive" }
         require(connectRetryDelayMillis >= 0L) { "connectRetryDelayMillis must not be negative" }
     }
 }
 
-internal const val PRIVILEGE_ADB_LOCAL_HOST: String = "127.0.0.1"
-public const val PRIVILEGE_ADB_DEFAULT_TCP_PORT: Int = 5555
-internal const val PRIVILEGE_ADB_DEFAULT_AUTHORIZATION_TIMEOUT_MILLIS: Long = 60_000L
-internal const val PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_COUNT: Int = 5
+public const val PRIVILEGE_ADB_DEFAULT_TCP_PORT: Int = PRIVILEGE_INTERNAL_DEFAULT_ADB_TCP_PORT
 internal const val PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS: Long = 1_000L
 internal const val PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS: Long = 15_000L
 
@@ -66,17 +69,17 @@ internal data class PrivilegeAdbEndpoint(
 ) {
     init {
         require(host.isNotBlank()) { "host must not be blank" }
-        require(port in 1..65535) { "port must be between 1 and 65535" }
+        require(port.isPrivilegeAdbPort()) { "port must be between 1 and 65535" }
     }
 
     override fun toString(): String = "$host:$port"
 
     val isLocalHost: Boolean
-        get() = host == PRIVILEGE_ADB_LOCAL_HOST
+        get() = host == PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST
 
     companion object {
         fun local(port: Int): PrivilegeAdbEndpoint =
-            PrivilegeAdbEndpoint(PRIVILEGE_ADB_LOCAL_HOST, port)
+            PrivilegeAdbEndpoint(PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST, port)
     }
 }
 

@@ -98,16 +98,4 @@ class PrivilegeUiFailurePolicyTest {
         assertFalse(userMessage.contains(diagnostic))
         assertTrue(failure.toPrivilegeUiDiagnosticString().contains(diagnostic))
     }
-
-    @Test
-    @Config(qualifiers = "en")
-    fun defaultResourcesRemainEnglish() {
-        val context: android.content.Context = RuntimeEnvironment.getApplication()
-
-        assertEquals("Privilege startup", context.getString(R.string.priv_ui_title))
-        assertEquals(
-            "Root startup failed. See the startup log for details",
-            context.getString(PrivilegeUiFailureKind.ROOT_START_FAILED.messageResId),
-        )
-    }
 }

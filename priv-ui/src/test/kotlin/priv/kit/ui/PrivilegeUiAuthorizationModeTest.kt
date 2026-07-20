@@ -54,6 +54,18 @@ class PrivilegeUiAuthorizationModeTest {
     }
 
     @Test
+    fun silentInteractionBlockDisablesEveryModeIncludingSelection() {
+        val items = privilegeUiAuthorizationModeItems(
+            modes = modes,
+            selectedMode = PrivilegeUiStartupMode.ADB,
+            busy = false,
+            interactionEnabled = false,
+        )
+
+        assertTrue(items.none { it.enabled })
+    }
+
+    @Test
     fun selectorUsesSegmentedControlOnlyWhenContentIsWideEnough() {
         assertEquals(
             PrivilegeUiAuthorizationModeSelector.NONE,

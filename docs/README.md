@@ -18,7 +18,7 @@
 
 发布到 Maven Central 的模块不自动构成接入应用 API。当前只承诺接入应用引用 `priv-runtime` 或 `priv-ui` 后可见的编译期 API。
 
-`priv-adb-crypto` 可以作为独立 artifact 发布，但默认只服务于 ADB crypto 实现复用。`priv.kit.internal.*` 下的类型不属于公开 API，即使少数入口因为 Android/JVM 反射要求在字节码层可见。
+`priv-shared` 可以作为窄 Android 实现 artifact 发布，`priv-adb-crypto` 可以作为独立 JVM artifact 发布，但两者默认只服务于实现复用。`priv.kit.shared` 与 `priv.kit.internal.*` 下的类型不属于公开 API，即使其中部分符号因跨模块编译或 Android/JVM 反射要求在字节码层可见。
 
 ## 推荐接入路径
 
@@ -56,7 +56,7 @@ Privilege.shutdownServer()
 Maven 坐标：
 
 - `groupId`：`io.github.priv-kit`
-- `artifactId`：`priv-runtime`、`priv-adb-crypto`、`priv-ui`
+- `artifactId`：`priv-shared`、`priv-runtime`、`priv-adb-crypto`、`priv-ui`
 
 示例：
 
@@ -66,6 +66,7 @@ implementation("io.github.priv-kit:priv-runtime:1.0.0")
 
 Gradle 模块必须使用 `priv-*` 命名：
 
+- `:priv-shared`
 - `:priv-runtime`
 - `:priv-adb-crypto`
 - `:priv-ui`
@@ -73,7 +74,7 @@ Gradle 模块必须使用 `priv-*` 命名：
 
 内部编译期 hidden framework stub 模块为 `:hidden-api`，不作为发布 artifact。
 
-除 `:hidden-api` 中的 framework mirror/stub 外，Kotlin package 必须统一使用 `priv.kit.*`。`:priv-runtime` 承载公开的 `priv.kit`、`priv.kit.binder`、`priv.kit.userservice`、`priv.kit.adb`，以及内部的 `priv.kit.internal.*`。
+除 `:hidden-api` 中的 framework mirror/stub 外，Kotlin package 必须统一使用 `priv.kit.*`。`:priv-runtime` 承载公开的 `priv.kit`、`priv.kit.binder`、`priv.kit.userservice`、`priv.kit.adb`，以及 `priv.kit.internal.*`；`:priv-shared` 只承载 `priv.kit.shared`。
 
 允许的 package 分区包括：
 
@@ -82,6 +83,7 @@ Gradle 模块必须使用 `priv-*` 命名：
 - `priv.kit.userservice`
 - `priv.kit.adb`
 - `priv.kit.internal.*`
+- `priv.kit.shared`
 - `priv.kit.adb.crypto.certificate`
 - `priv.kit.adb.crypto.pairing`
 - `priv.kit.ui`
@@ -131,6 +133,7 @@ Gradle 模块必须使用 `priv-*` 命名：
 
 当前模块：
 
+- `:priv-shared`
 - `:priv-runtime`
 - `:priv-adb-crypto`
 - `:priv-ui`
@@ -142,6 +145,7 @@ Gradle 模块必须使用 `priv-*` 命名：
 
 项目整体分为几层：
 
+- `:priv-shared`，负责 runtime/UI 真正共用的无领域状态 Android/JDK 底层机制和不变量，只作为内部实现依赖；
 - `:priv-runtime`，负责选择启动策略、连接服务端、承载 Privileged Server 入口、Binder/UserService 原语、ADB/Root/manual/external 启动和内部协议；
 - `:priv-adb-crypto`，负责 ADB pairing/certificate 所需的 JVM crypto 实现；
 - 可选 Compose UI 帮助层和示例代码，用来展示运行时状态和启动流程，不扩展核心范围。

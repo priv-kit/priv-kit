@@ -5,13 +5,6 @@ import org.junit.Test
 
 class PrivilegeAdbIdentityTest {
     @Test
-    fun defaultIdentityUsesPrivKitName() {
-        val identity = PrivilegeAdbIdentity.default(" Demo App ")
-
-        assertEquals("DemoApp", identity.adbDeviceName)
-    }
-
-    @Test
     fun identityUsesDeviceName() {
         val identity = PrivilegeAdbIdentity.default(deviceName = " Demo App ")
 

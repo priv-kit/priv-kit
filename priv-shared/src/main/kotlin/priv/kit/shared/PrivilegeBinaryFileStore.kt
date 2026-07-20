@@ -1,4 +1,4 @@
-package priv.kit.internal.runtime
+package priv.kit.shared
 
 import java.io.File
 import java.io.FileOutputStream
@@ -7,14 +7,16 @@ import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
-internal object PrivilegeBinaryFileStore {
-    fun readIfExists(file: File): ByteArray? =
+/**
+ * Binary file operations shared by Priv Kit's private stores.
+ *
+ * Callers must coordinate writes to the same target across processes.
+ */
+public object PrivilegeBinaryFileStore {
+    public fun readIfExists(file: File): ByteArray? =
         if (file.isFile) file.readBytes() else null
 
-    fun read(file: File): ByteArray =
-        file.readBytes()
-
-    fun writeAtomically(file: File, bytes: ByteArray) {
+    public fun writeAtomically(file: File, bytes: ByteArray) {
         val directory = file.parentFile
             ?: throw IOException("File has no parent directory: ${file.absolutePath}")
         if (!directory.exists() && !directory.mkdirs()) {

@@ -4,6 +4,7 @@ import priv.kit.internal.core.PrivilegeProtocol
 
 internal data class PrivilegeServerConfig(
     val token: String = "",
+    val initialLaunchId: String? = null,
     val packageName: String,
     val userId: Int = 0,
     val classpath: String = System.getenv("CLASSPATH").orEmpty(),

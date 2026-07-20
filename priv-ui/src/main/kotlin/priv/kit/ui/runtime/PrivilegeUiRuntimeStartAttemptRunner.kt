@@ -111,8 +111,14 @@ internal class PrivilegeUiRuntimeStartAttemptRunner(
     private suspend fun executeRuntimeStartAttempt(
         session: PrivilegeUiRuntimeStartSession,
         attempt: PrivilegeUiRuntimeStartAttempt,
-    ): PrivilegeUiRuntimeStartResult =
-        when (attempt) {
+    ): PrivilegeUiRuntimeStartResult {
+        session.commitStartMethod(
+            privilegeUiStartMethod(
+                source = attempt.runtimeStartSource,
+                providerId = attempt.runtimeStartProviderId,
+            ),
+        )
+        return when (attempt) {
             is PrivilegeUiRuntimeStartAttempt.Connect -> {
                 val serverInfo = runInterruptible { attempt.start(session) }
                 PrivilegeUiRuntimeStartResult.Connected(serverInfo)
@@ -125,6 +131,7 @@ internal class PrivilegeUiRuntimeStartAttemptRunner(
             }
             is PrivilegeUiRuntimeStartAttempt.Workflow -> attempt.start(session)
         }
+    }
 
     private suspend fun awaitExternalStartCompletion(
         session: PrivilegeUiRuntimeStartSession,

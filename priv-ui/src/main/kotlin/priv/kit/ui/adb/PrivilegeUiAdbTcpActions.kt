@@ -8,6 +8,7 @@ import priv.kit.adb.PrivilegeAdbAuthorizationRequestResult
 import priv.kit.adb.PrivilegeAdbAuthorizationStatus
 import priv.kit.adb.PrivilegeAdbStartOptions
 import priv.kit.adb.PrivilegeAdbStarter
+import priv.kit.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.ui.PrivilegeUiAdbTcpAuthorizationStatus
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
@@ -251,7 +252,8 @@ internal class PrivilegeUiAdbTcpActions(
         tcpPort: Int,
         session: PrivilegeUiRuntimeStartSession,
     ): PrivilegeServerInfo {
-        val serverInfo = Privilege.startAdb(
+        val serverInfo = PrivilegeRuntimeStartCoordinator.startAdb(
+            launch = session.requireRuntimeClientLaunch(),
             options = PrivilegeAdbStartOptions(
                 port = tcpPort,
                 discoverPort = false,

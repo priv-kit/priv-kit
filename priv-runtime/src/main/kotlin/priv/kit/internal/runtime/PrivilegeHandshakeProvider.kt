@@ -14,13 +14,19 @@ import priv.kit.internal.core.PrivilegeAndroidUsers
 import priv.kit.internal.core.PrivilegeHandshakeContract
 import priv.kit.internal.core.PrivilegeProtocol
 import priv.kit.internal.core.PrivilegeServerHandshakeRegistry
+import priv.kit.internal.core.PrivilegeServerHandshakeOrigin
 import priv.kit.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.internal.userservice.PrivilegeUserServiceHandshakeRegistry
 import java.util.concurrent.ConcurrentHashMap
 
 internal class PrivilegeHandshakeProvider public constructor() : ContentProvider() {
     override fun onCreate(): Boolean {
-        context?.let(PrivilegeContext::install)
+        context?.let { providerContext ->
+            PrivilegeContext.install(providerContext)
+            Privilege.initializeRuntimeConnection()
+            PrivilegeRuntimeStartCoordinator.markOwnerProcessStarted()
+            PrivilegeOwnerProcessNotifier.schedule(providerContext)
+        }
         return true
     }
 
@@ -42,6 +48,9 @@ internal class PrivilegeHandshakeProvider public constructor() : ContentProvider
         val callingUid = Binder.getCallingUid()
         val callingPid = Binder.getCallingPid()
         val token = extras?.getString(PrivilegeHandshakeContract.EXTRA_TOKEN)?.takeIf { it.isNotBlank() }
+        val initialLaunchId = extras
+            ?.getString(PrivilegeHandshakeContract.EXTRA_INITIAL_LAUNCH_ID)
+            ?.takeIf { token == null && it.isNotBlank() }
         val serverBinder = extras?.getBinder(PrivilegeHandshakeContract.EXTRA_SERVER_BINDER)
         Log.i(
             TAG,
@@ -63,6 +72,11 @@ internal class PrivilegeHandshakeProvider public constructor() : ContentProvider
             trustedCaller = trustedCaller,
             matchesCurrentRuntime = matchesCurrentRuntime,
         )
+        val origin = if (token == null) {
+            PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH
+        } else {
+            PrivilegeServerHandshakeOrigin.OWNER_RECONNECT
+        }
         if (serverInfo != null && trustedCaller && !matchesCurrentRuntime) {
             Log.w(
                 TAG,
@@ -75,6 +89,8 @@ internal class PrivilegeHandshakeProvider public constructor() : ContentProvider
                 token = acceptedToken,
                 serverBinder = serverBinder,
                 serverInfo = serverInfo,
+                origin = origin,
+                initialLaunchId = initialLaunchId,
             )
         } else {
             false
@@ -85,6 +101,7 @@ internal class PrivilegeHandshakeProvider public constructor() : ContentProvider
             trustedCaller = trustedCaller,
             serverInfo = serverInfo,
             matchesCurrentRuntime = matchesCurrentRuntime,
+            initialLaunchId = initialLaunchId,
         )
         Log.i(TAG, "Handshake call accepted=$accepted")
 
@@ -211,6 +228,7 @@ internal class PrivilegeHandshakeProvider public constructor() : ContentProvider
         trustedCaller: Boolean,
         serverInfo: PrivilegeServerInfo?,
         matchesCurrentRuntime: Boolean,
+        initialLaunchId: String?,
     ): String? {
         if (serverInfo == null || matchesCurrentRuntime) {
             return null
@@ -224,7 +242,10 @@ internal class PrivilegeHandshakeProvider public constructor() : ContentProvider
             return null
         }
         Log.i(TAG, "Returning replacement starter command for stale Privileged Server")
-        return PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand()
+        return PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
+            initialLaunchId = initialLaunchId,
+            clearInheritedLaunchId = initialLaunchId == null,
+        )
     }
 
     private fun Bundle.classpathIdentityMatches(): Boolean {

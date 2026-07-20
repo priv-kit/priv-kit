@@ -112,8 +112,12 @@ private fun PrivilegeUiScreenScope.BatteryOptimizationPromptPanel() {
         )
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
+            enabled = interactionEnabled,
             onClick = {
-                if (!context.requestPrivilegeUiBatteryOptimizationExemption()) {
+                if (
+                    viewModel.uiInteractionsEnabled &&
+                    !context.requestPrivilegeUiBatteryOptimizationExemption()
+                ) {
                     showFeedback(settingsUnavailable)
                 }
             },
@@ -138,7 +142,8 @@ private fun PrivilegeUiScreenScope.WirelessAdbSection() {
         val runtimeStartInProgress = state.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE
         val wirelessOwnsRuntimeStart = runtimeStartInProgress &&
             state.runtimeStartSource == PrivilegeUiRuntimeStartSource.ADB_WIRELESS
-        val pairingActionEnabled = !runtimeStartInProgress &&
+        val pairingActionEnabled = interactionEnabled &&
+            !runtimeStartInProgress &&
             (!state.busy || state.pairingStatus.isPrivilegeUiPairingSessionActive())
         AdbStatusRow(
             label = stringResource(R.string.priv_ui_adb_tab_wireless),
@@ -170,7 +175,7 @@ private fun PrivilegeUiScreenScope.WirelessAdbSection() {
                 enabled = privilegeUiWirelessAdbStartActionEnabled(
                     action = startAction,
                     busy = state.busy,
-                ),
+                ) && interactionEnabled,
                 onClick = {
                     when (startAction) {
                         PrivilegeUiStartAction.START ->
@@ -196,7 +201,9 @@ private fun PrivilegeUiScreenScope.WirelessAdbSection() {
 private fun PrivilegeUiScreenScope.WirelessAdbPairingNotificationPermissionWarningDialog() {
     val context = LocalContext.current
     AlertDialog(
-        onDismissRequest = viewModel::cancelPendingPairingStart,
+        onDismissRequest = {
+            if (interactionEnabled) viewModel.cancelPendingPairingStart()
+        },
         properties = DialogProperties(dismissOnClickOutside = false),
         title = {
             Text(stringResource(R.string.priv_ui_notification_permission_unavailable_title))
@@ -205,15 +212,22 @@ private fun PrivilegeUiScreenScope.WirelessAdbPairingNotificationPermissionWarni
             Text(stringResource(R.string.priv_ui_notification_permission_unavailable_message))
         },
         confirmButton = {
-            TextButton(onClick = viewModel::continuePairingWithoutNotification) {
+            TextButton(
+                enabled = interactionEnabled,
+                onClick = viewModel::continuePairingWithoutNotification,
+            ) {
                 Text(stringResource(R.string.priv_ui_pairing_continue_action))
             }
         },
         dismissButton = {
-            TextButton(onClick = viewModel::cancelPendingPairingStart) {
+            TextButton(
+                enabled = interactionEnabled,
+                onClick = viewModel::cancelPendingPairingStart,
+            ) {
                 Text(stringResource(R.string.priv_ui_pairing_cancel_action))
             }
             TextButton(
+                enabled = interactionEnabled,
                 onClick = {
                     viewModel.dispatchNotificationPermissionSettingsRequest(context)
                 },
@@ -234,9 +248,9 @@ private fun PrivilegeUiScreenScope.WirelessAdbPairingDialog() {
     val canSubmit = privilegeUiPairingCodeSubmitEnabled(
         pairingStatus = state.pairingStatus,
         pairingCode = state.pairingCode,
-    )
+    ) && interactionEnabled
     fun dismissOrStop() {
-        viewModel.stopNotificationPairing()
+        if (interactionEnabled) viewModel.stopNotificationPairing()
     }
     AlertDialog(
         onDismissRequest = ::dismissOrStop,
@@ -260,6 +274,7 @@ private fun PrivilegeUiScreenScope.WirelessAdbPairingDialog() {
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = state.pairingCode,
+                    enabled = interactionEnabled,
                     onValueChange = viewModel::updatePairingCode,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.NumberPassword,
@@ -286,7 +301,10 @@ private fun PrivilegeUiScreenScope.WirelessAdbPairingDialog() {
             }
         },
         dismissButton = {
-            TextButton(onClick = ::dismissOrStop) {
+            TextButton(
+                enabled = interactionEnabled,
+                onClick = ::dismissOrStop,
+            ) {
                 Text(
                     stringResource(
                         if (pairing) {
@@ -343,6 +361,7 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
         val prepareActionVisible = !wirelessAdbSupported &&
             tcpPolicy == PrivilegeUiAdbTcpPolicy.AUTO_ENABLE_AFTER_WIRELESS_PAIRED
         val prepareActionEnabled = prepareActionVisible &&
+            interactionEnabled &&
             !runtimeStartInProgress &&
             paired &&
             !staticTcpActive &&
@@ -356,7 +375,7 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
             busy = state.busy,
             wirelessAdbSupported = wirelessAdbSupported,
             tcpModeConfigured = staticTcpConfigured,
-        )
+        ) && interactionEnabled
         val commandHelpVisible = staticTcpCommandHelpVisible(
             wirelessAdbSupported = wirelessAdbSupported,
         )
@@ -410,8 +429,9 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
                 CommandBlock(staticTcpCommand)
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !runtimeStartInProgress && !state.busy,
+                    enabled = interactionEnabled && !runtimeStartInProgress && !state.busy,
                     onClick = {
+                        if (!viewModel.uiInteractionsEnabled) return@OutlinedButton
                         viewModel.copyStaticTcpCommand(context)
                         showFeedback(copiedMessage)
                     },

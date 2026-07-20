@@ -3,17 +3,20 @@ package priv.kit.internal.core
 import priv.kit.PrivilegeStartupException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 internal class PrivilegePendingHandshake {
     private val latch = CountDownLatch(1)
 
-    @Volatile
-    private var result: PrivilegeServerHandshakeResult? = null
+    private val result = AtomicReference<PrivilegeServerHandshakeResult?>(null)
 
-    internal fun complete(result: PrivilegeServerHandshakeResult) {
-        this.result = result
+    internal fun complete(result: PrivilegeServerHandshakeResult): Boolean {
+        if (!this.result.compareAndSet(null, result)) return false
         latch.countDown()
+        return true
     }
+
+    internal fun completedResultOrNull(): PrivilegeServerHandshakeResult? = result.get()
 
     @Throws(PrivilegeStartupException::class, InterruptedException::class)
     fun await(timeoutMillis: Long): PrivilegeServerHandshakeResult {
@@ -26,7 +29,7 @@ internal class PrivilegePendingHandshake {
         if (!completed) {
             throw PrivilegeStartupException("Timed out waiting for Privileged Server Binder")
         }
-        return result
+        return result.get()
             ?: throw PrivilegeStartupException("Privileged Server handshake completed without a Binder")
     }
 }

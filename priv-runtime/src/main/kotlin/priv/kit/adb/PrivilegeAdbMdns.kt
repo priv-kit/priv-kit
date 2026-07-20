@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.annotation.RequiresApi
+import priv.kit.shared.PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST
 import java.io.Closeable
 import java.io.IOException
 import java.net.InetAddress
@@ -191,7 +192,7 @@ internal fun privilegeAdbReachableLocalEndpoint(
     port: Int,
     isPortListeningOnHost: (String, Int) -> Boolean,
 ): PrivilegeAdbEndpoint? {
-    if (isPortListeningOnHost(PRIVILEGE_ADB_LOCAL_HOST, port)) {
+    if (isPortListeningOnHost(PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST, port)) {
         return PrivilegeAdbEndpoint.local(port)
     }
     return PrivilegeAdbEndpoint(serviceHost, port).takeIf {

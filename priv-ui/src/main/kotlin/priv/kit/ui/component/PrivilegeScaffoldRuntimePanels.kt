@@ -18,7 +18,10 @@ internal fun PrivilegeUiScreenScope.RootPanel() {
         val action = state.startActionFor(PrivilegeUiRuntimeStartSource.ROOT)
         Button(
             modifier = Modifier.fillMaxWidth(),
-            enabled = state.startActionEnabled(action),
+            enabled = state.startActionEnabled(
+                action = action,
+                startAvailable = interactionEnabled,
+            ),
             onClick = {
                 when (action) {
                     PrivilegeUiStartAction.START -> viewModel.startRoot()
@@ -62,8 +65,9 @@ internal fun PrivilegeUiScreenScope.ManualShellPanel() {
             CommandBlock(commandLine)
             Button(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !state.busy,
+                enabled = interactionEnabled && !state.busy,
                 onClick = {
+                    if (!viewModel.uiInteractionsEnabled) return@Button
                     viewModel.copyManualCommand(context)
                     showFeedback(copiedMessage)
                 },

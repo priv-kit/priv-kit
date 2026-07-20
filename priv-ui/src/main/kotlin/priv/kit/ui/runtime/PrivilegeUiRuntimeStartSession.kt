@@ -5,6 +5,10 @@ import kotlinx.coroutines.CompletableDeferred
 import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeStartupLogLine
 import priv.kit.PrivilegeStartupLogListener
+import priv.kit.internal.runtime.PrivilegeRuntimeClientLaunch
+import priv.kit.internal.runtime.PrivilegeRuntimeConnectionOrigin
+import priv.kit.internal.runtime.PrivilegeRuntimeStartCoordinator
+import priv.kit.internal.runtime.PrivilegeRuntimeStartLease
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -12,6 +16,11 @@ import java.util.concurrent.atomic.AtomicReference
 internal class PrivilegeUiRuntimeStartSession(
     val generation: Long,
     val showAttemptFeedback: Boolean = true,
+    val recordSuccessfulMethod: Boolean = true,
+    private val onConnectionClaimed: () -> Unit = {},
+    private val onConnectionHandled: () -> Unit = {},
+    private val onOwnerCleanupRequired: () -> Unit = {},
+    private val onOwnerCleanupCompleted: () -> Unit = {},
     private val startupLogSink: (PrivilegeUiRuntimeStartSession, String) -> Unit = { _, _ -> },
     private val structuredStartupLogSink: (PrivilegeUiRuntimeStartSession, PrivilegeStartupLogLine) -> Unit =
         { session, line ->
@@ -23,7 +32,11 @@ internal class PrivilegeUiRuntimeStartSession(
     private val cancellationRequestedState = AtomicBoolean(false)
     private val finishedState = AtomicBoolean(false)
     private val connectionClaimedState = AtomicBoolean(false)
+    private val connectionHandledState = AtomicBoolean(false)
+    private val runtimeStartJobCompletedState = AtomicBoolean(false)
     private val latestConnectedServerState = AtomicReference<PrivilegeServerInfo?>(null)
+    private val committedStartState = AtomicReference<PrivilegeUiCommittedStart?>(null)
+    private val runtimeStartLeaseState = AtomicReference<PrivilegeRuntimeStartLease?>(null)
     private val stopState = AtomicBoolean(false)
     private val completionSignal = CompletableDeferred<Unit>()
     private var resourceCleanupDone: CountDownLatch? = null
@@ -61,6 +74,61 @@ internal class PrivilegeUiRuntimeStartSession(
         }
     }
 
+    /** Records the exact method whose launch side effect is about to run. */
+    fun commitStartMethod(method: PrivilegeUiStartMethod?) {
+        synchronized(lock) {
+            checkActive()
+            val lease = checkNotNull(runtimeStartLeaseState.get()) {
+                "Runtime start lease is not attached"
+            }
+            val launch = checkNotNull(PrivilegeRuntimeStartCoordinator.beginClientLaunch(lease)) {
+                "Runtime start lease no longer owns the coordinator"
+            }
+            committedStartState.set(
+                PrivilegeUiCommittedStart(
+                    method = method,
+                    launch = launch,
+                ),
+            )
+        }
+    }
+
+    fun committedMethod(): PrivilegeUiStartMethod? = committedStartState.get()?.method
+
+    fun requireRuntimeClientLaunch(): PrivilegeRuntimeClientLaunch =
+        checkNotNull(committedStartState.get()?.launch) {
+            "Runtime start method has not been committed"
+        }
+
+    val runtimeStartOperationId: Long?
+        get() = runtimeStartLeaseState.get()?.operationId
+
+    fun attachRuntimeStartLease(lease: PrivilegeRuntimeStartLease): Boolean {
+        val accepted = synchronized(lock) {
+            if (cancellationRequested || finished || connectionClaimed) {
+                false
+            } else {
+                check(runtimeStartLeaseState.get() == null) {
+                    "Runtime start lease is already attached"
+                }
+                runtimeStartLeaseState.set(lease)
+                true
+            }
+        }
+        if (!accepted) runCatching { lease.close() }
+        return accepted
+    }
+
+    fun ownsRuntimeConnection(
+        origin: PrivilegeRuntimeConnectionOrigin,
+        clientStartOperationId: Long?,
+        initialLaunchId: String?,
+    ): Boolean =
+        origin == PrivilegeRuntimeConnectionOrigin.INITIAL_LAUNCH &&
+            clientStartOperationId != null &&
+            clientStartOperationId == runtimeStartOperationId &&
+            initialLaunchId == committedStartState.get()?.launch?.initialLaunchId
+
     fun appendStartupLog(line: String) {
         startupLogSink(this, line)
     }
@@ -82,12 +150,49 @@ internal class PrivilegeUiRuntimeStartSession(
             completionSignal.complete(Unit)
         }
         closeResources(onCloseFailure)
+        releaseRuntimeStartLeaseIfReady()
         return firstFinish
     }
 
-    fun recordConnectedServer(serverInfo: PrivilegeServerInfo): Boolean {
+    fun recordConnectedServer(
+        serverInfo: PrivilegeServerInfo,
+        belongsToCurrentStart: Boolean,
+    ): PrivilegeUiRuntimeConnectionClaim? {
         latestConnectedServerState.set(serverInfo)
-        return connectionClaimedState.compareAndSet(false, true)
+        val claim = synchronized(lock) {
+            if (!connectionClaimedState.compareAndSet(false, true)) return@synchronized null
+            PrivilegeUiRuntimeConnectionClaim(
+                successfulMethod = committedStartState.get()?.method.takeIf {
+                    recordSuccessfulMethod &&
+                        belongsToCurrentStart &&
+                        !cancellationRequested
+                },
+            )
+        }
+        if (claim != null) onConnectionClaimed()
+        return claim
+    }
+
+    fun markConnectionHandled() {
+        if (connectionClaimed && connectionHandledState.compareAndSet(false, true)) {
+            releaseRuntimeStartLeaseIfReady()
+            onConnectionHandled()
+        } else {
+            releaseRuntimeStartLeaseIfReady()
+        }
+    }
+
+    fun markRuntimeStartJobCompleted() {
+        runtimeStartJobCompletedState.set(true)
+        releaseRuntimeStartLeaseIfReady()
+    }
+
+    fun markOwnerCleanupRequired() {
+        onOwnerCleanupRequired()
+    }
+
+    fun markOwnerCleanupCompleted() {
+        onOwnerCleanupCompleted()
     }
 
     fun latestConnectedServer(): PrivilegeServerInfo? = latestConnectedServerState.get()
@@ -140,6 +245,22 @@ internal class PrivilegeUiRuntimeStartSession(
         }
     }
 
+    private fun releaseRuntimeStartLeaseIfReady() {
+        if (!runtimeStartJobCompletedState.get()) return
+        if (
+            (finished && !connectionClaimed) ||
+            (connectionClaimed && connectionHandledState.get())
+        ) {
+            releaseRuntimeStartLease()
+        }
+    }
+
+    private fun releaseRuntimeStartLease() {
+        runtimeStartLeaseState.getAndSet(null)?.let { lease ->
+            runCatching { lease.close() }
+        }
+    }
+
     private fun CountDownLatch.awaitUninterruptibly() {
         var interrupted = false
         while (true) {
@@ -153,3 +274,12 @@ internal class PrivilegeUiRuntimeStartSession(
         if (interrupted) Thread.currentThread().interrupt()
     }
 }
+
+internal class PrivilegeUiRuntimeConnectionClaim(
+    val successfulMethod: PrivilegeUiStartMethod?,
+)
+
+private data class PrivilegeUiCommittedStart(
+    val method: PrivilegeUiStartMethod?,
+    val launch: PrivilegeRuntimeClientLaunch,
+)

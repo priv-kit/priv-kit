@@ -15,6 +15,7 @@ import kotlin.system.exitProcess
 
 internal class PrivilegeServerBinder(
     config: PrivilegeServerConfig,
+    private val onShutdown: () -> Unit = {},
 ) : IPrivilegeServer.Stub() {
     private val userServiceManager = PrivilegeUserServiceManagerBinder(
         PrivilegeUserServiceRegistry(
@@ -80,6 +81,7 @@ internal class PrivilegeServerBinder(
         userServiceManager.destroyAll()
         Thread {
             Thread.sleep(SHUTDOWN_DELAY_MILLIS)
+            onShutdown()
             exitProcess(0)
         }.start()
     }

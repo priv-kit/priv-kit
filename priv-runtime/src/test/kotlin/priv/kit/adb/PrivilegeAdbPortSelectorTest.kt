@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import priv.kit.PrivilegeStartupException
+import priv.kit.shared.PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST
 
 class PrivilegeAdbPortSelectorTest {
     @Test
@@ -17,7 +18,7 @@ class PrivilegeAdbPortSelectorTest {
             discoveredEndpoint = PrivilegeAdbEndpoint.local(37100),
         )
 
-        assertEquals(PRIVILEGE_ADB_LOCAL_HOST, endpoint.host)
+        assertEquals(PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST, endpoint.host)
         assertEquals(37099, endpoint.port)
     }
 
@@ -31,7 +32,7 @@ class PrivilegeAdbPortSelectorTest {
             discoveredEndpoint = PrivilegeAdbEndpoint.local(37100),
         )
 
-        assertEquals(PRIVILEGE_ADB_LOCAL_HOST, endpoint.host)
+        assertEquals(PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST, endpoint.host)
         assertEquals(PRIVILEGE_ADB_DEFAULT_TCP_PORT, endpoint.port)
     }
 
@@ -45,7 +46,7 @@ class PrivilegeAdbPortSelectorTest {
             discoveredEndpoint = PrivilegeAdbEndpoint.local(37100),
         )
 
-        assertEquals(PRIVILEGE_ADB_LOCAL_HOST, endpoint.host)
+        assertEquals(PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST, endpoint.host)
         assertEquals(37100, endpoint.port)
     }
 
@@ -69,10 +70,10 @@ class PrivilegeAdbPortSelectorTest {
             serviceHost = "192.168.1.12",
             port = 37100,
         ) { host, port ->
-            host == PRIVILEGE_ADB_LOCAL_HOST && port == 37100
+            host == PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST && port == 37100
         }
 
-        assertEquals(PRIVILEGE_ADB_LOCAL_HOST, endpoint?.host)
+        assertEquals(PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST, endpoint?.host)
         assertEquals(37100, endpoint?.port)
     }
 
@@ -117,7 +118,7 @@ class PrivilegeAdbPortSelectorTest {
             discoveredEndpoint = null,
         )
 
-        assertEquals(PRIVILEGE_ADB_LOCAL_HOST, endpoint.host)
+        assertEquals(PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST, endpoint.host)
         assertEquals(PRIVILEGE_ADB_DEFAULT_TCP_PORT, endpoint.port)
     }
 
@@ -131,7 +132,7 @@ class PrivilegeAdbPortSelectorTest {
             discoveredEndpoint = PrivilegeAdbEndpoint.local(37100),
         )
 
-        assertEquals(PRIVILEGE_ADB_LOCAL_HOST, endpoint.host)
+        assertEquals(PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST, endpoint.host)
         assertEquals(37100, endpoint.port)
     }
 

@@ -60,5 +60,11 @@ class PrivilegeAdbPairingInputStateTest {
         assertFalse("1234567".isPrivilegeUiPairingCode())
         assertFalse("123 456".isPrivilegeUiPairingCode())
         assertFalse("12345a".isPrivilegeUiPairingCode())
+        assertFalse("١٢٣٤٥٦".isPrivilegeUiPairingCode())
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNonAsciiPairingInputState() {
+        PrivilegeAdbPairingInputState(code = "١٢٣٤٥٦")
     }
 }

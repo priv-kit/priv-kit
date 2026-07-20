@@ -41,7 +41,10 @@ internal fun PrivilegeUiScreenScope.ExternalStartPanel() {
                 }
                 Button(
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = state.startActionEnabled(action),
+                    enabled = state.startActionEnabled(
+                        action = action,
+                        startAvailable = interactionEnabled,
+                    ),
                     onClick = {
                         when (action) {
                             PrivilegeUiStartAction.START -> viewModel.authorizeOrStartExternal(item.id)

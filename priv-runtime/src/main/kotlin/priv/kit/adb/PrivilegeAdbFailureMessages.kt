@@ -3,16 +3,15 @@ package priv.kit.adb
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import javax.net.ssl.SSLProtocolException
+import priv.kit.shared.hasPrivilegeAdbCertificateUnknownMessage
+import priv.kit.shared.hasPrivilegeAdbKeyNotAuthorizedMessage
 
 internal fun Throwable.toFailureMessage(): String =
     "${javaClass.simpleName}: ${message.orEmpty()}".trim()
 
 internal fun Throwable.isAdbTlsCertificateUnknown(): Boolean =
     this is SSLProtocolException &&
-        (
-            message.orEmpty().contains("CERTIFICATE_UNKNOWN", ignoreCase = true) ||
-                message.orEmpty().contains("certificate unknown", ignoreCase = true)
-            )
+        message.orEmpty().hasPrivilegeAdbCertificateUnknownMessage()
 
 internal fun Throwable.toPairingCheckFailureStatus(): PrivilegeAdbPairingCheckStatus =
     when {
@@ -22,10 +21,10 @@ internal fun Throwable.toPairingCheckFailureStatus(): PrivilegeAdbPairingCheckSt
     }
 
 internal fun Throwable.isAdbKeyNotAuthorized(): Boolean =
-    generateSequence(this) { it.cause }.any { throwable ->
-        throwable.isAdbTlsCertificateUnknown() ||
-            throwable.message.orEmpty().contains("ADB key is not authorized")
-    }
+    hasPrivilegeAdbKeyNotAuthorizedMessage() ||
+        generateSequence(this) { it.cause }.any { throwable ->
+            throwable.isAdbTlsCertificateUnknown()
+        }
 
 internal fun Throwable.toTcpAuthorizationCheckResult(
     output: PrivilegeAdbOutput,

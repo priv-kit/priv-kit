@@ -35,6 +35,11 @@ internal object PrivilegeServerHandshakeSender {
             config.token.takeIf { it.isNotBlank() }?.let {
                 putString(PrivilegeHandshakeContract.EXTRA_TOKEN, it)
             }
+            if (config.token.isBlank()) {
+                config.initialLaunchId?.takeIf { it.isNotBlank() }?.let {
+                    putString(PrivilegeHandshakeContract.EXTRA_INITIAL_LAUNCH_ID, it)
+                }
+            }
             putBinder(PrivilegeHandshakeContract.EXTRA_SERVER_BINDER, serverBinder.asBinder())
             putInt(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION, config.protocolVersion)
             putString(
@@ -66,6 +71,7 @@ internal object PrivilegeServerHandshakeSender {
             }
             config.copy(
                 token = token,
+                initialLaunchId = null,
                 followDeathDelayMillis = response.requireLong(
                     PrivilegeHandshakeContract.EXTRA_FOLLOW_DEATH_DELAY_MILLIS,
                 ),

@@ -6,7 +6,7 @@ import java.util.Collections
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
-public data class PrivilegeExternalStartupOptions @JvmOverloads public constructor(
+public data class PrivilegeExternalStartupOptions public constructor(
     public val shellPath: String = DEFAULT_SHELL_PATH,
     public val timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
     public val maxCapturedLines: Int = DEFAULT_MAX_CAPTURED_LINES,
@@ -25,9 +25,6 @@ public data class PrivilegeExternalStartupOptions @JvmOverloads public construct
 }
 
 public object PrivilegeExternalStartup {
-    @JvmStatic
-    @JvmOverloads
-    @Throws(PrivilegeStartupException::class)
     public fun runInCurrentProcess(
         commandLine: String,
         options: PrivilegeExternalStartupOptions = PrivilegeExternalStartupOptions(),
@@ -39,8 +36,6 @@ public object PrivilegeExternalStartup {
             startupLogListener = startupLogListener,
         )
 
-    @JvmStatic
-    @JvmOverloads
     public fun createReceiver(
         startupLogListener: PrivilegeStartupLogListener,
         sourcePrefix: String? = null,
@@ -50,9 +45,6 @@ public object PrivilegeExternalStartup {
             sourcePrefix = sourcePrefix,
         )
 
-    @JvmStatic
-    @JvmOverloads
-    @Throws(PrivilegeStartupException::class)
     public fun runThroughBridge(
         commandLine: String,
         bridge: PrivilegeExternalStartupBridge,
@@ -66,8 +58,6 @@ public object PrivilegeExternalStartup {
             startupLogListener = startupLogListener,
         )
 
-    @JvmStatic
-    @Throws(PrivilegeStartupException::class)
     public fun runThroughBridge(
         commandLine: String,
         bridge: PrivilegeExternalStartupBridge,
@@ -129,7 +119,6 @@ internal class PrivilegeExternalStartupProcessRunner(
         ProcessBuilder(options.shellPath, "-c", commandLine).start()
     },
 ) {
-    @Throws(PrivilegeStartupException::class)
     fun run(
         commandLine: String,
         options: PrivilegeExternalStartupOptions,

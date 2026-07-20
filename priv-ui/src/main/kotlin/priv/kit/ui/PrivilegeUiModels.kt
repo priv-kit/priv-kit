@@ -5,6 +5,10 @@ import priv.kit.PrivilegeServerInfo
 import priv.kit.PrivilegeStartupException
 import priv.kit.PrivilegeStartupLogListener
 import priv.kit.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
+import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS
+import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS
+import priv.kit.shared.isPrivilegeAdbPort
+import priv.kit.shared.toPrivilegeAdbPairingCodeDigits
 
 public enum class PrivilegeUiRuntimeStatus {
     DISCONNECTED,
@@ -93,7 +97,8 @@ public data class PrivilegeUiConfig public constructor(
     public val tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     public val adbTcpPolicy: PrivilegeUiAdbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
     public val enableManagedWirelessAdb: Boolean = true,
-    public val adbAuthorizationTimeoutMillis: Long = PRIVILEGE_UI_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS,
+    public val adbAuthorizationTimeoutMillis: Long =
+        PRIVILEGE_INTERNAL_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS,
     public val wirelessStatusPollIntervalMillis: Long = DEFAULT_WIRELESS_STATUS_POLL_INTERVAL_MILLIS,
     public val wirelessStatusDiscoveryTimeoutMillis: Long = DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS,
     public val externalStartStatusPollIntervalMillis: Long = DEFAULT_EXTERNAL_START_STATUS_POLL_INTERVAL_MILLIS,
@@ -101,7 +106,7 @@ public data class PrivilegeUiConfig public constructor(
 ) {
     init {
         require(startTimeoutMillis > 0L) { "startTimeoutMillis must be positive" }
-        require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
+        require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         require(adbAuthorizationTimeoutMillis > 0L) { "adbAuthorizationTimeoutMillis must be positive" }
         require(wirelessStatusPollIntervalMillis > 0L) {
             "wirelessStatusPollIntervalMillis must be positive"
@@ -118,7 +123,8 @@ public data class PrivilegeUiConfig public constructor(
     }
 
     internal companion object {
-        const val DEFAULT_START_TIMEOUT_MILLIS: Long = 15_000L
+        const val DEFAULT_START_TIMEOUT_MILLIS: Long =
+            PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS
         const val DEFAULT_WIRELESS_STATUS_POLL_INTERVAL_MILLIS: Long = 3_000L
         const val DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS: Long = 1_500L
         const val DEFAULT_EXTERNAL_START_STATUS_POLL_INTERVAL_MILLIS: Long = 3_000L
@@ -126,6 +132,7 @@ public data class PrivilegeUiConfig public constructor(
 }
 
 public interface PrivilegeUiExternalStartProvider {
+    /** Stable identifier used to restore this provider across process restarts and app upgrades. */
     public val id: String
 
     public val label: CharSequence
@@ -210,8 +217,4 @@ public data class PrivilegeUiState public constructor(
 )
 
 internal fun String.toPrivilegeUiPairingCodeDigits(): String =
-    filter(Char::isDigit).take(PRIVILEGE_UI_PAIRING_CODE_LENGTH)
-
-internal const val PRIVILEGE_UI_PAIRING_CODE_LENGTH = 6
-
-private const val PRIVILEGE_UI_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS = 60_000L
+    toPrivilegeAdbPairingCodeDigits()

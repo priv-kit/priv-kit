@@ -59,6 +59,7 @@ internal fun PrivilegeUiScreenScope.AuthorizationModeTabs() {
         modes = state.startupModes,
         selectedMode = state.selectedStartupMode,
         busy = state.busy,
+        interactionEnabled = interactionEnabled,
     )
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         when (privilegeUiAuthorizationModeSelector(items.size, maxWidth)) {
@@ -121,13 +122,14 @@ internal fun privilegeUiAuthorizationModeItems(
     modes: List<PrivilegeUiStartupMode>,
     selectedMode: PrivilegeUiStartupMode,
     busy: Boolean,
+    interactionEnabled: Boolean = true,
 ): List<PrivilegeUiAuthorizationModeItem> {
     val resolvedMode = selectedMode.takeIf { it in modes } ?: modes.firstOrNull()
     return modes.map { mode ->
         PrivilegeUiAuthorizationModeItem(
             mode = mode,
             selected = mode == resolvedMode,
-            enabled = !busy || mode == resolvedMode,
+            enabled = interactionEnabled && (!busy || mode == resolvedMode),
         )
     }
 }

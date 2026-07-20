@@ -1,16 +1,17 @@
 # priv-ui
 
-Optional Jetpack Compose UI helper module for Priv Kit.
+Optional UI and UI-originated startup helper module for Priv Kit.
 
 Namespace and package root: `priv.kit.ui`.
 
-This module provides a reusable embedded page for runtime authorization status and authorization entry points.
+This module provides a reusable embedded page for runtime authorization status and authorization entry points, plus a headless entry point that can replay the last successful foreground start.
 
 Public entry points:
 
 - `PrivilegeScaffold`, the root Compose page.
 - `PrivilegeUiViewModel`, an `open` `AndroidViewModel` state manager that callers may subclass.
 - `PrivilegeUiConfig`, used to enable startup modes, polling intervals, and external start providers.
+- `PrivilegeUi.startSilently(...)`, a suspend function that can run without an `Activity` or ViewModel.
 
 Process-wide owner-death behavior remains a runtime concern. Configure it through
 `PrivilegeConfig` before starting a server; `PrivilegeUiConfig` does not mirror or
@@ -77,7 +78,51 @@ It does not include built-in Shizuku integration, app-owned service management, 
 
 When the user explicitly starts a configured static-TCP endpoint whose listener is unavailable, the UI asks `priv-runtime` to prepare that endpoint before falling back to Wireless Debugging. The runtime writes `ADB_ENABLED=1` only when `WRITE_SECURE_SETTINGS` is declared and granted, retries the listener, and never enables `adb_wifi_enabled` for this recovery path. Passive UI polling remains read-only.
 
-The top service action silently tries configured workflows in the order supplied by the UI before reporting a generic failure. If a Root or ADB command may have created a detached server but its Binder handshake does not complete, fallback stops and reports the generic failure because that server may still arrive later. An External request remains in the same start session while the runner waits for its Binder connection or timeout; a timeout also stops fallback because the requested server may still arrive later. Every start uses the same cooperative cancellation model: the first cancellation request changes the owning controls from Cancel to a disabled Cancelling state, Root and ADB observe cancellation at their internal checkpoints, and an External provider call with no checkpoints remains in Cancelling until that call returns. Other startup controls stay disabled while a start is running or cancelling.
+The foreground service action calls `PrivilegeUiViewModel.startInteractive()` and tries configured workflows in the order supplied by the UI before reporting a generic failure. If a Root or ADB command may have created a detached server but its Binder handshake does not complete, fallback stops and reports the generic failure because that server may still arrive later. An External request remains in the same start session while the runner waits for its Binder connection or timeout; a timeout also stops fallback because the requested server may still arrive later. Every foreground start uses the same cooperative cancellation model: the first cancellation request changes the owning controls from Cancel to a disabled Cancelling state, Root and ADB observe cancellation at their internal checkpoints, and an External provider call with no checkpoints remains in Cancelling until that call returns. Other startup controls stay disabled while a start is running or cancelling.
+
+## Foreground, silent, and owner-reconnect startup
+
+When a foreground start owned by `PrivilegeUiViewModel` commits a launch method and receives the matching `INITIAL_LAUNCH` Binder connection for that runtime operation before cancellation, `priv-ui` records the exact winning method in `filesDir/.priv-kit/ui-start-method`. The file contains one raw UTF-8 method ID, not JSON or a preference schema:
+
+- `root`
+- `adb-wireless`
+- `adb-tcpip`
+- `external:<providerId>`
+
+Silent starts, retained-server `OWNER_RECONNECT` handshakes, already-connected servers, manual shell starts outside the matching foreground operation, cancelled starts, and failed starts do not replace this value.
+
+After obtaining the process-local start gate, `PrivilegeUi.startSilently(context, config)` first returns an already-connected or ready server, if present. During the runtime's app-start reconciliation window it then gives a retained server time to complete owner reconnect before reading the saved method and committing a new launch. If no connection wins, it attempts only that exact method. It does not initialize Compose, create a ViewModel, require an `Activity`, fall back to another method, show a snackbar, invoke Android permission launchers, or update the saved method. Without an existing connection, missing history, an unknown or disabled method, missing authorization, startup failure, and timeout all return `null`.
+
+Foreground and silent startup are mutually exclusive through one process-local gate. Accepted foreground startup effects—including runtime start/stop, TCP changes, pairing, permission requests, and external authorization calls—retain nestable leases scoped to one foreground ViewModel owner until their owned work completes. A different ViewModel cannot join that owner's nesting, and `startSilently(...)` returns `null` while any foreground lease remains. The two UI entry points use first-acquired ownership without queuing or preemption.
+
+Owner reconnect participates through the runtime arbiter rather than the UI gate. An already-connected/ready server wins first; a retained server whose reconnect arrives during preflight wins before Root, ADB, or external launch side effects are committed. After a foreground or silent start commits its runtime lease, a late `OWNER_RECONNECT` is rejected and the new launch continues. Permission requests are additionally scoped to their active `PrivilegeScaffold` host and are discarded when the last host leaves, so a detached launcher cannot keep the gate occupied or replay a stale prompt. While silent startup owns the gate, the built-in UI disables new side-effecting entries. After silent startup releases the gate, each existing ViewModel re-reads runtime state before enabling those entries again, so a just-connected server cannot race with another foreground start. A multi-process app must initialize and invoke Priv Kit startup from only one designated app process; calling `startSilently(...)` during every process's `Application` initialization can start duplicate attempts.
+
+Silent method behavior is deliberately narrow:
+
+- Wireless ADB may temporarily enable Wireless Debugging when `enableManagedWirelessAdb` is enabled and the app already has the runtime capability required to manage it. It never starts pairing, and returns `null` when the saved ADB identity is not paired. If the platform requires `ACCESS_LOCAL_NETWORK` and it has not already been granted, the method returns `null` without requesting it.
+- Static TCP uses only the current `config.tcpPort`, with discovery and Wireless Debugging fallback disabled. An unavailable listener or unauthorized ADB key returns `null`; the authorization request flow is not invoked.
+- External startup resolves the exact saved provider ID from the supplied config, requires its current `snapshot()` to report `canStart`, and never calls `requestAuthorization()`. Provider IDs are persistent keys and should remain stable across app upgrades. The snapshot and start call share `startTimeoutMillis`; blocking providers should respond to thread interruption so cancellation and timeout can finish promptly.
+- Root startup reuses the existing Root path. `priv-ui` does not request Android permissions, but a root manager may still display its own authorization UI if its previous grant is no longer valid.
+
+Construct external providers and `PrivilegeUiConfig` once at application scope, then pass the same config instance to both entry points. An `Application` property is one straightforward option:
+
+```kotlin
+class App : Application() {
+    val privilegeUiConfig by lazy {
+        PrivilegeUiConfig(
+            externalStartProviders = listOf(myShizukuProvider),
+        )
+    }
+}
+
+// Safe to call from a background coroutine before any Activity or UI is created.
+val serverInfo = PrivilegeUi.startSilently(
+    context = app,
+    config = app.privilegeUiConfig,
+)
+```
+
+An `object` or top-level lazy property is also suitable when it obtains only application-scoped dependencies. External providers must not retain an `Activity`, and their `snapshot()` implementation should remain a read-only status check.
 
 Basic usage:
 
@@ -86,9 +131,7 @@ class MyPrivilegeUiViewModel(
     application: Application,
 ) : PrivilegeUiViewModel(
     application,
-    PrivilegeUiConfig(
-        externalStartProviders = listOf(myShizukuProvider),
-    ),
+    (application as App).privilegeUiConfig,
 ) {
     override fun onBackClick(): Boolean {
         // Update app navigation state or emit a host event.

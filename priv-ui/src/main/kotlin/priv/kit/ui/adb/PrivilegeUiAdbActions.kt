@@ -9,11 +9,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.runInterruptible
 import priv.kit.Privilege
 import priv.kit.adb.isPrivilegeAdbLocalNetworkAccessFailure
+import priv.kit.internal.runtime.PrivilegeRuntimeStartCoordinator
 
 internal class PrivilegeUiAdbActions(
     private val store: PrivilegeUiViewModelStore,
     private val runtimeActions: PrivilegeUiRuntimeActions,
     private val coroutineScope: CoroutineScope,
+    private val acquireInteractivePermit: () -> AutoCloseable? =
+        PrivilegeUiStartGate.newInteractivePermitAcquirer(),
+    private val hasInteractionHost: () -> Boolean = { true },
 ) : AutoCloseable {
     private val adbConnectionSessions = PrivilegeUiAdbConnectionSessions()
     private val statusActions = PrivilegeUiAdbStatusActions(
@@ -30,6 +34,8 @@ internal class PrivilegeUiAdbActions(
         store = store,
         coroutineScope = coroutineScope,
         enableTcpMode = { tcpActions.enableTcpMode() },
+        acquireInteractivePermit = acquireInteractivePermit,
+        hasInteractionHost = hasInteractionHost,
     )
 
     fun observePairingNotificationEvents() {
@@ -37,38 +43,54 @@ internal class PrivilegeUiAdbActions(
     }
 
     fun updatePairingCode(value: String) {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         pairingActions.updatePairingCode(value)
     }
 
     fun startNotificationPairing(
-        onNotificationPermissionRequired: () -> Unit = {},
+        onNotificationPermissionRequired: () -> Boolean = { true },
     ) {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         pairingActions.startNotificationPairing(
             onNotificationPermissionRequired = onNotificationPermissionRequired,
         )
     }
 
     fun stopNotificationPairing() {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         pairingActions.stopNotificationPairing()
     }
 
     fun cancelPendingPairingStart() {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         pairingActions.cancelPendingPairingStart()
     }
 
+    fun cancelNotificationPermissionRequest() {
+        pairingActions.cancelNotificationPermissionRequest()
+    }
+
+    fun cancelPairingWithoutInteractionHost() {
+        pairingActions.cancelPairingWithoutInteractionHost()
+    }
+
     fun continuePairingWithoutNotification() {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         pairingActions.continuePairingWithoutNotification()
     }
 
     fun continuePendingPairingIfNotificationPermissionGranted() {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         pairingActions.continuePendingPairingIfNotificationPermissionGranted()
     }
 
     fun closePairingDialog() {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         pairingActions.closePairingDialog()
     }
 
     fun submitNotificationPairingCode() {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         pairingActions.submitNotificationPairingCode()
     }
 
@@ -79,6 +101,7 @@ internal class PrivilegeUiAdbActions(
     fun startWirelessAdb(
         onLocalNetworkPermissionRequired: (String) -> Unit = {},
     ) {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         refreshAdbStartPrerequisites()
         runtimeActions.runServerStartWorkflow(wirelessAdbStartWorkflow(onLocalNetworkPermissionRequired))
     }
@@ -86,6 +109,7 @@ internal class PrivilegeUiAdbActions(
     fun startAdb(
         onLocalNetworkPermissionRequired: (String) -> Unit = {},
     ) {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         val tcpModePort = store.currentTcpModePort()
         if (
             store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED &&
@@ -100,6 +124,7 @@ internal class PrivilegeUiAdbActions(
     fun startStaticTcpAdb(
         onLocalNetworkPermissionRequired: (String) -> Unit = {},
     ) {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
         runtimeActions.runServerStartWorkflow(staticTcpAdbStartWorkflow(onLocalNetworkPermissionRequired))
     }
@@ -118,10 +143,12 @@ internal class PrivilegeUiAdbActions(
     }
 
     fun enableTcpMode() {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         tcpActions.enableTcpMode()
     }
 
     fun directStartAttempts(): List<PrivilegeUiRuntimeStartAttempt> {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return emptyList()
         return buildList {
             if (store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED) {
                 add(staticTcpAdbStartWorkflow(onLocalNetworkPermissionRequired = {}))
@@ -133,10 +160,12 @@ internal class PrivilegeUiAdbActions(
     }
 
     fun refreshTcpModeEnabled() {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         statusActions.refreshTcpModeEnabled()
     }
 
     fun startTcpModeStatusPolling(): AutoCloseable {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return PrivilegeUiNoopCloseable
         return statusActions.startTcpModeStatusPolling()
     }
 
@@ -145,17 +174,24 @@ internal class PrivilegeUiAdbActions(
     }
 
     fun refreshAdbIdentityInfo() {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         statusActions.refreshAdbIdentityInfo()
     }
 
     fun startWirelessAdbStatusPolling(): AutoCloseable =
-        statusActions.startWirelessAdbStatusPolling()
+        if (PrivilegeUiStartGate.isSilentStartInProgress) {
+            PrivilegeUiNoopCloseable
+        } else {
+            statusActions.startWirelessAdbStatusPolling()
+        }
 
     fun refreshWirelessAdbStatus() {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         statusActions.refreshWirelessAdbStatus()
     }
 
     fun refreshAdbStartPrerequisites() {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
         statusActions.refreshWifiConnected()
     }
 
@@ -393,7 +429,8 @@ internal class PrivilegeUiAdbActions(
                 managedWirelessAdbEnabled = store.managedWirelessAdbEnabledForStart(),
                 managedWirelessAdbStatus = store.state.value.managedWirelessAdbStatus,
             )
-            val serverInfo = Privilege.startAdb(
+            val serverInfo = PrivilegeRuntimeStartCoordinator.startAdb(
+                launch = requireRuntimeClientLaunch(),
                 options = options,
                 timeoutMillis = store.config.startTimeoutMillis,
                 adbDeviceName = adbDeviceName,

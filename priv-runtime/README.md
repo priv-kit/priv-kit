@@ -33,7 +33,11 @@ The runtime module carries its own `app_process` server and UserService entry po
 
 Configure owner-death behavior through the process-wide `PrivilegeConfig` object. When the app-side owner process dies, the Privileged Server waits for `followDeathDelayMillis` before exiting. The default is 10 minutes. Use `0` to exit immediately.
 
-By default, owner-death reconnect is passive: the server waits until the app main process is already running again, then sends the Binder handoff. Set `PrivilegeConfig.activeReconnectOnOwnerDeath = true` only if the server should actively call the app handshake provider while the app process is dead, which may start the app process.
+By default, owner-death reconnect is passive: after the initial handshake, the server registers a `ContentObserver` for the owner package's process-start signal. When the app-side handshake provider is created, it publishes that signal and the retained server retries the Binder handoff. On Android 11 and later the notification uses the no-delay flag so background observer delivery is not deferred. Continuous `/proc` scanning is not part of the normal path; the server falls back to the previous process polling only when observer registration fails.
+
+Set `PrivilegeConfig.activeReconnectOnOwnerDeath = true` only if the server should actively call the app handshake provider while the app process is dead, which may start the app process. This active retry behavior remains separate from the passive `ContentObserver` path and is not replaced by it.
+
+Runtime startup coordination distinguishes a new server's `INITIAL_LAUNCH` handshake from a retained server's `OWNER_RECONNECT` handshake. During the short app-start reconciliation window, an already-connected/ready server or owner reconnect wins before a foreground or silent UI start commits any launch side effect. Once a client start commits its runtime lease, a late owner reconnect is rejected and only the matching initial-launch handshake belongs to that operation. This arbiter is process-local; a multi-process app must designate exactly one app process to initialize Priv Kit and invoke its startup entry points.
 
 The latest owner-death configuration is held in the runtime process and returned by the app-side provider during the initial server handoff. A running server keeps the configuration it received at startup; later `PrivilegeConfig` changes affect the next server start only.
 

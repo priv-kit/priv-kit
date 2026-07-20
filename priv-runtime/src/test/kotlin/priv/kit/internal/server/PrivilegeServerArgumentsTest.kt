@@ -1,6 +1,7 @@
 package priv.kit.internal.server
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import priv.kit.internal.core.PrivilegeAndroidUsers
@@ -15,10 +16,12 @@ class PrivilegeServerArgumentsTest {
         val config = PrivilegeServerArguments.parse(
             args = emptyArray(),
             classpath = apk.path,
+            initialLaunchId = null,
             uid = PrivilegeAndroidUsers.SHELL_UID,
         )
 
         assertEquals("", config.token)
+        assertNull(config.initialLaunchId)
         assertEquals("example.app", config.packageName)
         assertEquals(0, config.userId)
         assertEquals(apk.path, config.classpath)
@@ -39,6 +42,18 @@ class PrivilegeServerArgumentsTest {
         )
 
         assertEquals(10, config.userId)
+    }
+
+    @Test
+    fun parseRetainsInitialLaunchIdFromEnvironmentInput() {
+        val config = PrivilegeServerArguments.parse(
+            args = emptyArray(),
+            classpath = testApk("example.launch-hash").path,
+            initialLaunchId = "launch-1",
+            uid = PrivilegeAndroidUsers.SHELL_UID,
+        )
+
+        assertEquals("launch-1", config.initialLaunchId)
     }
 
     @Test

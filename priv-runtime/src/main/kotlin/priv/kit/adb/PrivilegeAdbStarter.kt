@@ -8,6 +8,8 @@ import priv.kit.PrivilegeStartupException
 import priv.kit.PrivilegeStartupLogListener
 import priv.kit.PrivilegeServerLaunchUncertainException
 import priv.kit.internal.runtime.PrivilegeContext
+import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS
+import priv.kit.shared.isPrivilegeAdbPort
 import java.io.Closeable
 import java.io.EOFException
 import java.net.SocketException
@@ -126,7 +128,7 @@ public class PrivilegeAdbStarter private constructor(
     public fun prepareTcpForStart(
         tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     ): PrivilegeAdbAuthorizationCheckResult {
-        require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
+        require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         val initialResult = checkTcpAuthorization(tcpPort = tcpPort)
         if (initialResult.status != PrivilegeAdbAuthorizationStatus.UNAVAILABLE) return initialResult
 
@@ -184,7 +186,7 @@ public class PrivilegeAdbStarter private constructor(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             throw PrivilegeStartupException("Wireless ADB requires Android 11 or above")
         }
-        require(port == null || port in 1..65535) { "port must be between 1 and 65535" }
+        require(port == null || port.isPrivilegeAdbPort()) { "port must be between 1 and 65535" }
         require(portDiscoveryTimeoutMillis > 0L) { "portDiscoveryTimeoutMillis must be positive" }
 
         val key = try {
@@ -229,7 +231,7 @@ public class PrivilegeAdbStarter private constructor(
             throw PrivilegeStartupException("Wireless ADB pairing requires Android 11 or above")
         }
         val normalizedPairingCode = pairingCode.toPrivilegeAdbPairingCode()
-        require(port == null || port in 1..65535) { "port must be between 1 and 65535" }
+        require(port == null || port.isPrivilegeAdbPort()) { "port must be between 1 and 65535" }
         require(normalizedPairingCode.isNotBlank()) { "pairingCode must contain six ASCII digits" }
         require(portDiscoveryTimeoutMillis > 0L) { "portDiscoveryTimeoutMillis must be positive" }
 
@@ -385,8 +387,10 @@ public class PrivilegeAdbStarter private constructor(
         tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
         options: PrivilegeAdbStartOptions? = null,
     ): PrivilegeAdbTcpResult {
-        require(currentPort == null || currentPort in 1..65535) { "currentPort must be between 1 and 65535" }
-        require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
+        require(currentPort == null || currentPort.isPrivilegeAdbPort()) {
+            "currentPort must be between 1 and 65535"
+        }
+        require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         val output = PrivilegeAdbOutput()
         var managedWirelessDebuggingController: PrivilegeAdbWirelessDebuggingController? = null
         return try {
@@ -462,7 +466,7 @@ public class PrivilegeAdbStarter private constructor(
     public fun stopTcp(
         tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     ): PrivilegeAdbTcpResult {
-        require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
+        require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         val output = PrivilegeAdbOutput()
         return try {
             val key = createKey()
@@ -488,7 +492,7 @@ public class PrivilegeAdbStarter private constructor(
     public fun checkTcpAuthorization(
         tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     ): PrivilegeAdbAuthorizationCheckResult {
-        require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
+        require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         return try {
             openTcpAuthorizationCheckSession(tcpPort).use { session ->
                 session.check()
@@ -502,7 +506,7 @@ public class PrivilegeAdbStarter private constructor(
     public fun openTcpAuthorizationCheckSession(
         tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     ): PrivilegeAdbTcpAuthorizationCheckSession {
-        require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
+        require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         val key = try {
             createKey()
         } catch (throwable: Throwable) {
@@ -531,10 +535,10 @@ public class PrivilegeAdbStarter private constructor(
 
     public fun requestTcpAuthorization(
         tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
-        timeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_AUTHORIZATION_TIMEOUT_MILLIS,
+        timeoutMillis: Long = PRIVILEGE_INTERNAL_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS,
         callback: PrivilegeAdbAuthorizationRequestCallback,
     ): Closeable {
-        require(tcpPort in 1..65535) { "tcpPort must be between 1 and 65535" }
+        require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         require(timeoutMillis > 0L) { "timeoutMillis must be positive" }
         require(timeoutMillis <= Int.MAX_VALUE) { "timeoutMillis must be at most ${Int.MAX_VALUE}" }
 

@@ -7,12 +7,15 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import priv.kit.Privilege
 import priv.kit.PrivilegeServerInfo
+import priv.kit.internal.runtime.PrivilegeRuntimeConnectionEvent
+import priv.kit.internal.runtime.PrivilegeRuntimeStartCoordinator
 
 internal class PrivilegeUiRuntimeActions(
     private val store: PrivilegeUiViewModelStore,
@@ -20,6 +23,8 @@ internal class PrivilegeUiRuntimeActions(
     private val shutdownServer: () -> Unit = { Privilege.shutdownServer() },
     private val isAdbPermissionRestricted: () -> Boolean =
         Privilege::isAdbPermissionRestricted,
+    private val acquireStartPermit: () -> AutoCloseable? = { AutoCloseable {} },
+    private val operationDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : AutoCloseable {
     private val closed = AtomicBoolean(false)
     private var nextStopOperationId = 0L
@@ -27,17 +32,15 @@ internal class PrivilegeUiRuntimeActions(
     private val adbRestrictionRefreshGeneration = AtomicLong(0L)
     private val runtimeStartCoordinator = PrivilegeUiRuntimeStartCoordinator(
         store = store,
-        coroutineScope = coroutineScope,
         isClosed = closed::get,
         publishConnectedServer = ::publishConnectedServerLocked,
+        acquireStartPermit = acquireStartPermit,
     )
 
     val isClosed: Boolean
         get() = closed.get()
 
-    fun startRoot() {
-        runServerStart(rootStartAttempt())
-    }
+    fun startRoot(): Boolean = runServerStart(rootStartAttempt())
 
     fun rootStartAttempt(): PrivilegeUiRuntimeStartAttempt.Connect =
         PrivilegeUiRuntimeStartAttempt.Connect(
@@ -45,16 +48,19 @@ internal class PrivilegeUiRuntimeActions(
             startupSource = store.text(R.string.priv_ui_auth_method_root),
             runtimeStartSource = PrivilegeUiRuntimeStartSource.ROOT,
         ) {
-            Privilege.startRoot(
+            PrivilegeRuntimeStartCoordinator.startRoot(
+                launch = requireRuntimeClientLaunch(),
                 timeoutMillis = store.config.startTimeoutMillis,
                 startupLogListener = startupLogListener,
             )
         }
 
     fun stopServer() {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
+        val operationPermit = acquireStartPermit() ?: return
         var operationId = 0L
         var connectionSerial = 0L
-        synchronized(store) {
+        val accepted = synchronized(store) {
             val current = store.state.value
             if (
                 closed.get() ||
@@ -63,48 +69,65 @@ internal class PrivilegeUiRuntimeActions(
                 current.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE ||
                 current.runtimeStatus != PrivilegeUiRuntimeStatus.CONNECTED
             ) {
-                return
+                false
+            } else {
+                operationId = ++nextStopOperationId
+                connectionSerial = current.connectionSerial
+                activeStopOperationIds += operationId
+                store.serverShutdownRequestedByOwner = true
+                store.updateState { it.copy(busy = true) }
+                true
             }
-            operationId = ++nextStopOperationId
-            connectionSerial = current.connectionSerial
-            activeStopOperationIds += operationId
-            store.serverShutdownRequestedByOwner = true
-            store.updateState { it.copy(busy = true) }
+        }
+        if (!accepted) {
+            operationPermit.close()
+            return
         }
         val message = store.text(R.string.priv_ui_stopping_service)
         store.appendLog(message)
-        val job = coroutineScope.launch(Dispatchers.IO + CoroutineName("priv-ui-stop-server")) {
-            try {
-                runInterruptible { shutdownServer() }
-                synchronized(store) {
-                    if (!ownsStopOperationLocked(operationId, connectionSerial)) return@synchronized
-                    store.updateState {
-                        it.toDisconnectedRuntimeIdle()
+        try {
+            val job = coroutineScope.launch(operationDispatcher + CoroutineName("priv-ui-stop-server")) {
+                try {
+                    runInterruptible { shutdownServer() }
+                    synchronized(store) {
+                        if (!ownsStopOperationLocked(operationId, connectionSerial)) return@synchronized
+                        store.updateState {
+                            it.toDisconnectedRuntimeIdle()
+                        }
                     }
-                }
-            } catch (_: CancellationException) {
-                return@launch
-            } catch (throwable: Throwable) {
-                synchronized(store) {
-                    if (!ownsStopOperationLocked(operationId, connectionSerial)) return@synchronized
-                    store.updateState {
-                        it.copy(
-                            busy = false,
-                            runtimeStartSource = null,
-                            runtimeStartProviderId = null,
-                            runtimeProgressMessage = null,
-                        )
+                } catch (_: CancellationException) {
+                    return@launch
+                } catch (throwable: Throwable) {
+                    synchronized(store) {
+                        if (!ownsStopOperationLocked(operationId, connectionSerial)) return@synchronized
+                        store.updateState {
+                            it.copy(
+                                busy = false,
+                                runtimeStartSource = null,
+                                runtimeStartProviderId = null,
+                                runtimeProgressMessage = null,
+                            )
+                        }
+                        store.showFailure(PrivilegeUiFailureKind.STOP_SERVICE_FAILED)
+                        store.appendLog(throwable.toPrivilegeUiDiagnosticString())
                     }
-                    store.showFailure(PrivilegeUiFailureKind.STOP_SERVICE_FAILED)
-                    store.appendLog(throwable.toPrivilegeUiDiagnosticString())
                 }
             }
-        }
-        job.invokeOnCompletion {
+            job.invokeOnCompletion {
+                synchronized(store) {
+                    activeStopOperationIds -= operationId
+                    store.serverShutdownRequestedByOwner = activeStopOperationIds.isNotEmpty()
+                }
+                operationPermit.close()
+            }
+        } catch (throwable: Throwable) {
             synchronized(store) {
                 activeStopOperationIds -= operationId
                 store.serverShutdownRequestedByOwner = activeStopOperationIds.isNotEmpty()
+                store.updateState { it.copy(busy = false) }
             }
+            operationPermit.close()
+            throw throwable
         }
     }
 
@@ -147,27 +170,34 @@ internal class PrivilegeUiRuntimeActions(
 
     fun installRuntimeWatchers() {
         store.serverConnectedListener?.close()
-        store.serverConnectedListener = Privilege.addServerConnectedListener(::connectServer)
+        store.serverConnectedListener =
+            PrivilegeRuntimeStartCoordinator.addServerConnectedListener(::handleServerConnected)
         store.serverDisconnectedWatcher?.close()
         store.serverDisconnectedWatcher = Privilege.addServerDisconnectedListener {
             handleServerDisconnected()
         }
     }
 
-    fun runServerStart(attempt: PrivilegeUiRuntimeStartAttempt.Connect) {
+    fun runServerStart(attempt: PrivilegeUiRuntimeStartAttempt.Connect): Boolean =
         runtimeStartCoordinator.runServerStart(attempt)
-    }
 
-    fun runServerStartRequest(attempt: PrivilegeUiRuntimeStartAttempt.Request) {
+    fun runServerStartRequest(attempt: PrivilegeUiRuntimeStartAttempt.Request): Boolean =
         runtimeStartCoordinator.runServerStartRequest(attempt)
-    }
 
-    fun runServerStartWorkflow(attempt: PrivilegeUiRuntimeStartAttempt.Workflow) {
+    fun runServerStartWorkflow(attempt: PrivilegeUiRuntimeStartAttempt.Workflow): Boolean =
         runtimeStartCoordinator.runServerStartWorkflow(attempt)
-    }
 
-    fun runServerStartFallback(attempts: List<PrivilegeUiRuntimeStartAttempt>) {
+    fun runServerStartFallback(attempts: List<PrivilegeUiRuntimeStartAttempt>): Boolean =
         runtimeStartCoordinator.runServerStartFallback(attempts)
+
+    /** Entry point for the runtime handshake bridge once it can report an exact origin. */
+    fun handleServerConnected(
+        event: PrivilegeRuntimeConnectionEvent,
+    ) {
+        runtimeStartCoordinator.handleServerConnected(
+            event = event,
+            deduplicatePassiveConnection = true,
+        )
     }
 
     fun <T> runBusy(
@@ -177,34 +207,51 @@ internal class PrivilegeUiRuntimeActions(
         onFailure: ((Throwable) -> Unit)? = null,
         onSuccess: (T) -> String,
     ) {
-        val current = store.state.value
-        if (
-            closed.get() ||
-            current.busy ||
-            current.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE
-        ) {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
+        val operationPermit = acquireStartPermit() ?: return
+        val accepted = synchronized(store) {
+            val current = store.state.value
+            if (
+                closed.get() ||
+                current.busy ||
+                current.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE
+            ) {
+                false
+            } else {
+                store.updateState { it.copy(busy = true) }
+                true
+            }
+        }
+        if (!accepted) {
+            operationPermit.close()
             return
         }
-        store.updateState { it.copy(busy = true) }
         store.appendLog(message)
-        coroutineScope.launch(Dispatchers.IO + CoroutineName("priv-ui-runtime-busy")) {
-            try {
-                val result = runInterruptible { action() }
-                if (!closed.get()) {
-                    val resultMessage = onSuccess(result)
-                    store.updateState { it.copy(busy = false) }
-                    store.appendLog(resultMessage)
-                }
-            } catch (_: CancellationException) {
-                return@launch
-            } catch (throwable: Throwable) {
-                if (!closed.get()) {
-                    onFailure?.invoke(throwable)
-                    store.updateState { it.copy(busy = false) }
-                    store.showFailure(failureKind)
-                    store.appendLog(throwable.toPrivilegeUiDiagnosticString())
+        try {
+            val job = coroutineScope.launch(operationDispatcher + CoroutineName("priv-ui-runtime-busy")) {
+                try {
+                    val result = runInterruptible { action() }
+                    if (!closed.get()) {
+                        val resultMessage = onSuccess(result)
+                        store.updateState { it.copy(busy = false) }
+                        store.appendLog(resultMessage)
+                    }
+                } catch (_: CancellationException) {
+                    return@launch
+                } catch (throwable: Throwable) {
+                    if (!closed.get()) {
+                        onFailure?.invoke(throwable)
+                        store.updateState { it.copy(busy = false) }
+                        store.showFailure(failureKind)
+                        store.appendLog(throwable.toPrivilegeUiDiagnosticString())
+                    }
                 }
             }
+            job.invokeOnCompletion { operationPermit.close() }
+        } catch (throwable: Throwable) {
+            store.updateState { it.copy(busy = false) }
+            operationPermit.close()
+            throw throwable
         }
     }
 
@@ -219,7 +266,10 @@ internal class PrivilegeUiRuntimeActions(
     }
 
     private fun connectServer(serverInfo: PrivilegeServerInfo) {
-        runtimeStartCoordinator.handleServerConnected(serverInfo)
+        runtimeStartCoordinator.handlePassiveServerConnected(
+            serverInfo = serverInfo,
+            deduplicatePassiveConnection = true,
+        )
     }
 
     private fun handleServerDisconnected() {

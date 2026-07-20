@@ -17,6 +17,7 @@ dependencyResolutionManagement {
 rootProject.name = "priv-kit"
 
 include(
+    ":priv-shared",
     ":priv-runtime",
     ":priv-adb-crypto",
     ":priv-ui",

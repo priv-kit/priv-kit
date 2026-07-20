@@ -25,23 +25,129 @@ import priv.kit.PrivilegeStartupException
 import priv.kit.adb.PrivilegeAdbAuthorizationRequestResult
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.CoroutineDispatcher
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class PrivilegeUiRuntimeActionsTest {
+    @Test
+    fun silentOwnerRejectsUiBusySideEffects() {
+        RuntimeActionsFixture().use { (store, actions) ->
+            val actionCalls = AtomicInteger(0)
+            val silentPermit = PrivilegeUiStartGate.tryAcquireSilent()!!
+            try {
+                actions.runBusy(
+                    message = "blocked",
+                    failureKind = PrivilegeUiFailureKind.TCP_ENABLE_FAILED,
+                    action = actionCalls::incrementAndGet,
+                    onSuccess = { "unexpected" },
+                )
+
+                assertEquals(0, actionCalls.get())
+                assertFalse(store.state.value.busy)
+                assertTrue(store.state.value.startupLogLines.isEmpty())
+            } finally {
+                silentPermit.close()
+            }
+        }
+    }
+
+    @Test
+    fun queuedBusyActionKeepsSilentStartBlockedUntilCompletion() = runBlocking {
+        val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+        val blockerScope = CoroutineScope(SupervisorJob() + dispatcher)
+        val blockerStarted = CountDownLatch(1)
+        val releaseBlocker = CountDownLatch(1)
+        val actionCompleted = CountDownLatch(1)
+        blockerScope.launch {
+            blockerStarted.countDown()
+            releaseBlocker.await(30, TimeUnit.SECONDS)
+        }
+        assertTrue(blockerStarted.await(2, TimeUnit.SECONDS))
+        try {
+            RuntimeActionsFixture(
+                acquireStartPermit = PrivilegeUiStartGate.newInteractivePermitAcquirer(),
+                operationDispatcher = dispatcher,
+                beforeClose = releaseBlocker::countDown,
+            ).use { (store, actions) ->
+                actions.runBusy(
+                    message = "queued",
+                    failureKind = PrivilegeUiFailureKind.TCP_ENABLE_FAILED,
+                    action = actionCompleted::countDown,
+                    onSuccess = { "done" },
+                )
+
+                assertTrue(store.state.value.busy)
+                assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+
+                releaseBlocker.countDown()
+                assertTrue(actionCompleted.await(2, TimeUnit.SECONDS))
+                assertTrue(waitUntilIdle(store))
+                assertTrue(waitUntil { PrivilegeUiStartGate.state.value.owner == null })
+                PrivilegeUiStartGate.tryAcquireSilent()!!.close()
+            }
+        } finally {
+            releaseBlocker.countDown()
+            blockerScope.cancel()
+            dispatcher.close()
+        }
+    }
+
+    @Test
+    fun queuedStopKeepsSilentStartBlockedUntilShutdownCompletes() = runBlocking {
+        val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+        val blockerScope = CoroutineScope(SupervisorJob() + dispatcher)
+        val blockerStarted = CountDownLatch(1)
+        val releaseBlocker = CountDownLatch(1)
+        val shutdownCompleted = CountDownLatch(1)
+        blockerScope.launch {
+            blockerStarted.countDown()
+            releaseBlocker.await(30, TimeUnit.SECONDS)
+        }
+        assertTrue(blockerStarted.await(2, TimeUnit.SECONDS))
+        try {
+            RuntimeActionsFixture(
+                shutdownServer = shutdownCompleted::countDown,
+                acquireStartPermit = PrivilegeUiStartGate.newInteractivePermitAcquirer(),
+                operationDispatcher = dispatcher,
+                beforeClose = releaseBlocker::countDown,
+            ).use { (store, actions) ->
+                actions.connectForTest(shellServerInfo())
+                actions.stopServer()
+
+                assertTrue(store.state.value.busy)
+                assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+
+                releaseBlocker.countDown()
+                assertTrue(shutdownCompleted.await(2, TimeUnit.SECONDS))
+                assertTrue(waitUntilIdle(store))
+                assertTrue(waitUntil { PrivilegeUiStartGate.state.value.owner == null })
+                PrivilegeUiStartGate.tryAcquireSilent()!!.close()
+            }
+        } finally {
+            releaseBlocker.countDown()
+            blockerScope.cancel()
+            dispatcher.close()
+        }
+    }
+
     @Test
     @Config(qualifiers = "zh-rCN")
     fun rootUnavailableSnackbarIsLocalizedWithoutRewritingDiagnosticLog() = runBlocking {
@@ -230,6 +336,19 @@ class PrivilegeUiRuntimeActionsTest {
             assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, store.state.value.runtimeStatus)
             assertEquals(2000, store.state.value.serverInfo?.uid)
             assertEquals(observedConnectionSerial + 1L, store.state.value.connectionSerial)
+        }
+    }
+
+    @Test
+    fun duplicatePassiveConnectionDoesNotIncrementConnectionSerial() {
+        RuntimeActionsFixture().use { (store, actions) ->
+            val serverInfo = shellServerInfo()
+            actions.connectForTest(serverInfo)
+            val connectedSerial = store.state.value.connectionSerial
+
+            actions.connectForTest(serverInfo)
+
+            assertEquals(connectedSerial, store.state.value.connectionSerial)
         }
     }
 
@@ -461,6 +580,54 @@ class PrivilegeUiRuntimeActionsTest {
             assertNull(store.state.value.runtimeProgressMessage)
             assertTrue(attempted.get())
             assertTrue(afterCommitCalled.get())
+        }
+    }
+
+    @Test
+    fun userActionPermitHandoffDoesNotExposeSilentStartGap() = runBlocking {
+        val callbackEntered = CountDownLatch(1)
+        val releaseCallback = CountDownLatch(1)
+        val followUpPermit = AtomicReference<AutoCloseable?>(null)
+        val acquireInteractivePermit = PrivilegeUiStartGate.newInteractivePermitAcquirer()
+        try {
+            RuntimeActionsFixture(
+                acquireStartPermit = acquireInteractivePermit,
+                beforeClose = releaseCallback::countDown,
+            ).use { (store, actions) ->
+                actions.runServerStart(
+                    PrivilegeUiRuntimeStartAttempt.Connect(
+                        message = "adb",
+                        startupSource = null,
+                        onFailure = {
+                            PrivilegeUiRuntimeStartFailureDisposition(
+                                onUserActionRequired = {
+                                    callbackEntered.countDown()
+                                    releaseCallback.await(30, TimeUnit.SECONDS)
+                                    followUpPermit.set(
+                                        acquireInteractivePermit(),
+                                    )
+                                },
+                            )
+                        },
+                    ) {
+                        error("local network permission required")
+                    },
+                )
+
+                assertTrue(callbackEntered.await(2, TimeUnit.SECONDS))
+                assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+
+                releaseCallback.countDown()
+                assertTrue(waitUntil { followUpPermit.get() != null })
+                assertTrue(waitUntilIdle(store))
+                assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+
+                followUpPermit.getAndSet(null)!!.close()
+                assertTrue(waitUntil { PrivilegeUiStartGate.state.value.owner == null })
+            }
+        } finally {
+            releaseCallback.countDown()
+            followUpPermit.getAndSet(null)?.close()
         }
     }
 
@@ -866,6 +1033,47 @@ class PrivilegeUiRuntimeActionsTest {
     }
 
     @Test
+    fun cancellationKeepsStartPermitUntilExternalCallActuallyReturns() = runBlocking {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val permitHeld = AtomicBoolean(false)
+        val acquirePermit = {
+            if (!permitHeld.compareAndSet(false, true)) {
+                null
+            } else {
+                AutoCloseable { permitHeld.set(false) }
+            }
+        }
+        RuntimeActionsFixture(
+            acquireStartPermit = acquirePermit,
+            beforeClose = release::countDown,
+        ).use { (store, actions) ->
+            actions.runServerStartRequest(
+                PrivilegeUiRuntimeStartAttempt.Request(
+                    message = "external",
+                    startedMessage = "external requested",
+                    startupSource = null,
+                    runtimeStartSource = PrivilegeUiRuntimeStartSource.EXTERNAL,
+                ) {
+                    entered.countDown()
+                    release.await(30, TimeUnit.SECONDS)
+                },
+            )
+
+            assertTrue(entered.await(2, TimeUnit.SECONDS))
+            actions.stopCurrentStart()
+            assertNull(acquirePermit())
+
+            release.countDown()
+            assertTrue(waitUntilIdle(store))
+            assertTrue(waitUntil { !permitHeld.get() })
+            val nextPermit = acquirePermit()
+            assertNotNull(nextPermit)
+            nextPermit!!.close()
+        }
+    }
+
+    @Test
     fun cancellingFallbackDoesNotEnterNextAttempt() = runBlocking {
         val firstStarted = CountDownLatch(1)
         val releaseFirst = CountDownLatch(1)
@@ -1113,6 +1321,54 @@ class PrivilegeUiRuntimeActionsTest {
 
             release.countDown()
             assertTrue(returned.await(2, TimeUnit.SECONDS))
+        }
+    }
+
+    @Test
+    fun ownerCloseKeepsInteractivePermitUntilAsynchronousCleanupFinishes() = runBlocking {
+        val entered = CountDownLatch(1)
+        val releaseCall = CountDownLatch(1)
+        val callReturned = CountDownLatch(1)
+        val cleanupStarted = CountDownLatch(1)
+        val releaseCleanup = CountDownLatch(1)
+        RuntimeActionsFixture(
+            acquireStartPermit = PrivilegeUiStartGate.newInteractivePermitAcquirer(),
+            beforeClose = {
+                releaseCall.countDown()
+                releaseCleanup.countDown()
+            },
+        ).use { (_, actions) ->
+            actions.runServerStartRequest(
+                PrivilegeUiRuntimeStartAttempt.Request(
+                    message = "external",
+                    startedMessage = "external requested",
+                    startupSource = null,
+                ) {
+                    addCloseable(
+                        AutoCloseable {
+                            cleanupStarted.countDown()
+                            releaseCleanup.await(30, TimeUnit.SECONDS)
+                        },
+                    )
+                    entered.countDown()
+                    releaseCall.await(30, TimeUnit.SECONDS)
+                    callReturned.countDown()
+                },
+            )
+            assertTrue(entered.await(2, TimeUnit.SECONDS))
+
+            actions.close()
+
+            assertTrue(cleanupStarted.await(2, TimeUnit.SECONDS))
+            assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+
+            releaseCall.countDown()
+            assertTrue(callReturned.await(2, TimeUnit.SECONDS))
+            assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+
+            releaseCleanup.countDown()
+            assertTrue(waitUntil { PrivilegeUiStartGate.state.value.owner == null })
+            PrivilegeUiStartGate.tryAcquireSilent()!!.close()
         }
     }
 
@@ -1387,6 +1643,8 @@ class PrivilegeUiRuntimeActionsTest {
         configureStore: (PrivilegeUiViewModelStore) -> Unit = {},
         shutdownServer: () -> Unit = { Privilege.shutdownServer() },
         isAdbPermissionRestricted: () -> Boolean = Privilege::isAdbPermissionRestricted,
+        acquireStartPermit: () -> AutoCloseable? = { AutoCloseable {} },
+        operationDispatcher: CoroutineDispatcher = Dispatchers.IO,
         private val beforeClose: () -> Unit = {},
     ) : AutoCloseable {
         val store = PrivilegeUiViewModelStore(context).apply(configureStore)
@@ -1396,6 +1654,8 @@ class PrivilegeUiRuntimeActionsTest {
             coroutineScope = scope,
             shutdownServer = shutdownServer,
             isAdbPermissionRestricted = isAdbPermissionRestricted,
+            acquireStartPermit = acquireStartPermit,
+            operationDispatcher = operationDispatcher,
         )
 
         operator fun component1(): PrivilegeUiViewModelStore = store
