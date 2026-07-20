@@ -8,7 +8,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import priv.kit.PrivilegeServerLaunchUncertainException
+import priv.kit.core.PrivilegeServerLaunchUncertainException
 import kotlin.time.Duration.Companion.milliseconds
 
 internal class PrivilegeUiRuntimeStartAttemptRunner(

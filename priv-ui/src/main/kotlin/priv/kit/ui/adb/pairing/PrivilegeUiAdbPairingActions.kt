@@ -13,7 +13,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
-import priv.kit.Privilege
+import priv.kit.core.Privilege
 import priv.kit.shared.PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST
 import priv.kit.shared.isPrivilegeAdbPort
 import priv.kit.ui.PrivilegeAdbPairingService

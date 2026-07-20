@@ -14,12 +14,12 @@ Usage modes: Binder (local / remote) and UserService (embedded / dedicated proce
 
 ```kotlin
 dependencies {
-    implementation("io.github.priv-kit:priv-runtime:<version>")
+    implementation("io.github.priv-kit:priv-core:<version>")
     implementation("io.github.priv-kit:priv-ui:<version>") // Optional Compose UI and silent replay
 }
 ```
 
-Only the compile-time APIs visible after an integrating app references `priv-runtime` / `priv-ui` are currently guaranteed. `priv-runtime` already includes the code needed for Binder, UserService, Root, ADB, manual shell, and external startup entry points. `priv-shared` is an Android implementation dependency and `priv-adb-crypto` is a JVM implementation dependency; both are resolved transitively at runtime, are not direct Android integration APIs, and carry no compatibility guarantee for direct consumers.
+Only the compile-time APIs visible after an integrating app references `priv-core` / `priv-ui` are currently guaranteed. `priv-core` already includes the code needed for Binder, UserService, Root, ADB, manual shell, and external startup entry points. `priv-shared` is an Android implementation dependency and `priv-adb-crypto` is a JVM implementation dependency; both are resolved transitively at runtime, are not direct Android integration APIs, and carry no compatibility guarantee for direct consumers.
 
 You must configure [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass).
 

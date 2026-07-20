@@ -1,7 +1,7 @@
 package priv.kit.sample
 
-import priv.kit.PrivilegeServerInfo
-import priv.kit.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
+import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 
 internal sealed interface PrivilegeSampleDestination {
     val title: String

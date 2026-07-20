@@ -13,10 +13,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import priv.kit.PrivilegeServerInfo
-import priv.kit.PrivilegeStartupLogLine
-import priv.kit.internal.runtime.PrivilegeRuntimeConnectionEvent
-import priv.kit.internal.runtime.PrivilegeRuntimeStartCoordinator
+import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.PrivilegeStartupLogLine
+import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionEvent
+import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 
 internal class PrivilegeUiRuntimeStartCoordinator(
     private val store: PrivilegeUiViewModelStore,

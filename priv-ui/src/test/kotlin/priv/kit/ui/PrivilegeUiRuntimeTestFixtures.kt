@@ -1,6 +1,6 @@
 package priv.kit.ui
 
-import priv.kit.PrivilegeServerInfo
+import priv.kit.core.PrivilegeServerInfo
 import priv.kit.ui.runtime.PrivilegeUiRuntimeActions
 import priv.kit.ui.runtime.PrivilegeUiRuntimeStartAttempt
 

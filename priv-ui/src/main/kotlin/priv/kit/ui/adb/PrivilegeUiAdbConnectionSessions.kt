@@ -1,11 +1,11 @@
 package priv.kit.ui.adb
 
-import priv.kit.adb.PrivilegeAdbAuthorizationCheckResult
-import priv.kit.adb.PrivilegeAdbAuthorizationStatus
-import priv.kit.adb.PrivilegeAdbPairingCheckResult
-import priv.kit.adb.PrivilegeAdbPairingCheckSession
-import priv.kit.adb.PrivilegeAdbStarter
-import priv.kit.adb.PrivilegeAdbTcpAuthorizationCheckSession
+import priv.kit.core.adb.PrivilegeAdbAuthorizationCheckResult
+import priv.kit.core.adb.PrivilegeAdbAuthorizationStatus
+import priv.kit.core.adb.PrivilegeAdbPairingCheckResult
+import priv.kit.core.adb.PrivilegeAdbPairingCheckSession
+import priv.kit.core.adb.PrivilegeAdbStarter
+import priv.kit.core.adb.PrivilegeAdbTcpAuthorizationCheckSession
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class PrivilegeUiAdbConnectionSessions {

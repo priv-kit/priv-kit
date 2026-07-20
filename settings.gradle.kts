@@ -18,7 +18,7 @@ rootProject.name = "priv-kit"
 
 include(
     ":priv-shared",
-    ":priv-runtime",
+    ":priv-core",
     ":priv-adb-crypto",
     ":priv-ui",
     ":priv-sample",

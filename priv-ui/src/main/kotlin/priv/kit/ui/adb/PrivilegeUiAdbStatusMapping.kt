@@ -1,6 +1,6 @@
 package priv.kit.ui.adb
 
-import priv.kit.adb.PrivilegeAdbWirelessDebuggingControlStatus
+import priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControlStatus
 import priv.kit.ui.PrivilegeUiManagedWirelessAdbStatus
 import priv.kit.ui.PrivilegeUiState
 import priv.kit.ui.PrivilegeUiWirelessAdbStatus

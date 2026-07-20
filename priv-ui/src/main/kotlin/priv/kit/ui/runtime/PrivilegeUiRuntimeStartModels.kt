@@ -1,6 +1,6 @@
 package priv.kit.ui.runtime
 
-import priv.kit.PrivilegeServerInfo
+import priv.kit.core.PrivilegeServerInfo
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
 import priv.kit.ui.PrivilegeUiState
 import priv.kit.ui.state.PrivilegeUiFailureKind

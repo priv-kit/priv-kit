@@ -1,10 +1,10 @@
 package priv.kit.ui
 
 import android.content.Context
-import priv.kit.PrivilegeServerInfo
-import priv.kit.PrivilegeStartupException
-import priv.kit.PrivilegeStartupLogListener
-import priv.kit.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
+import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.PrivilegeStartupException
+import priv.kit.core.PrivilegeStartupLogListener
+import priv.kit.core.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS
 import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS
 import priv.kit.shared.isPrivilegeAdbPort

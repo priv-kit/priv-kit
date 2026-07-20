@@ -8,17 +8,17 @@
 
 当前仓库已进入源码实现阶段。Phase 1 已提供 Root、ADB、Shell Start Command 的 Privileged Server 启动、provider-permission + token-gated Binder handoff、全局 server-binder 状态和 owner-death follow 闭环。
 
-当前 Binder 阶段提供显式目标 Binder 的 remote transact 原语、显式系统服务名的 raw Binder transact 桥和统一 server 不可用失败语义。公开 Binder 原语位于 `:priv-runtime` 的 `priv.kit.binder` package 分区；内部 AIDL 和 server transaction 实现位于 `priv.kit.internal.*`。server 通道不可用暴露为 `PrivilegeServerUnavailableException`；目标 Binder 调用失败按 raw Binder 语义透传给调用方处理。它不提供 Binder endpoint 注册槽位，不提供 Android 系统服务类型化代理，也不扩展成高级系统能力封装。
+当前 Binder 阶段提供显式目标 Binder 的 remote transact 原语、显式系统服务名的 raw Binder transact 桥和统一 server 不可用失败语义。公开 Binder 原语位于 `:priv-core` 的 `priv.kit.core.binder` package 分区；内部 AIDL 和 server transaction 实现位于 `priv.kit.core.internal.*`。server 通道不可用暴露为 `PrivilegeServerUnavailableException`；目标 Binder 调用失败按 raw Binder 语义透传给调用方处理。它不提供 Binder endpoint 注册槽位，不提供 Android 系统服务类型化代理，也不扩展成高级系统能力封装。
 
-当前 UserService 阶段提供多实例 Binder 管线。公开 spec/exception 位于 `:priv-runtime` 的 `priv.kit.userservice` package 分区；内部 AIDL、wire contract、handshake registry、registry、manager、loader、host、destroyer 和独立 UserService 进程入口位于 `priv.kit.internal.userservice`。每个实例由 `serviceClassName + tag` 标识，`version` 只用于控制同一实例是否复用或替换；默认运行在独立 `app_process` 子进程中，低风险服务可以显式选择嵌入 Privileged Server 进程。UserService 可以声明无参构造器，也可以声明 `Context` 构造器；独立进程会优先尝试基于应用 `Application` 初始化，失败后回退 package `Context`，嵌入式只使用 package `Context`，不调用 `makeApplication`。独立进程 UserService 应在自己的 `destroy()` 完成清理并主动 `System.exit()`；嵌入式 UserService 的 `destroy()` 可不实现，且不能调用 `System.exit()`。项目只返回应用自定义 AIDL 的 Binder，不理解也不封装业务接口。
+当前 UserService 阶段提供多实例 Binder 管线。公开 spec/exception 位于 `:priv-core` 的 `priv.kit.core.userservice` package 分区；内部 AIDL、wire contract、handshake registry、registry、manager、loader、host、destroyer 和独立 UserService 进程入口位于 `priv.kit.core.internal.userservice`。每个实例由 `serviceClassName + tag` 标识，`version` 只用于控制同一实例是否复用或替换；默认运行在独立 `app_process` 子进程中，低风险服务可以显式选择嵌入 Privileged Server 进程。UserService 可以声明无参构造器，也可以声明 `Context` 构造器；独立进程会优先尝试基于应用 `Application` 初始化，失败后回退 package `Context`，嵌入式只使用 package `Context`，不调用 `makeApplication`。独立进程 UserService 应在自己的 `destroy()` 完成清理并主动 `System.exit()`；嵌入式 UserService 的 `destroy()` 可不实现，且不能调用 `System.exit()`。项目只返回应用自定义 AIDL 的 Binder，不理解也不封装业务接口。
 
 项目边界以 [project-constitution.md](project-constitution.md) 为准。后续所有设计和实现都必须遵守该文档。
 
 ## API 承诺
 
-发布到 Maven Central 的模块不自动构成接入应用 API。当前只承诺接入应用引用 `priv-runtime` 或 `priv-ui` 后可见的编译期 API。
+发布到 Maven Central 的模块不自动构成接入应用 API。当前只承诺接入应用引用 `priv-core` 或 `priv-ui` 后可见的编译期 API。
 
-`priv-shared` 可以作为窄 Android 实现 artifact 发布，`priv-adb-crypto` 可以作为独立 JVM artifact 发布，但两者默认只服务于实现复用。`priv.kit.shared` 与 `priv.kit.internal.*` 下的类型不属于公开 API，即使其中部分符号因跨模块编译或 Android/JVM 反射要求在字节码层可见。
+`priv-shared` 可以作为窄 Android 实现 artifact 发布，`priv-adb-crypto` 可以作为独立 JVM artifact 发布，但两者默认只服务于实现复用。`priv.kit.shared` 与 `priv.kit.core.internal.*` 下的类型不属于公开 API，即使其中部分符号因跨模块编译或 Android/JVM 反射要求在字节码层可见。
 
 ## 推荐接入路径
 
@@ -56,33 +56,33 @@ Privilege.shutdownServer()
 Maven 坐标：
 
 - `groupId`：`io.github.priv-kit`
-- `artifactId`：`priv-shared`、`priv-runtime`、`priv-adb-crypto`、`priv-ui`
+- `artifactId`：`priv-shared`、`priv-core`、`priv-adb-crypto`、`priv-ui`
 
 示例：
 
 ```kotlin
-implementation("io.github.priv-kit:priv-runtime:1.0.0")
+implementation("io.github.priv-kit:priv-core:1.0.0")
 ```
 
 Gradle 模块必须使用 `priv-*` 命名：
 
 - `:priv-shared`
-- `:priv-runtime`
+- `:priv-core`
 - `:priv-adb-crypto`
 - `:priv-ui`
 - `:priv-sample`
 
 内部编译期 hidden framework stub 模块为 `:hidden-api`，不作为发布 artifact。
 
-除 `:hidden-api` 中的 framework mirror/stub 外，Kotlin package 必须统一使用 `priv.kit.*`。`:priv-runtime` 承载公开的 `priv.kit`、`priv.kit.binder`、`priv.kit.userservice`、`priv.kit.adb`，以及 `priv.kit.internal.*`；`:priv-shared` 只承载 `priv.kit.shared`。
+除 `:hidden-api` 中的 framework mirror/stub 外，Kotlin package 必须统一使用 `priv.kit.*`。`:priv-core` 承载公开的 `priv.kit.core`、`priv.kit.core.binder`、`priv.kit.core.userservice`、`priv.kit.core.adb`，以及 `priv.kit.core.internal.*`；`:priv-shared` 只承载 `priv.kit.shared`。
 
 允许的 package 分区包括：
 
-- `priv.kit`
-- `priv.kit.binder`
-- `priv.kit.userservice`
-- `priv.kit.adb`
-- `priv.kit.internal.*`
+- `priv.kit.core`
+- `priv.kit.core.binder`
+- `priv.kit.core.userservice`
+- `priv.kit.core.adb`
+- `priv.kit.core.internal.*`
 - `priv.kit.shared`
 - `priv.kit.adb.crypto.certificate`
 - `priv.kit.adb.crypto.pairing`
@@ -134,7 +134,7 @@ Gradle 模块必须使用 `priv-*` 命名：
 当前模块：
 
 - `:priv-shared`
-- `:priv-runtime`
+- `:priv-core`
 - `:priv-adb-crypto`
 - `:priv-ui`
 - `:priv-sample`
@@ -146,7 +146,7 @@ Gradle 模块必须使用 `priv-*` 命名：
 项目整体分为几层：
 
 - `:priv-shared`，负责 runtime/UI 真正共用的无领域状态 Android/JDK 底层机制和不变量，只作为内部实现依赖；
-- `:priv-runtime`，负责选择启动策略、连接服务端、承载 Privileged Server 入口、Binder/UserService 原语、ADB/Root/manual/external 启动和内部协议；
+- `:priv-core`，负责选择启动策略、连接服务端、承载 Privileged Server 入口、Binder/UserService 原语、ADB/Root/manual/external 启动和内部协议；
 - `:priv-adb-crypto`，负责 ADB pairing/certificate 所需的 JVM crypto 实现；
 - 可选 Compose UI 帮助层和示例代码，用来展示运行时状态和启动流程，不扩展核心范围。
 

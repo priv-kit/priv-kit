@@ -1,7 +1,7 @@
 package priv.kit.ui.adb
 
-import priv.kit.adb.PrivilegeAdbStartOptions
-import priv.kit.adb.PrivilegeAdbWirelessDebuggingControl
+import priv.kit.core.adb.PrivilegeAdbStartOptions
+import priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl
 import priv.kit.shared.hasPrivilegeAdbCertificateUnknownMessage
 import priv.kit.shared.hasPrivilegeAdbKeyNotAuthorizedMessage
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy

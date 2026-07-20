@@ -1,6 +1,6 @@
 package priv.kit.sample
 
-import priv.kit.PrivilegeServerInfo
+import priv.kit.core.PrivilegeServerInfo
 
 internal data class PrivilegeSampleCallbacks(
     val navigation: PrivilegeSampleNavigationCallbacks,

@@ -1,8 +1,8 @@
 package priv.kit.ui.state
 
 import androidx.annotation.StringRes
-import priv.kit.PrivilegeStartupException
-import priv.kit.adb.PrivilegeAdbAuthorizationEndReason
+import priv.kit.core.PrivilegeStartupException
+import priv.kit.core.adb.PrivilegeAdbAuthorizationEndReason
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
 import priv.kit.ui.R
 

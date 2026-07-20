@@ -8,8 +8,8 @@ import priv.kit.ui.state.toPrivilegeUiDiagnosticString
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import priv.kit.PrivilegeServerInfo
-import priv.kit.internal.runtime.PrivilegeRuntimeConnectionEvent
+import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionEvent
 
 internal class PrivilegeUiRuntimeStartCompletionHandler(
     private val store: PrivilegeUiViewModelStore,

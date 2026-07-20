@@ -261,7 +261,7 @@ class PrivilegeUiAdbActionsTest {
         assertEquals(false, options.tcpMode)
         assertEquals(false, options.discoverPort)
         assertEquals(4567, options.tcpPort)
-        assertEquals(priv.kit.adb.PrivilegeAdbWirelessDebuggingControl.NEVER, options.wirelessDebuggingControl)
+        assertEquals(priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl.NEVER, options.wirelessDebuggingControl)
     }
 
     @Test
@@ -273,7 +273,7 @@ class PrivilegeUiAdbActionsTest {
 
         assertEquals(false, options.tcpMode)
         assertEquals(
-            priv.kit.adb.PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
+            priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
             options.wirelessDebuggingControl,
         )
     }
@@ -287,7 +287,7 @@ class PrivilegeUiAdbActionsTest {
         )
 
         assertEquals(
-            priv.kit.adb.PrivilegeAdbWirelessDebuggingControl.NEVER,
+            priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl.NEVER,
             options.wirelessDebuggingControl,
         )
     }
@@ -302,7 +302,7 @@ class PrivilegeUiAdbActionsTest {
         )
 
         assertEquals(
-            priv.kit.adb.PrivilegeAdbWirelessDebuggingControl.NEVER,
+            priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl.NEVER,
             options.wirelessDebuggingControl,
         )
     }
@@ -318,7 +318,7 @@ class PrivilegeUiAdbActionsTest {
         assertEquals(4567, options.tcpPort)
         assertEquals(true, options.discoverPort)
         assertEquals(
-            priv.kit.adb.PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
+            priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
             options.wirelessDebuggingControl,
         )
     }
@@ -332,7 +332,7 @@ class PrivilegeUiAdbActionsTest {
         )
 
         assertEquals(
-            priv.kit.adb.PrivilegeAdbWirelessDebuggingControl.NEVER,
+            priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl.NEVER,
             options.wirelessDebuggingControl,
         )
     }

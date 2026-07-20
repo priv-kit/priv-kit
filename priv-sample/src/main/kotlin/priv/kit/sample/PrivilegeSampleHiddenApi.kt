@@ -4,8 +4,8 @@ import android.content.Context
 import android.content.pm.UserInfo
 import android.os.IBinder
 import android.os.IUserManager
-import priv.kit.binder.PrivilegeBinderWrapper
-import priv.kit.binder.PrivilegeSystemServiceSource
+import priv.kit.core.binder.PrivilegeBinderWrapper
+import priv.kit.core.binder.PrivilegeSystemServiceSource
 
 internal data class PrivilegeSampleUserInfo(
     val id: Int,

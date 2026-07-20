@@ -34,7 +34,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
-import priv.kit.PrivilegeServerInfo
+import priv.kit.core.PrivilegeServerInfo
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -825,7 +825,7 @@ class PrivilegeUiViewModelTest {
         (RuntimeEnvironment.getApplication() as Application).also(::installRuntimeContext)
 
     private fun installRuntimeContext(context: Context) {
-        val runtimeContext = Class.forName("priv.kit.internal.runtime.PrivilegeContext")
+        val runtimeContext = Class.forName("priv.kit.core.internal.runtime.PrivilegeContext")
         val instance = runtimeContext.getField("INSTANCE").get(null)
         runtimeContext.getDeclaredMethod("install", Context::class.java).invoke(instance, context)
     }

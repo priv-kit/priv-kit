@@ -7,9 +7,9 @@ import priv.kit.ui.state.*
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.runInterruptible
-import priv.kit.Privilege
-import priv.kit.adb.isPrivilegeAdbLocalNetworkAccessFailure
-import priv.kit.internal.runtime.PrivilegeRuntimeStartCoordinator
+import priv.kit.core.Privilege
+import priv.kit.core.adb.isPrivilegeAdbLocalNetworkAccessFailure
+import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 
 internal class PrivilegeUiAdbActions(
     private val store: PrivilegeUiViewModelStore,

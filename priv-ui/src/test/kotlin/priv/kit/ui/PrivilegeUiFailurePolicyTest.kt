@@ -8,8 +8,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
-import priv.kit.PrivilegeStartupException
-import priv.kit.adb.PrivilegeAdbAuthorizationEndReason
+import priv.kit.core.PrivilegeStartupException
+import priv.kit.core.adb.PrivilegeAdbAuthorizationEndReason
 import priv.kit.ui.state.PrivilegeUiFailureKind
 import priv.kit.ui.state.privilegeUiRuntimeStartFailureKind
 import priv.kit.ui.state.privilegeUiTcpAuthorizationFailureKind

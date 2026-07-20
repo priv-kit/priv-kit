@@ -1,8 +1,8 @@
 # priv-shared
 
-Internal Android implementation library shared by `priv-runtime` and `priv-ui`.
+Internal Android implementation library shared by `priv-core` and `priv-ui`.
 
-Application code should depend on `priv-runtime` or `priv-ui`, not this artifact. Its symbols are
+Application code should depend on `priv-core` or `priv-ui`, not this artifact. Its symbols are
 bytecode-public only because the consuming modules are compiled separately; they live under
 `priv.kit.shared` and carry no compatibility guarantee for direct consumers.
 

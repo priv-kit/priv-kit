@@ -11,10 +11,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import priv.kit.PrivilegeServerInfo
-import priv.kit.internal.runtime.PrivilegeRuntimeConnectionEvent
-import priv.kit.internal.runtime.PrivilegeRuntimeConnectionOrigin
-import priv.kit.internal.runtime.PrivilegeRuntimeStartCoordinator
+import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionEvent
+import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
+import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
 import priv.kit.ui.state.PrivilegeUiViewModelStore

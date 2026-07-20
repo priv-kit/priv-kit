@@ -1,14 +1,14 @@
 package priv.kit.ui.adb
 
 import kotlinx.coroutines.suspendCancellableCoroutine
-import priv.kit.Privilege
-import priv.kit.PrivilegeServerInfo
-import priv.kit.adb.PrivilegeAdbAuthorizationEndReason
-import priv.kit.adb.PrivilegeAdbAuthorizationRequestResult
-import priv.kit.adb.PrivilegeAdbAuthorizationStatus
-import priv.kit.adb.PrivilegeAdbStartOptions
-import priv.kit.adb.PrivilegeAdbStarter
-import priv.kit.internal.runtime.PrivilegeRuntimeStartCoordinator
+import priv.kit.core.Privilege
+import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.adb.PrivilegeAdbAuthorizationEndReason
+import priv.kit.core.adb.PrivilegeAdbAuthorizationRequestResult
+import priv.kit.core.adb.PrivilegeAdbAuthorizationStatus
+import priv.kit.core.adb.PrivilegeAdbStartOptions
+import priv.kit.core.adb.PrivilegeAdbStarter
+import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.ui.PrivilegeUiAdbTcpAuthorizationStatus
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiRuntimeStartSource

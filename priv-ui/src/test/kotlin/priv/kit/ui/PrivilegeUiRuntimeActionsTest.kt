@@ -18,11 +18,11 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
-import priv.kit.Privilege
-import priv.kit.PrivilegeServerInfo
-import priv.kit.PrivilegeServerLaunchUncertainException
-import priv.kit.PrivilegeStartupException
-import priv.kit.adb.PrivilegeAdbAuthorizationRequestResult
+import priv.kit.core.Privilege
+import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.PrivilegeServerLaunchUncertainException
+import priv.kit.core.PrivilegeStartupException
+import priv.kit.core.adb.PrivilegeAdbAuthorizationRequestResult
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors

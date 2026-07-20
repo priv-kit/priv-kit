@@ -7,9 +7,9 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import priv.kit.Privilege
-import priv.kit.PrivilegeServerInfo
-import priv.kit.PrivilegeUserServiceConnection
+import priv.kit.core.Privilege
+import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.PrivilegeUserServiceConnection
 import java.io.Closeable
 import java.util.UUID
 import java.util.concurrent.Executors

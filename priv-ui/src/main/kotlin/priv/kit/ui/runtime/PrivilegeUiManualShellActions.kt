@@ -4,7 +4,7 @@ import priv.kit.ui.*
 import priv.kit.ui.state.*
 
 import android.content.Context
-import priv.kit.Privilege
+import priv.kit.core.Privilege
 
 internal fun PrivilegeUiViewModelStore.loadManualShellCommand() {
     val commandLine = runCatching {

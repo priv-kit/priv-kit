@@ -1,6 +1,6 @@
 package priv.kit.ui.runtime
 
-import priv.kit.PrivilegeServerInfo
+import priv.kit.core.PrivilegeServerInfo
 import priv.kit.ui.PrivilegeUiAdbRestrictionStatus
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
 import priv.kit.ui.PrivilegeUiRuntimeStatus

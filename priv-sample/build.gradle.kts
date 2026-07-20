@@ -39,7 +39,7 @@ android {
 
 dependencies {
     compileOnly(project(":hidden-api"))
-    implementation(project(":priv-runtime"))
+    implementation(project(":priv-core"))
     implementation(project(":priv-ui"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.foundation)

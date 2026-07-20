@@ -18,7 +18,7 @@ android {
 }
 
 dependencies {
-    api(project(":priv-runtime"))
+    api(project(":priv-core"))
     implementation(project(":priv-shared"))
     implementation(libs.androidx.activity.compose)
     api(libs.androidx.compose.foundation)

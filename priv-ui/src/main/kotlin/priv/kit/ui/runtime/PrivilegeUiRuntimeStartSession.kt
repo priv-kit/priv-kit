@@ -2,13 +2,13 @@ package priv.kit.ui.runtime
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import priv.kit.PrivilegeServerInfo
-import priv.kit.PrivilegeStartupLogLine
-import priv.kit.PrivilegeStartupLogListener
-import priv.kit.internal.runtime.PrivilegeRuntimeClientLaunch
-import priv.kit.internal.runtime.PrivilegeRuntimeConnectionOrigin
-import priv.kit.internal.runtime.PrivilegeRuntimeStartCoordinator
-import priv.kit.internal.runtime.PrivilegeRuntimeStartLease
+import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.PrivilegeStartupLogLine
+import priv.kit.core.PrivilegeStartupLogListener
+import priv.kit.core.internal.runtime.PrivilegeRuntimeClientLaunch
+import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
+import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
+import priv.kit.core.internal.runtime.PrivilegeRuntimeStartLease
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference

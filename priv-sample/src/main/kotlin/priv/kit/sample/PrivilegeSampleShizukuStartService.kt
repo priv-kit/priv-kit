@@ -4,7 +4,7 @@ import android.content.Context
 import android.os.ParcelFileDescriptor
 import android.os.ResultReceiver
 import androidx.annotation.Keep
-import priv.kit.PrivilegeExternalStartupHost
+import priv.kit.core.PrivilegeExternalStartupHost
 import kotlin.system.exitProcess
 
 internal class PrivilegeSampleShizukuStartService @Keep constructor() :

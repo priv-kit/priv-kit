@@ -5,9 +5,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import priv.kit.Privilege
-import priv.kit.PrivilegeServerInfo
-import priv.kit.internal.runtime.PrivilegeRuntimeStartCoordinator
+import priv.kit.core.Privilege
+import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.ui.runtime.PrivilegeUiSilentStartRunner
 import priv.kit.ui.runtime.PrivilegeUiStartGate
 import priv.kit.ui.runtime.PrivilegeUiStartMethodStore

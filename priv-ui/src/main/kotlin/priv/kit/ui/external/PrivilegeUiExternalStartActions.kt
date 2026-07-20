@@ -7,8 +7,8 @@ import priv.kit.ui.state.*
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
-import priv.kit.internal.runtime.PrivilegeRuntimeClientLaunch
-import priv.kit.internal.runtime.PrivilegeRuntimeStartCoordinator
+import priv.kit.core.internal.runtime.PrivilegeRuntimeClientLaunch
+import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration.Companion.milliseconds
 

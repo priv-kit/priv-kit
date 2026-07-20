@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
-import priv.kit.PrivilegeServerInfo
+import priv.kit.core.PrivilegeServerInfo
 import priv.kit.ui.adb.PrivilegeUiAdbActions
 import priv.kit.ui.external.PrivilegeUiExternalStartActions
 import priv.kit.ui.runtime.PrivilegeUiDirectStartTarget

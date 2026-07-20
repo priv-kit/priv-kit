@@ -3,8 +3,8 @@ package priv.kit.sample.ui
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
-import priv.kit.PrivilegeServerInfo
-import priv.kit.PrivilegeStartupLogListener
+import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.sample.App
 import priv.kit.sample.PrivilegeSamplePrivilegeUiCallbacks
 import priv.kit.sample.PrivilegeSampleShizukuExternalStarter

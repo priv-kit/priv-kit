@@ -8,7 +8,7 @@ import priv.kit.ui.state.*
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import priv.kit.PrivilegeStartupLogLine
+import priv.kit.core.PrivilegeStartupLogLine
 
 class PrivilegeUiViewModelStoreTest {
     @Test

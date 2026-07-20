@@ -5,9 +5,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import priv.kit.Privilege
-import priv.kit.adb.PrivilegeAdbAuthorizationStatus
-import priv.kit.adb.PrivilegeAdbPairingCheckStatus
+import priv.kit.core.Privilege
+import priv.kit.core.adb.PrivilegeAdbAuthorizationStatus
+import priv.kit.core.adb.PrivilegeAdbPairingCheckStatus
 import priv.kit.ui.PrivilegeAdbPairingService
 import priv.kit.ui.PrivilegeUiAdbTcpAuthorizationStatus
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
@@ -458,7 +458,7 @@ internal class PrivilegeUiAdbStatusActions(
             else -> PrivilegeUiAdbTcpAuthorizationStatus.CHECKING
         }
 
-    private fun priv.kit.adb.PrivilegeAdbPairingCheckResult.toKnownPairingCheckPaired(): Boolean? =
+    private fun priv.kit.core.adb.PrivilegeAdbPairingCheckResult.toKnownPairingCheckPaired(): Boolean? =
         when (status) {
             PrivilegeAdbPairingCheckStatus.PAIRED -> true
             PrivilegeAdbPairingCheckStatus.UNPAIRED -> false

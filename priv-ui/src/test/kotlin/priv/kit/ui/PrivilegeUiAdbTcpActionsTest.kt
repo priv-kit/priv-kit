@@ -20,8 +20,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
-import priv.kit.adb.PrivilegeAdbAuthorizationEndReason
-import priv.kit.adb.PrivilegeAdbAuthorizationRequestResult
+import priv.kit.core.adb.PrivilegeAdbAuthorizationEndReason
+import priv.kit.core.adb.PrivilegeAdbAuthorizationRequestResult
 import priv.kit.ui.adb.PrivilegeUiAdbTcpActions
 import priv.kit.ui.runtime.PrivilegeUiRuntimeActions
 import priv.kit.ui.runtime.PrivilegeUiRuntimeStartAttempt

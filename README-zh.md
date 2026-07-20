@@ -14,12 +14,12 @@
 
 ```kotlin
 dependencies {
-    implementation("io.github.priv-kit:priv-runtime:<version>")
+    implementation("io.github.priv-kit:priv-core:<version>")
     implementation("io.github.priv-kit:priv-ui:<version>") // 可选 Compose 界面与静默重放
 }
 ```
 
-当前只承诺接入应用引用 `priv-runtime` / `priv-ui` 后可见的编译期 API。`priv-runtime` 已经包含 Binder、UserService、Root、ADB、手动 shell 和外部启动入口所需代码；`priv-shared` 是 Android 实现依赖，`priv-adb-crypto` 是 JVM 实现依赖，两者均由运行时传递解析，不是直接 Android 接入 API，直接依赖也不获得兼容性承诺。
+当前只承诺接入应用引用 `priv-core` / `priv-ui` 后可见的编译期 API。`priv-core` 已经包含 Binder、UserService、Root、ADB、手动 shell 和外部启动入口所需代码；`priv-shared` 是 Android 实现依赖，`priv-adb-crypto` 是 JVM 实现依赖，两者均由运行时传递解析，不是直接 Android 接入 API，直接依赖也不获得兼容性承诺。
 
 必须配置 [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass)
 

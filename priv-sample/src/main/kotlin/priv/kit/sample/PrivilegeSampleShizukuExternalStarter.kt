@@ -6,9 +6,9 @@ import android.content.ServiceConnection
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.IBinder
-import priv.kit.PrivilegeExternalStartup
-import priv.kit.PrivilegeStartupException
-import priv.kit.PrivilegeStartupLogListener
+import priv.kit.core.PrivilegeExternalStartup
+import priv.kit.core.PrivilegeStartupException
+import priv.kit.core.PrivilegeStartupLogListener
 import rikka.shizuku.Shizuku
 import java.io.Closeable
 import java.util.concurrent.CountDownLatch

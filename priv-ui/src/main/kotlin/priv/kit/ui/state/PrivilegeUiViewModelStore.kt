@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
-import priv.kit.PrivilegeStartupLogLine
+import priv.kit.core.PrivilegeStartupLogLine
 import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiExternalStartItemState
 import priv.kit.ui.PrivilegeUiStartupMode

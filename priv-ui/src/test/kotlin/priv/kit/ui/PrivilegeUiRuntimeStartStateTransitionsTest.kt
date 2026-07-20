@@ -2,7 +2,7 @@ package priv.kit.ui
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import priv.kit.PrivilegeServerInfo
+import priv.kit.core.PrivilegeServerInfo
 import priv.kit.ui.runtime.finishRuntimeStartDisconnected
 import priv.kit.ui.runtime.toConnectedRuntimeIdle
 import priv.kit.ui.runtime.toDisconnectedRuntimeIdle
