@@ -6,15 +6,21 @@ Namespace and application id: `priv.kit.sample`.
 
 Source packages:
 
-- `priv.kit.sample` contains the app-owned sample entry points, state, runtime actions, Binder/UserService examples, and custom Compose pages.
-- `priv.kit.sample.ui` contains only the `priv-ui` page, configuration, ViewModel, external-start provider, and notification-pairing service integration.
-- Direct `priv.kit.ui.*` imports stay under `priv.kit.sample.ui`.
+- `priv.kit.sample` contains the app entry point, root navigation, and app-wide theme.
+- `priv.kit.sample.common` contains the small diagnostic formatter shared by Debug and Startup integrations.
+- `priv.kit.sample.home` contains the Home page that opens Privilege UI or Debug Tools.
+- `priv.kit.sample.debug` contains the Connection, Binder, and UserService debug pages together with their state, ViewModel, callbacks, runtime actions, lifecycle controller, and hidden-API probes.
+- `priv.kit.sample.userservice` contains the app-owned UserService implementations, shared state, and AIDL contracts.
+- `priv.kit.sample.startup` contains the `priv-ui` page, configuration, ViewModel, automatic recovery, notification-pairing integration, and the app-owned Shizuku external-start bridge with its AIDL contract.
+- Direct `priv.kit.ui.*` imports stay under `priv.kit.sample.startup`.
+- Debug listeners and background probes are activated only while the Debug destination remains in the root back stack.
 
 Phase 1 contents:
 
-- A Compose-only sample surface backed by `PrivilegeSampleViewModel` and Navigation 3.
+- A Compose-only sample surface backed by a root-navigation `PrivilegeSampleViewModel`, a feature-scoped `PrivilegeSampleDebugViewModel`, and Navigation 3.
 - A Material 3 theme that follows the system light or dark mode, including the embedded `priv-ui` authorization page.
-- Three top-level pages: `Test Authorization`, `Test Binder`, and `Test UserService`.
+- A Home page with a primary Privilege UI destination and a secondary Debug Tools destination.
+- Three pages inside Debug Tools: `Test Authorization`, `Test Binder`, and `Test UserService`.
 - Each page uses a Material 3 `Scaffold` container with a vertically scrolling `Column` content area.
 - Authorization tests are split into independent Root, manual shell, Shizuku-backed shell start, Wireless ADB, TCP mode, and session-log tabs.
 - Binder tests for getting and caching an `IUserManager` proxy.

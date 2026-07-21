@@ -214,6 +214,7 @@ public data class PrivilegeUiState public constructor(
     public val configuredTcpModePort: Int? = null,
     public val adbRestrictionStatus: PrivilegeUiAdbRestrictionStatus =
         PrivilegeUiAdbRestrictionStatus.UNKNOWN,
+    public val desiredEnabled: Boolean = false,
 )
 
 internal fun String.toPrivilegeUiPairingCodeDigits(): String =

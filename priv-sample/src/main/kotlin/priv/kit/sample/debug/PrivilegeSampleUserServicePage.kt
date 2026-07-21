@@ -1,4 +1,4 @@
-package priv.kit.sample
+package priv.kit.sample.debug
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -21,8 +21,9 @@ import androidx.compose.ui.unit.sp
 @Composable
 internal fun UserServiceTestPage(
     state: PrivilegeSampleScreenState,
-    selectedDestination: PrivilegeSampleDestination,
-    onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
+    selectedDestination: PrivilegeSampleDebugDestination,
+    onDestinationSelected: (PrivilegeSampleDebugDestination) -> Unit,
+    onBackToHome: () -> Unit,
     onBindDedicatedUserService: () -> Unit,
     onCallDedicatedUserService: () -> Unit,
     onStopDedicatedUserService: () -> Unit,
@@ -36,6 +37,7 @@ internal fun UserServiceTestPage(
         selectedDestination = selectedDestination,
         busy = state.busy,
         onDestinationSelected = onDestinationSelected,
+        onBackToHome = onBackToHome,
     ) {
         StatusPanel(state, onStopServer)
         UserServicePage(

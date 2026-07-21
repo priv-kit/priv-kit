@@ -18,6 +18,7 @@ import priv.kit.core.PrivilegeServerInfo
 import priv.kit.ui.adb.PrivilegeUiAdbActions
 import priv.kit.ui.external.PrivilegeUiExternalStartActions
 import priv.kit.ui.runtime.PrivilegeUiDirectStartTarget
+import priv.kit.ui.runtime.PrivilegeUiDesiredEnabledManagers
 import priv.kit.ui.runtime.PrivilegeUiRuntimeActions
 import priv.kit.ui.runtime.PrivilegeUiStartGate
 import priv.kit.ui.runtime.PrivilegeUiStartGateState
@@ -28,6 +29,7 @@ import priv.kit.ui.state.PrivilegeUiViewModelStore
 import priv.kit.ui.state.copyToClipboard
 import priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported
 import priv.kit.ui.state.privilegeUiStaticTcpOpenCommand
+import priv.kit.ui.state.toPrivilegeUiDiagnosticString
 import java.util.concurrent.atomic.AtomicBoolean
 
 public open class PrivilegeUiViewModel @JvmOverloads public constructor(
@@ -35,6 +37,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     public val config: PrivilegeUiConfig = PrivilegeUiConfig(),
 ) : AndroidViewModel(application) {
     private val store = PrivilegeUiViewModelStore(application)
+    private val desiredEnabledManager = PrivilegeUiDesiredEnabledManagers.get(application)
     private val interactiveStartOwner = PrivilegeUiStartGate.newInteractiveOwner()
     private val acquireInteractivePermit = interactiveStartOwner::tryAcquire
     private val runtimeActions = PrivilegeUiRuntimeActions(
@@ -98,6 +101,14 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
         adbActions.observePairingNotificationEvents()
         store.initializeState(config)
+        store.updateState {
+            it.copy(desiredEnabled = desiredEnabledManager.desiredEnabled.value)
+        }
+        viewModelScope.launch {
+            desiredEnabledManager.desiredEnabled.collect { enabled ->
+                store.updateState { it.copy(desiredEnabled = enabled) }
+            }
+        }
         runtimeActions.installRuntimeWatchers()
         effectsCoordinator.initialize()
 
@@ -192,7 +203,13 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
     public open fun stopServer() {
         if (!uiInteractionsEnabled) return
-        runtimeActions.stopServer()
+        runtimeActions.stopServer(beforeShutdown = ::disableDesiredEnabled)
+    }
+
+    /** Disables future automatic recovery without requiring a connected server. */
+    public open fun disableAutoRecovery() {
+        if (!uiInteractionsEnabled) return
+        disableDesiredEnabled()
     }
 
     public open fun stopCurrentStart() {
@@ -436,6 +453,15 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         runCatching { adbActions.close() }
         permissionCoordinator.close()
         runCatching { store.close() }
+    }
+
+    private fun disableDesiredEnabled() {
+        runCatching {
+            desiredEnabledManager.setDesiredEnabled(false)
+        }.onFailure { throwable ->
+            store.showSnackbar(store.text(R.string.priv_ui_auto_recovery_disable_failed))
+            store.appendLog(throwable.toPrivilegeUiDiagnosticString())
+        }
     }
 }
 

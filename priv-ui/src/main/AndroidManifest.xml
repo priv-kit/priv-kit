@@ -6,6 +6,12 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application>
+        <provider
+            android:name=".runtime.PrivilegeUiInitializationProvider"
+            android:authorities="${applicationId}.privilege.ui.initializer"
+            android:exported="false"
+            android:initOrder="-100" />
+
         <service
             android:name=".PrivilegeAdbPairingService"
             android:exported="false"

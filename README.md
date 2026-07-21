@@ -45,16 +45,20 @@ If the integrating app still declares and has been granted `WRITE_SECURE_SETTING
 
 Blocking startup, discovery, and authorization checks preserve the thread interrupt flag and propagate `InterruptedException`. Java callers should handle that checked exception; coroutine callers may wrap these APIs with an interruptible dispatcher to use interruption as cooperative cancellation.
 
-When using `priv-ui`, keep one application-scoped `PrivilegeUiConfig` and pass the same instance to the foreground ViewModel and to the optional headless replay entry point:
+When using `priv-ui`, keep one application-scoped `PrivilegeUiConfig` and pass the same instance to the foreground ViewModel and to the optional desired-state-gated replay entry point:
 
 ```kotlin
-val serverInfo = PrivilegeUi.startSilently(
+val serverInfo = PrivilegeUi.startSilentlyIfEnabled(
     context = applicationContext,
     config = privilegeUiConfig,
 )
 ```
 
-After a foreground UI-managed start reaches a successful Binder connection, `priv-ui` stores one raw method ID (`root`, `adb-wireless`, `adb-tcpip`, or `external:<providerId>`) in `filesDir/.priv-kit/ui-start-method`. Silent startup attempts only that exact method and returns `null` without requesting Android permissions, showing UI, or falling back to another method. Foreground and silent starts are process-locally exclusive: accepted foreground startup effects retain owner-scoped interactive leases until completion, while the built-in UI disables side-effecting entries during a silent attempt and refreshes runtime state before enabling them again. A root manager may still show its own authorization UI if its remembered grant is no longer valid. See the [priv-ui guide](priv-ui/README.md#foreground-and-silent-startup) for method-specific behavior.
+The library initialization provider stores the desired privilege state as exactly one byte, `1` or `0`, in `filesDir/.priv-kit/ui-desired-enabled`. Every accepted `INITIAL_LAUNCH` connection writes `1`, including a server started from a copied external shell command. `OWNER_RECONNECT`, disconnection, process death, and failed replay do not clear it. Only a confirmed stop from the built-in UI or its disconnected-state "Disable automatic recovery" action writes `0`. When the desired state is enabled but the server is disconnected, the built-in UI shows that action in a warning card.
+
+A copied external command enables the desired-state latch but does not invent or replace replay-method history. If that server later stops and no UI-confirmed method is available, gated recovery returns `null` and leaves the warning visible.
+
+After a foreground UI-managed start reaches a successful Binder connection, `priv-ui` also stores one raw method ID (`root`, `adb-wireless`, `adb-tcpip`, or `external:<providerId>`) in `filesDir/.priv-kit/ui-start-method`. `startSilentlyIfEnabled(...)` first checks the desired-state byte, then uses the same exact replay behavior as `startSilently(...)`. Silent startup returns `null` without requesting Android permissions, showing UI, or falling back to another method. Foreground and silent starts are process-locally exclusive: accepted foreground startup effects retain owner-scoped interactive leases until completion, while the built-in UI disables side-effecting entries during a silent attempt and refreshes runtime state before enabling them again. A root manager may still show its own authorization UI if its remembered grant is no longer valid. See the [priv-ui guide](priv-ui/README.md#foreground-silent-and-owner-reconnect-startup) for method-specific behavior.
 
 Have the user copy and run a command manually:
 

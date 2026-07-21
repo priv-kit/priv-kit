@@ -1,4 +1,4 @@
-package priv.kit.sample
+package priv.kit.sample.debug
 
 import android.content.Context
 import android.content.pm.UserInfo

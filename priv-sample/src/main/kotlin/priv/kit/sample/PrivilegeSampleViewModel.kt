@@ -1,57 +1,35 @@
 package priv.kit.sample
 
-import android.annotation.SuppressLint
-import android.os.IBinder
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import priv.kit.core.Privilege
-import priv.kit.core.PrivilegeServerInfo
-import priv.kit.core.PrivilegeUserServiceConnection
-import java.io.Closeable
-import java.util.UUID
-import java.util.concurrent.Executors
 
 internal class PrivilegeSampleViewModel : ViewModel() {
-    var screenState by mutableStateOf(PrivilegeSampleScreenState())
-    var selectedStartupTab by mutableStateOf<PrivilegeStartupTab>(PrivilegeStartupTab.Root)
-    val executor = Executors.newSingleThreadExecutor()
-    var serverConnectedListener: Closeable? = null
-    var serverDisconnectedWatcher: Closeable? = null
-    var sampleMqsNativeBinder: IBinder? = null
-    var sampleUserManager: PrivilegeSampleUserManagerProxy? = null
-    var dedicatedUserServiceConnection: PrivilegeUserServiceConnection? = null
-    var embeddedUserServiceConnection: PrivilegeUserServiceConnection? = null
-    var dedicatedUserService: IPrivilegeSampleDedicatedUserService? = null
-    var embeddedUserService: IPrivilegeSampleEmbeddedUserService? = null
-    @Volatile
-    var shizukuExternalStarter: PrivilegeSampleShizukuExternalStarter? = null
-    var startNotificationPairingAfterPermission = false
-    val notificationPairingOwnerId: String = UUID.randomUUID().toString()
-    var startShizukuExternalAfterPermission = false
-    val manualShellCommandLine: String by lazy(LazyThreadSafetyMode.NONE) {
-        Privilege.createShellStartCommand().toSampleHostAdbShellCommand()
+    private val mutableServerRunning = MutableStateFlow(false)
+    val serverRunning = mutableServerRunning.asStateFlow()
+    private val serverConnectedListener = Privilege.addServerConnectedListener {
+        mutableServerRunning.value = true
+    }
+    private val serverDisconnectedListener = Privilege.addServerDisconnectedListener {
+        mutableServerRunning.value = false
     }
 
-    val backStack = mutableStateListOf<PrivilegeSampleDestination>(
-        PrivilegeSampleDestination.Connection,
+    val backStack = mutableStateListOf<PrivilegeSampleRootDestination>(
+        PrivilegeSampleRootDestination.Home,
     )
 
-    fun selectDestination(destination: PrivilegeSampleDestination) {
-        if (destination == PrivilegeSampleDestination.PrivilegeUi) {
-            openPrivilegeUi()
-            return
-        }
-        if (backStack.lastOrNull() == destination) return
-        backStack.clear()
-        backStack += destination
+    init {
+        mutableServerRunning.value = Privilege.pingServer()
+    }
+
+    fun openDebug() {
+        openRootDestination(PrivilegeSampleRootDestination.Debug)
     }
 
     fun openPrivilegeUi() {
-        if (backStack.lastOrNull() == PrivilegeSampleDestination.PrivilegeUi) return
-        backStack += PrivilegeSampleDestination.PrivilegeUi
+        openRootDestination(PrivilegeSampleRootDestination.PrivilegeUi)
     }
 
     fun navigateBack() {
@@ -60,60 +38,14 @@ internal class PrivilegeSampleViewModel : ViewModel() {
         }
     }
 
-    fun handlePrivilegeUiConnected(serverInfo: PrivilegeServerInfo) {
-        screenState = screenState.copy(
-            busy = false,
-            status = PrivilegeSampleStatus.CONNECTED,
-            serverInfo = serverInfo,
-            message = "Connected",
-        )
+    private fun openRootDestination(destination: PrivilegeSampleRootDestination) {
+        if (backStack.lastOrNull() == destination) return
+        backStack += destination
     }
 
-    fun selectStartupTab(tab: PrivilegeStartupTab) {
-        selectedStartupTab = tab
-    }
-
-    @SuppressLint("EmptySuperCall")
     override fun onCleared() {
-        clearRuntimeResources()
-        executor.shutdownNow()
+        serverConnectedListener.close()
+        serverDisconnectedListener.close()
         super.onCleared()
     }
-
-    private fun clearRuntimeResources() {
-        sampleMqsNativeBinder = null
-        sampleUserManager = null
-        clearSampleUserServices()
-        shizukuExternalStarter?.close()
-        shizukuExternalStarter = null
-        startShizukuExternalAfterPermission = false
-        serverConnectedListener?.close()
-        serverConnectedListener = null
-        serverDisconnectedWatcher?.close()
-        serverDisconnectedWatcher = null
-    }
-
-    private fun clearSampleUserServices() {
-        embeddedUserService = null
-        runCatching {
-            embeddedUserServiceConnection?.close()
-        }
-        embeddedUserServiceConnection = null
-        dedicatedUserService = null
-        runCatching {
-            dedicatedUserServiceConnection?.close()
-        }
-        dedicatedUserServiceConnection = null
-    }
 }
-
-private fun String.toSampleHostAdbShellCommand(): String {
-    val command = trim()
-    return if (command.startsWith(ADB_SHELL_PREFIX)) {
-        command
-    } else {
-        ADB_SHELL_PREFIX + command
-    }
-}
-
-private const val ADB_SHELL_PREFIX = "adb shell "

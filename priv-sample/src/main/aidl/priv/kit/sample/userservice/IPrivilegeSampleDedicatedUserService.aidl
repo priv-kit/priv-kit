@@ -1,4 +1,4 @@
-package priv.kit.sample;
+package priv.kit.sample.userservice;
 
 interface IPrivilegeSampleDedicatedUserService {
     void destroy() = 16777114;

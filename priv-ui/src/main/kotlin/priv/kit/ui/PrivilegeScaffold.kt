@@ -5,11 +5,14 @@ import android.view.ViewTreeObserver
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -39,6 +42,7 @@ import kotlinx.coroutines.launch
 import priv.kit.ui.component.AdbPanel
 import priv.kit.ui.component.AdbPermissionRestrictionWarning
 import priv.kit.ui.component.AuthorizationModeTabs
+import priv.kit.ui.component.AutoRecoveryWarning
 import priv.kit.ui.component.ExternalStartPanel
 import priv.kit.ui.component.ManualShellPanel
 import priv.kit.ui.component.PrivilegeTopBar
@@ -46,6 +50,7 @@ import priv.kit.ui.component.PrivilegeUiSpacing
 import priv.kit.ui.component.RootPanel
 import priv.kit.ui.component.ServiceStatusPanel
 import priv.kit.ui.component.StartupLogPanel
+import priv.kit.ui.component.privilegeUiAutoRecoveryWarningVisible
 import java.util.UUID
 
 @Composable
@@ -133,18 +138,17 @@ public fun PrivilegeScaffold(
                     if (request.wasLaunched) {
                         request.awaitCompletion()
                     } else {
-                        val permission = notificationPermission
-                        if (permission == null) {
+                        if (notificationPermission == null) {
                             viewModel.cancelPermissionRequest(permissionHostId, request)
                         } else {
                             val permissionState = activity?.let {
-                                privilegeUiPermissionState(it, permission)
+                                privilegeUiPermissionState(it, notificationPermission)
                             }
                             if (permissionState == null || permissionState.shouldLaunchPermissionRequest()) {
                                 if (request.tryMarkLaunched(permissionHostId)) {
-                                    markPrivilegeUiPermissionRequested(permission)
+                                    markPrivilegeUiPermissionRequested(notificationPermission)
                                     runCatching {
-                                        notificationPermissionLauncher.launch(permission)
+                                        notificationPermissionLauncher.launch(notificationPermission)
                                     }.onFailure {
                                         viewModel.cancelPermissionRequest(permissionHostId, request)
                                     }
@@ -233,7 +237,21 @@ public fun PrivilegeScaffold(
                 ),
             verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.large),
         ) {
-            screenScope.ServiceStatusPanel()
+            Column {
+                AnimatedVisibility(
+                    visible = privilegeUiAutoRecoveryWarningVisible(
+                        desiredEnabled = state.desiredEnabled,
+                        runtimeStatus = state.runtimeStatus,
+                        runtimeStartPhase = state.runtimeStartPhase,
+                    ),
+                ) {
+                    Column {
+                        screenScope.AutoRecoveryWarning()
+                        Spacer(Modifier.height(PrivilegeUiSpacing.large))
+                    }
+                }
+                screenScope.ServiceStatusPanel()
+            }
             screenScope.AdbPermissionRestrictionWarning()
             screenScope.AuthorizationModeTabs()
             screenScope.AuthorizationModePanel()

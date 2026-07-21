@@ -1,29 +1,25 @@
-package priv.kit.sample
+package priv.kit.sample.debug
 
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 
-internal sealed interface PrivilegeSampleDestination {
+internal sealed interface PrivilegeSampleDebugDestination {
     val title: String
 
-    data object Connection : PrivilegeSampleDestination {
+    data object Connection : PrivilegeSampleDebugDestination {
         override val title: String = "Test Authorization"
     }
 
-    data object Binder : PrivilegeSampleDestination {
+    data object Binder : PrivilegeSampleDebugDestination {
         override val title: String = "Test Binder"
     }
 
-    data object UserService : PrivilegeSampleDestination {
+    data object UserService : PrivilegeSampleDebugDestination {
         override val title: String = "Test UserService"
     }
 
-    data object PrivilegeUi : PrivilegeSampleDestination {
-        override val title: String = "Authorization UI"
-    }
-
     companion object {
-        val entries: List<PrivilegeSampleDestination> = listOf(Connection, Binder, UserService)
+        val entries: List<PrivilegeSampleDebugDestination> = listOf(Connection, Binder, UserService)
     }
 }
 
@@ -159,21 +155,6 @@ internal fun PrivilegeSampleScreenState.wirelessDebugLogText(): String =
         appendLine("Session log:")
         appendLine(logText.ifBlank { "<empty>" })
     }
-
-internal fun Throwable.toDiagnosticString(): String {
-    val lines = mutableListOf<String>()
-    var current: Throwable? = this
-    var depth = 0
-    while (current != null && depth < 8) {
-        lines += "Cause[$depth]: ${current.javaClass.name}: ${current.message.orEmpty()}"
-        current.stackTrace.take(8).forEach { frame ->
-            lines += "  at $frame"
-        }
-        current = current.cause
-        depth++
-    }
-    return lines.joinToString("\n")
-}
 
 internal fun String?.toSampleAdbDeviceName(): String? {
     val value = this

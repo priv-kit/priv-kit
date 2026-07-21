@@ -44,6 +44,7 @@ public object Privilege {
         Process.myUserHandle().hashCode()
     }
     private var currentServer: ServerConnection? = null
+    private val connectedListeners = CopyOnWriteArraySet<(PrivilegeServerInfo) -> Unit>()
     private val disconnectedListeners = CopyOnWriteArraySet<() -> Unit>()
     private val serverConnectionEventListeners =
         CopyOnWriteArraySet<(PrivilegeRuntimeConnectionEvent) -> Unit>()
@@ -143,13 +144,10 @@ public object Privilege {
     public fun addServerConnectedListener(
         onConnected: (PrivilegeServerInfo) -> Unit,
     ): Closeable {
-        val eventListener: (PrivilegeRuntimeConnectionEvent) -> Unit = { event ->
-            onConnected(event.serverInfo)
-        }
-        serverConnectionEventListeners += eventListener
+        connectedListeners += onConnected
         initializeRuntimeConnection()
         return Closeable {
-            serverConnectionEventListeners -= eventListener
+            connectedListeners -= onConnected
         }
     }
 
@@ -463,6 +461,7 @@ public object Privilege {
     ): PrivilegeServerInfo {
         val binder = server.asBinder()
         var previous: ServerConnection? = null
+        var notifyConnected = false
         val connection = synchronized(serverLock) {
             val current = currentServer
             if (current != null && current.server.asBinder() === binder) {
@@ -496,9 +495,13 @@ public object Privilege {
             previous = current
             currentServer = newConnection
             PrivilegeRuntimeStartCoordinator.markServerConnected()
+            notifyConnected = true
             newConnection
         }
         previous?.unlink()
+        if (notifyConnected) {
+            notifyServerConnected(connection.serverInfo)
+        }
         return connection.serverInfo
     }
 
@@ -555,6 +558,14 @@ public object Privilege {
         disconnectedListeners.forEach { listener ->
             runCatching {
                 listener()
+            }
+        }
+    }
+
+    private fun notifyServerConnected(serverInfo: PrivilegeServerInfo) {
+        connectedListeners.forEach { listener ->
+            runCatching {
+                listener(serverInfo)
             }
         }
     }

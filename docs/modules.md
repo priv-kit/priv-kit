@@ -29,7 +29,7 @@ implementation("io.github.priv-kit:priv-core:1.0.0")
 | `:priv-core` | `priv-core` | `priv.kit.core`, `priv.kit.core.binder`, `priv.kit.core.userservice`, `priv.kit.core.adb`, `priv.kit.core.internal.*` |
 | `:priv-adb-crypto` | `priv-adb-crypto` | `priv.kit.adb.crypto.certificate`, `priv.kit.adb.crypto.pairing` |
 | `:priv-ui` | `priv-ui` | `priv.kit.ui` |
-| `:priv-sample` | 不作为发布 artifact | `priv.kit.sample`, `priv.kit.sample.ui` |
+| `:priv-sample` | 不作为发布 artifact | `priv.kit.sample`, `priv.kit.sample.common`, `priv.kit.sample.home`, `priv.kit.sample.debug`, `priv.kit.sample.userservice`, `priv.kit.sample.startup` |
 | `:hidden-api` | 不作为发布 artifact | framework mirror/stub package |
 
 除 `:hidden-api` 中的 framework mirror/stub 外，所有源码 package 必须位于 `priv.kit.*`。公开 API 必须使用完整单词 `Privilege` 或 `Privilege*` 命名，禁止公开 API 使用 `Priv*` 缩写。
@@ -172,9 +172,10 @@ package 分区：
 职责：
 
 - 可选 Jetpack Compose UI 帮助能力，用于运行时生命周期；
-- 记录 UI 管理的最近一次成功启动方式，并在无 `Activity` 场景精确静默重放该 runtime 启动原语。
+- 记录 UI 管理的最近一次成功启动方式，并在无 `Activity` 场景精确静默重放该 runtime 启动原语；
+- 保存用户是否期望启用特权功能，并据此约束自动恢复入口。
 
-允许 Compose 状态展示、运行时生命周期控件、围绕 `:priv-core` 状态模型的 UI 包装，以及在应用私有 `.priv-kit` 目录保存一个原始启动 methodId。只有前台已提交的精确方法收到同时匹配当前 operation 与当前 `launchId` 的 `INITIAL_LAUNCH` 连接且未先取消时才写入；静默启动、`OWNER_RECONNECT`、已有连接和其他被动连接不得改写。静默重放必须由调用方显式传入 `PrivilegeUiConfig`，不得执行跨方式 fallback、权限请求、外部 Provider 授权请求或用户提示。前台与静默启动共用同一个互斥启动门并采用先获得者执行、无排队和无抢占；已受理的前台启动副作用必须持有绑定同一 ViewModel 所有者的可嵌套租约直至其工作完成，权限事务还必须绑定实际 Scaffold host，并在最后一个 host 离开时清理。静默启动持有期间内置 UI 必须拒绝新的副作用入口，并在释放后完成 runtime 状态对账才重新启用。owner 自动重连由 runtime arbiter 协调：启动提交前 reconnect 优先，提交后当前前台或静默启动优先。两层协调都只覆盖当前进程；多进程应用必须只在一个指定进程初始化并触发 Priv Kit 启动。
+允许 Compose 状态展示、运行时生命周期控件、围绕 `:priv-core` 状态模型的 UI 包装，以及在应用私有 `.priv-kit` 目录保存一个原始启动 methodId 和一个严格单字节期望状态。只有前台已提交的精确方法收到同时匹配当前 operation 与当前 `launchId` 的 `INITIAL_LAUNCH` 连接且未先取消时才写入 methodId；静默启动、`OWNER_RECONNECT`、已有连接和其他被动连接不得改写 methodId。非导出初始化 Provider 在 core runtime 初始化之后、应用 Provider 对外发布之前安装监听；每个被 runtime 接受的 `INITIAL_LAUNCH` 都将期望状态写为 `1`，包括复制外置 shell 命令启动的 server；`OWNER_RECONNECT`、断连、server 死亡和恢复失败保持原值。只有内置 UI 中已确认的停止动作或断连提示卡片的“关闭自动恢复”动作可以写入 `0`。期望状态为 `1` 且 runtime 断开或失败时显示提示卡片，不提供常驻开关。受期望状态约束的静默重放必须由调用方显式传入 `PrivilegeUiConfig`，不得执行跨方式 fallback、权限请求、外部 Provider 授权请求或用户提示。前台与静默启动共用同一个互斥启动门并采用先获得者执行、无排队和无抢占；已受理的前台启动副作用必须持有绑定同一 ViewModel 所有者的可嵌套租约直至其工作完成，权限事务还必须绑定实际 Scaffold host，并在最后一个 host 离开时清理。静默启动持有期间内置 UI 必须拒绝新的副作用入口，并在释放后完成 runtime 状态对账才重新启用。owner 自动重连由 runtime arbiter 协调：启动提交前 reconnect 优先，提交后当前前台或静默启动优先。两层协调都只覆盖当前进程；多进程应用必须只在一个指定进程初始化并触发 Priv Kit 启动。
 
 允许为 Android `Notification` 自定义内容新增仅供 `RemoteViews` 使用的 XML layout，例如通知配对码控制面板。
 
@@ -189,9 +190,14 @@ package 分区：
 
 package 分区：
 
-- `priv.kit.sample` 承载应用自身的示例入口、状态、运行时操作、Binder/UserService 示例和自定义页面；
-- `priv.kit.sample.ui` 只承载对 `:priv-ui` 的页面、配置、ViewModel、外部启动 Provider 和通知配对服务适配；
-- `:priv-sample` 中直接导入 `priv.kit.ui.*` 的源码必须位于 `priv.kit.sample.ui`。
+- `priv.kit.sample` 承载应用入口、根导航和应用级主题；
+- `priv.kit.sample.common` 承载 Debug 与 Startup 集成共同复用的少量诊断格式化；
+- `priv.kit.sample.home` 承载 Home 主页；
+- `priv.kit.sample.debug` 承载 Connection、Binder、UserService 调试页面，以及对应的状态、ViewModel、回调、运行时操作、生命周期协调和 hidden API 探针；
+- `priv.kit.sample.userservice` 承载应用自有的 UserService 实现、共享状态和 AIDL 契约；
+- `priv.kit.sample.startup` 承载对 `:priv-ui` 的页面、配置、ViewModel、自动恢复和通知配对服务适配，以及应用自有的 Shizuku 外部启动桥及其 AIDL 契约；
+- `:priv-sample` 中直接导入 `priv.kit.ui.*` 的源码必须位于 `priv.kit.sample.startup`。
+- Debug 监听和后台探针仅在 Debug destination 仍位于根 back stack 时启用，Home 与直接进入 Privilege UI 不初始化 Debug 子系统。
 
 允许演示：
 

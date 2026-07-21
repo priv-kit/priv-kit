@@ -1,4 +1,4 @@
-package priv.kit.sample
+package priv.kit.sample.debug
 
 import android.Manifest
 import android.content.ClipData
@@ -13,15 +13,22 @@ import priv.kit.core.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 import priv.kit.core.adb.PrivilegeAdbStartOptions
 import priv.kit.core.adb.PrivilegeAdbStarter
 import priv.kit.core.binder.PrivilegeServerUnavailableException
-import priv.kit.sample.ui.startPrivilegeSampleNotificationPairing
-import priv.kit.sample.ui.stopPrivilegeSampleNotificationPairing
+import priv.kit.sample.startup.PrivilegeSampleShizukuExternalStarter
+import priv.kit.sample.startup.SHIZUKU_PERMISSION_REQUEST_CODE
+import priv.kit.sample.startup.startPrivilegeSampleNotificationPairing
+import priv.kit.sample.startup.stopPrivilegeSampleNotificationPairing
+import priv.kit.sample.common.toDiagnosticString
 import priv.kit.core.userservice.PrivilegeUserServiceException
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
+import priv.kit.sample.userservice.IPrivilegeSampleDedicatedUserService
+import priv.kit.sample.userservice.IPrivilegeSampleEmbeddedUserService
+import priv.kit.sample.userservice.PrivilegeSampleDedicatedUserService
+import priv.kit.sample.userservice.PrivilegeSampleEmbeddedUserService
 import rikka.shizuku.Shizuku
 import java.io.File
 import java.nio.charset.StandardCharsets
 
-internal fun MainActivity.initializePrivilegeSample() {
+internal fun PrivilegeSampleDebugHost.initializePrivilegeSample() {
     val adbDeviceNameOverride = loadAdbDeviceNameOverride()
     val manualShellCommandResult = runCatching { sampleViewModel.manualShellCommandLine }
     screenState = screenState.copy(
@@ -41,7 +48,7 @@ internal fun MainActivity.initializePrivilegeSample() {
     refreshAdbFingerprint()
 }
 
-internal fun MainActivity.updatePairingCode(value: String) {
+internal fun PrivilegeSampleDebugHost.updatePairingCode(value: String) {
     val pairingCode = value.toPairingCodeDigits()
     screenState = screenState.copy(
         pairingCode = pairingCode,
@@ -58,15 +65,15 @@ internal fun MainActivity.updatePairingCode(value: String) {
     )
 }
 
-internal fun MainActivity.updateTcpPort(value: String) {
+internal fun PrivilegeSampleDebugHost.updateTcpPort(value: String) {
     screenState = screenState.copy(tcpPortText = value)
 }
 
-internal fun MainActivity.clearLog() {
+internal fun PrivilegeSampleDebugHost.clearLog() {
     screenState = screenState.copy(logText = "")
 }
 
-internal fun MainActivity.watchServerConnected() {
+internal fun PrivilegeSampleDebugHost.watchServerConnected() {
     sampleViewModel.serverConnectedListener?.close()
     sampleViewModel.serverConnectedListener = Privilege.addServerConnectedListener { serverInfo ->
         runOnUiThread {
@@ -79,7 +86,7 @@ internal fun MainActivity.watchServerConnected() {
     }
 }
 
-internal fun MainActivity.watchServerDisconnected() {
+internal fun PrivilegeSampleDebugHost.watchServerDisconnected() {
     sampleViewModel.serverDisconnectedWatcher?.close()
     sampleViewModel.serverDisconnectedWatcher = Privilege.addServerDisconnectedListener {
         runOnUiThread {
@@ -88,7 +95,7 @@ internal fun MainActivity.watchServerDisconnected() {
     }
 }
 
-internal fun MainActivity.updateAdbDeviceName(value: String) {
+internal fun PrivilegeSampleDebugHost.updateAdbDeviceName(value: String) {
     saveAdbDeviceNameOverride(value)
     screenState = screenState.copy(
         adbDeviceNameText = value,
@@ -101,7 +108,7 @@ internal fun MainActivity.updateAdbDeviceName(value: String) {
     )
 }
 
-internal fun MainActivity.refreshAdbFingerprint() {
+internal fun PrivilegeSampleDebugHost.refreshAdbFingerprint() {
     if (screenState.adbKeyFingerprintLoading) return
     val adbDeviceName = currentAdbDeviceNameOverride()
     screenState = screenState.copy(
@@ -142,7 +149,7 @@ internal fun MainActivity.refreshAdbFingerprint() {
     }
 }
 
-internal fun MainActivity.checkWirelessAdbPairing(showBusy: Boolean) {
+internal fun PrivilegeSampleDebugHost.checkWirelessAdbPairing(showBusy: Boolean) {
     if (showBusy && screenState.busy) return
 
     val adbDeviceName = currentAdbDeviceNameOverride()
@@ -198,19 +205,19 @@ internal fun MainActivity.checkWirelessAdbPairing(showBusy: Boolean) {
     }
 }
 
-private fun MainActivity.currentAdbDeviceNameOverride(): String? =
+private fun PrivilegeSampleDebugHost.currentAdbDeviceNameOverride(): String? =
     screenState.adbDeviceNameText.trim().ifBlank { null }
 
-private fun MainActivity.createAdbStarter(adbDeviceName: String? = currentAdbDeviceNameOverride()): PrivilegeAdbStarter =
+private fun PrivilegeSampleDebugHost.createAdbStarter(adbDeviceName: String? = currentAdbDeviceNameOverride()): PrivilegeAdbStarter =
     Privilege.createAdbStarter(adbDeviceName = adbDeviceName)
 
-private fun MainActivity.loadAdbDeviceNameOverride(): String =
+private fun PrivilegeSampleDebugHost.loadAdbDeviceNameOverride(): String =
     runCatching {
         val file = adbDeviceNameConfigFile()
         if (file.isFile) file.readText(StandardCharsets.UTF_8).trim() else ""
     }.getOrDefault("")
 
-private fun MainActivity.saveAdbDeviceNameOverride(value: String) {
+private fun PrivilegeSampleDebugHost.saveAdbDeviceNameOverride(value: String) {
     val file = adbDeviceNameConfigFile()
     val directory = file.parentFile ?: return
     val trimmedValue = value.trim()
@@ -226,17 +233,17 @@ private fun MainActivity.saveAdbDeviceNameOverride(value: String) {
     }
 }
 
-private fun MainActivity.adbDeviceNameConfigFile(): File =
+private fun PrivilegeSampleDebugHost.adbDeviceNameConfigFile(): File =
     File(File(filesDir, SAMPLE_CONFIG_DIRECTORY), ADB_DEVICE_NAME_FILE)
 
-private fun MainActivity.defaultAdbDeviceName(): String =
+private fun PrivilegeSampleDebugHost.defaultAdbDeviceName(): String =
     runCatching {
         applicationInfo.loadLabel(packageManager).toString()
     }.getOrNull().toSampleAdbDeviceName()
         ?: packageName.toSampleAdbDeviceName()
         ?: DEFAULT_ADB_DEVICE_NAME
 
-internal fun MainActivity.startRootRuntime() {
+internal fun PrivilegeSampleDebugHost.startRootRuntime() {
     runServerStart(
         message = "Starting Root Runtime...",
         startupSource = "Root",
@@ -245,7 +252,7 @@ internal fun MainActivity.startRootRuntime() {
     }
 }
 
-internal fun MainActivity.refreshShizukuStatus(append: Boolean = true) {
+internal fun PrivilegeSampleDebugHost.refreshShizukuStatus(append: Boolean = true) {
     val readiness = checkShizukuReadiness(requestPermission = false)
     applyShizukuReadiness(readiness)
     if (append) {
@@ -254,11 +261,11 @@ internal fun MainActivity.refreshShizukuStatus(append: Boolean = true) {
     continuePendingShizukuExternalStart(readiness)
 }
 
-internal fun MainActivity.handleShizukuHostVisible() {
+internal fun PrivilegeSampleDebugHost.handleShizukuHostVisible() {
     refreshShizukuStatus(append = false)
 }
 
-private fun MainActivity.continuePendingShizukuExternalStart(readiness: ShizukuReadiness) {
+private fun PrivilegeSampleDebugHost.continuePendingShizukuExternalStart(readiness: ShizukuReadiness) {
     if (!sampleViewModel.startShizukuExternalAfterPermission) return
     if (readiness.ready) {
         sampleViewModel.startShizukuExternalAfterPermission = false
@@ -268,7 +275,7 @@ private fun MainActivity.continuePendingShizukuExternalStart(readiness: ShizukuR
     }
 }
 
-internal fun MainActivity.handleShizukuBinderDead() {
+internal fun PrivilegeSampleDebugHost.handleShizukuBinderDead() {
     sampleViewModel.startShizukuExternalAfterPermission = false
     sampleViewModel.shizukuExternalStarter?.close()
     sampleViewModel.shizukuExternalStarter = null
@@ -284,14 +291,14 @@ internal fun MainActivity.handleShizukuBinderDead() {
     appendLog(message)
 }
 
-internal fun MainActivity.startShizukuExternal() {
+internal fun PrivilegeSampleDebugHost.startShizukuExternal() {
     if (screenState.busy) return
     val readiness = checkShizukuReadiness(requestPermission = true)
     applyShizukuReadiness(readiness)
     appendLog(readiness.message)
     if (!readiness.ready) return
 
-    val externalStarter = PrivilegeSampleShizukuExternalStarter(this)
+    val externalStarter = PrivilegeSampleShizukuExternalStarter(activity)
     sampleViewModel.shizukuExternalStarter = externalStarter
     runServerStartRequest(
         message = "Starting through Shizuku...",
@@ -310,7 +317,7 @@ internal fun MainActivity.startShizukuExternal() {
     }
 }
 
-private fun MainActivity.checkShizukuReadiness(requestPermission: Boolean): ShizukuReadiness {
+private fun PrivilegeSampleDebugHost.checkShizukuReadiness(requestPermission: Boolean): ShizukuReadiness {
     return try {
         if (!Shizuku.pingBinder()) {
             return ShizukuReadiness(
@@ -380,7 +387,7 @@ private fun MainActivity.checkShizukuReadiness(requestPermission: Boolean): Shiz
     }
 }
 
-private fun MainActivity.applyShizukuReadiness(readiness: ShizukuReadiness) {
+private fun PrivilegeSampleDebugHost.applyShizukuReadiness(readiness: ShizukuReadiness) {
     screenState = screenState.copy(
         shizukuReady = readiness.ready,
         shizukuPermissionGranted = readiness.permissionGranted,
@@ -395,7 +402,7 @@ private fun MainActivity.applyShizukuReadiness(readiness: ShizukuReadiness) {
     }
 }
 
-internal fun MainActivity.pairWirelessAdb() {
+internal fun PrivilegeSampleDebugHost.pairWirelessAdb() {
     val code = screenState.pairingCode.trim()
     val adbDeviceName = currentAdbDeviceNameOverride()
     if (code.isBlank()) {
@@ -435,7 +442,7 @@ internal fun MainActivity.pairWirelessAdb() {
     }
 }
 
-internal fun MainActivity.startNotificationPairing() {
+internal fun PrivilegeSampleDebugHost.startNotificationPairing() {
     if (screenState.busy) return
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -462,7 +469,7 @@ internal fun MainActivity.startNotificationPairing() {
     appendLog(message)
     val started = runCatching {
         startPrivilegeSampleNotificationPairing(
-            context = this,
+            context = activity,
             ownerId = sampleViewModel.notificationPairingOwnerId,
             statusText = message,
         )
@@ -483,7 +490,7 @@ internal fun MainActivity.startNotificationPairing() {
     }
 }
 
-internal fun MainActivity.stopNotificationPairing() {
+internal fun PrivilegeSampleDebugHost.stopNotificationPairing() {
     val message = "Stopping notification pairing..."
     screenState = screenState.copy(
         notificationPairingRunning = false,
@@ -492,10 +499,10 @@ internal fun MainActivity.stopNotificationPairing() {
         message = message,
     )
     appendLog(message)
-    stopPrivilegeSampleNotificationPairing(this, sampleViewModel.notificationPairingOwnerId)
+    stopPrivilegeSampleNotificationPairing(activity, sampleViewModel.notificationPairingOwnerId)
 }
 
-internal fun MainActivity.startWirelessAdb() {
+internal fun PrivilegeSampleDebugHost.startWirelessAdb() {
     val adbDeviceName = currentAdbDeviceNameOverride()
     runServerStart(
         message = "Discovering ADB connect port and starting Wireless ADB...",
@@ -508,7 +515,7 @@ internal fun MainActivity.startWirelessAdb() {
     }
 }
 
-internal fun MainActivity.switchToTcp() {
+internal fun PrivilegeSampleDebugHost.switchToTcp() {
     val tcpPort = screenState.tcpPortText.toIntOrNull() ?: PRIVILEGE_ADB_DEFAULT_TCP_PORT
     val adbDeviceName = currentAdbDeviceNameOverride()
     runBusy(
@@ -522,7 +529,7 @@ internal fun MainActivity.switchToTcp() {
     }
 }
 
-internal fun MainActivity.restartTcp() {
+internal fun PrivilegeSampleDebugHost.restartTcp() {
     val tcpPort = screenState.tcpPortText.toIntOrNull() ?: PRIVILEGE_ADB_DEFAULT_TCP_PORT
     val adbDeviceName = currentAdbDeviceNameOverride()
     runServerStart(
@@ -540,7 +547,7 @@ internal fun MainActivity.restartTcp() {
     }
 }
 
-internal fun MainActivity.stopTcp() {
+internal fun PrivilegeSampleDebugHost.stopTcp() {
     val tcpPort = screenState.tcpPortText.toIntOrNull() ?: PRIVILEGE_ADB_DEFAULT_TCP_PORT
     val adbDeviceName = currentAdbDeviceNameOverride()
     runBusy(
@@ -553,7 +560,7 @@ internal fun MainActivity.stopTcp() {
     }
 }
 
-internal fun MainActivity.stopServer() {
+internal fun PrivilegeSampleDebugHost.stopServer() {
     if (screenState.busy) return
     if (!Privilege.pingServer()) {
         screenState = screenState.copy(message = "No server connected")
@@ -593,7 +600,7 @@ internal fun MainActivity.stopServer() {
     }
 }
 
-internal fun MainActivity.getUserManagerBinder() {
+internal fun PrivilegeSampleDebugHost.getUserManagerBinder() {
     runBinderAction("Getting IUserManager...") {
         sampleViewModel.sampleUserManager = PrivilegeSampleUserManager.createFromCurrentProcess()
         BinderActionResult(
@@ -603,7 +610,7 @@ internal fun MainActivity.getUserManagerBinder() {
     }
 }
 
-internal fun MainActivity.getUserManagerUsers() {
+internal fun PrivilegeSampleDebugHost.getUserManagerUsers() {
     val hasCachedUserManager = sampleViewModel.sampleUserManager != null
     runBinderAction(
         message = "Calling IUserManager.getUsers...",
@@ -620,7 +627,7 @@ internal fun MainActivity.getUserManagerUsers() {
     }
 }
 
-internal fun MainActivity.runImqsNative() {
+internal fun PrivilegeSampleDebugHost.runImqsNative() {
     val hasCachedRemoteBinder = sampleViewModel.sampleMqsNativeBinder != null
     runBinderAction(
         message = "Probing IMQSNative descriptors...",
@@ -648,37 +655,37 @@ internal fun MainActivity.runImqsNative() {
     }
 }
 
-internal fun MainActivity.bindDedicatedUserService() {
+internal fun PrivilegeSampleDebugHost.bindDedicatedUserService() {
     bindSampleUserService(
         label = "dedicated",
         embedded = false,
     )
 }
 
-internal fun MainActivity.callDedicatedUserService() {
+internal fun PrivilegeSampleDebugHost.callDedicatedUserService() {
     callSampleUserService(label = "dedicated")
 }
 
-internal fun MainActivity.stopDedicatedUserService() {
+internal fun PrivilegeSampleDebugHost.stopDedicatedUserService() {
     stopSampleUserService(label = "dedicated")
 }
 
-internal fun MainActivity.bindEmbeddedUserService() {
+internal fun PrivilegeSampleDebugHost.bindEmbeddedUserService() {
     bindSampleUserService(
         label = "embedded",
         embedded = true,
     )
 }
 
-internal fun MainActivity.callEmbeddedUserService() {
+internal fun PrivilegeSampleDebugHost.callEmbeddedUserService() {
     callSampleUserService(label = "embedded")
 }
 
-internal fun MainActivity.stopEmbeddedUserService() {
+internal fun PrivilegeSampleDebugHost.stopEmbeddedUserService() {
     stopSampleUserService(label = "embedded")
 }
 
-private fun MainActivity.bindSampleUserService(
+private fun PrivilegeSampleDebugHost.bindSampleUserService(
     label: String,
     embedded: Boolean,
 ) {
@@ -703,7 +710,7 @@ private fun MainActivity.bindSampleUserService(
     }
 }
 
-private fun MainActivity.callSampleUserService(label: String) {
+private fun PrivilegeSampleDebugHost.callSampleUserService(label: String) {
     runUserServiceAction(
         message = "Calling $label UserService...",
         requireConnected = false,
@@ -717,7 +724,7 @@ private fun MainActivity.callSampleUserService(label: String) {
     }
 }
 
-private fun MainActivity.stopSampleUserService(label: String) {
+private fun PrivilegeSampleDebugHost.stopSampleUserService(label: String) {
     runUserServiceAction(
         message = "Stopping $label UserService...",
         requireConnected = false,
@@ -737,7 +744,7 @@ private fun MainActivity.stopSampleUserService(label: String) {
     }
 }
 
-private fun MainActivity.runUserServiceAction(
+private fun PrivilegeSampleDebugHost.runUserServiceAction(
     message: String,
     requireConnected: Boolean,
     action: () -> UserServiceActionResult,
@@ -789,7 +796,7 @@ private fun MainActivity.runUserServiceAction(
     }
 }
 
-private fun MainActivity.setUserServiceFailure(throwable: Throwable) {
+private fun PrivilegeSampleDebugHost.setUserServiceFailure(throwable: Throwable) {
     val message = throwable.message ?: throwable.javaClass.name
     val disconnected = throwable is PrivilegeServerUnavailableException
     screenState = screenState.copy(
@@ -819,7 +826,7 @@ private data class UserServiceActionResult(
     val exceptionText: String = "",
 )
 
-private fun MainActivity.runBinderAction(
+private fun PrivilegeSampleDebugHost.runBinderAction(
     message: String,
     requireConnected: Boolean = true,
     action: () -> BinderActionResult,
@@ -886,7 +893,7 @@ private fun MainActivity.runBinderAction(
     }
 }
 
-private fun MainActivity.setBinderFailure(throwable: Throwable) {
+private fun PrivilegeSampleDebugHost.setBinderFailure(throwable: Throwable) {
     val message = throwable.message ?: throwable.javaClass.name
     val disconnected = throwable is PrivilegeServerUnavailableException
     screenState = screenState.copy(
@@ -934,7 +941,7 @@ private fun List<PrivilegeSampleUserInfo>.toBinderMessage(): String =
         }
     }
 
-private fun MainActivity.runServerStart(
+private fun PrivilegeSampleDebugHost.runServerStart(
     message: String,
     startupSource: String? = null,
     start: () -> PrivilegeServerInfo,
@@ -955,7 +962,7 @@ private fun MainActivity.runServerStart(
     }
 }
 
-private fun MainActivity.runServerStartRequest(
+private fun PrivilegeSampleDebugHost.runServerStartRequest(
     message: String,
     startedMessage: String,
     startupSource: String? = null,
@@ -983,7 +990,7 @@ private fun MainActivity.runServerStartRequest(
     }
 }
 
-private fun MainActivity.beginServerStart(
+private fun PrivilegeSampleDebugHost.beginServerStart(
     message: String,
     startupSource: String?,
 ): Boolean {
@@ -999,12 +1006,12 @@ private fun MainActivity.beginServerStart(
     return true
 }
 
-private fun MainActivity.appendStartupSource(startupSource: String?) {
+private fun PrivilegeSampleDebugHost.appendStartupSource(startupSource: String?) {
     val source = startupSource?.trim()?.takeIf { it.isNotEmpty() } ?: return
     appendLog("Startup source: $source")
 }
 
-private fun <T> MainActivity.runBusy(
+private fun <T> PrivilegeSampleDebugHost.runBusy(
     message: String,
     action: () -> T,
     onFailure: ((Throwable) -> Unit)? = null,
@@ -1037,7 +1044,7 @@ private fun <T> MainActivity.runBusy(
     }
 }
 
-private fun MainActivity.connectServer(
+private fun PrivilegeSampleDebugHost.connectServer(
     serverInfo: PrivilegeServerInfo,
     commandLine: String?,
 ) {
@@ -1057,7 +1064,7 @@ private fun MainActivity.connectServer(
     appendLog("Connected: uid=${serverInfo.uid}, pid=${serverInfo.pid}")
 }
 
-private fun MainActivity.handleServerDisconnected() {
+private fun PrivilegeSampleDebugHost.handleServerDisconnected() {
     val serviceBinderCached = screenState.systemServiceBinderCached || sampleViewModel.sampleMqsNativeBinder != null
     val userManagerCached = screenState.userManagerCached || sampleViewModel.sampleUserManager != null
     val dedicatedCached = screenState.dedicatedUserServiceCached || sampleViewModel.dedicatedUserServiceConnection != null
@@ -1084,7 +1091,7 @@ private fun MainActivity.handleServerDisconnected() {
     appendLog("Binder died")
 }
 
-private fun MainActivity.setFailure(throwable: Throwable) {
+private fun PrivilegeSampleDebugHost.setFailure(throwable: Throwable) {
     val message = throwable.message ?: throwable.javaClass.name
     screenState = screenState.copy(
         busy = false,
@@ -1130,7 +1137,7 @@ private fun disconnectedBinderMessage(
         else -> "Server disconnected"
     }
 
-private fun MainActivity.appendLog(line: String) {
+private fun PrivilegeSampleDebugHost.appendLog(line: String) {
     val nextLog = if (screenState.logText.isBlank()) {
         line
     } else {
@@ -1164,7 +1171,7 @@ private fun sampleUserServiceClassName(label: String): String =
         PrivilegeSampleDedicatedUserService::class.java.name
     }
 
-private fun MainActivity.sampleUserServiceConnection(label: String): PrivilegeUserServiceConnection {
+private fun PrivilegeSampleDebugHost.sampleUserServiceConnection(label: String): PrivilegeUserServiceConnection {
     val connection = if (label == "embedded") {
         sampleViewModel.embeddedUserServiceConnection
     } else {
@@ -1173,7 +1180,7 @@ private fun MainActivity.sampleUserServiceConnection(label: String): PrivilegeUs
     return connection ?: throw PrivilegeUserServiceException("$label UserService is not bound")
 }
 
-private fun MainActivity.describeSampleUserService(label: String): String {
+private fun PrivilegeSampleDebugHost.describeSampleUserService(label: String): String {
     val connection = sampleUserServiceConnection(label)
     return if (label == "embedded") {
         val service = IPrivilegeSampleEmbeddedUserService.Stub.asInterface(connection.binder)
@@ -1186,7 +1193,7 @@ private fun MainActivity.describeSampleUserService(label: String): String {
     }
 }
 
-private fun MainActivity.setSampleUserService(
+private fun PrivilegeSampleDebugHost.setSampleUserService(
     label: String,
     connection: PrivilegeUserServiceConnection,
 ): String =
@@ -1206,7 +1213,7 @@ private fun MainActivity.setSampleUserService(
         message
     }
 
-private fun MainActivity.clearSampleUserService(label: String) {
+private fun PrivilegeSampleDebugHost.clearSampleUserService(label: String) {
     if (label == "embedded") {
         sampleViewModel.embeddedUserService = null
         runCatching {
@@ -1222,7 +1229,7 @@ private fun MainActivity.clearSampleUserService(label: String) {
     }
 }
 
-internal fun MainActivity.copyManualShellCommand() {
+internal fun PrivilegeSampleDebugHost.copyManualShellCommand() {
     val commandLine = screenState.manualShellCommandLine ?: return
     val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     clipboard.setPrimaryClip(
@@ -1231,7 +1238,7 @@ internal fun MainActivity.copyManualShellCommand() {
     screenState = screenState.copy(message = "Manual shell command copied")
 }
 
-internal fun MainActivity.copySessionLog() {
+internal fun PrivilegeSampleDebugHost.copySessionLog() {
     val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     clipboard.setPrimaryClip(
         ClipData.newPlainText("Priv Kit wireless ADB log", screenState.wirelessDebugLogText()),
@@ -1240,7 +1247,6 @@ internal fun MainActivity.copySessionLog() {
 }
 
 private const val MAX_LOG_CHARS = 32_000
-internal const val SHIZUKU_PERMISSION_REQUEST_CODE = 42
 private const val SAMPLE_CONFIG_DIRECTORY = ".priv-kit"
 private const val ADB_DEVICE_NAME_FILE = "adb-device-name.txt"
 private const val DEFAULT_ADB_DEVICE_NAME = "priv-kit"

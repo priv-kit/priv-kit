@@ -11,7 +11,8 @@ Public entry points:
 - `PrivilegeScaffold`, the root Compose page.
 - `PrivilegeUiViewModel`, an `open` `AndroidViewModel` state manager that callers may subclass.
 - `PrivilegeUiConfig`, used to enable startup modes, polling intervals, and external start providers.
-- `PrivilegeUi.startSilently(...)`, a suspend function that can run without an `Activity` or ViewModel.
+- `PrivilegeUi.startSilentlyIfEnabled(...)`, the desired-state-gated headless recovery entry point.
+- `PrivilegeUi.startSilently(...)`, the lower-level exact replay entry point that ignores the desired-state gate.
 
 Process-wide owner-death behavior remains a runtime concern. Configure it through
 `PrivilegeConfig` before starting a server; `PrivilegeUiConfig` does not mirror or
@@ -89,7 +90,15 @@ When a foreground start owned by `PrivilegeUiViewModel` commits a launch method 
 - `adb-tcpip`
 - `external:<providerId>`
 
-Silent starts, retained-server `OWNER_RECONNECT` handshakes, already-connected servers, manual shell starts outside the matching foreground operation, cancelled starts, and failed starts do not replace this value.
+Silent starts, retained-server `OWNER_RECONNECT` handshakes, already-connected servers, manual shell starts outside the matching foreground operation, cancelled starts, and failed starts do not replace this method value.
+
+Separately, `priv-ui` owns a desired-state latch in `filesDir/.priv-kit/ui-desired-enabled`. Its entire content is exactly one ASCII byte: `1` for enabled or `0` for disabled. A missing or invalid file is disabled. The library's non-exported initialization provider installs the connection listener after core runtime initialization but before app providers are published, so every accepted `INITIAL_LAUNCH` connection writes `1`, including a server started from a copied external shell command while the app process is cold. An `OWNER_RECONNECT`, server death, disconnect, or failed recovery attempt leaves the value unchanged.
+
+An accepted launch outside a matching UI-owned foreground operation enables this latch but does not invent or replace a replay method. If no UI-confirmed method history exists and that server later stops, gated recovery returns `null` and the disconnected warning remains visible until the user disables automatic recovery or starts a server again.
+
+There is no general-purpose switch for this latch. A confirmed stop action in the built-in UI writes `0` before asking the server to shut down. When the latch is `1` but runtime state is disconnected or failed, the top of `PrivilegeScaffold` shows a warning card whose "Disable automatic recovery" action also writes `0`. This keeps the value about user intent instead of current server liveness.
+
+`PrivilegeUi.startSilentlyIfEnabled(context, config)` returns `null` immediately when the desired-state latch is disabled. When enabled, it delegates to the same exact replay behavior as `startSilently(context, config)`. The lower-level entry point remains available for callers that intentionally want to replay regardless of the latch.
 
 After obtaining the process-local start gate, `PrivilegeUi.startSilently(context, config)` first returns an already-connected or ready server, if present. During the runtime's app-start reconciliation window it then gives a retained server time to complete owner reconnect before reading the saved method and committing a new launch. If no connection wins, it attempts only that exact method. It does not initialize Compose, create a ViewModel, require an `Activity`, fall back to another method, show a snackbar, invoke Android permission launchers, or update the saved method. Without an existing connection, missing history, an unknown or disabled method, missing authorization, startup failure, and timeout all return `null`.
 
@@ -116,7 +125,7 @@ class App : Application() {
 }
 
 // Safe to call from a background coroutine before any Activity or UI is created.
-val serverInfo = PrivilegeUi.startSilently(
+val serverInfo = PrivilegeUi.startSilentlyIfEnabled(
     context = app,
     config = app.privilegeUiConfig,
 )

@@ -1,4 +1,4 @@
-package priv.kit.sample
+package priv.kit.sample.debug
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,6 +24,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -43,9 +45,10 @@ import androidx.compose.ui.unit.sp
 @Composable
 internal fun SamplePageScaffold(
     title: String,
-    selectedDestination: PrivilegeSampleDestination,
+    selectedDestination: PrivilegeSampleDebugDestination,
     busy: Boolean,
-    onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
+    onDestinationSelected: (PrivilegeSampleDebugDestination) -> Unit,
+    onBackToHome: () -> Unit,
     actions: @Composable () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
@@ -59,6 +62,11 @@ internal fun SamplePageScaffold(
                     .background(colors.background),
             ) {
                 TopAppBar(
+                    navigationIcon = {
+                        TextButton(onClick = onBackToHome) {
+                            Text("Home")
+                        }
+                    },
                     title = {
                         BasicText(
                             text = title,
@@ -104,12 +112,12 @@ internal fun SamplePageScaffold(
 
 @Composable
 private fun DestinationTabs(
-    selectedDestination: PrivilegeSampleDestination,
+    selectedDestination: PrivilegeSampleDebugDestination,
     busy: Boolean,
-    onDestinationSelected: (PrivilegeSampleDestination) -> Unit,
+    onDestinationSelected: (PrivilegeSampleDebugDestination) -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        PrivilegeSampleDestination.entries.forEach { destination ->
+        PrivilegeSampleDebugDestination.entries.forEach { destination ->
             val selected = destination == selectedDestination
             SampleAction(
                 label = destination.title,

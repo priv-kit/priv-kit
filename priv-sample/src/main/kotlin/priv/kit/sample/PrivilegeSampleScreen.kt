@@ -1,21 +1,48 @@
 package priv.kit.sample
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
-import priv.kit.sample.ui.PrivilegeUiAuthorizationPage
-import priv.kit.sample.ui.rememberPrivilegeSampleUiViewModel
+import priv.kit.sample.debug.PrivilegeSampleDebugCallbacks
+import priv.kit.sample.debug.PrivilegeSampleDebugDestination
+import priv.kit.sample.debug.PrivilegeSampleDebugPage
+import priv.kit.sample.debug.PrivilegeSampleScreenState
+import priv.kit.sample.debug.PrivilegeStartupTab
+import priv.kit.sample.home.PrivilegeSampleHomePage
+import priv.kit.sample.startup.PrivilegeSamplePrivilegeUiCallbacks
+import priv.kit.sample.startup.PrivilegeUiAuthorizationPage
+import priv.kit.sample.startup.rememberPrivilegeSampleUiViewModel
 
 @Composable
 internal fun PrivilegeSampleScreen(
+    serverRunning: Boolean,
     state: PrivilegeSampleScreenState,
-    backStack: SnapshotStateList<PrivilegeSampleDestination>,
+    backStack: SnapshotStateList<PrivilegeSampleRootDestination>,
+    selectedDebugDestination: PrivilegeSampleDebugDestination,
     selectedStartupTab: PrivilegeStartupTab,
-    callbacks: PrivilegeSampleCallbacks,
+    onOpenDebug: () -> Unit,
+    onOpenPrivilegeUi: () -> Unit,
+    onDebugStarted: () -> Unit,
+    onDebugStopped: () -> Unit,
+    debugCallbacks: PrivilegeSampleDebugCallbacks,
+    privilegeUiCallbacks: PrivilegeSamplePrivilegeUiCallbacks,
 ) {
+    val debugInBackStack = PrivilegeSampleRootDestination.Debug in backStack
+    DisposableEffect(debugInBackStack) {
+        if (debugInBackStack) {
+            onDebugStarted()
+        }
+        onDispose {
+            if (debugInBackStack) {
+                onDebugStopped()
+            }
+        }
+    }
+
     NavDisplay(
         backStack = backStack,
         entryDecorators = listOf(
@@ -23,42 +50,23 @@ internal fun PrivilegeSampleScreen(
             rememberViewModelStoreNavEntryDecorator(),
         ),
         entryProvider = entryProvider {
-            entry<PrivilegeSampleDestination.Connection> {
-                ConnectionTestPage(
+            entry<PrivilegeSampleRootDestination.Home> {
+                PrivilegeSampleHomePage(
+                    serverRunning = serverRunning,
+                    onOpenPrivilegeUi = onOpenPrivilegeUi,
+                    onOpenDebug = onOpenDebug,
+                )
+            }
+            entry<PrivilegeSampleRootDestination.Debug> {
+                PrivilegeSampleDebugPage(
                     state = state,
-                    selectedDestination = PrivilegeSampleDestination.Connection,
+                    selectedDestination = selectedDebugDestination,
                     selectedStartupTab = selectedStartupTab,
-                    notificationPairingRunning = state.notificationPairingRunning,
-                    callbacks = callbacks,
+                    callbacks = debugCallbacks,
                 )
             }
-            entry<PrivilegeSampleDestination.Binder> {
-                BinderTestPage(
-                    state = state,
-                    selectedDestination = PrivilegeSampleDestination.Binder,
-                    onDestinationSelected = callbacks.navigation.destinationSelected,
-                    onGetUserManager = callbacks.binder.getUserManager,
-                    onGetUsers = callbacks.binder.getUsers,
-                    onRunImqsNative = callbacks.binder.runImqsNative,
-                    onStopServer = callbacks.connection.stopServer,
-                )
-            }
-            entry<PrivilegeSampleDestination.UserService> {
-                UserServiceTestPage(
-                    state = state,
-                    selectedDestination = PrivilegeSampleDestination.UserService,
-                    onDestinationSelected = callbacks.navigation.destinationSelected,
-                    onBindDedicatedUserService = callbacks.userService.bindDedicated,
-                    onCallDedicatedUserService = callbacks.userService.callDedicated,
-                    onStopDedicatedUserService = callbacks.userService.stopDedicated,
-                    onBindEmbeddedUserService = callbacks.userService.bindEmbedded,
-                    onCallEmbeddedUserService = callbacks.userService.callEmbedded,
-                    onStopEmbeddedUserService = callbacks.userService.stopEmbedded,
-                    onStopServer = callbacks.connection.stopServer,
-                )
-            }
-            entry<PrivilegeSampleDestination.PrivilegeUi> {
-                val viewModel = rememberPrivilegeSampleUiViewModel(callbacks.privilegeUi)
+            entry<PrivilegeSampleRootDestination.PrivilegeUi> {
+                val viewModel = rememberPrivilegeSampleUiViewModel(privilegeUiCallbacks)
                 PrivilegeUiAuthorizationPage(
                     viewModel = viewModel,
                 )

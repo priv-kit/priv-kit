@@ -85,6 +85,7 @@ internal object PrivilegeServerHandshakeRegistry {
             if (pending == null) {
                 deliverToListenersOrCache(token, result, listeners)
             }
+            PrivilegeRuntimeStartCoordinator.notifyServerHandshakeAccepted(ticket)
             return true
         } finally {
             PrivilegeRuntimeStartCoordinator.finishHandshake(ticket)

@@ -1,4 +1,4 @@
-package priv.kit.sample;
+package priv.kit.sample.startup;
 
 import android.os.ParcelFileDescriptor;
 import android.os.ResultReceiver;

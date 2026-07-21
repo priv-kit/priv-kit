@@ -1,4 +1,4 @@
-package priv.kit.sample
+package priv.kit.sample.startup
 
 import android.content.Context
 import android.os.ParcelFileDescriptor

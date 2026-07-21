@@ -5,11 +5,51 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import priv.kit.ui.component.PrivilegeUiServiceStatusAction
+import priv.kit.ui.component.privilegeUiAutoRecoveryWarningVisible
 import priv.kit.ui.component.privilegeUiAdbPermissionRestrictionWarningVisible
 import priv.kit.ui.component.privilegeUiServiceStatusAction
 import priv.kit.ui.component.privilegeUiServiceStatusActionEnabled
 
 class PrivilegeUiServiceStatusTest {
+    @Test
+    fun autoRecoveryWarningOnlyAppearsForIdleDisconnectedDesiredState() {
+        assertTrue(
+            privilegeUiAutoRecoveryWarningVisible(
+                desiredEnabled = true,
+                runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
+            ),
+        )
+        assertTrue(
+            privilegeUiAutoRecoveryWarningVisible(
+                desiredEnabled = true,
+                runtimeStatus = PrivilegeUiRuntimeStatus.FAILED,
+                runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
+            ),
+        )
+        assertFalse(
+            privilegeUiAutoRecoveryWarningVisible(
+                desiredEnabled = false,
+                runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+                runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
+            ),
+        )
+        assertFalse(
+            privilegeUiAutoRecoveryWarningVisible(
+                desiredEnabled = true,
+                runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
+                runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
+            ),
+        )
+        assertFalse(
+            privilegeUiAutoRecoveryWarningVisible(
+                desiredEnabled = true,
+                runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
+                runtimeStartPhase = PrivilegeUiRuntimeStartPhase.RUNNING,
+            ),
+        )
+    }
+
     @Test
     fun adbRestrictionWarningRequiresConnectedRestrictedServer() {
         assertTrue(

@@ -1,16 +1,12 @@
-package priv.kit.sample.ui
+package priv.kit.sample.startup
 
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeStartupLogListener
-import priv.kit.sample.App
-import priv.kit.sample.PrivilegeSamplePrivilegeUiCallbacks
-import priv.kit.sample.PrivilegeSampleShizukuExternalStarter
 import priv.kit.sample.R
-import priv.kit.sample.SHIZUKU_PERMISSION_REQUEST_CODE
-import priv.kit.sample.toDiagnosticString
+import priv.kit.sample.common.toDiagnosticString
 import priv.kit.ui.PrivilegeAdbPairingService
 import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
@@ -22,7 +18,7 @@ import rikka.shizuku.Shizuku
 internal class PrivilegeSamplePrivilegeUiViewModel(
     application: Application,
     private val host: PrivilegeSamplePrivilegeUiCallbacks,
-) : PrivilegeUiViewModel(application, (application as App).privilegeUiConfig) {
+) : PrivilegeUiViewModel(application, host.config) {
     override fun onBackClick(): Boolean {
         host.back()
         return true

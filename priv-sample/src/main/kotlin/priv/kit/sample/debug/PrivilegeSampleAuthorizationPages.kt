@@ -1,4 +1,4 @@
-package priv.kit.sample
+package priv.kit.sample.debug
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,25 +30,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import priv.kit.sample.R
 
 @Composable
 internal fun ConnectionTestPage(
     state: PrivilegeSampleScreenState,
-    selectedDestination: PrivilegeSampleDestination,
+    selectedDestination: PrivilegeSampleDebugDestination,
     selectedStartupTab: PrivilegeStartupTab,
     notificationPairingRunning: Boolean,
-    callbacks: PrivilegeSampleCallbacks,
+    callbacks: PrivilegeSampleDebugCallbacks,
 ) {
     SamplePageScaffold(
         title = "Test Authorization",
         selectedDestination = selectedDestination,
         busy = state.busy,
-        onDestinationSelected = callbacks.navigation.destinationSelected,
+        onDestinationSelected = callbacks.destinationSelected,
+        onBackToHome = callbacks.backToHome,
         actions = {
             SampleTopBarAction(
                 label = stringResource(R.string.sample_open_privilege_ui),
                 enabled = !state.busy,
-                onClick = callbacks.privilegeUi.open,
+                onClick = callbacks.openPrivilegeUi,
             )
         },
     ) {
@@ -56,7 +58,7 @@ internal fun ConnectionTestPage(
         StartupTabs(
             selectedStartupTab = selectedStartupTab,
             busy = state.busy,
-            onStartupTabSelected = callbacks.navigation.startupTabSelected,
+            onStartupTabSelected = callbacks.startupTabSelected,
         )
         when (selectedStartupTab) {
             PrivilegeStartupTab.Root -> RootPage(state, callbacks.connection.startRootRuntime)

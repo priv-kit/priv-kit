@@ -10,14 +10,17 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RuntimeEnvironment
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.internal.core.PrivilegeProtocol
 import priv.kit.core.internal.core.PrivilegeServerHandshakeResult
 import priv.kit.core.internal.binder.IPrivilegeServer
+import priv.kit.core.internal.runtime.PrivilegeContext
 import priv.kit.core.testing.TestBinder
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.io.Closeable
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -88,6 +91,35 @@ class PrivilegeBinderWrapperTest {
         assertFalse(deadWrapper.isBinderAlive)
     }
 
+    @Test
+    fun serverConnectedListenerReceivesDirectConnectionOnce() {
+        PrivilegeContext.install(RuntimeEnvironment.getApplication())
+        val server = FakePrivilegeServer()
+        val serverInfo = PrivilegeServerInfo(
+            uid = 2000,
+            pid = 1234,
+            protocolVersion = PrivilegeProtocol.VERSION,
+        )
+        val connectedServers = mutableListOf<PrivilegeServerInfo>()
+        val listener = Privilege.addServerConnectedListener(connectedServers::add)
+
+        try {
+            repeat(2) {
+                Privilege.connectHandshake(
+                    PrivilegeServerHandshakeResult(
+                        serverInfo = serverInfo,
+                        serverBinder = server.asBinder(),
+                    ),
+                )
+            }
+        } finally {
+            listener.close()
+            resetRuntimeConnectionListener()
+        }
+
+        assertEquals(listOf(serverInfo), connectedServers)
+    }
+
     private fun withServer(
         server: FakePrivilegeServer,
         block: (FakePrivilegeServer) -> Unit,
@@ -107,6 +139,13 @@ class PrivilegeBinderWrapperTest {
         } finally {
             runCatching { Privilege.shutdownServer() }
         }
+    }
+
+    private fun resetRuntimeConnectionListener() {
+        val field = Privilege::class.java.getDeclaredField("runtimeConnectionListener")
+            .apply { isAccessible = true }
+        (field.get(Privilege) as? Closeable)?.close()
+        field.set(Privilege, null)
     }
 
     private class FakePrivilegeServer(

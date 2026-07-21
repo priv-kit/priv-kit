@@ -11,6 +11,10 @@
     <string name="priv_ui_service_source_root">Root</string>
     <string name="priv_ui_service_source_shell">Shell</string>
     <string name="priv_ui_service_source_unknown">未知</string>
+    <string name="priv_ui_auto_recovery_disconnected_title">特权服务未运行</string>
+    <string name="priv_ui_auto_recovery_disconnected_message">自动恢复仍处于开启状态，下次启动应用时会再次尝试启动服务。</string>
+    <string name="priv_ui_auto_recovery_disable_action">关闭自动恢复</string>
+    <string name="priv_ui_auto_recovery_disable_failed">无法关闭自动恢复</string>
     <string name="priv_ui_adb_restricted_title">ADB 权限受限</string>
     <string name="priv_ui_adb_restricted_message">当前系统限制了 ADB 权限，修改应用权限、模拟点击等操作可能无法正常工作，请检查并修改开发者选项中的相关安全设置。</string>
     <string name="priv_ui_service_start_action_description">启动服务</string>

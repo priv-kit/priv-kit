@@ -382,6 +382,24 @@ class PrivilegeUiRuntimeActionsTest {
     }
 
     @Test
+    fun acceptedStopRunsDesiredStateResetExactlyOnce() = runBlocking {
+        val resetCount = AtomicInteger(0)
+        RuntimeActionsFixture(
+            shutdownServer = {},
+        ).use { (store, actions) ->
+            actions.stopServer(beforeShutdown = { resetCount.incrementAndGet() })
+            assertEquals(0, resetCount.get())
+
+            actions.connectForTest(shellServerInfo())
+            actions.stopServer(beforeShutdown = { resetCount.incrementAndGet() })
+            actions.stopServer(beforeShutdown = { resetCount.incrementAndGet() })
+
+            assertTrue(waitUntilIdle(store))
+            assertEquals(1, resetCount.get())
+        }
+    }
+
+    @Test
     @Config(qualifiers = "zh-rCN")
     fun stopServerFailureUsesLocalizedMessageAndKeepsDiagnosticLog() = runBlocking {
         RuntimeActionsFixture(

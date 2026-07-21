@@ -1,4 +1,4 @@
-package priv.kit.sample
+package priv.kit.sample.userservice
 
 import android.os.Process
 

@@ -1,4 +1,4 @@
-package priv.kit.sample;
+package priv.kit.sample.userservice;
 
 interface IPrivilegeSampleEmbeddedUserService {
     String describe(String label);

@@ -9,10 +9,53 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
+import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import java.lang.reflect.Proxy
 import java.util.concurrent.atomic.AtomicReference
 
 class PrivilegeServerHandshakeRegistryTest {
+    @Test
+    fun acceptedInitialLaunchIsReportedOnce() {
+        val token = newToken()
+        val initialLaunchId = newLaunchId()
+        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token, initialLaunchId)
+        val acceptedOrigins = mutableListOf<PrivilegeRuntimeConnectionOrigin>()
+        val listener = PrivilegeRuntimeStartCoordinator.addServerHandshakeAcceptedListener(
+            acceptedOrigins::add,
+        )
+
+        try {
+            assertTrue(
+                PrivilegeServerHandshakeRegistry.deliverReady(
+                    token = token,
+                    serverBinder = fakeBinder(),
+                    serverInfo = serverInfo(pid = 1234),
+                    origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
+                    initialLaunchId = initialLaunchId,
+                ),
+            )
+            assertFalse(
+                PrivilegeServerHandshakeRegistry.deliverReady(
+                    token = token,
+                    serverBinder = fakeBinder(),
+                    serverInfo = serverInfo(pid = 5678),
+                    origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
+                    initialLaunchId = initialLaunchId,
+                ),
+            )
+
+            assertEquals(
+                listOf(PrivilegeRuntimeConnectionOrigin.INITIAL_LAUNCH),
+                acceptedOrigins,
+            )
+            pendingHandshake.await(1)
+        } finally {
+            PrivilegeServerHandshakeRegistry.acknowledge(initialLaunchId)
+            listener.close()
+        }
+    }
+
     @Test
     fun readyHandshakeCanBePreparedAfterDelivery() {
         val token = newToken()

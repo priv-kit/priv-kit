@@ -7,6 +7,7 @@ import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.core.adb.PrivilegeAdbStartOptions
 import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
 import java.io.Closeable
+import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.UUID
 
@@ -55,6 +56,8 @@ public object PrivilegeRuntimeStartCoordinator {
     private val arbiter = PrivilegeRuntimeStartArbiter(
         elapsedRealtime = SystemClock::elapsedRealtime,
     )
+    private val serverHandshakeAcceptedListeners =
+        CopyOnWriteArraySet<(PrivilegeRuntimeConnectionOrigin) -> Unit>()
 
     public fun beginPreflight(): PrivilegeRuntimeStartPreflight =
         arbiter.beginPreflight()
@@ -119,6 +122,15 @@ public object PrivilegeRuntimeStartCoordinator {
     ): Closeable =
         Privilege.addServerConnectionEventListener(listener)
 
+    public fun addServerHandshakeAcceptedListener(
+        listener: (PrivilegeRuntimeConnectionOrigin) -> Unit,
+    ): Closeable {
+        serverHandshakeAcceptedListeners += listener
+        return Closeable {
+            serverHandshakeAcceptedListeners -= listener
+        }
+    }
+
     internal fun markOwnerProcessStarted() {
         arbiter.markOwnerProcessStarted(RECONNECT_GRACE_MILLIS)
     }
@@ -142,6 +154,18 @@ public object PrivilegeRuntimeStartCoordinator {
     internal fun finishHandshake(ticket: PrivilegeRuntimeHandshakeTicket) {
         if (arbiter.finishHandshake(ticket)) {
             notifyOwnerReconnect()
+        }
+    }
+
+    internal fun notifyServerHandshakeAccepted(ticket: PrivilegeRuntimeHandshakeTicket) {
+        val origin = when (ticket.origin) {
+            PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH ->
+                PrivilegeRuntimeConnectionOrigin.INITIAL_LAUNCH
+            PrivilegeServerHandshakeOrigin.OWNER_RECONNECT ->
+                PrivilegeRuntimeConnectionOrigin.OWNER_RECONNECT
+        }
+        serverHandshakeAcceptedListeners.forEach { listener ->
+            runCatching { listener(origin) }
         }
     }
 

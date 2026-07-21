@@ -1,25 +1,14 @@
-package priv.kit.sample
+package priv.kit.sample.debug
 
-import priv.kit.core.PrivilegeServerInfo
-
-internal data class PrivilegeSampleCallbacks(
-    val navigation: PrivilegeSampleNavigationCallbacks,
-    val privilegeUi: PrivilegeSamplePrivilegeUiCallbacks,
+internal data class PrivilegeSampleDebugCallbacks(
+    val openPrivilegeUi: () -> Unit,
+    val backToHome: () -> Unit,
+    val destinationSelected: (PrivilegeSampleDebugDestination) -> Unit,
+    val startupTabSelected: (PrivilegeStartupTab) -> Unit,
     val connection: PrivilegeSampleConnectionCallbacks,
     val binder: PrivilegeSampleBinderCallbacks,
     val userService: PrivilegeSampleUserServiceCallbacks,
     val log: PrivilegeSampleLogCallbacks,
-)
-
-internal data class PrivilegeSampleNavigationCallbacks(
-    val destinationSelected: (PrivilegeSampleDestination) -> Unit,
-    val startupTabSelected: (PrivilegeStartupTab) -> Unit,
-)
-
-internal data class PrivilegeSamplePrivilegeUiCallbacks(
-    val open: () -> Unit,
-    val back: () -> Unit,
-    val connected: (PrivilegeServerInfo) -> Unit,
 )
 
 internal data class PrivilegeSampleConnectionCallbacks(

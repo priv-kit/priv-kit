@@ -1,4 +1,4 @@
-package priv.kit.sample.ui
+package priv.kit.sample.startup
 
 import android.app.Application
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,7 +9,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import priv.kit.sample.PrivilegeSamplePrivilegeUiCallbacks
 import priv.kit.ui.PrivilegeScaffold
 
 @Composable

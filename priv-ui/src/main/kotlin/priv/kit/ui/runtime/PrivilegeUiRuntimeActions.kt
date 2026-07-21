@@ -55,7 +55,7 @@ internal class PrivilegeUiRuntimeActions(
             )
         }
 
-    fun stopServer() {
+    fun stopServer(beforeShutdown: () -> Unit = {}) {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
         val operationPermit = acquireStartPermit() ?: return
         var operationId = 0L
@@ -83,6 +83,7 @@ internal class PrivilegeUiRuntimeActions(
             operationPermit.close()
             return
         }
+        runCatching(beforeShutdown)
         val message = store.text(R.string.priv_ui_stopping_service)
         store.appendLog(message)
         try {

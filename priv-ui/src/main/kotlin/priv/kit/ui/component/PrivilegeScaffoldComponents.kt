@@ -155,6 +155,61 @@ internal fun CommandBlock(commandLine: String) {
 }
 
 @Composable
+internal fun PrivilegeUiScreenScope.AutoRecoveryWarning() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = MaterialTheme.shapes.medium,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = PrivilegeUiSpacing.large,
+                    vertical = PrivilegeUiSpacing.medium,
+                ),
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.extraSmall),
+            ) {
+                Text(
+                    text = stringResource(R.string.priv_ui_auto_recovery_disconnected_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(R.string.priv_ui_auto_recovery_disconnected_message),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            TextButton(
+                modifier = Modifier.align(Alignment.End),
+                enabled = interactionEnabled,
+                onClick = viewModel::disableAutoRecovery,
+            ) {
+                Text(
+                    text = stringResource(R.string.priv_ui_auto_recovery_disable_action),
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+internal fun privilegeUiAutoRecoveryWarningVisible(
+    desiredEnabled: Boolean,
+    runtimeStatus: PrivilegeUiRuntimeStatus,
+    runtimeStartPhase: PrivilegeUiRuntimeStartPhase,
+): Boolean =
+    desiredEnabled &&
+        runtimeStartPhase == PrivilegeUiRuntimeStartPhase.IDLE &&
+        (
+            runtimeStatus == PrivilegeUiRuntimeStatus.DISCONNECTED ||
+                runtimeStatus == PrivilegeUiRuntimeStatus.FAILED
+        )
+
+@Composable
 internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
     var showStopConfirmation by remember { mutableStateOf(false) }
     val action = privilegeUiServiceStatusAction(

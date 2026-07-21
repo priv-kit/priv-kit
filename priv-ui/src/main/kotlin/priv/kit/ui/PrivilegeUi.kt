@@ -8,11 +8,30 @@ import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
+import priv.kit.ui.runtime.PrivilegeUiDesiredEnabledStore
 import priv.kit.ui.runtime.PrivilegeUiSilentStartRunner
 import priv.kit.ui.runtime.PrivilegeUiStartGate
 import priv.kit.ui.runtime.PrivilegeUiStartMethodStore
 
 public object PrivilegeUi {
+    /**
+     * Runs [startSilently] only when a previous accepted server launch has enabled recovery.
+     *
+     * A missing or invalid preference file is treated as disabled. Failures do not clear the
+     * persisted preference, so the built-in UI can explain the disconnected recovery state.
+     */
+    public suspend fun startSilentlyIfEnabled(
+        context: Context,
+        config: PrivilegeUiConfig,
+    ): PrivilegeServerInfo? {
+        val applicationContext = context.applicationContext
+        val desiredEnabled = runCatching {
+            PrivilegeUiDesiredEnabledStore(applicationContext).read()
+        }.getOrDefault(false)
+        if (!desiredEnabled) return null
+        return startSilently(applicationContext, config)
+    }
+
     /**
      * Replays the last successful foreground startup method with the supplied current config.
      *

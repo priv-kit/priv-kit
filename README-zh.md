@@ -45,16 +45,20 @@ val serverInfo = Privilege.startAdb()
 
 阻塞式启动、发现和授权检查会保留线程中断标记并原样抛出 `InterruptedException`。Java 调用方需要处理这个受检异常；协程调用方可在可中断调度器中包装这些 API，以线程中断实现协作取消。
 
-使用 `priv-ui` 时，应在 Application 作用域只构造一份 `PrivilegeUiConfig`，并把同一个实例同时传给前台 ViewModel 与可选的无界面静默重放入口：
+使用 `priv-ui` 时，应在 Application 作用域只构造一份 `PrivilegeUiConfig`，并把同一个实例同时传给前台 ViewModel 与受期望状态约束的无界面静默重放入口：
 
 ```kotlin
-val serverInfo = PrivilegeUi.startSilently(
+val serverInfo = PrivilegeUi.startSilentlyIfEnabled(
     context = applicationContext,
     config = privilegeUiConfig,
 )
 ```
 
-当前台 UI 管理的启动完成 Binder 连接后，`priv-ui` 会在 `filesDir/.priv-kit/ui-start-method` 中保存一个原始 methodId：`root`、`adb-wireless`、`adb-tcpip` 或 `external:<providerId>`。静默入口获得进程内启动门后会先返回已经连接的 server；尚未连接时只尝试这个精确方式，缺少历史、权限或认证以及启动失败均返回 `null`，不会请求 Android 权限、展示 UI 或回退到其他方式。前台与静默启动互斥：已受理的前台启动副作用会持有可嵌套的前台租约直至完成；静默启动期间，内置 UI 会禁用带副作用的入口，并在静默启动释放后先刷新 runtime 状态再恢复入口。若 Root 管理器中原有授权已经失效，Root 管理器仍可能展示自己的授权界面。各启动方式的详细约束见 [priv-ui 文档](priv-ui/README.md#foreground-and-silent-startup)。
+库内初始化 Provider 会把用户期望的特权功能状态以严格单字节 `1` 或 `0` 保存到 `filesDir/.priv-kit/ui-desired-enabled`。每次接受 `INITIAL_LAUNCH` 连接都会写入 `1`，包括用户复制外置 shell 命令启动的 server。`OWNER_RECONNECT`、断连、进程死亡和静默恢复失败都不会清除该状态。只有用户在内置 UI 中确认停止服务，或在断连提示卡片中点击“关闭自动恢复”，才写入 `0`。当期望状态为开启但 server 已断开时，内置 UI 会显示这张提示卡片。
+
+复制外置命令会开启期望状态，但不会凭空创建或覆盖启动方式历史。如果该 server 后续停止且没有 UI 成功确认过的启动方式，受约束的恢复入口会返回 `null`，提示卡片继续保留。
+
+当前台 UI 管理的启动完成 Binder 连接后，`priv-ui` 还会在 `filesDir/.priv-kit/ui-start-method` 中保存一个原始 methodId：`root`、`adb-wireless`、`adb-tcpip` 或 `external:<providerId>`。`startSilentlyIfEnabled(...)` 会先检查期望状态，再执行与 `startSilently(...)` 相同的精确重放。静默入口获得进程内启动门后会先返回已经连接的 server；尚未连接时只尝试这个精确方式，缺少历史、权限或认证以及启动失败均返回 `null`，不会请求 Android 权限、展示 UI 或回退到其他方式。前台与静默启动互斥：已受理的前台启动副作用会持有可嵌套的前台租约直至完成；静默启动期间，内置 UI 会禁用带副作用的入口，并在静默启动释放后先刷新 runtime 状态再恢复入口。若 Root 管理器中原有授权已经失效，Root 管理器仍可能展示自己的授权界面。各启动方式的详细约束见 [priv-ui 文档](priv-ui/README.md#foreground-silent-and-owner-reconnect-startup)。
 
 用户复制命令手动执行：
 

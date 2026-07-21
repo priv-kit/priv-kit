@@ -1,4 +1,4 @@
-package priv.kit.sample
+package priv.kit.sample.startup
 
 import android.content.ComponentName
 import android.content.Context
@@ -157,6 +157,6 @@ internal class PrivilegeSampleShizukuExternalStarter(
         private const val SHIZUKU_START_TAG = "priv-kit-external-start"
         private const val SHIZUKU_START_PROCESS_SUFFIX = "priv-kit-shizuku-start"
         // Bump whenever the UserService implementation or its AIDL contract changes.
-        private const val SHIZUKU_START_SERVICE_VERSION = 4
+        private const val SHIZUKU_START_SERVICE_VERSION = 5
     }
 }

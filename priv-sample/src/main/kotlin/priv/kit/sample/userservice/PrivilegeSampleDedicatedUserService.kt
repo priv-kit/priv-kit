@@ -1,16 +1,22 @@
-package priv.kit.sample
+package priv.kit.sample.userservice
 
 import android.content.Context
 import androidx.annotation.Keep
+import kotlin.system.exitProcess
 
-internal class PrivilegeSampleEmbeddedUserService private constructor(
+internal class PrivilegeSampleDedicatedUserService private constructor(
     private val state: PrivilegeSampleUserServiceState,
-) : IPrivilegeSampleEmbeddedUserService.Stub() {
+) : IPrivilegeSampleDedicatedUserService.Stub() {
     @Keep
     constructor() : this(createState(packageName = "no-context"))
 
     @Keep
     constructor(context: Context) : this(createState(packageName = context.packageName))
+
+    override fun destroy() {
+        state.markDestroyed()
+        exitProcess(0)
+    }
 
     override fun describe(label: String?): String = state.describe(label)
 
@@ -26,8 +32,8 @@ internal class PrivilegeSampleEmbeddedUserService private constructor(
         private fun createState(packageName: String): PrivilegeSampleUserServiceState =
             PrivilegeSampleUserServiceState(
                 packageName = packageName,
-                defaultLabel = "embedded",
-                initialMode = "embedded",
+                defaultLabel = "dedicated",
+                initialMode = "created",
             )
     }
 }
