@@ -40,6 +40,7 @@
     <string name="priv_ui_startup_source">启动来源：%1$s</string>
     <string name="priv_ui_startup_log_title">启动日志</string>
     <string name="priv_ui_startup_log_copy_description">复制启动日志</string>
+    <string name="priv_ui_startup_log_close_description">清除并关闭启动日志</string>
     <string name="priv_ui_startup_log_copied">已复制启动日志</string>
     <string name="priv_ui_startup_log_clip_label">Priv Kit 启动日志</string>
     <string name="priv_ui_root_authorization_action">启动</string>

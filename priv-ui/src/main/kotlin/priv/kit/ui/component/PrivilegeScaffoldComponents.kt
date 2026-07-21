@@ -415,6 +415,7 @@ internal fun PrivilegeUiScreenScope.StartupLogPanel() {
     val copiedMessage = stringResource(R.string.priv_ui_startup_log_copied)
     Panel {
         val copyLogDescription = stringResource(R.string.priv_ui_startup_log_copy_description)
+        val closeLogDescription = stringResource(R.string.priv_ui_startup_log_close_description)
         val logScrollState = rememberScrollState()
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -442,6 +443,23 @@ internal fun PrivilegeUiScreenScope.StartupLogPanel() {
                         modifier = Modifier.size(18.dp),
                         imageVector = PrivilegeUiIcons.ContentCopy,
                         contentDescription = copyLogDescription,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            PrivilegeIconTooltip(text = closeLogDescription) {
+                IconButton(
+                    modifier = Modifier.size(PrivilegeUiSize.minimumTouchTarget),
+                    enabled = interactionEnabled,
+                    onClick = {
+                        if (!viewModel.uiInteractionsEnabled) return@IconButton
+                        viewModel.clearStartupLog()
+                    },
+                ) {
+                    Icon(
+                        modifier = Modifier.size(18.dp),
+                        imageVector = PrivilegeUiIcons.Close,
+                        contentDescription = closeLogDescription,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

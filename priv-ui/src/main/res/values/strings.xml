@@ -40,6 +40,7 @@
     <string name="priv_ui_startup_source">Startup source: %1$s</string>
     <string name="priv_ui_startup_log_title">Startup log</string>
     <string name="priv_ui_startup_log_copy_description">Copy startup log</string>
+    <string name="priv_ui_startup_log_close_description">Clear and close startup log</string>
     <string name="priv_ui_startup_log_copied">Startup log copied</string>
     <string name="priv_ui_startup_log_clip_label">Priv Kit startup log</string>
     <string name="priv_ui_root_authorization_action">Start</string>

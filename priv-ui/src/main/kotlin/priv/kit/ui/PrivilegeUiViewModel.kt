@@ -240,6 +240,11 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         )
     }
 
+    public open fun clearStartupLog() {
+        if (!uiInteractionsEnabled) return
+        store.clearStartupLog()
+    }
+
     public open fun startNotificationPairing() {
         if (!uiInteractionsEnabled) return
         adbActions.startNotificationPairing(

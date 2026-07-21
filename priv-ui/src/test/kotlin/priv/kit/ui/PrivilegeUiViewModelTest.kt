@@ -80,6 +80,16 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
+    fun clearStartupLogRemovesVisibleLogContent() {
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
+        viewModel.storeForTest().appendStartupLog("diagnostic")
+
+        viewModel.clearStartupLog()
+
+        assertTrue(viewModel.state.value.startupLogLines.isEmpty())
+    }
+
+    @Test
     fun defaultConfigOrdersTabsButSelectsAdb() {
         val viewModel = configuredViewModel(
             PrivilegeUiConfig(
