@@ -84,6 +84,11 @@
     <string name="priv_ui_adb_static_authorize_action">Allow Static Port Connection</string>
     <string name="priv_ui_adb_static_start_action">Start</string>
     <string name="priv_ui_adb_static_start_failed">Static ADB port is unavailable. Startup failed</string>
+    <string name="priv_ui_adb_static_switch_confirmation_title">Enable static port?</string>
+    <string name="priv_ui_adb_static_switch_confirmation_message">This device does not have a static ADB port enabled. Continuing restarts ADB and terminates every process that depends on ADB, including other authorization services.\n\nAfter the static port has been enabled successfully, you can start the service without Wi-Fi. If the system or another app clears the port configuration, you must enable it again.</string>
+    <string name="priv_ui_adb_static_switch_continue_start_action">Continue starting</string>
+    <string name="priv_ui_adb_static_switch_continue_enable_action">Continue enabling</string>
+    <string name="priv_ui_adb_static_switch_cancel_action">Cancel</string>
     <string name="priv_ui_wireless_realtime_status_title">Connection status</string>
     <string name="priv_ui_wireless_status_debugging">Wireless debugging</string>
     <string name="priv_ui_wireless_status_pairing_service">Pairing entry</string>

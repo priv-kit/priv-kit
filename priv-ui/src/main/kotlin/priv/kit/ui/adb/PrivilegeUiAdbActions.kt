@@ -19,6 +19,7 @@ internal class PrivilegeUiAdbActions(
         PrivilegeUiStartGate.newInteractivePermitAcquirer(),
     private val hasInteractionHost: () -> Boolean = { true },
 ) : AutoCloseable {
+    private val staticTcpConfirmationController = PrivilegeUiStaticTcpConfirmationController()
     private val adbConnectionSessions = PrivilegeUiAdbConnectionSessions()
     private val statusActions = PrivilegeUiAdbStatusActions(
         store = store,
@@ -33,10 +34,14 @@ internal class PrivilegeUiAdbActions(
     private val pairingActions = PrivilegeUiAdbPairingActions(
         store = store,
         coroutineScope = coroutineScope,
-        enableTcpMode = { tcpActions.enableTcpMode() },
+        enableTcpMode = {
+            requestStaticTcpSwitchConfirmation(PrivilegeUiStaticTcpSwitchAction.ENABLE_PORT)
+        },
         acquireInteractivePermit = acquireInteractivePermit,
         hasInteractionHost = hasInteractionHost,
     )
+
+    val staticTcpSwitchConfirmation = staticTcpConfirmationController.pendingAction
 
     fun observePairingNotificationEvents() {
         pairingActions.observePairingNotificationEvents()
@@ -124,9 +129,24 @@ internal class PrivilegeUiAdbActions(
     fun startStaticTcpAdb(
         onLocalNetworkPermissionRequired: (String) -> Unit = {},
     ) {
+        startStaticTcpAdb(
+            onLocalNetworkPermissionRequired = onLocalNetworkPermissionRequired,
+            tcpSwitchConsent = PrivilegeUiStaticTcpSwitchConsent.REQUEST_CONFIRMATION,
+        )
+    }
+
+    private fun startStaticTcpAdb(
+        onLocalNetworkPermissionRequired: (String) -> Unit,
+        tcpSwitchConsent: PrivilegeUiStaticTcpSwitchConsent,
+    ) {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
-        runtimeActions.runServerStartWorkflow(staticTcpAdbStartWorkflow(onLocalNetworkPermissionRequired))
+        runtimeActions.runServerStartWorkflow(
+            staticTcpAdbStartWorkflow(
+                onLocalNetworkPermissionRequired = onLocalNetworkPermissionRequired,
+                tcpSwitchConsent = tcpSwitchConsent,
+            ),
+        )
     }
 
     private suspend fun prepareWirelessAdbCommand(
@@ -144,14 +164,48 @@ internal class PrivilegeUiAdbActions(
 
     fun enableTcpMode() {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
-        tcpActions.enableTcpMode()
+        if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
+        requestStaticTcpSwitchConfirmation(PrivilegeUiStaticTcpSwitchAction.ENABLE_PORT)
+    }
+
+    fun confirmStaticTcpSwitch(
+        onLocalNetworkPermissionRequired: (String) -> Unit = {},
+    ) {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
+        if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) {
+            staticTcpConfirmationController.cancel()
+            return
+        }
+        if (store.state.value.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
+            staticTcpConfirmationController.cancel()
+            return
+        }
+        when (staticTcpConfirmationController.take()) {
+            PrivilegeUiStaticTcpSwitchAction.START_SERVICE ->
+                startStaticTcpAdb(
+                    onLocalNetworkPermissionRequired = onLocalNetworkPermissionRequired,
+                    tcpSwitchConsent = PrivilegeUiStaticTcpSwitchConsent.APPROVED,
+                )
+            PrivilegeUiStaticTcpSwitchAction.ENABLE_PORT -> tcpActions.enableTcpMode()
+            null -> Unit
+        }
+    }
+
+    fun cancelStaticTcpSwitch() {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
+        staticTcpConfirmationController.cancel()
     }
 
     fun directStartAttempts(): List<PrivilegeUiRuntimeStartAttempt> {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return emptyList()
         return buildList {
             if (store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED) {
-                add(staticTcpAdbStartWorkflow(onLocalNetworkPermissionRequired = {}))
+                add(
+                    staticTcpAdbStartWorkflow(
+                        onLocalNetworkPermissionRequired = {},
+                        tcpSwitchConsent = PrivilegeUiStaticTcpSwitchConsent.DO_NOT_SWITCH,
+                    ),
+                )
             }
             if (isPrivilegeUiWirelessAdbSupported()) {
                 add(wirelessAdbStartWorkflow(onLocalNetworkPermissionRequired = {}))
@@ -200,6 +254,7 @@ internal class PrivilegeUiAdbActions(
     }
 
     override fun close() {
+        staticTcpConfirmationController.cancel()
         tcpActions.close()
         statusActions.stopTcpModeStatusPolling()
         pairingActions.close()
@@ -308,6 +363,7 @@ internal class PrivilegeUiAdbActions(
 
     private fun staticTcpAdbStartWorkflow(
         onLocalNetworkPermissionRequired: (String) -> Unit,
+        tcpSwitchConsent: PrivilegeUiStaticTcpSwitchConsent,
     ): PrivilegeUiRuntimeStartAttempt.Workflow =
         PrivilegeUiRuntimeStartAttempt.Workflow(
             message = store.text(R.string.priv_ui_tcp_starting),
@@ -333,7 +389,10 @@ internal class PrivilegeUiAdbActions(
                     showStaticTcpUnavailable(this, R.string.priv_ui_adb_static_port_unavailable)
                     return@Workflow PrivilegeUiRuntimeStartResult.Finished
                 }
-                return@Workflow startStaticTcpAdbThroughWireless(this)
+                return@Workflow handleStaticTcpSwitchRequired(
+                    session = this,
+                    tcpSwitchConsent = tcpSwitchConsent,
+                )
             }
             appendStartupLog(store.text(R.string.priv_ui_adb_static_preparing))
             val preparation = runInterruptible {
@@ -345,6 +404,7 @@ internal class PrivilegeUiAdbActions(
                 tcpPort = preparation.tcpPort,
                 authorizationStatus = preparation.authorizationStatus,
                 allowWirelessTcpSwitch = allowWirelessTcpSwitch,
+                tcpSwitchConsent = tcpSwitchConsent,
             )
         }
 
@@ -353,10 +413,11 @@ internal class PrivilegeUiAdbActions(
         tcpPort: Int?,
         authorizationStatus: PrivilegeUiAdbTcpAuthorizationStatus,
         allowWirelessTcpSwitch: Boolean,
+        tcpSwitchConsent: PrivilegeUiStaticTcpSwitchConsent,
     ): PrivilegeUiRuntimeStartResult {
         if (tcpPort == null) {
             if (allowWirelessTcpSwitch) {
-                return startStaticTcpAdbThroughWireless(session)
+                return handleStaticTcpSwitchRequired(session, tcpSwitchConsent)
             }
             showStaticTcpUnavailable(session, R.string.priv_ui_adb_static_port_unavailable)
             return PrivilegeUiRuntimeStartResult.Finished
@@ -388,13 +449,35 @@ internal class PrivilegeUiAdbActions(
             }
             PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE -> {
                 if (allowWirelessTcpSwitch) {
-                    startStaticTcpAdbThroughWireless(session)
+                    handleStaticTcpSwitchRequired(session, tcpSwitchConsent)
                 } else {
                     showStaticTcpUnavailable(session, R.string.priv_ui_adb_static_service_stopped)
                     PrivilegeUiRuntimeStartResult.Finished
                 }
             }
         }
+    }
+
+    private suspend fun handleStaticTcpSwitchRequired(
+        session: PrivilegeUiRuntimeStartSession,
+        tcpSwitchConsent: PrivilegeUiStaticTcpSwitchConsent,
+    ): PrivilegeUiRuntimeStartResult =
+        when (tcpSwitchConsent.toDecision()) {
+            PrivilegeUiStaticTcpSwitchDecision.REQUEST_CONFIRMATION -> {
+                requestStaticTcpSwitchConfirmation(
+                    PrivilegeUiStaticTcpSwitchAction.START_SERVICE,
+                )
+                PrivilegeUiRuntimeStartResult.Finished
+            }
+            PrivilegeUiStaticTcpSwitchDecision.SWITCH ->
+                startStaticTcpAdbThroughWireless(session)
+            PrivilegeUiStaticTcpSwitchDecision.SKIP ->
+                PrivilegeUiRuntimeStartResult.Finished
+        }
+
+    private fun requestStaticTcpSwitchConfirmation(action: PrivilegeUiStaticTcpSwitchAction) {
+        if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
+        staticTcpConfirmationController.request(action)
     }
 
     private suspend fun startStaticTcpAdbThroughWireless(

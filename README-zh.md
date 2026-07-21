@@ -43,6 +43,8 @@ val serverInfo = Privilege.startAdb()
 
 如果接入应用仍然声明并已被授予 `WRITE_SECURE_SETTINGS`，默认 ADB 启动会在需要动态无线调试端口时临时打开 Wireless Debugging，完成启动后关闭它。显式静态 TCP 启动前，`PrivilegeAdbStarter.prepareTcpForStart()` 还可以在持久化端口配置仍存在、但 `adbd` 已停止监听时只写入 `ADB_ENABLED=1` 恢复核心 ADB 服务，不打开无线调试，也不要求 Wi-Fi。Privileged Server 连接成功后，runtime 会在该权限仍被声明且 server 是 root 或拥有 `android.permission.GRANT_RUNTIME_PERMISSIONS` 时尝试为 owner app 补授这个启动权限，让后续启动可以走这些托管 ADB 路径；未声明该权限、未被授予该权限或 server 不具备授权能力时会回落到手动打开无线调试、配对或 TCP 端口路径。该能力只属于启动策略，不提供通用 Settings API；PackageManager 能力只限显式参数的 `checkPermission(...)` 与 `grantRuntimePermission(...)` 透传调用。
 
+内置 `priv-ui` 在执行 `adb tcpip` 前要求用户进行一次性确认，因为重启 ADB 会终止依赖 ADB 的其它进程。取消确认不会改变 ADB 状态。复用或恢复已经持久化的静态端口不需要弹出此确认；当 runtime 具备恢复核心 ADB 服务的权限时，后续启动不再需要 Wi-Fi。
+
 阻塞式启动、发现和授权检查会保留线程中断标记并原样抛出 `InterruptedException`。Java 调用方需要处理这个受检异常；协程调用方可在可中断调度器中包装这些 API，以线程中断实现协作取消。
 
 使用 `priv-ui` 时，应在 Application 作用域只构造一份 `PrivilegeUiConfig`，并把同一个实例同时传给前台 ViewModel 与受期望状态约束的无界面静默重放入口：

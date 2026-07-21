@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.ui.adb.PrivilegeUiAdbActions
+import priv.kit.ui.adb.PrivilegeUiStaticTcpSwitchAction
 import priv.kit.ui.external.PrivilegeUiExternalStartActions
 import priv.kit.ui.runtime.PrivilegeUiDirectStartTarget
 import priv.kit.ui.runtime.PrivilegeUiDesiredEnabledManagers
@@ -90,6 +91,14 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     internal val permissionRequests: Flow<PrivilegeUiPermissionRequest> = permissionCoordinator.requests
     internal val batteryOptimizationPromptVisible: StateFlow<Boolean> =
         batteryOptimizationPromptVisibleState.asStateFlow()
+    /**
+     * The pending foreground action that requires confirmation before restarting ADB in TCP mode.
+     * Custom UI surfaces should explain the restart impact, then call [confirmStaticTcpSwitch] or
+     * [cancelStaticTcpSwitch]. A non-null value is only an unapproved request and has no ADB side
+     * effects by itself.
+     */
+    public val staticTcpSwitchConfirmation: StateFlow<PrivilegeUiStaticTcpSwitchAction?> =
+        adbActions.staticTcpSwitchConfirmation
 
     init {
         addCloseable { closeOwner() }
@@ -395,6 +404,16 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     public open fun startStaticTcpAdb() {
         if (!uiInteractionsEnabled) return
         adbActions.startStaticTcpAdb(::requestLocalNetworkPermission)
+    }
+
+    public open fun confirmStaticTcpSwitch() {
+        if (!uiInteractionsEnabled) return
+        adbActions.confirmStaticTcpSwitch(::requestLocalNetworkPermission)
+    }
+
+    public open fun cancelStaticTcpSwitch() {
+        if (!uiInteractionsEnabled) return
+        adbActions.cancelStaticTcpSwitch()
     }
 
     public open fun refreshExternalStartStatus(providerId: String? = null) {

@@ -45,6 +45,7 @@ import priv.kit.ui.PrivilegeUiWirelessAdbStatus
 import priv.kit.ui.R
 import priv.kit.ui.requestPrivilegeUiBatteryOptimizationExemption
 import priv.kit.ui.adb.PrivilegeUiStaticTcpPanelStatus
+import priv.kit.ui.adb.PrivilegeUiStaticTcpSwitchAction
 import priv.kit.ui.adb.PrivilegeUiWirelessAdbPanelStatus
 import priv.kit.ui.adb.privilegeUiWirelessAdbStartAction
 import priv.kit.ui.adb.privilegeUiWirelessAdbStartActionEnabled
@@ -64,6 +65,8 @@ import priv.kit.ui.state.privilegeUiStaticTcpOpenCommand
 internal fun PrivilegeUiScreenScope.AdbPanel() {
     val batteryOptimizationPromptVisible by
         viewModel.batteryOptimizationPromptVisible.collectAsStateWithLifecycle()
+    val staticTcpSwitchConfirmation by
+        viewModel.staticTcpSwitchConfirmation.collectAsStateWithLifecycle()
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.large),
@@ -90,6 +93,9 @@ internal fun PrivilegeUiScreenScope.AdbPanel() {
                 }
             }
         }
+    }
+    staticTcpSwitchConfirmation?.let { action ->
+        StaticTcpSwitchConfirmationDialog(action)
     }
 }
 
@@ -233,6 +239,49 @@ private fun PrivilegeUiScreenScope.WirelessAdbPairingNotificationPermissionWarni
                 },
             ) {
                 Text(stringResource(R.string.priv_ui_notification_permission_settings_action))
+            }
+        },
+    )
+}
+
+@Composable
+private fun PrivilegeUiScreenScope.StaticTcpSwitchConfirmationDialog(
+    action: PrivilegeUiStaticTcpSwitchAction,
+) {
+    AlertDialog(
+        onDismissRequest = {
+            if (interactionEnabled) viewModel.cancelStaticTcpSwitch()
+        },
+        properties = DialogProperties(dismissOnClickOutside = false),
+        title = {
+            Text(stringResource(R.string.priv_ui_adb_static_switch_confirmation_title))
+        },
+        text = {
+            Text(stringResource(R.string.priv_ui_adb_static_switch_confirmation_message))
+        },
+        confirmButton = {
+            TextButton(
+                enabled = interactionEnabled,
+                onClick = viewModel::confirmStaticTcpSwitch,
+            ) {
+                Text(
+                    stringResource(
+                        when (action) {
+                            PrivilegeUiStaticTcpSwitchAction.START_SERVICE ->
+                                R.string.priv_ui_adb_static_switch_continue_start_action
+                            PrivilegeUiStaticTcpSwitchAction.ENABLE_PORT ->
+                                R.string.priv_ui_adb_static_switch_continue_enable_action
+                        },
+                    ),
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(
+                enabled = interactionEnabled,
+                onClick = viewModel::cancelStaticTcpSwitch,
+            ) {
+                Text(stringResource(R.string.priv_ui_adb_static_switch_cancel_action))
             }
         },
     )

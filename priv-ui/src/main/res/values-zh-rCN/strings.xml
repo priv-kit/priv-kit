@@ -84,6 +84,11 @@
     <string name="priv_ui_adb_static_authorize_action">允许静态端口连接</string>
     <string name="priv_ui_adb_static_start_action">启动</string>
     <string name="priv_ui_adb_static_start_failed">静态 ADB 端口不可用，启动失败</string>
+    <string name="priv_ui_adb_static_switch_confirmation_title">开启静态端口？</string>
+    <string name="priv_ui_adb_static_switch_confirmation_message">当前设备尚未开启静态 ADB 端口。继续会重启 ADB，设备上所有依赖 ADB 的进程（包括其他授权器）都会被终止。\n\n静态端口成功开启后，后续可不连接 Wi‑Fi 直接启动服务；如果系统或其它应用清除了端口配置，则需要重新开启。</string>
+    <string name="priv_ui_adb_static_switch_continue_start_action">继续启动</string>
+    <string name="priv_ui_adb_static_switch_continue_enable_action">继续开启</string>
+    <string name="priv_ui_adb_static_switch_cancel_action">取消</string>
     <string name="priv_ui_wireless_realtime_status_title">连接状态</string>
     <string name="priv_ui_wireless_status_debugging">无线调试</string>
     <string name="priv_ui_wireless_status_pairing_service">配对入口</string>
