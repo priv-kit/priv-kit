@@ -1,6 +1,7 @@
 package priv.kit.ui.state
 
 import android.content.Context
+import androidx.annotation.StringRes
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -11,16 +12,19 @@ import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiExternalStartItemState
 import priv.kit.ui.PrivilegeUiStartupMode
 import priv.kit.ui.PrivilegeUiState
+import priv.kit.ui.PrivilegeUiText
 import priv.kit.ui.R
+import priv.kit.ui.asString
 import priv.kit.ui.effectiveStartupModes
+import priv.kit.ui.privilegeUiText
 import java.util.UUID
 
 internal class PrivilegeUiViewModelStore(
     context: Context? = null,
 ) : AutoCloseable {
     val state = MutableStateFlow(PrivilegeUiState())
-    private val snackbarMessageState = MutableSharedFlow<String>(extraBufferCapacity = 1)
-    val snackbarMessages: SharedFlow<String> = snackbarMessageState.asSharedFlow()
+    private val snackbarTextState = MutableSharedFlow<PrivilegeUiText>(extraBufferCapacity = 1)
+    val snackbarTexts: SharedFlow<PrivilegeUiText> = snackbarTextState.asSharedFlow()
 
     @Volatile
     var applicationContext: Context? = context?.applicationContext ?: context
@@ -30,7 +34,6 @@ internal class PrivilegeUiViewModelStore(
     var serverShutdownRequestedByOwner: Boolean = false
 
     fun initializeState(config: PrivilegeUiConfig) {
-        val context = requireContext()
         val modes = config.effectiveStartupModes()
         val selected = state.value.selectedStartupMode.takeIf { it in modes }
             ?: PrivilegeUiStartupMode.ADB.takeIf { it in modes }
@@ -39,9 +42,8 @@ internal class PrivilegeUiViewModelStore(
             current.copy(
                 selectedStartupMode = selected,
                 startupModes = modes,
-                pairingMessage = current.pairingMessage.ifBlank {
-                    context.getString(R.string.priv_ui_pairing_default_message)
-                },
+                pairingText = current.pairingText
+                    ?: privilegeUiText(R.string.priv_ui_pairing_default_message),
                 notificationPairingRunning = false,
                 externalStartItems = config.externalStartProviders.map { provider ->
                     PrivilegeUiExternalStartItemState(
@@ -92,12 +94,12 @@ internal class PrivilegeUiViewModelStore(
         appendStartupLog(line)
     }
 
-    fun showSnackbar(message: String) {
-        snackbarMessageState.tryEmit(message)
+    fun showSnackbar(text: PrivilegeUiText) {
+        snackbarTextState.tryEmit(text)
     }
 
     fun showFailure(failureKind: PrivilegeUiFailureKind) {
-        showSnackbar(text(failureKind.messageResId))
+        showSnackbar(resourceText(failureKind.messageResId))
     }
 
     fun appendStartupLog(line: PrivilegeStartupLogLine) {
@@ -128,8 +130,14 @@ internal class PrivilegeUiViewModelStore(
     fun requireContext(): Context =
         applicationContext ?: error("PrivilegeUiViewModel requires an application context")
 
-    fun text(id: Int, vararg args: Any): String =
-        requireContext().getString(id, *args)
+    fun resourceText(@StringRes id: Int, vararg args: Any): PrivilegeUiText =
+        privilegeUiText(id, *args)
+
+    fun resolveText(text: PrivilegeUiText): String =
+        text.asString(requireContext())
+
+    fun text(@StringRes id: Int, vararg args: Any): String =
+        resolveText(resourceText(id, *args))
 
     fun currentAdbDeviceNameOverride(): String? =
         config.adbDeviceName

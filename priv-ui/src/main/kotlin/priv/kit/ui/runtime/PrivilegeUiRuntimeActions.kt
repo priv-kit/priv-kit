@@ -49,7 +49,7 @@ internal class PrivilegeUiRuntimeActions(
 
     fun rootStartAttempt(): PrivilegeUiRuntimeStartAttempt.Connect =
         PrivilegeUiRuntimeStartAttempt.Connect(
-            message = store.text(R.string.priv_ui_starting_root),
+            progressText = store.resourceText(R.string.priv_ui_starting_root),
             startupSource = store.text(R.string.priv_ui_auth_method_root),
             runtimeStartSource = PrivilegeUiRuntimeStartSource.ROOT,
         ) {
@@ -111,7 +111,7 @@ internal class PrivilegeUiRuntimeActions(
                                 busy = false,
                                 runtimeStartSource = null,
                                 runtimeStartProviderId = null,
-                                runtimeProgressMessage = null,
+                                runtimeProgressText = null,
                             )
                         }
                         store.showFailure(PrivilegeUiFailureKind.STOP_SERVICE_FAILED)

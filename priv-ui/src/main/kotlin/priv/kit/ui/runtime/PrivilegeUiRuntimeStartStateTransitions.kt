@@ -16,7 +16,7 @@ internal fun PrivilegeUiState.startingAttempt(
             runtimeStartPhase = phase,
             runtimeStartSource = attempt.runtimeStartSource,
             runtimeStartProviderId = attempt.runtimeStartProviderId,
-            runtimeProgressMessage = attempt.message,
+            runtimeProgressText = attempt.progressText,
         )
     } else {
         copy(
@@ -27,7 +27,7 @@ internal fun PrivilegeUiState.startingAttempt(
             runtimeStartProviderId = attempt.runtimeStartProviderId,
             serverInfo = null,
             adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
-            runtimeProgressMessage = attempt.message,
+            runtimeProgressText = attempt.progressText,
         )
     }
 
@@ -37,7 +37,7 @@ internal fun PrivilegeUiState.finishRuntimeStartPreservingStatus(): PrivilegeUiS
         runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
         runtimeStartSource = null,
         runtimeStartProviderId = null,
-        runtimeProgressMessage = null,
+        runtimeProgressText = null,
     )
 
 internal fun PrivilegeUiState.toDisconnectedRuntimeIdle(): PrivilegeUiState =

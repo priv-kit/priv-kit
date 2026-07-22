@@ -9,7 +9,7 @@ This module provides a reusable embedded page for runtime authorization status a
 Public entry points:
 
 - `PrivilegeScaffold`, the root Compose page.
-- `PrivilegeUiViewModel`, an `open` `AndroidViewModel` state manager that callers may subclass.
+- `PrivilegeUiViewModel`, an `open` `AndroidViewModel` controller that callers may subclass.
 - `PrivilegeUiConfig`, used to enable startup modes, polling intervals, and external start providers.
 - `PrivilegeUiExternalStartProvider`, whose suspend authorization and startup methods keep the
   requesting ViewModel coroutine continuous across third-party prompts and callbacks.
@@ -27,9 +27,10 @@ declare their own `androidx.lifecycle:lifecycle-viewmodel-compose` dependency.
 
 `PrivilegeScaffold` consumes the caller's Compose `MaterialTheme` colors. Apps that need light, dark, dynamic, or branded authorization UI should wrap it in their own Material 3 theme instead of configuring colors through `PrivilegeUiConfig`.
 
-Status observation is owned by the ViewModel. A StateFlow-driven effect follows the selected
+Status observation is owned internally by the ViewModel. A StateFlow-driven effect follows the selected
 startup mode, runs only the relevant ADB or external-provider polling coroutine, and cancels the
-previous mode automatically. Hosts consume `state`; they do not create or close polling handles.
+previous mode automatically. Hosts use `PrivilegeScaffold`; they do not consume its render state
+or create and close polling handles.
 
 Internal Android components:
 
@@ -185,4 +186,4 @@ checks `POST_NOTIFICATIONS` and continues notification pairing automatically onc
 This check is independent of notification-settings navigation; the settings hook only opens the
 destination. Hosts that need custom top-bar actions should supply their own `topBar`.
 
-All static UI and notification text lives in `src/main/res/values/strings.xml` with the `priv_ui_` prefix so apps can override or localize it.
+All static UI and notification text lives in `src/main/res/values/strings.xml` with the `priv_ui_` prefix so apps can override or localize it. Internally, live state and one-shot UI feedback keep resource references and formatting arguments until the text reaches Compose, a notification, or another presentation boundary. This lets retained ViewModels immediately render a newly selected application locale instead of holding strings resolved under the previous configuration. External provider messages, diagnostics, and existing startup log lines remain materialized text and are not retroactively translated.

@@ -88,7 +88,8 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        showInputNotification()
+        notificationFactory.ensureNotificationChannel()
+        showPairingNotifications()?.let(::startForegroundSafely)
     }
 
     override fun onDestroy() {
@@ -117,7 +118,8 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
     private fun showPairingNotifications(): Notification? {
         if (notificationOwnerId == null || !showInputNotification()) return null
         return notificationFactory.statusNotification(
-            text = latestStatusText ?: getString(R.string.priv_ui_pairing_search_text),
+            text = (latestStatusText ?: privilegeUiText(R.string.priv_ui_pairing_search_text))
+                .asString(this),
         )
     }
 
@@ -137,9 +139,9 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         return notificationFactory.workingNotification()
     }
 
-    private fun renderStatus(message: String) {
+    private fun renderStatus(text: PrivilegeUiText) {
         if (notificationOwnerId == null || !ensureNotificationUiAvailable()) return
-        startForegroundSafely(notificationFactory.statusNotification(text = message))
+        startForegroundSafely(notificationFactory.statusNotification(text = text.asString(this)))
     }
 
     private fun showInputNotification(): Boolean {
@@ -174,7 +176,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
             notificationEventState.tryEmit(
                 PrivilegeAdbPairingNotificationEvent.Unavailable(
                     ownerId = ownerId,
-                    message = getString(failureKind.messageResId),
+                    message = privilegeUiText(failureKind.messageResId).asString(this),
                     reason = reason,
                 ),
             )
@@ -243,7 +245,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         private var latestOwnerId: String? = null
 
         @Volatile
-        private var latestStatusText: String? = null
+        private var latestStatusText: PrivilegeUiText? = null
 
         private val notificationEventState = MutableSharedFlow<PrivilegeAdbPairingNotificationEvent>(
             extraBufferCapacity = 16,
@@ -257,6 +259,16 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
             context: Context,
             ownerId: String,
             statusText: String,
+        ): Boolean = startWithText(
+            context = context,
+            ownerId = ownerId,
+            statusText = PrivilegeUiText.Literal(statusText),
+        )
+
+        internal fun startWithText(
+            context: Context,
+            ownerId: String,
+            statusText: PrivilegeUiText,
         ): Boolean {
             require(ownerId.isNotBlank()) { "ownerId must not be blank" }
             if (!notificationsAvailable(context)) {
@@ -298,10 +310,10 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
             context.stopService(Intent(context, PrivilegeAdbPairingService::class.java))
         }
 
-        internal fun updateStatus(ownerId: String, message: String) {
+        internal fun updateStatus(ownerId: String, text: PrivilegeUiText) {
             if (latestOwnerId != ownerId) return
-            latestStatusText = message
-            activeService?.takeIf { it.notificationOwnerId == ownerId }?.renderStatus(message)
+            latestStatusText = text
+            activeService?.takeIf { it.notificationOwnerId == ownerId }?.renderStatus(text)
         }
 
         internal fun isRunning(ownerId: String): Boolean =

@@ -12,7 +12,7 @@ internal fun PrivilegeUiRuntimeActions.runServerStart(
 ) {
     runServerStart(
         PrivilegeUiRuntimeStartAttempt.Connect(
-            message = message,
+            progressText = PrivilegeUiText.Literal(message),
             startupSource = startupSource,
             runtimeStartSource = runtimeStartSource,
         ) {
@@ -30,8 +30,8 @@ internal fun PrivilegeUiRuntimeActions.runServerStartRequest(
 ) {
     runServerStartRequest(
         PrivilegeUiRuntimeStartAttempt.Request(
-            message = message,
-            startedMessage = startedMessage,
+            progressText = PrivilegeUiText.Literal(message),
+            startedText = PrivilegeUiText.Literal(startedMessage),
             startupSource = startupSource,
             runtimeStartSource = runtimeStartSource,
         ) {

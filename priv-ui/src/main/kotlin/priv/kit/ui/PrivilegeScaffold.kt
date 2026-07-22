@@ -34,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -73,6 +74,7 @@ public fun PrivilegeScaffold(
     contentWindowInsets: WindowInsets = ScaffoldDefaults.contentWindowInsets,
 ) {
     val activity = LocalActivity.current
+    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val view = LocalView.current
     val permissionHostId = rememberSaveable { UUID.randomUUID().toString() }
@@ -190,9 +192,9 @@ public fun PrivilegeScaffold(
         }
     }
     LaunchedEffect(viewModel) {
-        viewModel.snackbarMessages.collect { message ->
+        viewModel.snackbarTexts.collect { text ->
             snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(message = message)
+            snackbarHostState.showSnackbar(message = text.asString(context))
         }
     }
     LifecycleEventEffect(

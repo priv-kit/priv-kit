@@ -19,6 +19,7 @@ import priv.kit.shared.PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST
 import priv.kit.shared.isPrivilegeAdbPort
 import priv.kit.ui.PrivilegeAdbPairingService
 import priv.kit.ui.PrivilegeUiAdbPairingStatus
+import priv.kit.ui.PrivilegeUiText
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiPermissionState
 import priv.kit.ui.PrivilegeUiWirelessAdbStatus
@@ -80,7 +81,7 @@ internal class PrivilegeUiAdbPairingActions(
                     } else {
                         PrivilegeUiAdbPairingStatus.SEARCHING
                     },
-                    pairingMessage = store.text(
+                    pairingText = store.resourceText(
                         if (serviceFound) {
                             R.string.priv_ui_pairing_service_found_text
                         } else {
@@ -91,7 +92,9 @@ internal class PrivilegeUiAdbPairingActions(
             }
         }
         if (recoveringFromFailure) {
-            PrivilegeAdbPairingService.updateStatus(notificationOwnerId, store.state.value.pairingMessage)
+            store.state.value.pairingText?.let { text ->
+                PrivilegeAdbPairingService.updateStatus(notificationOwnerId, text)
+            }
         }
     }
 
@@ -121,7 +124,7 @@ internal class PrivilegeUiAdbPairingActions(
 
     fun stopNotificationPairing() {
         stopPairingSession(
-            message = store.text(R.string.priv_ui_pairing_stopped),
+            text = store.resourceText(R.string.priv_ui_pairing_stopped),
             stopNotification = true,
         )
     }
@@ -144,7 +147,7 @@ internal class PrivilegeUiAdbPairingActions(
     ) {
         if (!notificationLost && PrivilegeAdbPairingService.isRequested(notificationOwnerId)) return
         stopPairingSession(
-            message = store.text(R.string.priv_ui_pairing_stopped),
+            text = store.resourceText(R.string.priv_ui_pairing_stopped),
             stopNotification = true,
         )
     }
@@ -240,18 +243,18 @@ internal class PrivilegeUiAdbPairingActions(
         val session = startNewPairingSession()
         pairingPort = null
         requestedAdbDeviceName = adbDeviceName
-        val searchMessage = store.text(R.string.priv_ui_pairing_search_text)
+        val searchText = store.resourceText(R.string.priv_ui_pairing_search_text)
         store.updateState {
             it.copy(
                 pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
-                pairingMessage = searchMessage,
+                pairingText = searchText,
                 pairingDialogVisible = true,
                 pairingNotificationPermissionWarningVisible = false,
                 notificationPairingRunning = false,
             )
         }
         store.appendLog(store.text(R.string.priv_ui_notification_pairing_started))
-        PrivilegeAdbPairingService.updateStatus(notificationOwnerId, searchMessage)
+        PrivilegeAdbPairingService.updateStatus(notificationOwnerId, searchText)
         launchPairingDiscovery(
             session = session,
             adbDeviceName = adbDeviceName,
@@ -292,10 +295,10 @@ internal class PrivilegeUiAdbPairingActions(
                         if (throwable is CancellationException || !isCurrentPairingSession(session)) {
                             return@discovery
                         }
-                        val retryMessage = store.text(R.string.priv_ui_pairing_search_attempt)
+                        val retryText = store.resourceText(R.string.priv_ui_pairing_search_attempt)
                         updatePairingStatus(
                             status = PrivilegeUiAdbPairingStatus.SEARCHING,
-                            message = retryMessage,
+                            text = retryText,
                         )
                         delay(PAIRING_DISCOVERY_RETRY_DELAY_MILLIS.milliseconds)
                         continue
@@ -308,13 +311,13 @@ internal class PrivilegeUiAdbPairingActions(
                     requestedAdbDeviceName = adbDeviceName
                     monitoredPort = port
                     if (transition == PrivilegeUiAdbPairingStatus.FOUND) {
-                        val message = store.text(R.string.priv_ui_pairing_service_found_text)
+                        val text = store.resourceText(R.string.priv_ui_pairing_service_found_text)
                         updatePairingStatus(
                             status = transition,
-                            message = message,
+                            text = text,
                             fingerprint = identityInfo?.publicKeyFingerprint,
                         )
-                        store.appendLog(message)
+                        store.appendLog(store.resolveText(text))
                     }
                 }
 
@@ -334,7 +337,7 @@ internal class PrivilegeUiAdbPairingActions(
                 if (transition == PrivilegeUiAdbPairingStatus.SEARCHING) {
                     updatePairingStatus(
                         status = transition,
-                        message = store.text(R.string.priv_ui_pairing_search_text),
+                        text = store.resourceText(R.string.priv_ui_pairing_search_text),
                     )
                 }
                 delay(PAIRING_DISCOVERY_RETRY_DELAY_MILLIS.milliseconds)
@@ -349,20 +352,20 @@ internal class PrivilegeUiAdbPairingActions(
         if (!ensurePairingPermit()) return
         val code = pairingCode.trim()
         if (!code.isPrivilegeUiPairingCode()) {
-            val message = store.text(R.string.priv_ui_pairing_code_required)
+            val text = store.resourceText(R.string.priv_ui_pairing_code_required)
             updatePairingStatus(
                 status = PrivilegeUiAdbPairingStatus.FAILED,
-                message = message,
+                text = text,
             )
             store.showFailure(PrivilegeUiFailureKind.PAIRING_CODE_REQUIRED)
             return
         }
         val port = pairingPort?.takeIf { it.isPrivilegeAdbPort() }
         if (port == null) {
-            val message = store.text(R.string.priv_ui_pairing_port_unavailable)
+            val text = store.resourceText(R.string.priv_ui_pairing_port_unavailable)
             updatePairingStatus(
                 status = PrivilegeUiAdbPairingStatus.SEARCHING,
-                message = message,
+                text = text,
             )
             store.showFailure(PrivilegeUiFailureKind.PAIRING_PORT_UNAVAILABLE)
             return
@@ -370,12 +373,12 @@ internal class PrivilegeUiAdbPairingActions(
 
         val adbDeviceName = requestedAdbDeviceName
         val session = startNewPairingSession()
-        val pairingMessage = store.text(R.string.priv_ui_pairing_with_port)
+        val pairingText = store.resourceText(R.string.priv_ui_pairing_with_port)
         updatePairingStatus(
             status = PrivilegeUiAdbPairingStatus.PAIRING,
-            message = pairingMessage,
+            text = pairingText,
         )
-        store.appendLog(pairingMessage)
+        store.appendLog(store.resolveText(pairingText))
         val job = createPairingJob("priv-ui-pairing-submit") submit@{
             try {
                 val result = Privilege.createAdbStarter(adbDeviceName = adbDeviceName).pair(
@@ -389,20 +392,21 @@ internal class PrivilegeUiAdbPairingActions(
                 pairingJob = null
                 pairingPort = null
                 requestedAdbDeviceName = null
-                val message = store.text(R.string.priv_ui_pairing_success_text)
+                val text = store.resourceText(R.string.priv_ui_pairing_success_text)
                 store.updateState {
                     it.copy(
                         notificationPairingRunning = false,
                         pairingStatus = PrivilegeUiAdbPairingStatus.PAIRED,
-                        pairingMessage = message,
+                        pairingText = text,
                         pairingDialogVisible = false,
                         adbKeyFingerprint = result.publicKeyFingerprint,
                         wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.ON,
                         pairingCode = "",
                     )
                 }
+                val message = store.resolveText(text)
                 store.appendLog(message)
-                PrivilegeAdbPairingService.updateStatus(notificationOwnerId, message)
+                PrivilegeAdbPairingService.updateStatus(notificationOwnerId, text)
                 PrivilegeAdbPairingService.stop(store.requireContext(), notificationOwnerId)
                 releasePairingPermit()
                 enableTcpModeAfterPairing()
@@ -414,10 +418,10 @@ internal class PrivilegeUiAdbPairingActions(
                 pairingPort = port
                 requestedAdbDeviceName = adbDeviceName
                 val failureKind = PrivilegeUiFailureKind.PAIRING_FAILED
-                val message = store.text(failureKind.messageResId)
+                val text = store.resourceText(failureKind.messageResId)
                 updatePairingStatus(
                     status = PrivilegeUiAdbPairingStatus.FAILED,
-                    message = message,
+                    text = text,
                 )
                 store.appendLog(throwable.toPrivilegeUiDiagnosticString())
                 store.showFailure(failureKind)
@@ -434,15 +438,14 @@ internal class PrivilegeUiAdbPairingActions(
 
     private fun startNotificationUi() {
         val context = store.requireContext()
-        val message = store.state.value.pairingMessage.ifBlank {
-            store.text(R.string.priv_ui_pairing_search_text)
-        }
+        val text = store.state.value.pairingText
+            ?: store.resourceText(R.string.priv_ui_pairing_search_text)
         var startFailure: Throwable? = null
         val started = try {
-            PrivilegeAdbPairingService.start(
+            PrivilegeAdbPairingService.startWithText(
                 context = context,
                 ownerId = notificationOwnerId,
-                statusText = message,
+                statusText = text,
             )
         } catch (throwable: Throwable) {
             startFailure = throwable
@@ -457,7 +460,7 @@ internal class PrivilegeUiAdbPairingActions(
     }
 
     private fun stopPairingSession(
-        message: String,
+        text: PrivilegeUiText,
         stopNotification: Boolean,
     ) {
         val wasActive = store.state.value.pairingStatus.isPrivilegeUiPairingSessionActive()
@@ -469,14 +472,14 @@ internal class PrivilegeUiAdbPairingActions(
             it.copy(
                 notificationPairingRunning = false,
                 pairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
-                pairingMessage = message,
+                pairingText = text,
                 pairingDialogVisible = false,
                 pairingNotificationPermissionWarningVisible = false,
                 pairingCode = "",
             )
         }
         if (wasActive) {
-            store.appendLog(message)
+            store.appendLog(store.resolveText(text))
         }
         releasePairingPermit()
     }
@@ -495,7 +498,7 @@ internal class PrivilegeUiAdbPairingActions(
             }
             is PrivilegeAdbPairingNotificationEvent.Stop -> {
                 stopPairingSession(
-                    message = store.text(R.string.priv_ui_pairing_stopped),
+                    text = store.resourceText(R.string.priv_ui_pairing_stopped),
                     stopNotification = false,
                 )
             }
@@ -514,17 +517,17 @@ internal class PrivilegeUiAdbPairingActions(
 
     private fun updatePairingStatus(
         status: PrivilegeUiAdbPairingStatus,
-        message: String,
+        text: PrivilegeUiText,
         fingerprint: String? = null,
     ) {
         store.updateState {
             it.copy(
                 pairingStatus = status,
-                pairingMessage = message,
+                pairingText = text,
                 adbKeyFingerprint = fingerprint ?: it.adbKeyFingerprint,
             )
         }
-        PrivilegeAdbPairingService.updateStatus(notificationOwnerId, message)
+        PrivilegeAdbPairingService.updateStatus(notificationOwnerId, text)
     }
 
     private fun startNewPairingSession(): Int {

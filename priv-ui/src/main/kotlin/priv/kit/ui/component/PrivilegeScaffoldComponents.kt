@@ -46,6 +46,7 @@ import priv.kit.ui.PrivilegeUiRuntimeStatus
 import priv.kit.ui.PrivilegeUiScreenScope
 import priv.kit.ui.PrivilegeUiState
 import priv.kit.ui.R
+import priv.kit.ui.asString
 
 @Composable
 internal fun Panel(content: @Composable ColumnScope.() -> Unit) {
@@ -524,12 +525,14 @@ private data class StatusUi(
 private fun PrivilegeUiState.runtimeStatusDetail(): String =
     when (runtimeStartPhase) {
         PrivilegeUiRuntimeStartPhase.CANCELLING -> stringResource(R.string.priv_ui_startup_cancelling)
-        PrivilegeUiRuntimeStartPhase.RUNNING -> runtimeProgressMessage
-            ?.takeIf { it.isNotBlank() }
+        PrivilegeUiRuntimeStartPhase.RUNNING -> runtimeProgressText
+            ?.asString()
+            ?.takeIf(String::isNotBlank)
             ?: stringResource(R.string.priv_ui_ready)
         PrivilegeUiRuntimeStartPhase.IDLE -> when (runtimeStatus) {
-            PrivilegeUiRuntimeStatus.STARTING -> runtimeProgressMessage
-                ?.takeIf { it.isNotBlank() }
+            PrivilegeUiRuntimeStatus.STARTING -> runtimeProgressText
+                ?.asString()
+                ?.takeIf(String::isNotBlank)
                 ?: stringResource(R.string.priv_ui_ready)
             PrivilegeUiRuntimeStatus.DISCONNECTED,
             PrivilegeUiRuntimeStatus.FAILED,

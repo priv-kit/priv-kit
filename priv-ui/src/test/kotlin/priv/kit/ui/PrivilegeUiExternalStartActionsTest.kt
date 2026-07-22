@@ -204,7 +204,9 @@ class PrivilegeUiExternalStartActionsTest {
             store.config = config
             store.initializeState(config)
             val snackbar = async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(2_000.milliseconds) { store.snackbarMessages.first() }
+                withTimeout(2_000.milliseconds) {
+                    store.snackbarTexts.first().asString(store.requireContext())
+                }
             }
 
             actions.authorizeOrStartExternal(provider.id)

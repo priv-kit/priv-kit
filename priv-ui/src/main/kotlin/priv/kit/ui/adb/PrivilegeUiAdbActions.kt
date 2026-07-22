@@ -239,7 +239,7 @@ internal class PrivilegeUiAdbActions(
             store.updateState { it.copy(wifiConnected = true) }
             return true
         }
-        val message = store.text(R.string.priv_ui_wifi_required_for_wireless_adb_start)
+        val text = store.resourceText(R.string.priv_ui_wifi_required_for_wireless_adb_start)
         statusActions.resetWirelessPairingSession()
         store.updateState {
             it.withWirelessAdbOffline(
@@ -247,9 +247,9 @@ internal class PrivilegeUiAdbActions(
             )
         }
         if (session.showAttemptFeedback) {
-            store.showSnackbar(message)
+            store.showSnackbar(text)
         }
-        session.appendStartupLog(message)
+        session.appendStartupLog(store.resolveText(text))
         return false
     }
 
@@ -260,11 +260,11 @@ internal class PrivilegeUiAdbActions(
         if (!shouldRequireWirelessPairingForStart(store.state.value.wirelessPairingCheckStatus)) {
             return true
         }
-        val message = store.text(R.string.priv_ui_wireless_pair_required_for_wireless_adb_start)
+        val text = store.resourceText(R.string.priv_ui_wireless_pair_required_for_wireless_adb_start)
         if (session.showAttemptFeedback) {
-            store.showSnackbar(message)
+            store.showSnackbar(text)
         }
-        session.appendStartupLog(message)
+        session.appendStartupLog(store.resolveText(text))
         return false
     }
 
@@ -282,11 +282,11 @@ internal class PrivilegeUiAdbActions(
         ) {
             return true
         }
-        val message = store.text(R.string.priv_ui_wireless_debugging_required_for_wireless_adb_start)
+        val text = store.resourceText(R.string.priv_ui_wireless_debugging_required_for_wireless_adb_start)
         if (session.showAttemptFeedback) {
-            store.showSnackbar(message)
+            store.showSnackbar(text)
         }
-        session.appendStartupLog(message)
+        session.appendStartupLog(store.resolveText(text))
         return false
     }
 
@@ -313,7 +313,7 @@ internal class PrivilegeUiAdbActions(
         requestLocalNetworkPermission: suspend (String) -> PrivilegeUiPermissionState?,
     ): PrivilegeUiRuntimeStartAttempt.Workflow =
         PrivilegeUiRuntimeStartAttempt.Workflow(
-            message = store.text(R.string.priv_ui_wireless_adb_starting),
+            progressText = store.resourceText(R.string.priv_ui_wireless_adb_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
             runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
             onFailure = { throwable ->
@@ -335,7 +335,7 @@ internal class PrivilegeUiAdbActions(
         confirmTcpSwitch: Boolean,
     ): PrivilegeUiRuntimeStartAttempt.Workflow =
         PrivilegeUiRuntimeStartAttempt.Workflow(
-            message = store.text(R.string.priv_ui_tcp_starting),
+            progressText = store.resourceText(R.string.priv_ui_tcp_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
             runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_STATIC_TCP,
             onFailure = { throwable ->
@@ -451,7 +451,7 @@ internal class PrivilegeUiAdbActions(
 
     private fun wirelessAdbStartAttempt(): PrivilegeUiRuntimeStartAttempt.Connect {
         return PrivilegeUiRuntimeStartAttempt.Connect(
-            message = store.text(R.string.priv_ui_wireless_adb_starting),
+            progressText = store.resourceText(R.string.priv_ui_wireless_adb_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
             runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
             onFailure = { throwable ->
@@ -483,7 +483,7 @@ internal class PrivilegeUiAdbActions(
 
     private fun staticTcpAdbThroughWirelessStartAttempt(): PrivilegeUiRuntimeStartAttempt.Connect {
         return PrivilegeUiRuntimeStartAttempt.Connect(
-            message = store.text(R.string.priv_ui_wireless_adb_starting),
+            progressText = store.resourceText(R.string.priv_ui_wireless_adb_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
             runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_STATIC_TCP,
         ) {
@@ -512,7 +512,8 @@ internal class PrivilegeUiAdbActions(
         throwable: Throwable,
     ): PrivilegeUiRuntimeStartFailureDisposition? {
         if (!throwable.isAdbKeyNotAuthorizedFailure()) return null
-        val message = store.text(R.string.priv_ui_wireless_pair_required_for_wireless_adb_start)
+        val text = store.resourceText(R.string.priv_ui_wireless_pair_required_for_wireless_adb_start)
+        val message = store.resolveText(text)
         val wirelessDebuggingStatus = currentWirelessDebuggingStatus()
         val notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
             store.notificationPairingOwnerId,
@@ -530,7 +531,7 @@ internal class PrivilegeUiAdbActions(
                     notificationPairingRunning = notificationPairingRunning,
                 )
             },
-            snackbarMessage = message,
+            snackbarText = text,
             startupLogLines = listOf(
                 message,
                 throwable.toPrivilegeUiDiagnosticString(),
@@ -555,7 +556,7 @@ internal class PrivilegeUiAdbActions(
             session.appendStartupLog(store.text(R.string.priv_ui_local_network_permission_missing))
             session.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
             if (!session.showAttemptFeedback) return PrivilegeUiRuntimeStartResult.Finished
-            store.showSnackbar(store.text(R.string.priv_ui_local_network_permission_required))
+            store.showSnackbar(store.resourceText(R.string.priv_ui_local_network_permission_required))
             if (requestLocalNetworkPermission(permission) != PrivilegeUiPermissionState.Granted) {
                 return PrivilegeUiRuntimeStartResult.Finished
             }
@@ -599,11 +600,11 @@ internal class PrivilegeUiAdbActions(
         session: PrivilegeUiRuntimeStartSession,
         messageRes: Int,
     ) {
-        val message = store.text(messageRes)
+        val text = store.resourceText(messageRes)
         if (session.showAttemptFeedback) {
-            store.showSnackbar(message)
+            store.showSnackbar(text)
         }
-        session.appendStartupLog(message)
+        session.appendStartupLog(store.resolveText(text))
     }
 
 }

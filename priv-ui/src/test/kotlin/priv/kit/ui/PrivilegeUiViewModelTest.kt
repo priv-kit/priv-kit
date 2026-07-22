@@ -286,8 +286,8 @@ class PrivilegeUiViewModelTest {
         try {
             actions.runServerStartRequest(
                 PrivilegeUiRuntimeStartAttempt.Request(
-                    message = "external",
-                    startedMessage = "external requested",
+                    progressText = PrivilegeUiText.Literal("external"),
+                    startedText = PrivilegeUiText.Literal("external requested"),
                     startupSource = null,
                     runtimeStartSource = PrivilegeUiRuntimeStartSource.EXTERNAL,
                 ) {

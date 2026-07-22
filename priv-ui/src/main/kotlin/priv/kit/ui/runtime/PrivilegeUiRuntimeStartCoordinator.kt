@@ -21,6 +21,7 @@ import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
 import priv.kit.ui.PrivilegeUiRuntimeStatus
 import priv.kit.ui.PrivilegeUiState
+import priv.kit.ui.PrivilegeUiText
 import priv.kit.ui.R
 import priv.kit.ui.state.PrivilegeUiFailureKind
 import priv.kit.ui.state.PrivilegeUiViewModelStore
@@ -45,7 +46,7 @@ internal class PrivilegeUiRuntimeStartCoordinator(
             it.copy(
                 busy = true,
                 runtimeStartPhase = PrivilegeUiRuntimeStartPhase.CANCELLING,
-                runtimeProgressMessage = store.text(R.string.priv_ui_startup_cancelling),
+                runtimeProgressText = store.resourceText(R.string.priv_ui_startup_cancelling),
             )
         }
         session.cancel()
@@ -137,7 +138,7 @@ internal class PrivilegeUiRuntimeStartCoordinator(
         beforeStart = {
             store.clearStartupLog()
             appendStartupSource(it, attempt.startupSource)
-            it.appendStartupLog(attempt.message)
+            it.appendStartupLog(store.resolveText(attempt.progressText))
         },
     ) { session -> runSingleAttempt(session, attempt) }
 
@@ -270,7 +271,7 @@ internal class PrivilegeUiRuntimeStartCoordinator(
             if (!isCurrent(session)) return RuntimeStartCompletion.Superseded
             updateCurrentAttempt(session, attempt)
             appendStartupSource(session, attempt.startupSource)
-            session.appendStartupLog(attempt.message)
+            session.appendStartupLog(store.resolveText(attempt.progressText))
             try {
                 when (val completion = raceAttemptWithConnection(session, attempt)) {
                     is RuntimeStartCompletion.Connected,
@@ -328,7 +329,7 @@ internal class PrivilegeUiRuntimeStartCoordinator(
                         )
                     }
                     is PrivilegeUiRuntimeStartResult.RequestSent ->
-                        awaitExternalConnection(session, result.message)
+                        awaitExternalConnection(session, result.text)
                     PrivilegeUiRuntimeStartResult.Finished -> RuntimeStartCompletion.Finished
                 }
             }
@@ -347,7 +348,7 @@ internal class PrivilegeUiRuntimeStartCoordinator(
                 PrivilegeUiRuntimeStartResult.Connected(attempt.start(session))
             is PrivilegeUiRuntimeStartAttempt.Request -> {
                 attempt.start(session)
-                PrivilegeUiRuntimeStartResult.RequestSent(attempt.startedMessage)
+                PrivilegeUiRuntimeStartResult.RequestSent(attempt.startedText)
             }
             is PrivilegeUiRuntimeStartAttempt.Workflow -> attempt.start(session)
         }
@@ -355,14 +356,14 @@ internal class PrivilegeUiRuntimeStartCoordinator(
 
     private suspend fun awaitExternalConnection(
         session: PrivilegeUiRuntimeStartSession,
-        message: String,
+        text: PrivilegeUiText,
     ): RuntimeStartCompletion {
         updateCurrentState(session) { current ->
             current.takeIf { it.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.RUNNING }
-                ?.copy(runtimeProgressMessage = message)
+                ?.copy(runtimeProgressText = text)
                 ?: current
         }
-        session.appendStartupLog(message)
+        session.appendStartupLog(store.resolveText(text))
         val connection = withTimeoutOrNull(store.config.startTimeoutMillis.milliseconds) {
             session.connection.await()
         } ?: return startFailedWithoutDiagnostic()
@@ -421,7 +422,7 @@ internal class PrivilegeUiRuntimeStartCoordinator(
                     store.updateState { it.finishRuntimeStartPreservingStatus() }
                 is RuntimeStartCompletion.HandledFailure -> {
                     val disposition = completion.disposition
-                    disposition.snackbarMessage?.let(store::showSnackbar)
+                    disposition.snackbarText?.let(store::showSnackbar)
                     disposition.startupLogLines.forEach(store::appendStartupLog)
                     store.updateState {
                         disposition.stateTransform(it).finishRuntimeStartDisconnected()

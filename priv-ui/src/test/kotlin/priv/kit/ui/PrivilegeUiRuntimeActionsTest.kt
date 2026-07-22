@@ -161,7 +161,7 @@ class PrivilegeUiRuntimeActionsTest {
 
             actions.runServerStart(
                 PrivilegeUiRuntimeStartAttempt.Connect(
-                    message = store.text(R.string.priv_ui_starting_root),
+                    progressText = PrivilegeUiText.Literal(store.text(R.string.priv_ui_starting_root)),
                     startupSource = store.text(R.string.priv_ui_auth_method_root),
                     runtimeStartSource = PrivilegeUiRuntimeStartSource.ROOT,
                 ) {
@@ -189,7 +189,7 @@ class PrivilegeUiRuntimeActionsTest {
 
             actions.runServerStart(
                 PrivilegeUiRuntimeStartAttempt.Connect(
-                    message = store.text(R.string.priv_ui_starting_root),
+                    progressText = PrivilegeUiText.Literal(store.text(R.string.priv_ui_starting_root)),
                     startupSource = store.text(R.string.priv_ui_auth_method_root),
                     runtimeStartSource = PrivilegeUiRuntimeStartSource.ROOT,
                 ) {
@@ -214,7 +214,7 @@ class PrivilegeUiRuntimeActionsTest {
 
             actions.runServerStart(
                 PrivilegeUiRuntimeStartAttempt.Connect(
-                    message = store.text(R.string.priv_ui_wireless_adb_starting),
+                    progressText = PrivilegeUiText.Literal(store.text(R.string.priv_ui_wireless_adb_starting)),
                     startupSource = store.text(R.string.priv_ui_auth_method_adb),
                     runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
                 ) {
@@ -503,7 +503,7 @@ class PrivilegeUiRuntimeActionsTest {
             fun startAuthorization() {
                 actions.runServerStartWorkflow(
                     PrivilegeUiRuntimeStartAttempt.Workflow(
-                        message = "tcp",
+                        progressText = PrivilegeUiText.Literal("tcp"),
                         startupSource = null,
                     ) {
                         tcpActions.requestTcpAuthorizationForStart(this, tcpPort = 5555)
@@ -552,7 +552,7 @@ class PrivilegeUiRuntimeActionsTest {
 
             actions.runServerStart(
                 PrivilegeUiRuntimeStartAttempt.Connect(
-                    message = "root",
+                    progressText = PrivilegeUiText.Literal("root"),
                     startupSource = null,
                     onFailure = {
                         PrivilegeUiRuntimeStartFailureDisposition(
@@ -570,7 +570,7 @@ class PrivilegeUiRuntimeActionsTest {
             assertTrue(waitUntil { userActionCalled.get() })
             assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, store.state.value.runtimeStatus)
             assertEquals(2000, store.state.value.serverInfo?.uid)
-            assertNull(store.state.value.runtimeProgressMessage)
+            assertNull(store.state.value.runtimeProgressText)
             assertTrue(attempted.get())
             assertTrue(afterCommitCalled.get())
         }
@@ -589,7 +589,7 @@ class PrivilegeUiRuntimeActionsTest {
             ).use { (store, actions) ->
                 actions.runServerStart(
                     PrivilegeUiRuntimeStartAttempt.Connect(
-                        message = "adb",
+                        progressText = PrivilegeUiText.Literal("adb"),
                         startupSource = null,
                         onFailure = {
                             PrivilegeUiRuntimeStartFailureDisposition(
@@ -630,11 +630,11 @@ class PrivilegeUiRuntimeActionsTest {
             val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }
             actions.runServerStart(
                 PrivilegeUiRuntimeStartAttempt.Connect(
-                    message = "adb",
+                    progressText = PrivilegeUiText.Literal("adb"),
                     startupSource = null,
                     onFailure = {
                         PrivilegeUiRuntimeStartFailureDisposition(
-                            snackbarMessage = "handled",
+                            snackbarText = PrivilegeUiText.Literal("handled"),
                         )
                     },
                 ) {
@@ -644,7 +644,7 @@ class PrivilegeUiRuntimeActionsTest {
 
             assertTrue(waitUntilIdle(store))
             assertEquals(PrivilegeUiRuntimeStatus.DISCONNECTED, store.state.value.runtimeStatus)
-            assertNull(store.state.value.runtimeProgressMessage)
+            assertNull(store.state.value.runtimeProgressText)
             assertEquals("handled", snackbar.await())
         }
     }
@@ -662,8 +662,8 @@ class PrivilegeUiRuntimeActionsTest {
 
             actions.runServerStartRequest(
                 PrivilegeUiRuntimeStartAttempt.Request(
-                    message = "external",
-                    startedMessage = "requested",
+                    progressText = PrivilegeUiText.Literal("external"),
+                    startedText = PrivilegeUiText.Literal("requested"),
                     startupSource = null,
                 ) {
                     attempted.set(true)
@@ -673,7 +673,7 @@ class PrivilegeUiRuntimeActionsTest {
             assertTrue(waitUntilIdle(store))
             assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, store.state.value.runtimeStatus)
             assertEquals(2000, store.state.value.serverInfo?.uid)
-            assertNull(store.state.value.runtimeProgressMessage)
+            assertNull(store.state.value.runtimeProgressText)
             assertTrue(attempted.get())
             assertEquals(store.text(R.string.priv_ui_start_failed), snackbar.await())
         }
@@ -689,7 +689,7 @@ class PrivilegeUiRuntimeActionsTest {
             actions.runServerStartFallback(
                 listOf(
                     PrivilegeUiRuntimeStartAttempt.Connect(
-                        message = "root",
+                        progressText = PrivilegeUiText.Literal("root"),
                         startupSource = null,
                         onFailure = {
                             PrivilegeUiRuntimeStartFailureDisposition(
@@ -701,7 +701,7 @@ class PrivilegeUiRuntimeActionsTest {
                         error("root unavailable")
                     },
                     PrivilegeUiRuntimeStartAttempt.Connect(
-                        message = "adb",
+                        progressText = PrivilegeUiText.Literal("adb"),
                         startupSource = null,
                     ) {
                         attemptCount.incrementAndGet()
@@ -717,7 +717,7 @@ class PrivilegeUiRuntimeActionsTest {
             assertTrue(waitUntilIdle(store))
             assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, store.state.value.runtimeStatus)
             assertEquals(0, store.state.value.serverInfo?.uid)
-            assertNull(store.state.value.runtimeProgressMessage)
+            assertNull(store.state.value.runtimeProgressText)
             assertEquals(2, attemptCount.get())
             assertTrue(firstFailureEffectCalled.get())
             assertTrue(store.state.value.startupLogLines.any { "root unavailable" in it })
@@ -734,7 +734,7 @@ class PrivilegeUiRuntimeActionsTest {
             actions.runServerStartFallback(
                 listOf(
                     PrivilegeUiRuntimeStartAttempt.Connect(
-                        message = "root",
+                        progressText = PrivilegeUiText.Literal("root"),
                         startupSource = null,
                         onFailure = {
                             firstFailureHandlerCalled.set(true)
@@ -742,7 +742,7 @@ class PrivilegeUiRuntimeActionsTest {
                                 stateTransform = { current ->
                                     current.copy(notificationPairingRunning = true)
                                 },
-                                snackbarMessage = "child failure",
+                                snackbarText = PrivilegeUiText.Literal("child failure"),
                                 startupLogLines = listOf("child prompt"),
                                 afterCommit = { fallbackCleanupCalled.set(true) },
                                 onUserActionRequired = { userActionCalled.set(true) },
@@ -752,7 +752,7 @@ class PrivilegeUiRuntimeActionsTest {
                         error("root unavailable")
                     },
                     PrivilegeUiRuntimeStartAttempt.Connect(
-                        message = "adb",
+                        progressText = PrivilegeUiText.Literal("adb"),
                         startupSource = null,
                     ) {
                         secondAttemptStarted.countDown()
@@ -788,7 +788,7 @@ class PrivilegeUiRuntimeActionsTest {
             actions.runServerStartFallback(
                 listOf(
                     PrivilegeUiRuntimeStartAttempt.Connect(
-                        message = "adb",
+                        progressText = PrivilegeUiText.Literal("adb"),
                         startupSource = null,
                     ) {
                         attemptStarted.complete(Unit)
@@ -799,7 +799,7 @@ class PrivilegeUiRuntimeActionsTest {
                         }
                     },
                     PrivilegeUiRuntimeStartAttempt.Connect(
-                        message = "root",
+                        progressText = PrivilegeUiText.Literal("root"),
                         startupSource = null,
                     ) {
                         nextAttemptStarted.set(true)
@@ -830,13 +830,13 @@ class PrivilegeUiRuntimeActionsTest {
             actions.runServerStartFallback(
                 listOf(
                     PrivilegeUiRuntimeStartAttempt.Connect(
-                        message = "adb",
+                        progressText = PrivilegeUiText.Literal("adb"),
                         startupSource = null,
                     ) {
                         throw PrivilegeServerLaunchUncertainException("handshake timed out")
                     },
                     PrivilegeUiRuntimeStartAttempt.Connect(
-                        message = "root",
+                        progressText = PrivilegeUiText.Literal("root"),
                         startupSource = null,
                     ) {
                         nextAttemptStarted.set(true)
@@ -864,15 +864,15 @@ class PrivilegeUiRuntimeActionsTest {
             actions.runServerStartFallback(
                 listOf(
                     PrivilegeUiRuntimeStartAttempt.Connect(
-                        message = "root",
+                        progressText = PrivilegeUiText.Literal("root"),
                         startupSource = null,
                     ) {
                         synchronized(attemptOrder) { attemptOrder += "root" }
                         error("root unavailable")
                     },
                     PrivilegeUiRuntimeStartAttempt.Request(
-                        message = "external",
-                        startedMessage = "external requested",
+                        progressText = PrivilegeUiText.Literal("external"),
+                        startedText = PrivilegeUiText.Literal("external requested"),
                         startupSource = null,
                         runtimeStartSource = PrivilegeUiRuntimeStartSource.EXTERNAL,
                     ) {
@@ -905,15 +905,15 @@ class PrivilegeUiRuntimeActionsTest {
             actions.runServerStartFallback(
                 listOf(
                     PrivilegeUiRuntimeStartAttempt.Request(
-                        message = "external",
-                        startedMessage = "external requested",
+                        progressText = PrivilegeUiText.Literal("external"),
+                        startedText = PrivilegeUiText.Literal("external requested"),
                         startupSource = null,
                         runtimeStartSource = PrivilegeUiRuntimeStartSource.EXTERNAL,
                     ) {
                         synchronized(attemptOrder) { attemptOrder += "external" }
                     },
                     PrivilegeUiRuntimeStartAttempt.Connect(
-                        message = "root",
+                        progressText = PrivilegeUiText.Literal("root"),
                         startupSource = null,
                     ) {
                         synchronized(attemptOrder) { attemptOrder += "root" }
@@ -945,8 +945,8 @@ class PrivilegeUiRuntimeActionsTest {
         ).use { (store, actions) ->
             actions.runServerStartRequest(
                 PrivilegeUiRuntimeStartAttempt.Request(
-                    message = "external",
-                    startedMessage = "external requested",
+                    progressText = PrivilegeUiText.Literal("external"),
+                    startedText = PrivilegeUiText.Literal("external requested"),
                     startupSource = null,
                     runtimeStartSource = PrivilegeUiRuntimeStartSource.EXTERNAL,
                 ) {
@@ -961,7 +961,10 @@ class PrivilegeUiRuntimeActionsTest {
             actions.stopCurrentStart()
 
             assertEquals(PrivilegeUiRuntimeStartPhase.CANCELLING, store.state.value.runtimeStartPhase)
-            assertEquals(store.text(R.string.priv_ui_startup_cancelling), store.state.value.runtimeProgressMessage)
+            assertEquals(
+                store.resourceText(R.string.priv_ui_startup_cancelling),
+                store.state.value.runtimeProgressText,
+            )
             assertTrue(waitUntil { cleanupCount.get() == 1 })
 
             actions.stopCurrentStart()
@@ -987,8 +990,8 @@ class PrivilegeUiRuntimeActionsTest {
         ).use { (store, actions) ->
             actions.runServerStartRequest(
                 PrivilegeUiRuntimeStartAttempt.Request(
-                    message = "external",
-                    startedMessage = "external requested",
+                    progressText = PrivilegeUiText.Literal("external"),
+                    startedText = PrivilegeUiText.Literal("external requested"),
                     startupSource = null,
                     runtimeStartSource = PrivilegeUiRuntimeStartSource.EXTERNAL,
                 ) {
@@ -1030,8 +1033,8 @@ class PrivilegeUiRuntimeActionsTest {
         ).use { (store, actions) ->
             actions.runServerStartRequest(
                 PrivilegeUiRuntimeStartAttempt.Request(
-                    message = "external",
-                    startedMessage = "external requested",
+                    progressText = PrivilegeUiText.Literal("external"),
+                    startedText = PrivilegeUiText.Literal("external requested"),
                     startupSource = null,
                     runtimeStartSource = PrivilegeUiRuntimeStartSource.EXTERNAL,
                 ) {
@@ -1064,7 +1067,7 @@ class PrivilegeUiRuntimeActionsTest {
             actions.runServerStartFallback(
                 listOf(
                     PrivilegeUiRuntimeStartAttempt.Connect(
-                        message = "root",
+                        progressText = PrivilegeUiText.Literal("root"),
                         startupSource = null,
                     ) {
                         firstStarted.complete(Unit)
@@ -1072,7 +1075,7 @@ class PrivilegeUiRuntimeActionsTest {
                         error("cancelled attempt unexpectedly resumed")
                     },
                     PrivilegeUiRuntimeStartAttempt.Connect(
-                        message = "adb",
+                        progressText = PrivilegeUiText.Literal("adb"),
                         startupSource = null,
                     ) {
                         nextStarted.set(true)
@@ -1103,8 +1106,8 @@ class PrivilegeUiRuntimeActionsTest {
         ).use { (store, actions) ->
             actions.runServerStartRequest(
                 PrivilegeUiRuntimeStartAttempt.Request(
-                    message = "external",
-                    startedMessage = "external requested",
+                    progressText = PrivilegeUiText.Literal("external"),
+                    startedText = PrivilegeUiText.Literal("external requested"),
                     startupSource = null,
                     runtimeStartSource = PrivilegeUiRuntimeStartSource.EXTERNAL,
                 ) {
@@ -1141,7 +1144,7 @@ class PrivilegeUiRuntimeActionsTest {
         ).use { (store, actions) ->
             actions.runServerStart(
                 PrivilegeUiRuntimeStartAttempt.Connect(
-                    message = "root",
+                    progressText = PrivilegeUiText.Literal("root"),
                     startupSource = null,
                 ) {
                     addCloseable(
@@ -1185,7 +1188,7 @@ class PrivilegeUiRuntimeActionsTest {
         ).use { (store, actions) ->
             actions.runServerStart(
                 PrivilegeUiRuntimeStartAttempt.Connect(
-                    message = "root",
+                    progressText = PrivilegeUiText.Literal("root"),
                     startupSource = null,
                 ) {
                     addCloseable(
@@ -1231,7 +1234,7 @@ class PrivilegeUiRuntimeActionsTest {
         ).use { (store, actions) ->
             actions.runServerStart(
                 PrivilegeUiRuntimeStartAttempt.Connect(
-                    message = "root",
+                    progressText = PrivilegeUiText.Literal("root"),
                     startupSource = null,
                 ) {
                     addCloseable(
@@ -1269,8 +1272,8 @@ class PrivilegeUiRuntimeActionsTest {
         ).use { (store, actions) ->
             actions.runServerStartRequest(
                 PrivilegeUiRuntimeStartAttempt.Request(
-                    message = "external",
-                    startedMessage = "external requested",
+                    progressText = PrivilegeUiText.Literal("external"),
+                    startedText = PrivilegeUiText.Literal("external requested"),
                     startupSource = null,
                 ) {
                     addCloseable(AutoCloseable { cleanupCount.incrementAndGet() })
@@ -1313,8 +1316,8 @@ class PrivilegeUiRuntimeActionsTest {
         ).use { (_, actions) ->
             actions.runServerStartRequest(
                 PrivilegeUiRuntimeStartAttempt.Request(
-                    message = "external",
-                    startedMessage = "external requested",
+                    progressText = PrivilegeUiText.Literal("external"),
+                    startedText = PrivilegeUiText.Literal("external requested"),
                     startupSource = null,
                 ) {
                     addCloseable(
@@ -1393,13 +1396,13 @@ class PrivilegeUiRuntimeActionsTest {
             actions.runServerStartFallback(
                 listOf(
                     PrivilegeUiRuntimeStartAttempt.Workflow(
-                        message = "adb",
+                        progressText = PrivilegeUiText.Literal("adb"),
                         startupSource = null,
                         runtimeStartSource = PrivilegeUiRuntimeStartSource.EXTERNAL,
                     ) {
                         workflowFeedbackEnabled.set(showAttemptFeedback)
                         if (showAttemptFeedback) {
-                            store.showSnackbar("child failure")
+                            store.showSnackbar(PrivilegeUiText.Literal("child failure"))
                         }
                         PrivilegeUiRuntimeStartResult.Finished
                     },
@@ -1420,7 +1423,7 @@ class PrivilegeUiRuntimeActionsTest {
         RuntimeActionsFixture(context = context).use { (store, actions) ->
             actions.runServerStart(
                 PrivilegeUiRuntimeStartAttempt.Connect(
-                    message = "adb",
+                    progressText = PrivilegeUiText.Literal("adb"),
                     startupSource = null,
                     runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
                 ) {
@@ -1445,7 +1448,7 @@ class PrivilegeUiRuntimeActionsTest {
             assertTrue(waitUntilIdle(store))
             assertEquals(PrivilegeUiRuntimeStatus.DISCONNECTED, store.state.value.runtimeStatus)
             assertNull(store.state.value.runtimeStartSource)
-            assertNull(store.state.value.runtimeProgressMessage)
+            assertNull(store.state.value.runtimeProgressText)
             assertEquals(
                 context.getString(R.string.priv_ui_startup_interrupted),
                 store.state.value.startupLogLines.last(),
@@ -1461,7 +1464,7 @@ class PrivilegeUiRuntimeActionsTest {
         RuntimeActionsFixture(context = context).use { (store, actions) ->
             actions.runServerStartWorkflow(
                 PrivilegeUiRuntimeStartAttempt.Workflow(
-                    message = "adb",
+                    progressText = PrivilegeUiText.Literal("adb"),
                     startupSource = null,
                 ) {
                     addCloseable(AutoCloseable { closed.countDown() })
@@ -1494,7 +1497,7 @@ class PrivilegeUiRuntimeActionsTest {
         ).use { (store, actions) ->
             actions.runServerStartWorkflow(
                 PrivilegeUiRuntimeStartAttempt.Workflow(
-                    message = "adb",
+                    progressText = PrivilegeUiText.Literal("adb"),
                     startupSource = null,
                 ) {
                     addCloseable(
@@ -1566,14 +1569,14 @@ class PrivilegeUiRuntimeActionsTest {
             store.state.first {
                 it.runtimeStatus == PrivilegeUiRuntimeStatus.STARTING &&
                     it.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.RUNNING &&
-                    it.runtimeProgressMessage == message
+                    it.runtimeProgressText == PrivilegeUiText.Literal(message)
             }
             true
         } ?: false
 
     private suspend fun waitForSnackbar(store: PrivilegeUiViewModelStore): String? =
         withTimeoutOrNull(TimeUnit.SECONDS.toMillis(2)) {
-            store.snackbarMessages.first()
+            store.snackbarTexts.first().asString(store.requireContext())
         }
 
     private fun PrivilegeUiViewModelStore.connectAsShell() {
@@ -1585,7 +1588,7 @@ class PrivilegeUiRuntimeActionsTest {
                     pid = 1234,
                     protocolVersion = 1,
                 ),
-                runtimeProgressMessage = null,
+                runtimeProgressText = null,
             )
         }
     }

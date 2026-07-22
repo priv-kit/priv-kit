@@ -43,6 +43,7 @@ import priv.kit.ui.PrivilegeUiRuntimeStartSource
 import priv.kit.ui.PrivilegeUiScreenScope
 import priv.kit.ui.PrivilegeUiWirelessAdbStatus
 import priv.kit.ui.R
+import priv.kit.ui.asString
 import priv.kit.ui.requestPrivilegeUiBatteryOptimizationExemption
 import priv.kit.ui.adb.PrivilegeUiStaticTcpPanelStatus
 import priv.kit.ui.adb.PrivilegeUiStaticTcpSwitchAction
@@ -311,7 +312,10 @@ private fun PrivilegeUiScreenScope.WirelessAdbPairingDialog() {
             Column(verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.medium)) {
                 Column(verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.extraSmall)) {
                     Text(
-                        text = state.pairingMessage.ifBlank { defaultPairingMessage },
+                        text = state.pairingText
+                            ?.asString()
+                            ?.takeIf(String::isNotBlank)
+                            ?: defaultPairingMessage,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(

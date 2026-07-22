@@ -3,16 +3,17 @@ package priv.kit.ui.runtime
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
 import priv.kit.ui.PrivilegeUiState
+import priv.kit.ui.PrivilegeUiText
 import priv.kit.ui.state.PrivilegeUiFailureKind
 
 internal sealed interface PrivilegeUiRuntimeStartAttempt {
-    val message: String
+    val progressText: PrivilegeUiText
     val startupSource: String?
     val runtimeStartSource: PrivilegeUiRuntimeStartSource?
     val runtimeStartProviderId: String?
 
     class Connect(
-        override val message: String,
+        override val progressText: PrivilegeUiText,
         override val startupSource: String?,
         override val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
         val onFailure: ((Throwable) -> PrivilegeUiRuntimeStartFailureDisposition?)? = null,
@@ -21,8 +22,8 @@ internal sealed interface PrivilegeUiRuntimeStartAttempt {
     ) : PrivilegeUiRuntimeStartAttempt
 
     class Request(
-        override val message: String,
-        val startedMessage: String,
+        override val progressText: PrivilegeUiText,
+        val startedText: PrivilegeUiText,
         override val startupSource: String?,
         override val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
         override val runtimeStartProviderId: String? = null,
@@ -30,7 +31,7 @@ internal sealed interface PrivilegeUiRuntimeStartAttempt {
     ) : PrivilegeUiRuntimeStartAttempt
 
     class Workflow(
-        override val message: String,
+        override val progressText: PrivilegeUiText,
         override val startupSource: String?,
         override val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
         val onFailure: ((Throwable) -> PrivilegeUiRuntimeStartFailureDisposition?)? = null,
@@ -41,7 +42,7 @@ internal sealed interface PrivilegeUiRuntimeStartAttempt {
 
 internal class PrivilegeUiRuntimeStartFailureDisposition(
     val stateTransform: (PrivilegeUiState) -> PrivilegeUiState = { it },
-    val snackbarMessage: String? = null,
+    val snackbarText: PrivilegeUiText? = null,
     val startupLogLines: List<String> = emptyList(),
     val afterCommit: (() -> Unit)? = null,
     val onUserActionRequired: (() -> Unit)? = null,
@@ -49,7 +50,7 @@ internal class PrivilegeUiRuntimeStartFailureDisposition(
 
 internal sealed interface PrivilegeUiRuntimeStartResult {
     class Connected(val serverInfo: PrivilegeServerInfo) : PrivilegeUiRuntimeStartResult
-    class RequestSent(val message: String) : PrivilegeUiRuntimeStartResult
+    class RequestSent(val text: PrivilegeUiText) : PrivilegeUiRuntimeStartResult
     data object Finished : PrivilegeUiRuntimeStartResult
 }
 

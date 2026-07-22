@@ -11,10 +11,13 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
 import android.widget.RemoteViews
+import androidx.annotation.StringRes
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.PendingIntentCompat
 import priv.kit.ui.PrivilegeAdbPairingService
 import priv.kit.ui.R
+import priv.kit.ui.asString
+import priv.kit.ui.privilegeUiText
 
 internal class PrivilegeAdbPairingNotificationFactory(
     private val context: Context,
@@ -23,7 +26,7 @@ internal class PrivilegeAdbPairingNotificationFactory(
         notificationManager.createNotificationChannel(
             NotificationChannel(
                 PrivilegeAdbPairingIntentContract.NOTIFICATION_CHANNEL_ID,
-                context.getString(R.string.priv_ui_pairing_channel_name),
+                text(R.string.priv_ui_pairing_channel_name),
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
                 setSound(null, null)
@@ -33,10 +36,10 @@ internal class PrivilegeAdbPairingNotificationFactory(
     }
 
     fun statusNotification(
-        text: String = context.getString(R.string.priv_ui_pairing_search_text),
+        text: String = text(R.string.priv_ui_pairing_search_text),
     ): Notification =
         baseNotification(
-            title = context.getString(R.string.priv_ui_pairing_working_title),
+            title = text(R.string.priv_ui_pairing_working_title),
             text = text,
         )
             .addAction(stopAction())
@@ -47,8 +50,8 @@ internal class PrivilegeAdbPairingNotificationFactory(
         state: PrivilegeAdbPairingInputState,
     ): Notification {
         return baseNotification(
-            title = context.getString(R.string.priv_ui_pairing_reply_notification_title),
-            text = context.getString(R.string.priv_ui_pairing_reply_notification_text),
+            title = text(R.string.priv_ui_pairing_reply_notification_title),
+            text = text(R.string.priv_ui_pairing_reply_notification_text),
         )
             .setStyle(Notification.DecoratedCustomViewStyle())
             .setCustomContentView(pairingInputRemoteViews(state))
@@ -58,7 +61,7 @@ internal class PrivilegeAdbPairingNotificationFactory(
     }
 
     fun workingNotification(): Notification =
-        statusNotification(text = context.getString(R.string.priv_ui_pairing_working_text))
+        statusNotification(text = text(R.string.priv_ui_pairing_working_text))
 
     private fun baseNotification(
         title: String,
@@ -83,7 +86,7 @@ internal class PrivilegeAdbPairingNotificationFactory(
             applyPairingInputTextColor()
             setContentDescription(
                 R.id.priv_ui_pairing_close,
-                context.getString(R.string.priv_ui_pairing_close_description),
+                text(R.string.priv_ui_pairing_close_description),
             )
             setOnClickPendingIntent(
                 R.id.priv_ui_pairing_close,
@@ -92,7 +95,7 @@ internal class PrivilegeAdbPairingNotificationFactory(
             setTextViewText(R.id.priv_ui_pairing_code_text, state.displayText)
             setContentDescription(
                 R.id.priv_ui_pairing_code_text,
-                context.getString(R.string.priv_ui_pairing_submit_code_description),
+                text(R.string.priv_ui_pairing_submit_code_description),
             )
             setOnClickPendingIntent(
                 R.id.priv_ui_pairing_code_text,
@@ -103,7 +106,7 @@ internal class PrivilegeAdbPairingNotificationFactory(
             )
             setContentDescription(
                 R.id.priv_ui_pairing_confirm,
-                context.getString(R.string.priv_ui_pairing_submit_code_description),
+                text(R.string.priv_ui_pairing_submit_code_description),
             )
             setOnClickPendingIntent(
                 R.id.priv_ui_pairing_confirm,
@@ -114,25 +117,25 @@ internal class PrivilegeAdbPairingNotificationFactory(
             )
             bindPairingInputAction(
                 viewId = R.id.priv_ui_pairing_arrow_left,
-                contentDescription = context.getString(R.string.priv_ui_pairing_arrow_left_description),
+                contentDescription = text(R.string.priv_ui_pairing_arrow_left_description),
                 action = PrivilegeAdbPairingIntentContract.ACTION_INPUT_LEFT,
                 requestCode = PrivilegeAdbPairingIntentContract.REQUEST_INPUT_LEFT,
             )
             bindPairingInputAction(
                 viewId = R.id.priv_ui_pairing_arrow_up,
-                contentDescription = context.getString(R.string.priv_ui_pairing_arrow_up_description),
+                contentDescription = text(R.string.priv_ui_pairing_arrow_up_description),
                 action = PrivilegeAdbPairingIntentContract.ACTION_INPUT_UP,
                 requestCode = PrivilegeAdbPairingIntentContract.REQUEST_INPUT_UP,
             )
             bindPairingInputAction(
                 viewId = R.id.priv_ui_pairing_arrow_down,
-                contentDescription = context.getString(R.string.priv_ui_pairing_arrow_down_description),
+                contentDescription = text(R.string.priv_ui_pairing_arrow_down_description),
                 action = PrivilegeAdbPairingIntentContract.ACTION_INPUT_DOWN,
                 requestCode = PrivilegeAdbPairingIntentContract.REQUEST_INPUT_DOWN,
             )
             bindPairingInputAction(
                 viewId = R.id.priv_ui_pairing_arrow_right,
-                contentDescription = context.getString(R.string.priv_ui_pairing_arrow_right_description),
+                contentDescription = text(R.string.priv_ui_pairing_arrow_right_description),
                 action = PrivilegeAdbPairingIntentContract.ACTION_INPUT_RIGHT,
                 requestCode = PrivilegeAdbPairingIntentContract.REQUEST_INPUT_RIGHT,
             )
@@ -185,7 +188,7 @@ internal class PrivilegeAdbPairingNotificationFactory(
 
     private fun replyAction(): Notification.Action {
         val remoteInput = RemoteInput.Builder(PrivilegeAdbPairingIntentContract.REMOTE_INPUT_PAIRING_CODE)
-            .setLabel(context.getString(R.string.priv_ui_pairing_reply_label))
+            .setLabel(text(R.string.priv_ui_pairing_reply_label))
             .setAllowFreeFormInput(true)
             .build()
         val pendingIntent = PendingIntentCompat.getForegroundService(
@@ -197,7 +200,7 @@ internal class PrivilegeAdbPairingNotificationFactory(
         )
         val actionBuilder = Notification.Action.Builder(
             null,
-            context.getString(R.string.priv_ui_pairing_reply_action),
+            text(R.string.priv_ui_pairing_reply_action),
             pendingIntent,
         )
             .addRemoteInput(remoteInput)
@@ -211,7 +214,7 @@ internal class PrivilegeAdbPairingNotificationFactory(
     private fun stopAction(): Notification.Action {
         return Notification.Action.Builder(
             null,
-            context.getString(R.string.priv_ui_pairing_stop_action),
+            text(R.string.priv_ui_pairing_stop_action),
             stopPendingIntent(),
         ).build()
     }
@@ -236,6 +239,8 @@ internal class PrivilegeAdbPairingNotificationFactory(
 
     private val notificationManager: NotificationManagerCompat
         get() = NotificationManagerCompat.from(context)
+
+    private fun text(@StringRes id: Int): String = privilegeUiText(id).asString(context)
 
     private companion object {
         val pairingInputTextViewIds = intArrayOf(

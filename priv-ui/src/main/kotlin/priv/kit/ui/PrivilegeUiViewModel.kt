@@ -78,13 +78,13 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     private var deliveredConnectionSerial = 0L
     private var hostResumeDispatchInProgress = false
     private val batteryOptimizationPromptVisibleState = MutableStateFlow(false)
-    public val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
+    internal val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
     internal val startGateState: StateFlow<PrivilegeUiStartGateState> =
         effectsCoordinator.startGateState
     internal val uiEffectsEnabled: StateFlow<Boolean> = effectsCoordinator.enabled
     internal val uiInteractionsEnabled: Boolean
         get() = effectsCoordinator.interactionsEnabled
-    internal val snackbarMessages: SharedFlow<String> = store.snackbarMessages
+    internal val snackbarTexts: SharedFlow<PrivilegeUiText> = store.snackbarTexts
     internal val permissionRequests: Flow<PrivilegeUiPermissionRequest> = permissionCoordinator.requests
     internal val batteryOptimizationPromptVisible: StateFlow<Boolean> =
         batteryOptimizationPromptVisibleState.asStateFlow()
@@ -421,7 +421,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         runCatching {
             desiredEnabledManager.setDesiredEnabled(false)
         }.onFailure { throwable ->
-            store.showSnackbar(store.text(R.string.priv_ui_auto_recovery_disable_failed))
+            store.showSnackbar(store.resourceText(R.string.priv_ui_auto_recovery_disable_failed))
             store.appendLog(throwable.toPrivilegeUiDiagnosticString())
         }
     }

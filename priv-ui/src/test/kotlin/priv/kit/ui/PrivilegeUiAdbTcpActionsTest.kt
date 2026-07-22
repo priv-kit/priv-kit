@@ -70,13 +70,13 @@ class PrivilegeUiAdbTcpActionsTest {
         try {
             val snackbar = async(start = CoroutineStart.UNDISPATCHED) {
                 withTimeoutOrNull(TimeUnit.SECONDS.toMillis(2)) {
-                    store.snackbarMessages.first()
+                    store.snackbarTexts.first().asString(store.requireContext())
                 }
             }
 
             runtimeActions.runServerStartWorkflow(
                 PrivilegeUiRuntimeStartAttempt.Workflow(
-                    message = "tcp",
+                    progressText = PrivilegeUiText.Literal("tcp"),
                     startupSource = null,
                     runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_STATIC_TCP,
                 ) {

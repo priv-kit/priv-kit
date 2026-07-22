@@ -272,7 +272,9 @@ class PrivilegeUiAdbPairingActionsTest {
                 )
             }
             val snackbar = async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(2_000) { store.snackbarMessages.first() }
+                withTimeout(2_000) {
+                    store.snackbarTexts.first().asString(store.requireContext())
+                }
             }
 
             actions.handleNotificationEvent(

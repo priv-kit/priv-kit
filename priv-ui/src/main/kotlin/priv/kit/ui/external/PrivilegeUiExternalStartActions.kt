@@ -110,8 +110,8 @@ internal class PrivilegeUiExternalStartActions(
         context: Context,
     ): PrivilegeUiRuntimeStartAttempt.Request =
         PrivilegeUiRuntimeStartAttempt.Request(
-            message = store.text(R.string.priv_ui_external_starting),
-            startedMessage = store.text(R.string.priv_ui_external_start_requested),
+            progressText = store.resourceText(R.string.priv_ui_external_starting),
+            startedText = store.resourceText(R.string.priv_ui_external_start_requested),
             startupSource = provider.label.toString(),
             runtimeStartSource = PrivilegeUiRuntimeStartSource.EXTERNAL,
             runtimeStartProviderId = provider.id,
