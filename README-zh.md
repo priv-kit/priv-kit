@@ -2,7 +2,7 @@
 
 [README.md](./README.md) | [中文文档](./README-zh.md)
 
-零依赖轻量 Android 库，让 Android 应用自身直接借助 Root/ADB 启动特权进程，并通过 Binder/UserService 调用系统层级 API
+轻量 Android 库，让 Android 应用自身直接借助 Root/ADB 启动特权进程，并通过 Binder/UserService 调用系统层级 API
 
 本项目旨在解决过于依赖外部授权应用，让开发者的应用内部实现自我提权
 
@@ -45,7 +45,7 @@ val serverInfo = Privilege.startAdb()
 
 内置 `priv-ui` 在执行 `adb tcpip` 前要求用户进行一次性确认，因为重启 ADB 会终止依赖 ADB 的其它进程。取消确认不会改变 ADB 状态。复用或恢复已经持久化的静态端口不需要弹出此确认；当 runtime 具备恢复核心 ADB 服务的权限时，后续启动不再需要 Wi-Fi。
 
-阻塞式启动、发现和授权检查会保留线程中断标记并原样抛出 `InterruptedException`。Java 调用方需要处理这个受检异常；协程调用方可在可中断调度器中包装这些 API，以线程中断实现协作取消。
+Root、ADB、外部启动、ADB 发现/配对、TCP 模式操作和授权检查均为挂起 API。阻塞传输工作在 IO 调度器执行；调用协程取消时会关闭正在使用的进程、Socket 或 mDNS 发现，并以取消结果恢复同一协程。
 
 使用 `priv-ui` 时，应在 Application 作用域只构造一份 `PrivilegeUiConfig`，并把同一个实例同时传给前台 ViewModel 与受期望状态约束的无界面静默重放入口：
 

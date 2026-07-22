@@ -17,12 +17,13 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
+import kotlinx.coroutines.runBlocking
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class PrivilegeExternalStartupBridgeTest {
     @Test
-    fun bridgeHostCompletesSuccessfulCommand() {
+    fun bridgeHostCompletesSuccessfulCommand(): Unit = runBlocking {
         val process = FakeProcess(
             stdout = "ready\nmore\n",
             stderr = "warn\n",
@@ -42,7 +43,7 @@ class PrivilegeExternalStartupBridgeTest {
     }
 
     @Test
-    fun bridgeHostPropagatesCommandFailure() {
+    fun bridgeHostPropagatesCommandFailure(): Unit = runBlocking {
         val host = testHost(
             FakeProcess(
                 stderr = "nope\n",
@@ -52,10 +53,12 @@ class PrivilegeExternalStartupBridgeTest {
 
         val exception = host.use {
             assertThrows(PrivilegeStartupException::class.java) {
-                PrivilegeExternalStartup.runThroughBridge(
-                    commandLine = "bad-command",
-                    bridge = it.toBridge(),
-                )
+                runBlocking {
+                    PrivilegeExternalStartup.runThroughBridge(
+                        commandLine = "bad-command",
+                        bridge = it.toBridge(),
+                    )
+                }
             }
         }
 
@@ -63,7 +66,7 @@ class PrivilegeExternalStartupBridgeTest {
     }
 
     @Test
-    fun bridgeWaitsForResultAfterOutputEof() {
+    fun bridgeWaitsForResultAfterOutputEof(): Unit = runBlocking {
         val resultSent = AtomicBoolean(false)
         val resultThreadRef = AtomicReference<Thread?>()
         val bridge = PrivilegeExternalStartupBridge { _, _, _, resultReceiver ->
@@ -86,7 +89,7 @@ class PrivilegeExternalStartupBridgeTest {
     }
 
     @Test
-    fun bridgeAcceptsNullResultData() {
+    fun bridgeAcceptsNullResultData(): Unit = runBlocking {
         PrivilegeExternalStartup.runThroughBridge(
             commandLine = "start-command",
             bridge = PrivilegeExternalStartupBridge { _, _, _, resultReceiver ->
@@ -96,7 +99,7 @@ class PrivilegeExternalStartupBridgeTest {
     }
 
     @Test
-    fun bridgeTimesOutWhenResultAndEofNeverArrive() {
+    fun bridgeTimesOutWhenResultAndEofNeverArrive(): Unit = runBlocking {
         val heldDescriptors = mutableListOf<ParcelFileDescriptor>()
         val bridge = PrivilegeExternalStartupBridge { _, stdout, stderr, _ ->
             heldDescriptors += ParcelFileDescriptor.dup(stdout.fileDescriptor)
@@ -105,11 +108,13 @@ class PrivilegeExternalStartupBridgeTest {
 
         try {
             val exception = assertThrows(PrivilegeStartupException::class.java) {
-                PrivilegeExternalStartup.runThroughBridge(
-                    commandLine = "start-command",
-                    bridge = bridge,
-                    options = PrivilegeExternalStartupBridgeOptions(timeoutMillis = 50L),
-                )
+                runBlocking {
+                    PrivilegeExternalStartup.runThroughBridge(
+                        commandLine = "start-command",
+                        bridge = bridge,
+                        options = PrivilegeExternalStartupBridgeOptions(timeoutMillis = 50L),
+                    )
+                }
             }
 
             assertTrue(exception.message.orEmpty().contains("timed out after 50ms"))
@@ -119,45 +124,30 @@ class PrivilegeExternalStartupBridgeTest {
     }
 
     @Test
-    fun bridgeWaitPreservesThreadInterruption() {
-        try {
-            Thread.currentThread().interrupt()
-
-            val exception = assertThrows(PrivilegeStartupException::class.java) {
-                PrivilegeExternalStartup.runThroughBridge(
-                    commandLine = "start-command",
-                    bridge = PrivilegeExternalStartupBridge { _, _, _, _ -> },
-                )
-            }
-
-            assertTrue(exception.message.orEmpty().contains("Interrupted while waiting"))
-            assertTrue(Thread.currentThread().isInterrupted)
-        } finally {
-            Thread.interrupted()
-        }
-    }
-
-    @Test
-    fun bridgeHostRejectsConcurrentCommand() {
+    fun bridgeHostRejectsConcurrentCommand(): Unit = runBlocking {
         val process = BlockingProcess()
         val host = testHost(process)
         val firstFailure = AtomicReference<Throwable?>()
         val firstThread = thread(name = "first-external-start", isDaemon = true) {
             runCatching {
-                PrivilegeExternalStartup.runThroughBridge(
-                    commandLine = "first-command",
-                    bridge = host.toBridge(),
-                    options = PrivilegeExternalStartupBridgeOptions(timeoutMillis = 2_000L),
-                )
+                runBlocking {
+                    PrivilegeExternalStartup.runThroughBridge(
+                        commandLine = "first-command",
+                        bridge = host.toBridge(),
+                        options = PrivilegeExternalStartupBridgeOptions(timeoutMillis = 2_000L),
+                    )
+                }
             }.onFailure(firstFailure::set)
         }
         assertTrue(process.started.await(1_000L, TimeUnit.MILLISECONDS))
 
         val exception = assertThrows(PrivilegeStartupException::class.java) {
-            PrivilegeExternalStartup.runThroughBridge(
-                commandLine = "second-command",
-                bridge = host.toBridge(),
-            )
+            runBlocking {
+                PrivilegeExternalStartup.runThroughBridge(
+                    commandLine = "second-command",
+                    bridge = host.toBridge(),
+                )
+            }
         }
 
         process.release.countDown()
@@ -168,7 +158,7 @@ class PrivilegeExternalStartupBridgeTest {
     }
 
     @Test
-    fun bridgeTranscriptContinuesWhenLogListenerThrows() {
+    fun bridgeTranscriptContinuesWhenLogListenerThrows(): Unit = runBlocking {
         val transcript = StartupTranscript(
             maxCapturedLines = 80,
             startupLogListener = PrivilegeStartupLogListener {

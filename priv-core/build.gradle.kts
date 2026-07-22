@@ -28,6 +28,7 @@ android {
 dependencies {
     implementation(project(":priv-adb-crypto"))
     implementation(project(":priv-shared"))
+    api(libs.kotlinx.coroutines.core)
     compileOnly(project(":hidden-api"))
     compileOnly(libs.androidx.annotation)
     testImplementation(libs.junit)

@@ -2,7 +2,7 @@
 
 [README.md](./README.md) | [中文文档](./README-zh.md)
 
-A lightweight Android library with no dependencies. It lets an Android app start its own privileged process through Root or ADB, then call system-level APIs through Binder or UserService.
+A lightweight Android library that lets an Android app start its own privileged process through Root or ADB, then call system-level APIs through Binder or UserService.
 
 This project aims to reduce reliance on external authorization apps, so developers can implement self privilege escalation inside their own apps.
 
@@ -45,7 +45,7 @@ If the integrating app still declares and has been granted `WRITE_SECURE_SETTING
 
 The built-in `priv-ui` surface requires one-shot confirmation before it issues `adb tcpip`, because restarting ADB terminates other processes that depend on ADB. Cancelling leaves ADB unchanged. Reusing or recovering a persisted static port does not require this confirmation and can start without Wi-Fi when the runtime has permission to restore the core ADB service.
 
-Blocking startup, discovery, and authorization checks preserve the thread interrupt flag and propagate `InterruptedException`. Java callers should handle that checked exception; coroutine callers may wrap these APIs with an interruptible dispatcher to use interruption as cooperative cancellation.
+Root, ADB, external startup, ADB discovery/pairing, TCP-mode operations, and authorization checks are suspend APIs. Blocking transport work runs on the IO dispatcher; cancelling the caller closes the active process, socket, or mDNS discovery and resumes the same coroutine with cancellation.
 
 When using `priv-ui`, keep one application-scoped `PrivilegeUiConfig` and pass the same instance to the foreground ViewModel and to the optional desired-state-gated replay entry point:
 

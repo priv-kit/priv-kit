@@ -161,10 +161,6 @@ internal val PrivilegeSampleDebugHost.applicationInfo get() = activity.applicati
 internal val PrivilegeSampleDebugHost.packageManager get() = activity.packageManager
 internal val PrivilegeSampleDebugHost.packageName get() = activity.packageName
 
-internal fun PrivilegeSampleDebugHost.runOnUiThread(action: () -> Unit) {
-    activity.runOnUiThread(action)
-}
-
 internal fun PrivilegeSampleDebugHost.getSystemService(name: String): Any? =
     activity.getSystemService(name)
 

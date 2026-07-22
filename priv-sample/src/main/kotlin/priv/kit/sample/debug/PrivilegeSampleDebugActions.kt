@@ -6,6 +6,11 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.dropWhile
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeUserServiceConnection
@@ -42,8 +47,7 @@ internal fun PrivilegeSampleDebugHost.initializePrivilegeSample() {
         appendLog("Manual shell command error: $message")
         appendLog(throwable.toDiagnosticString())
     }
-    watchServerConnected()
-    watchServerDisconnected()
+    watchServerState()
     refreshShizukuStatus(append = false)
     refreshAdbFingerprint()
 }
@@ -73,24 +77,19 @@ internal fun PrivilegeSampleDebugHost.clearLog() {
     screenState = screenState.copy(logText = "")
 }
 
-internal fun PrivilegeSampleDebugHost.watchServerConnected() {
-    sampleViewModel.serverConnectedListener?.close()
-    sampleViewModel.serverConnectedListener = Privilege.addServerConnectedListener { serverInfo ->
-        runOnUiThread {
+internal fun PrivilegeSampleDebugHost.watchServerState() {
+    sampleViewModel.serverWatcherJob?.cancel()
+    sampleViewModel.serverWatcherJob = sampleViewModel.viewModelScope.launch {
+        Privilege.serverState.dropWhile { it == null }.collect { serverInfo ->
+            if (serverInfo == null) {
+                handleServerDisconnected()
+            } else {
             connectServer(serverInfo, commandLine = null)
             appendLog(
                 "Connected from server handshake: uid=${serverInfo.uid}, " +
                     "pid=${serverInfo.pid}",
             )
-        }
-    }
-}
-
-internal fun PrivilegeSampleDebugHost.watchServerDisconnected() {
-    sampleViewModel.serverDisconnectedWatcher?.close()
-    sampleViewModel.serverDisconnectedWatcher = Privilege.addServerDisconnectedListener {
-        runOnUiThread {
-            handleServerDisconnected()
+            }
         }
     }
 }
@@ -119,32 +118,30 @@ internal fun PrivilegeSampleDebugHost.refreshAdbFingerprint() {
             screenState.pairingMessage
         },
     )
-    sampleViewModel.executor.execute {
+    sampleViewModel.viewModelScope.launch {
         try {
-            val info = createAdbStarter(adbDeviceName).getIdentityInfo()
-            runOnUiThread {
-                screenState = screenState.copy(
-                    adbDeviceName = info.identity.deviceName,
-                    adbKeyFingerprint = info.publicKeyFingerprint,
-                    adbKeyFingerprintLoading = false,
-                    pairingMessage = if (screenState.pairingStatus == PrivilegeAdbPairingStatus.NOT_PAIRED) {
-                        "Fingerprint loaded. Pair this identity before starting."
-                    } else {
-                        screenState.pairingMessage
-                    },
-                )
+            val info = withContext(Dispatchers.IO) {
+                createAdbStarter(adbDeviceName).getIdentityInfo()
             }
+            screenState = screenState.copy(
+                adbDeviceName = info.identity.deviceName,
+                adbKeyFingerprint = info.publicKeyFingerprint,
+                adbKeyFingerprintLoading = false,
+                pairingMessage = if (screenState.pairingStatus == PrivilegeAdbPairingStatus.NOT_PAIRED) {
+                    "Fingerprint loaded. Pair this identity before starting."
+                } else {
+                    screenState.pairingMessage
+                },
+            )
         } catch (throwable: Throwable) {
-            runOnUiThread {
-                val message = throwable.message ?: throwable.javaClass.name
-                screenState = screenState.copy(
-                    adbKeyFingerprint = null,
-                    adbKeyFingerprintLoading = false,
-                    pairingStatus = PrivilegeAdbPairingStatus.FAILED,
-                    pairingMessage = message,
-                )
-                appendLog("Fingerprint error: $message")
-            }
+            val message = throwable.message ?: throwable.javaClass.name
+            screenState = screenState.copy(
+                adbKeyFingerprint = null,
+                adbKeyFingerprintLoading = false,
+                pairingStatus = PrivilegeAdbPairingStatus.FAILED,
+                pairingMessage = message,
+            )
+            appendLog("Fingerprint error: $message")
         }
     }
 }
@@ -162,45 +159,41 @@ internal fun PrivilegeSampleDebugHost.checkWirelessAdbPairing(showBusy: Boolean)
     )
     appendLog(message)
 
-    sampleViewModel.executor.execute {
+    sampleViewModel.viewModelScope.launch {
         try {
             val result = createAdbStarter(adbDeviceName).checkPairing()
-            runOnUiThread {
-                val resultMessage = if (result.paired) {
-                    "Current owner-token key is paired on port ${result.port}."
+            val resultMessage = if (result.paired) {
+                "Current owner-token key is paired on port ${result.port}."
+            } else {
+                "Current owner-token key is not paired" +
+                    (result.failureMessage?.let { ": $it" } ?: ".")
+            }
+            screenState = screenState.copy(
+                busy = if (showBusy) false else screenState.busy,
+                pairingStatus = if (result.paired) {
+                    PrivilegeAdbPairingStatus.PAIRED
                 } else {
-                    "Current owner-token key is not paired" +
-                        (result.failureMessage?.let { ": $it" } ?: ".")
-                }
-                screenState = screenState.copy(
-                    busy = if (showBusy) false else screenState.busy,
-                    pairingStatus = if (result.paired) {
-                        PrivilegeAdbPairingStatus.PAIRED
-                    } else {
-                        PrivilegeAdbPairingStatus.NOT_PAIRED
-                    },
-                    pairingMessage = resultMessage,
-                    connectPortText = result.port?.toString() ?: screenState.connectPortText,
-                    adbDeviceName = result.identity.deviceName,
-                    adbKeyFingerprint = result.publicKeyFingerprint,
-                    adbKeyFingerprintLoading = false,
-                    message = if (showBusy) screenState.idleServiceMessage() else screenState.message,
-                )
-                appendLog(resultMessage)
-                appendLog(result.outputText)
-            }
+                    PrivilegeAdbPairingStatus.NOT_PAIRED
+                },
+                pairingMessage = resultMessage,
+                connectPortText = result.port?.toString() ?: screenState.connectPortText,
+                adbDeviceName = result.identity.deviceName,
+                adbKeyFingerprint = result.publicKeyFingerprint,
+                adbKeyFingerprintLoading = false,
+                message = if (showBusy) screenState.idleServiceMessage() else screenState.message,
+            )
+            appendLog(resultMessage)
+            appendLog(result.outputText)
         } catch (throwable: Throwable) {
-            runOnUiThread {
-                val failureMessage = throwable.message ?: throwable.javaClass.name
-                screenState = screenState.copy(
-                    busy = if (showBusy) false else screenState.busy,
-                    pairingStatus = PrivilegeAdbPairingStatus.FAILED,
-                    pairingMessage = failureMessage,
-                    message = if (showBusy) screenState.idleServiceMessage() else screenState.message,
-                )
-                appendLog("Pairing check error: $failureMessage")
-                appendLog(throwable.toDiagnosticString())
-            }
+            val failureMessage = throwable.message ?: throwable.javaClass.name
+            screenState = screenState.copy(
+                busy = if (showBusy) false else screenState.busy,
+                pairingStatus = PrivilegeAdbPairingStatus.FAILED,
+                pairingMessage = failureMessage,
+                message = if (showBusy) screenState.idleServiceMessage() else screenState.message,
+            )
+            appendLog("Pairing check error: $failureMessage")
+            appendLog(throwable.toDiagnosticString())
         }
     }
 }
@@ -574,28 +567,24 @@ internal fun PrivilegeSampleDebugHost.stopServer() {
     )
     appendLog("Stopping Privileged Server...")
 
-    sampleViewModel.executor.execute {
+    sampleViewModel.viewModelScope.launch {
         try {
-            Privilege.shutdownServer()
-            runOnUiThread {
-                val serviceBinderCached = screenState.systemServiceBinderCached || sampleViewModel.sampleMqsNativeBinder != null
-                val userManagerCached = screenState.userManagerCached || sampleViewModel.sampleUserManager != null
-                screenState = screenState.copy(
-                    busy = false,
-                    status = PrivilegeSampleStatus.DISCONNECTED,
-                    serverInfo = null,
-                    systemServiceBinderCached = serviceBinderCached,
-                    userManagerCached = userManagerCached,
-                    binderMessage = stoppedBinderMessage(serviceBinderCached, userManagerCached),
-                    binderLastException = "",
-                    message = "Ready",
-                )
-                appendLog("Server stopped")
-            }
+            withContext(Dispatchers.IO) { Privilege.shutdownServer() }
+            val serviceBinderCached = screenState.systemServiceBinderCached || sampleViewModel.sampleMqsNativeBinder != null
+            val userManagerCached = screenState.userManagerCached || sampleViewModel.sampleUserManager != null
+            screenState = screenState.copy(
+                busy = false,
+                status = PrivilegeSampleStatus.DISCONNECTED,
+                serverInfo = null,
+                systemServiceBinderCached = serviceBinderCached,
+                userManagerCached = userManagerCached,
+                binderMessage = stoppedBinderMessage(serviceBinderCached, userManagerCached),
+                binderLastException = "",
+                message = "Ready",
+            )
+            appendLog("Server stopped")
         } catch (throwable: Throwable) {
-            runOnUiThread {
-                setFailure(throwable)
-            }
+            setFailure(throwable)
         }
     }
 }
@@ -768,30 +757,26 @@ private fun PrivilegeSampleDebugHost.runUserServiceAction(
     )
     appendLog(message)
 
-    sampleViewModel.executor.execute {
+    sampleViewModel.viewModelScope.launch {
         try {
-            val result = action()
-            runOnUiThread {
-                screenState = screenState.copy(
-                    busy = false,
-                    dedicatedUserServiceBound = result.dedicatedBound ?: screenState.dedicatedUserServiceBound,
-                    embeddedUserServiceBound = result.embeddedBound ?: screenState.embeddedUserServiceBound,
-                    dedicatedUserServiceCached = result.dedicatedCached ?: screenState.dedicatedUserServiceCached,
-                    embeddedUserServiceCached = result.embeddedCached ?: screenState.embeddedUserServiceCached,
-                    dedicatedUserServiceMessage = result.dedicatedMessage ?: screenState.dedicatedUserServiceMessage,
-                    embeddedUserServiceMessage = result.embeddedMessage ?: screenState.embeddedUserServiceMessage,
-                    userServiceMessage = result.message,
-                    userServiceLastException = result.exceptionText,
-                    message = screenState.idleServiceMessage(),
-                )
-                appendLog(result.message)
-                result.dedicatedMessage?.let { appendLog(it) }
-                result.embeddedMessage?.let { appendLog(it) }
-            }
+            val result = withContext(Dispatchers.IO) { action() }
+            screenState = screenState.copy(
+                busy = false,
+                dedicatedUserServiceBound = result.dedicatedBound ?: screenState.dedicatedUserServiceBound,
+                embeddedUserServiceBound = result.embeddedBound ?: screenState.embeddedUserServiceBound,
+                dedicatedUserServiceCached = result.dedicatedCached ?: screenState.dedicatedUserServiceCached,
+                embeddedUserServiceCached = result.embeddedCached ?: screenState.embeddedUserServiceCached,
+                dedicatedUserServiceMessage = result.dedicatedMessage ?: screenState.dedicatedUserServiceMessage,
+                embeddedUserServiceMessage = result.embeddedMessage ?: screenState.embeddedUserServiceMessage,
+                userServiceMessage = result.message,
+                userServiceLastException = result.exceptionText,
+                message = screenState.idleServiceMessage(),
+            )
+            appendLog(result.message)
+            result.dedicatedMessage?.let { appendLog(it) }
+            result.embeddedMessage?.let { appendLog(it) }
         } catch (throwable: Throwable) {
-            runOnUiThread {
-                setUserServiceFailure(throwable)
-            }
+            setUserServiceFailure(throwable)
         }
     }
 }
@@ -850,45 +835,41 @@ private fun PrivilegeSampleDebugHost.runBinderAction(
     )
     appendLog(message)
 
-    sampleViewModel.executor.execute {
+    sampleViewModel.viewModelScope.launch {
         try {
-            val result = action()
-            runOnUiThread {
-                screenState = screenState.copy(
-                    busy = false,
-                    systemServiceBinderCached = result.systemServiceBinderCached
-                        ?: screenState.systemServiceBinderCached,
-                    userManagerCached = result.userManagerCached ?: screenState.userManagerCached,
-                    mqsNativeLocalDescriptor = if (result.mqsNativeProbeUpdated) {
-                        result.mqsNativeLocalDescriptor
-                    } else {
-                        screenState.mqsNativeLocalDescriptor
-                    },
-                    mqsNativeLocalError = if (result.mqsNativeProbeUpdated) {
-                        result.mqsNativeLocalError
-                    } else {
-                        screenState.mqsNativeLocalError
-                    },
-                    mqsNativeRemoteDescriptor = if (result.mqsNativeProbeUpdated) {
-                        result.mqsNativeRemoteDescriptor
-                    } else {
-                        screenState.mqsNativeRemoteDescriptor
-                    },
-                    mqsNativeRemoteError = if (result.mqsNativeProbeUpdated) {
-                        result.mqsNativeRemoteError
-                    } else {
-                        screenState.mqsNativeRemoteError
-                    },
-                    binderMessage = result.message,
-                    binderLastException = result.exceptionText,
-                    message = screenState.idleServiceMessage(),
-                )
-                appendLog(result.message)
-            }
+            val result = withContext(Dispatchers.IO) { action() }
+            screenState = screenState.copy(
+                busy = false,
+                systemServiceBinderCached = result.systemServiceBinderCached
+                    ?: screenState.systemServiceBinderCached,
+                userManagerCached = result.userManagerCached ?: screenState.userManagerCached,
+                mqsNativeLocalDescriptor = if (result.mqsNativeProbeUpdated) {
+                    result.mqsNativeLocalDescriptor
+                } else {
+                    screenState.mqsNativeLocalDescriptor
+                },
+                mqsNativeLocalError = if (result.mqsNativeProbeUpdated) {
+                    result.mqsNativeLocalError
+                } else {
+                    screenState.mqsNativeLocalError
+                },
+                mqsNativeRemoteDescriptor = if (result.mqsNativeProbeUpdated) {
+                    result.mqsNativeRemoteDescriptor
+                } else {
+                    screenState.mqsNativeRemoteDescriptor
+                },
+                mqsNativeRemoteError = if (result.mqsNativeProbeUpdated) {
+                    result.mqsNativeRemoteError
+                } else {
+                    screenState.mqsNativeRemoteError
+                },
+                binderMessage = result.message,
+                binderLastException = result.exceptionText,
+                message = screenState.idleServiceMessage(),
+            )
+            appendLog(result.message)
         } catch (throwable: Throwable) {
-            runOnUiThread {
-                setBinderFailure(throwable)
-            }
+            setBinderFailure(throwable)
         }
     }
 }
@@ -944,20 +925,16 @@ private fun List<PrivilegeSampleUserInfo>.toBinderMessage(): String =
 private fun PrivilegeSampleDebugHost.runServerStart(
     message: String,
     startupSource: String? = null,
-    start: () -> PrivilegeServerInfo,
+    start: suspend () -> PrivilegeServerInfo,
 ) {
     if (!beginServerStart(message, startupSource)) return
 
-    sampleViewModel.executor.execute {
+    sampleViewModel.viewModelScope.launch {
         try {
             val serverInfo = start()
-            runOnUiThread {
-                connectServer(serverInfo, commandLine = null)
-            }
+            connectServer(serverInfo, commandLine = null)
         } catch (throwable: Throwable) {
-            runOnUiThread {
-                setFailure(throwable)
-            }
+            setFailure(throwable)
         }
     }
 }
@@ -966,26 +943,22 @@ private fun PrivilegeSampleDebugHost.runServerStartRequest(
     message: String,
     startedMessage: String,
     startupSource: String? = null,
-    start: () -> String,
+    start: suspend () -> String,
 ) {
     if (!beginServerStart(message, startupSource)) return
 
-    sampleViewModel.executor.execute {
+    sampleViewModel.viewModelScope.launch {
         try {
             val output = start()
-            runOnUiThread {
-                screenState = screenState.copy(
-                    busy = false,
-                    status = PrivilegeSampleStatus.STARTING,
-                    message = startedMessage,
-                )
-                appendLog(output)
-                appendLog(startedMessage)
-            }
+            screenState = screenState.copy(
+                busy = false,
+                status = PrivilegeSampleStatus.STARTING,
+                message = startedMessage,
+            )
+            appendLog(output)
+            appendLog(startedMessage)
         } catch (throwable: Throwable) {
-            runOnUiThread {
-                setFailure(throwable)
-            }
+            setFailure(throwable)
         }
     }
 }
@@ -1013,7 +986,7 @@ private fun PrivilegeSampleDebugHost.appendStartupSource(startupSource: String?)
 
 private fun <T> PrivilegeSampleDebugHost.runBusy(
     message: String,
-    action: () -> T,
+    action: suspend () -> T,
     onFailure: ((Throwable) -> Unit)? = null,
     onSuccess: (T) -> String,
 ) {
@@ -1024,22 +997,18 @@ private fun <T> PrivilegeSampleDebugHost.runBusy(
     )
     appendLog(message)
 
-    sampleViewModel.executor.execute {
+    sampleViewModel.viewModelScope.launch {
         try {
-            val result = action()
-            runOnUiThread {
-                val resultMessage = onSuccess(result)
-                screenState = screenState.copy(
-                    busy = false,
-                    message = screenState.idleServiceMessage(),
-                )
-                appendLog(resultMessage)
-            }
+            val result = withContext(Dispatchers.IO) { action() }
+            val resultMessage = onSuccess(result)
+            screenState = screenState.copy(
+                busy = false,
+                message = screenState.idleServiceMessage(),
+            )
+            appendLog(resultMessage)
         } catch (throwable: Throwable) {
-            runOnUiThread {
-                onFailure?.invoke(throwable)
-                setFailure(throwable)
-            }
+            onFailure?.invoke(throwable)
+            setFailure(throwable)
         }
     }
 }

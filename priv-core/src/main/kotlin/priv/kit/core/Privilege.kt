@@ -32,7 +32,14 @@ import priv.kit.shared.PrivilegeManifestPermissions
 import priv.kit.shared.toPrivilegeAdbDeviceNameText
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
 import java.io.Closeable
-import java.util.concurrent.CopyOnWriteArraySet
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.runInterruptible
 
 public object Privilege {
     private const val GRANT_RUNTIME_PERMISSIONS = "android.permission.GRANT_RUNTIME_PERMISSIONS"
@@ -44,16 +51,20 @@ public object Privilege {
         Process.myUserHandle().hashCode()
     }
     private var currentServer: ServerConnection? = null
-    private val connectedListeners = CopyOnWriteArraySet<(PrivilegeServerInfo) -> Unit>()
-    private val disconnectedListeners = CopyOnWriteArraySet<() -> Unit>()
-    private val serverConnectionEventListeners =
-        CopyOnWriteArraySet<(PrivilegeRuntimeConnectionEvent) -> Unit>()
+    private val mutableServerState = MutableStateFlow<PrivilegeServerInfo?>(null)
+    private val serverStateFlow = mutableServerState.asStateFlow()
+    private val mutableServerConnectionEvents = MutableSharedFlow<PrivilegeRuntimeConnectionEvent>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    internal val serverConnectionEvents: SharedFlow<PrivilegeRuntimeConnectionEvent> =
+        mutableServerConnectionEvents.asSharedFlow()
     private val runtimeConnectionListenerLock = Any()
     private var runtimeConnectionListener: Closeable? = null
     private val userServiceClient = PrivilegeUserServiceClient(::getUserServiceManagerBinder)
 
-    @Throws(PrivilegeStartupException::class, InterruptedException::class)
-    public fun startRoot(
+    @Throws(PrivilegeStartupException::class)
+    public suspend fun startRoot(
         timeoutMillis: Long = PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS,
         startupLogListener: PrivilegeStartupLogListener? = null,
     ): PrivilegeServerInfo = startRootWithLaunchId(
@@ -62,7 +73,7 @@ public object Privilege {
         startupLogListener = startupLogListener,
     )
 
-    internal fun startRootWithLaunchId(
+    internal suspend fun startRootWithLaunchId(
         initialLaunchId: String,
         timeoutMillis: Long,
         startupLogListener: PrivilegeStartupLogListener?,
@@ -74,10 +85,12 @@ public object Privilege {
 
         try {
             startupLogListener.emitStartupLog("runtime", "Starting with root")
-            rootProcess = PrivilegeRootStarter.start(
-                buildShortNativeStarterCommand(initialLaunchId = initialLaunchId),
-                startupLogListener = startupLogListener,
-            )
+            rootProcess = runInterruptible {
+                PrivilegeRootStarter.start(
+                    buildShortNativeStarterCommand(initialLaunchId = initialLaunchId),
+                    startupLogListener = startupLogListener,
+                )
+            }
             startupLogListener.emitStartupLog("runtime", "Waiting for Privileged Server handshake")
             val handshakeResult = pendingHandshake.await(timeoutMillis)
             startupLogListener.emitStartupLog("runtime", "Privileged Server handshake received")
@@ -140,19 +153,14 @@ public object Privilege {
         return connectHandshake(handshakeResult)
     }
 
-    @Throws(PrivilegeStartupException::class)
-    public fun addServerConnectedListener(
-        onConnected: (PrivilegeServerInfo) -> Unit,
-    ): Closeable {
-        connectedListeners += onConnected
-        initializeRuntimeConnection()
-        return Closeable {
-            connectedListeners -= onConnected
+    public val serverState: StateFlow<PrivilegeServerInfo?>
+        get() {
+            initializeRuntimeConnection()
+            return serverStateFlow
         }
-    }
 
-    @Throws(PrivilegeStartupException::class, InterruptedException::class)
-    public fun startAdb(
+    @Throws(PrivilegeStartupException::class)
+    public suspend fun startAdb(
         options: PrivilegeAdbStartOptions = PrivilegeAdbStartOptions(),
         timeoutMillis: Long = PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS,
         adbDeviceName: String? = null,
@@ -165,7 +173,7 @@ public object Privilege {
         startupLogListener = startupLogListener,
     )
 
-    internal fun startAdbWithLaunchId(
+    internal suspend fun startAdbWithLaunchId(
         initialLaunchId: String,
         options: PrivilegeAdbStartOptions,
         timeoutMillis: Long,
@@ -284,13 +292,6 @@ public object Privilege {
         return false
     }
 
-    public fun addServerDisconnectedListener(listener: () -> Unit): Closeable {
-        disconnectedListeners += listener
-        return Closeable {
-            disconnectedListeners -= listener
-        }
-    }
-
     public fun shutdownServer() {
         try {
             serverControlCall {
@@ -333,16 +334,6 @@ public object Privilege {
         }
     }
 
-    internal fun addServerConnectionEventListener(
-        listener: (PrivilegeRuntimeConnectionEvent) -> Unit,
-    ): Closeable {
-        serverConnectionEventListeners += listener
-        initializeRuntimeConnection()
-        return Closeable {
-            serverConnectionEventListeners -= listener
-        }
-    }
-
     internal fun <T> withServerConnectionLock(block: () -> T): T =
         synchronized(serverLock) { block() }
 
@@ -360,9 +351,7 @@ public object Privilege {
                 clientStartOperationId = handshakeResult.clientStartOperationId,
                 initialLaunchId = handshakeResult.initialLaunchId,
             )
-            serverConnectionEventListeners.forEach { listener ->
-                runCatching { listener(event) }
-            }
+            mutableServerConnectionEvents.tryEmit(event)
             true
         } catch (throwable: Throwable) {
             Log.e(TAG, "Server connection handoff failed", throwable)
@@ -461,7 +450,6 @@ public object Privilege {
     ): PrivilegeServerInfo {
         val binder = server.asBinder()
         var previous: ServerConnection? = null
-        var notifyConnected = false
         val connection = synchronized(serverLock) {
             val current = currentServer
             if (current != null && current.server.asBinder() === binder) {
@@ -494,14 +482,11 @@ public object Privilege {
             next = newConnection
             previous = current
             currentServer = newConnection
+            mutableServerState.value = serverInfo
             PrivilegeRuntimeStartCoordinator.markServerConnected()
-            notifyConnected = true
             newConnection
         }
         previous?.unlink()
-        if (notifyConnected) {
-            notifyServerConnected(connection.serverInfo)
-        }
         return connection.serverInfo
     }
 
@@ -529,13 +514,13 @@ public object Privilege {
                 false
             } else {
                 currentServer = null
+                mutableServerState.value = null
                 PrivilegeRuntimeStartCoordinator.markServerDisconnected()
                 true
             }
         }
         if (notify) {
             connection.unlink()
-            notifyServerDisconnected()
         }
     }
 
@@ -544,30 +529,12 @@ public object Privilege {
             currentServer.also {
                 currentServer = null
                 if (it != null) {
+                    mutableServerState.value = null
                     PrivilegeRuntimeStartCoordinator.markServerDisconnected()
                 }
             }
         }
         previous?.unlink()
-        if (previous != null) {
-            notifyServerDisconnected()
-        }
-    }
-
-    private fun notifyServerDisconnected() {
-        disconnectedListeners.forEach { listener ->
-            runCatching {
-                listener()
-            }
-        }
-    }
-
-    private fun notifyServerConnected(serverInfo: PrivilegeServerInfo) {
-        connectedListeners.forEach { listener ->
-            runCatching {
-                listener(serverInfo)
-            }
-        }
     }
 
     internal fun buildShortNativeStarterCommand(
@@ -609,7 +576,7 @@ public object Privilege {
             ?.ifBlank { null }
     }
 
-    private fun readAdbServerDiagnostics(
+    private suspend fun readAdbServerDiagnostics(
         adbResult: PrivilegeAdbStartResult,
         adbStarter: PrivilegeAdbStarter,
         startupLogListener: PrivilegeStartupLogListener?,

@@ -8,13 +8,17 @@ import priv.kit.core.PrivilegeStartupException
 import priv.kit.core.PrivilegeStartupLogLine
 import priv.kit.core.PrivilegeStartupLogListener
 import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.io.OutputStream
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 
 class PrivilegeExternalStartupTest {
     @Test
-    fun runInCurrentProcessStreamsAndCapturesOutput() {
+    fun runInCurrentProcessStreamsAndCapturesOutput() = runBlocking {
         val received = CopyOnWriteArrayList<String>()
         val process = FakeProcess(
             stdout = "ready\nmore\n",
@@ -58,15 +62,37 @@ class PrivilegeExternalStartupTest {
         val runner = PrivilegeExternalStartupProcessRunner { _, _ -> process }
 
         val exception = assertThrows(PrivilegeStartupException::class.java) {
+            runBlocking {
+                runner.run(
+                    commandLine = "bad-command",
+                    options = PrivilegeExternalStartupOptions(),
+                    startupLogListener = null,
+                )
+            }
+        }
+
+        assertTrue(exception.message.orEmpty().contains("exited code=7"))
+        assertTrue(exception.message.orEmpty().contains("[stderr] nope"))
+    }
+
+    @Test
+    fun completedProcessClosesInheritedOutputStreamsInsteadOfHanging() = runBlocking {
+        val stdout = CloseBlockedInputStream()
+        val process = FakeProcess(
+            exitCode = 0,
+            stdoutStream = stdout,
+        )
+        val runner = PrivilegeExternalStartupProcessRunner { _, _ -> process }
+
+        withTimeout(2_000L) {
             runner.run(
-                commandLine = "bad-command",
+                commandLine = "start-command",
                 options = PrivilegeExternalStartupOptions(),
                 startupLogListener = null,
             )
         }
 
-        assertTrue(exception.message.orEmpty().contains("exited code=7"))
-        assertTrue(exception.message.orEmpty().contains("[stderr] nope"))
+        assertTrue(stdout.wasClosed)
     }
 
     @Test
@@ -102,9 +128,9 @@ class PrivilegeExternalStartupTest {
         stdout: String = "",
         stderr: String = "",
         private val exitCode: Int,
+        private val stdoutStream: InputStream = stdout.byteInputStream(),
+        private val stderrStream: InputStream = stderr.byteInputStream(),
     ) : Process() {
-        private val stdoutStream = stdout.byteInputStream()
-        private val stderrStream = stderr.byteInputStream()
         private val stdinStream = ByteArrayOutputStream()
 
         override fun getOutputStream(): OutputStream = stdinStream
@@ -123,5 +149,20 @@ class PrivilegeExternalStartupTest {
         override fun exitValue(): Int = exitCode
 
         override fun destroy() = Unit
+    }
+
+    private class CloseBlockedInputStream : InputStream() {
+        private val closed = CountDownLatch(1)
+        val wasClosed: Boolean
+            get() = closed.count == 0L
+
+        override fun read(): Int {
+            closed.await()
+            return -1
+        }
+
+        override fun close() {
+            closed.countDown()
+        }
     }
 }

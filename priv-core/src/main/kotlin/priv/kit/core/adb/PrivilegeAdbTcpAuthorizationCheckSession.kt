@@ -15,8 +15,10 @@ public class PrivilegeAdbTcpAuthorizationCheckSession internal constructor(
     private var closed = false
     private var client: PrivilegeAdbAuthorizationConnection? = null
 
-    @Throws(InterruptedException::class)
-    public fun check(): PrivilegeAdbAuthorizationCheckResult {
+    public suspend fun check(): PrivilegeAdbAuthorizationCheckResult =
+        cancellableAdbCall(cancel = ::close, block = ::checkBlocking)
+
+    private fun checkBlocking(): PrivilegeAdbAuthorizationCheckResult {
         val output = PrivilegeAdbOutput()
         output.append("diag", "ADB identity name=${identity.adbDeviceName}, keySignature=<redacted>")
         output.append("diag", "ADB public key fingerprint=$publicKeyFingerprint")

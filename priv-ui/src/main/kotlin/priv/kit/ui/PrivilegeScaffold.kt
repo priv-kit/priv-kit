@@ -12,11 +12,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FabPosition
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
@@ -100,7 +102,16 @@ public fun PrivilegeScaffold(
     )
     val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-        onResult = { viewModel.completeLocalNetworkPermissionRequest(permissionHostId) },
+        onResult = { granted ->
+            viewModel.completeLocalNetworkPermissionRequest(
+                hostId = permissionHostId,
+                permissionState = if (granted) {
+                    PrivilegeUiPermissionState.Granted
+                } else {
+                    PrivilegeUiPermissionState.NotGranted.Denied
+                },
+            )
+        },
     )
     DisposableEffect(viewModel, activity, permissionHostId) {
         viewModel.registerPermissionHost(permissionHostId)
@@ -237,30 +248,57 @@ public fun PrivilegeScaffold(
                 ),
             verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.large),
         ) {
-            Column {
-                AnimatedVisibility(
-                    visible = privilegeUiAutoRecoveryWarningVisible(
-                        desiredEnabled = state.desiredEnabled,
-                        runtimeStatus = state.runtimeStatus,
-                        runtimeStartPhase = state.runtimeStartPhase,
-                    ),
-                ) {
-                    Column {
-                        screenScope.AutoRecoveryWarning()
-                        Spacer(Modifier.height(PrivilegeUiSpacing.large))
+            if (state.runtimeStatusLoaded) {
+                Column {
+                    AnimatedVisibility(
+                        visible = privilegeUiAutoRecoveryWarningVisible(
+                            state = state,
+                            interactionEnabled = interactionEnabled,
+                        ),
+                    ) {
+                        Column {
+                            screenScope.AutoRecoveryWarning()
+                            Spacer(Modifier.height(PrivilegeUiSpacing.large))
+                        }
                     }
+                    screenScope.ServiceStatusPanel()
                 }
-                screenScope.ServiceStatusPanel()
+                screenScope.AdbPermissionRestrictionWarning()
+            } else {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
             }
-            screenScope.AdbPermissionRestrictionWarning()
             screenScope.AuthorizationModeTabs()
-            screenScope.AuthorizationModePanel()
+            if (state.selectedStartupModeStatusLoaded()) {
+                screenScope.AuthorizationModePanel()
+            } else {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
             if (state.startupLogLines.isNotEmpty()) {
                 screenScope.StartupLogPanel()
             }
         }
     }
 }
+
+internal fun privilegeUiAutoRecoveryWarningVisible(
+    state: PrivilegeUiState,
+    interactionEnabled: Boolean,
+): Boolean = state.runtimeStatusLoaded &&
+    interactionEnabled &&
+    privilegeUiAutoRecoveryWarningVisible(
+        desiredEnabled = state.desiredEnabled,
+        runtimeStatus = state.runtimeStatus,
+        runtimeStartPhase = state.runtimeStartPhase,
+    )
+
+internal fun PrivilegeUiState.selectedStartupModeStatusLoaded(): Boolean =
+    when (selectedStartupMode.takeIf { it in startupModes } ?: startupModes.firstOrNull()) {
+        PrivilegeUiStartupMode.ROOT -> true
+        PrivilegeUiStartupMode.MANUAL_SHELL -> manualShellStatusLoaded
+        PrivilegeUiStartupMode.ADB -> adbStatusLoaded
+        PrivilegeUiStartupMode.EXTERNAL -> externalStartStatusLoaded
+        null -> true
+    }
 
 internal class PrivilegeUiScreenScope(
     val state: PrivilegeUiState,

@@ -1,12 +1,14 @@
 package priv.kit.ui
 
 import android.Manifest
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -36,16 +38,20 @@ class PrivilegeUiAdbPairingActionsTest {
         withPairingActions { store, actions ->
             denyNotificationPermission()
             var permissionRequestCount = 0
-            actions.startNotificationPairing {
-                permissionRequestCount += 1
-                true
+            val permissionResult = CompletableDeferred<PrivilegeUiPermissionState?>()
+            val start = async(start = CoroutineStart.UNDISPATCHED) {
+                actions.startNotificationPairing {
+                    permissionRequestCount += 1
+                    permissionResult.await()
+                }
             }
             assertEquals(1, permissionRequestCount)
             assertNull(PrivilegeUiStartGate.tryAcquireSilent())
 
-            actions.handleNotificationPermissionResult(
+            permissionResult.complete(
                 PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
             )
+            start.await()
 
             assertTrue(store.state.value.pairingNotificationPermissionWarningVisible)
             assertNull(PrivilegeUiStartGate.tryAcquireSilent())
@@ -59,23 +65,22 @@ class PrivilegeUiAdbPairingActionsTest {
     }
 
     @Test
-    fun repeatedStartWhilePermissionIsPendingRequestsPermissionOnce() {
+    fun pendingPermissionKeepsPairingStopped() {
         withPairingActions { store, actions ->
             denyNotificationPermission()
             var permissionRequestCount = 0
+            val permissionResult = CompletableDeferred<PrivilegeUiPermissionState?>()
 
-            actions.startNotificationPairing {
-                permissionRequestCount += 1
-                true
+            val firstStart = async(start = CoroutineStart.UNDISPATCHED) {
+                actions.startNotificationPairing {
+                    permissionRequestCount += 1
+                    permissionResult.await()
+                }
             }
-            actions.startNotificationPairing {
-                permissionRequestCount += 1
-                true
-            }
-
             assertEquals(1, permissionRequestCount)
-            assertTrue(store.startNotificationPairingAfterPermission)
             assertPairingNotStarted(store)
+            permissionResult.complete(null)
+            firstStart.await()
         }
     }
 
@@ -84,21 +89,23 @@ class PrivilegeUiAdbPairingActionsTest {
         withPairingActions { store, actions ->
             denyNotificationPermission()
             var permissionRequestCount = 0
+            val permissionResult = CompletableDeferred<PrivilegeUiPermissionState?>()
 
-            actions.startNotificationPairing {
-                permissionRequestCount += 1
-                true
+            val start = async(start = CoroutineStart.UNDISPATCHED) {
+                actions.startNotificationPairing {
+                    permissionRequestCount += 1
+                    permissionResult.await()
+                }
             }
 
             assertEquals(1, permissionRequestCount)
-            assertTrue(store.startNotificationPairingAfterPermission)
             assertPairingNotStarted(store)
 
-            actions.handleNotificationPermissionResult(
+            permissionResult.complete(
                 PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
             )
+            start.await()
 
-            assertFalse(store.startNotificationPairingAfterPermission)
             assertTrue(store.state.value.pairingNotificationPermissionWarningVisible)
             assertPairingNotStarted(store)
         }
@@ -108,18 +115,16 @@ class PrivilegeUiAdbPairingActionsTest {
     fun rejectedPermissionDispatchDoesNotLeavePairingRequestStuck() {
         withPairingActions { store, actions ->
             denyNotificationPermission()
-            actions.startNotificationPairing { false }
+            actions.startNotificationPairing { null }
 
-            assertFalse(store.startNotificationPairingAfterPermission)
             assertPairingNotStarted(store)
 
             var permissionRequestCount = 0
             actions.startNotificationPairing {
                 permissionRequestCount += 1
-                true
+                null
             }
             assertEquals(1, permissionRequestCount)
-            assertTrue(store.startNotificationPairingAfterPermission)
         }
     }
 
@@ -127,11 +132,8 @@ class PrivilegeUiAdbPairingActionsTest {
     fun grantedNotificationPermissionStartsPairingSession() {
         withPairingActions { store, actions ->
             denyNotificationPermission()
-            actions.startNotificationPairing()
+            actions.startNotificationPairing { PrivilegeUiPermissionState.Granted }
 
-            actions.handleNotificationPermissionResult(PrivilegeUiPermissionState.Granted)
-
-            assertFalse(store.startNotificationPairingAfterPermission)
             assertFalse(store.state.value.pairingNotificationPermissionWarningVisible)
             assertEquals(PrivilegeUiAdbPairingStatus.SEARCHING, store.state.value.pairingStatus)
             assertTrue(store.state.value.pairingDialogVisible)
@@ -154,12 +156,17 @@ class PrivilegeUiAdbPairingActionsTest {
     }
 
     @Test
-    fun cancellingAfterPermanentDenialKeepsPairingStoppedAndIgnoresStalePermissionResult() {
+    fun cancellingPendingPermissionKeepsPairingStoppedWhenAStaleResultArrives() {
         withPairingActions { store, actions ->
-            showPermanentDenialWarning(actions)
+            denyNotificationPermission()
+            val permissionResult = CompletableDeferred<PrivilegeUiPermissionState?>()
+            val start = async(start = CoroutineStart.UNDISPATCHED) {
+                actions.startNotificationPairing { permissionResult.await() }
+            }
 
             actions.cancelPendingPairingStart()
-            actions.handleNotificationPermissionResult(PrivilegeUiPermissionState.Granted)
+            start.cancelAndJoin()
+            permissionResult.complete(PrivilegeUiPermissionState.Granted)
 
             assertFalse(store.state.value.pairingNotificationPermissionWarningVisible)
             assertPairingNotStarted(store)
@@ -178,13 +185,11 @@ class PrivilegeUiAdbPairingActionsTest {
             }
             denyNotificationPermission()
 
-            actions.startNotificationPairing()
+            actions.startNotificationPairing {
+                PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
+            }
 
             assertPairingNotStarted(store)
-
-            actions.handleNotificationPermissionResult(
-                PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
-            )
             actions.cancelPendingPairingStart()
 
             assertFalse(store.state.value.pairingNotificationPermissionWarningVisible)
@@ -196,11 +201,9 @@ class PrivilegeUiAdbPairingActionsTest {
     fun ordinaryNotificationDenialStartsPairingWithoutNotification() {
         withPairingActions { store, actions ->
             denyNotificationPermission()
-            actions.startNotificationPairing()
-
-            actions.handleNotificationPermissionResult(
-                PrivilegeUiPermissionState.NotGranted.Denied,
-            )
+            actions.startNotificationPairing {
+                PrivilegeUiPermissionState.NotGranted.Denied
+            }
 
             assertFalse(store.state.value.pairingNotificationPermissionWarningVisible)
             assertEquals(PrivilegeUiAdbPairingStatus.SEARCHING, store.state.value.pairingStatus)
@@ -349,12 +352,11 @@ class PrivilegeUiAdbPairingActionsTest {
         }
     }
 
-    private fun showPermanentDenialWarning(actions: PrivilegeUiAdbPairingActions) {
+    private suspend fun showPermanentDenialWarning(actions: PrivilegeUiAdbPairingActions) {
         denyNotificationPermission()
-        actions.startNotificationPairing()
-        actions.handleNotificationPermissionResult(
-            PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
-        )
+        actions.startNotificationPairing {
+            PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
+        }
     }
 
     private fun assertPairingNotStarted(store: PrivilegeUiViewModelStore) {
@@ -371,8 +373,8 @@ class PrivilegeUiAdbPairingActionsTest {
 
     private fun withPairingActions(
         hasInteractionHost: () -> Boolean = { true },
-        block: (PrivilegeUiViewModelStore, PrivilegeUiAdbPairingActions) -> Unit,
-    ) {
+        block: suspend CoroutineScope.(PrivilegeUiViewModelStore, PrivilegeUiAdbPairingActions) -> Unit,
+    ) = runBlocking {
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         scope.cancel()

@@ -11,6 +11,8 @@ Public entry points:
 - `PrivilegeScaffold`, the root Compose page.
 - `PrivilegeUiViewModel`, an `open` `AndroidViewModel` state manager that callers may subclass.
 - `PrivilegeUiConfig`, used to enable startup modes, polling intervals, and external start providers.
+- `PrivilegeUiExternalStartProvider`, whose suspend authorization and startup methods keep the
+  requesting ViewModel coroutine continuous across third-party prompts and callbacks.
 - `PrivilegeUi.startSilentlyIfEnabled(...)`, the desired-state-gated headless recovery entry point.
 - `PrivilegeUi.startSilently(...)`, the lower-level exact replay entry point that ignores the desired-state gate.
 
@@ -25,10 +27,9 @@ declare their own `androidx.lifecycle:lifecycle-viewmodel-compose` dependency.
 
 `PrivilegeScaffold` consumes the caller's Compose `MaterialTheme` colors. Apps that need light, dark, dynamic, or branded authorization UI should wrap it in their own Material 3 theme instead of configuring colors through `PrivilegeUiConfig`.
 
-`PrivilegeUiViewModel.startWirelessAdbStatusPolling()`, `startTcpModeStatusPolling()`,
-and `startExternalStartStatusPolling()` return `AutoCloseable` polling handles. Close
-the returned handle when the host no longer needs that polling request; the paired
-`stop*Polling()` methods still force-stop all active handles for that polling type.
+Status observation is owned by the ViewModel. A StateFlow-driven effect follows the selected
+startup mode, runs only the relevant ADB or external-provider polling coroutine, and cancels the
+previous mode automatically. Hosts consume `state`; they do not create or close polling handles.
 
 Internal Android components:
 
@@ -81,7 +82,7 @@ When the user explicitly starts a configured static-TCP endpoint whose listener 
 
 Before any foreground UI path issues `adb tcpip` to create or restart a static endpoint, the built-in UI requires a one-shot confirmation that explains the ADB restart and its impact on other ADB-backed processes. Cancelling the dialog leaves ADB unchanged. A configured endpoint that can be recovered through `ADB_ENABLED=1` does not show this confirmation, and foreground fallback never enables a static endpoint without confirmation.
 
-Custom surfaces that call `PrivilegeUiViewModel.startStaticTcpAdb()` or `enableTcpMode()` must collect `staticTcpSwitchConfirmation`. When it becomes non-null, they should present the same restart warning and call `confirmStaticTcpSwitch()` or `cancelStaticTcpSwitch()`. The pending value identifies whether confirmation will continue service startup or only enable the port; observing it never performs the switch.
+Custom surfaces that call `PrivilegeUiViewModel.startStaticTcpAdb()` or `enableTcpMode()` must collect `staticTcpSwitchConfirmation`. When it becomes non-null, they should present the same restart warning and call `confirmStaticTcpSwitch()` or `cancelStaticTcpSwitch()`. The pending value identifies whether confirmation will continue service startup or only enable the port; observing it never performs the switch. The requesting ViewModel-owned coroutine remains suspended while the dialog is visible, so confirmation resumes the same static-TCP workflow instead of constructing a second startup attempt.
 
 The foreground service action calls `PrivilegeUiViewModel.startInteractive()` and tries configured workflows in the order supplied by the UI before reporting a generic failure. If a Root or ADB command may have created a detached server but its Binder handshake does not complete, fallback stops and reports the generic failure because that server may still arrive later. An External request remains in the same start session while the runner waits for its Binder connection or timeout; a timeout also stops fallback because the requested server may still arrive later. Every foreground start uses the same cooperative cancellation model: the first cancellation request changes the owning controls from Cancel to a disabled Cancelling state, Root and ADB observe cancellation at their internal checkpoints, and an External provider call with no checkpoints remains in Cancelling until that call returns. Other startup controls stay disabled while a start is running or cancelling.
 
@@ -114,7 +115,7 @@ Silent method behavior is deliberately narrow:
 
 - Wireless ADB may temporarily enable Wireless Debugging when `enableManagedWirelessAdb` is enabled and the app already has the runtime capability required to manage it. It never starts pairing, and returns `null` when the saved ADB identity is not paired. If the platform requires `ACCESS_LOCAL_NETWORK` and it has not already been granted, the method returns `null` without requesting it.
 - Static TCP uses only the current `config.tcpPort`, with discovery and Wireless Debugging fallback disabled. An unavailable listener or unauthorized ADB key returns `null`; the authorization request flow is not invoked.
-- External startup resolves the exact saved provider ID from the supplied config, requires its current `snapshot()` to report `canStart`, and never calls `requestAuthorization()`. Provider IDs are persistent keys and should remain stable across app upgrades. The snapshot and start call share `startTimeoutMillis`; blocking providers should respond to thread interruption so cancellation and timeout can finish promptly.
+- External startup resolves the exact saved provider ID from the supplied config, requires its current `snapshot()` to report `canStart`, and never calls `requestAuthorization()`. Provider IDs are persistent keys and should remain stable across app upgrades. The suspend snapshot and start calls share `startTimeoutMillis` and should cooperate with coroutine cancellation.
 - Root startup reuses the existing Root path. `priv-ui` does not request Android permissions, but a root manager may still display its own authorization UI if its previous grant is no longer valid.
 
 Construct external providers and `PrivilegeUiConfig` once at application scope, then pass the same config instance to both entry points. An `Application` property is one straightforward option:
@@ -135,7 +136,7 @@ val serverInfo = PrivilegeUi.startSilentlyIfEnabled(
 )
 ```
 
-An `object` or top-level lazy property is also suitable when it obtains only application-scoped dependencies. External providers must not retain an `Activity`, and their `snapshot()` implementation should remain a read-only status check.
+An `object` or top-level lazy property is also suitable when it obtains only application-scoped dependencies. External providers must not retain an `Activity`, and `snapshot()` should remain a read-only suspend status check. `requestAuthorization(...)` may present the third-party prompt and returns the final post-authorization snapshot; callback APIs can bridge with `suspendCancellableCoroutine` and must unregister listeners on cancellation. The UI then continues startup directly in the same ViewModel coroutine, without a foreground-resume reconciliation path.
 
 Basic usage:
 
@@ -169,7 +170,11 @@ A custom `snackbarHost` receives the internal `SnackbarHostState` so ViewModel f
 continues to use the supplied host.
 
 `PrivilegeScaffold` owns its Activity Result launchers for notification and local-network
-permissions and returns the notification result to the ViewModel. Host subclasses may
+permissions and returns each result to the ViewModel. The corresponding ViewModel-owned
+operation stays suspended until that result arrives: notification pairing continues from its
+permission branch, while an ADB start granted local-network access retries once in the same
+startup workflow. Removing the final Scaffold host or clearing the ViewModel cancels the pending
+request and releases its interaction lease. Host subclasses may
 override `onBackClick()`, `onConnected(...)`, and
 `onNotificationPermissionSettingsRequested(...)`. These hooks should update host state,
 emit host events, or customize notification-settings navigation; a ViewModel must not retain

@@ -25,7 +25,7 @@ ADB startup supports managed ADB recovery as an internal strategy. When `Privile
 
 `Privilege.checkPermission(permName, pkgName, userId = cached current user id)` and `Privilege.grantRuntimePermission(packageName, permissionName, userId = cached current user id)` are thin pass-through calls to server-side `IPackageManager`. They do not add policy, discovery, batching, permission groups, app-ops, install flows, or package management abstractions.
 
-Blocking startup, discovery, pairing, and authorization-check entry points restore the caller thread's interrupt flag and propagate `InterruptedException`. Their Java signatures declare that checked exception; coroutine integrations can use an interruptible dispatcher so cancellation interrupts the underlying blocking operation.
+`Privilege.startRoot()`, `Privilege.startAdb()`, external startup, ADB discovery/pairing, TCP-mode operations, and authorization checks are suspend APIs. Blocking transport work runs on the IO dispatcher. Cancellation closes the active process, socket, persistent check session, or mDNS discovery so the owning coroutine retains one continuous lifecycle across discovery, authorization, startup, and cleanup.
 
 `PrivilegeHandshakeProvider` initializes the runtime with the app `Context`, so callers use `Privilege` directly without passing `Context` into start, ADB, shell-start, or ready-server APIs. The provider remains exported so shell/root/external privileged starters can reach it, but normal apps are stopped by the provider permission before the owner-token handshake runs.
 
@@ -47,7 +47,7 @@ Like shizuku-api, the runtime treats the Privileged Server Binder as a single pr
 
 If a server reports a different protocol or APK classpath identity than the current app runtime, the runtime rejects that Binder handoff. When the caller is a trusted existing server, the app returns the current native starter command so the stale server can replace itself from the current install.
 
-Shell Start only creates a command for the same Binder handoff path. The command can be executed at any time; the app observes the eventual Binder handoff through `addServerConnectedListener()` or `connectReadyServer()`. It does not execute `adb`, implement Wireless Debugging, or add an ADB startup strategy. UI modules or host apps may add an `adb shell` prefix when they want to display a host-side command.
+Shell Start only creates a command for the same Binder handoff path. The command can be executed at any time; the app observes the eventual Binder handoff through `Privilege.serverState` or claims a retained handoff with `connectReadyServer()`. It does not execute `adb`, implement Wireless Debugging, or add an ADB startup strategy. UI modules or host apps may add an `adb shell` prefix when they want to display a host-side command.
 
 External privileged hosts use the same Shell Start Command. For an app-owned Binder bridge, the main process calls `PrivilegeExternalStartup.runThroughBridge(...)` and the privileged endpoint delegates its one start method to `PrivilegeExternalStartupHost`. The runtime owns the `ParcelFileDescriptor` stdout/stderr pipes, bounded transcript, live log forwarding, terminal `ResultReceiver`, timeout, and concurrent-call rejection. `runInCurrentProcess(...)` and `createReceiver(...)` remain lower-level helpers. Shizuku binding and the AIDL declaration stay in the app; the app must keep that Binder endpoint private to trusted callers.
 

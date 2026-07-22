@@ -19,7 +19,7 @@ import priv.kit.core.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.core.internal.userservice.PrivilegeUserServiceHandshakeRegistry
 import java.util.concurrent.ConcurrentHashMap
 
-internal class PrivilegeHandshakeProvider public constructor() : ContentProvider() {
+internal class PrivilegeHandshakeProvider : ContentProvider() {
     override fun onCreate(): Boolean {
         context?.let { providerContext ->
             PrivilegeContext.install(providerContext)

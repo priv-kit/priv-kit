@@ -6,11 +6,12 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
 import javax.net.ssl.SSLProtocolException
 
 class PrivilegeAdbPairingCheckSessionTest {
     @Test
-    fun checkReusesPersistentConnectionUntilClosed() {
+    fun checkReusesPersistentConnectionUntilClosed() = runBlocking {
         val connections = mutableListOf<FakeAdbConnection>()
         val session = session(
             clientFactory = {
@@ -36,7 +37,7 @@ class PrivilegeAdbPairingCheckSessionTest {
     }
 
     @Test
-    fun checkReconnectsAfterPersistentConnectionFails() {
+    fun checkReconnectsAfterPersistentConnectionFails() = runBlocking {
         val connections = mutableListOf<FakeAdbConnection>()
         val session = session(
             clientFactory = {
@@ -58,7 +59,7 @@ class PrivilegeAdbPairingCheckSessionTest {
     }
 
     @Test
-    fun checkReportsUnavailableWhenNoPortCanBeResolved() {
+    fun checkReportsUnavailableWhenNoPortCanBeResolved() = runBlocking {
         val session = session(
             explicitPort = null,
             discoverPort = false,
@@ -76,7 +77,7 @@ class PrivilegeAdbPairingCheckSessionTest {
     }
 
     @Test
-    fun checkReportsUnpairedOnlyWhenAdbSaysUnauthorized() {
+    fun checkReportsUnpairedOnlyWhenAdbSaysUnauthorized() = runBlocking {
         val session = session(
             clientFactory = {
                 FakeAdbConnection(status = PrivilegeAdbAuthorizationStatus.UNAUTHORIZED)
@@ -91,7 +92,7 @@ class PrivilegeAdbPairingCheckSessionTest {
     }
 
     @Test
-    fun checkReportsErrorWhenPairingProbeFails() {
+    fun checkReportsErrorWhenPairingProbeFails() = runBlocking {
         val session = session(
             clientFactory = {
                 FakeAdbConnection(failCheckAuthorization = true)
@@ -105,7 +106,7 @@ class PrivilegeAdbPairingCheckSessionTest {
     }
 
     @Test
-    fun checkReportsUnpairedWhenTlsRejectsUnknownCertificate() {
+    fun checkReportsUnpairedWhenTlsRejectsUnknownCertificate() = runBlocking {
         val session = session(
             clientFactory = {
                 FakeAdbConnection(
@@ -122,7 +123,7 @@ class PrivilegeAdbPairingCheckSessionTest {
     }
 
     @Test
-    fun checkPropagatesDiscoveryInterruptionAndRestoresInterruptFlag() {
+    fun checkPropagatesDiscoveryInterruptionAndRestoresInterruptFlag() = runBlocking {
         val session = session(
             explicitPort = null,
             discoverPort = true,
@@ -131,7 +132,7 @@ class PrivilegeAdbPairingCheckSessionTest {
         )
 
         try {
-            assertThrows(InterruptedException::class.java) { session.check() }
+            assertThrows(InterruptedException::class.java) { runBlocking { session.check() } }
             assertTrue(Thread.currentThread().isInterrupted)
         } finally {
             Thread.interrupted()

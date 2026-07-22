@@ -5,73 +5,65 @@ import kotlinx.coroutines.CompletableDeferred
 internal sealed class PrivilegeUiPermissionRequest(
     private val interactionPermit: AutoCloseable,
 ) : AutoCloseable {
-    private val stateLock = Any()
-    private var closed = false
-    private var completionClaimed = false
+    private val lock = Any()
+    private val completion = CompletableDeferred<PrivilegeUiPermissionState?>()
     private var launchedHostId: String? = null
-    private val completion = CompletableDeferred<Unit>()
+    private var finished = false
 
     internal val wasLaunched: Boolean
-        get() = synchronized(stateLock) { launchedHostId != null }
+        get() = synchronized(lock) { launchedHostId != null }
 
     internal fun tryMarkLaunched(hostId: String): Boolean =
-        synchronized(stateLock) {
-            if (closed || completionClaimed || launchedHostId != null) {
-                false
-            } else {
+        synchronized(lock) {
+            if (finished || launchedHostId != null) false
+            else {
                 launchedHostId = hostId
                 true
             }
         }
 
     internal fun wasLaunchedBy(hostId: String): Boolean =
-        synchronized(stateLock) { launchedHostId == hostId }
+        synchronized(lock) { launchedHostId == hostId }
 
-    internal fun tryClaimLaunchedCompletion(hostId: String): Boolean =
-        synchronized(stateLock) {
-            tryClaimCompletionLocked(launchedHostId == hostId)
-        }
-
-    internal fun tryClaimUnlaunchedCompletion(): Boolean =
-        synchronized(stateLock) {
-            tryClaimCompletionLocked(launchedHostId == null)
-        }
-
-    internal fun tryClaimCancellation(hostId: String): Boolean =
-        synchronized(stateLock) {
-            tryClaimCompletionLocked(launchedHostId == null || launchedHostId == hostId)
-        }
-
-    internal fun tryClaimCancellation(): Boolean =
-        synchronized(stateLock) { tryClaimCompletionLocked(true) }
-
-    internal suspend fun awaitCompletion() {
-        completion.await()
+    internal fun complete(
+        hostId: String,
+        permissionState: PrivilegeUiPermissionState,
+    ) {
+        finish(permissionState) { launchedHostId == hostId }
     }
 
+    internal fun completeUnlaunched(permissionState: PrivilegeUiPermissionState) {
+        finish(permissionState) { launchedHostId == null }
+    }
+
+    internal fun cancel(hostId: String) {
+        finish(null) { launchedHostId == null || launchedHostId == hostId }
+    }
+
+    internal suspend fun awaitCompletion(): PrivilegeUiPermissionState? = completion.await()
+
     final override fun close() {
-        val shouldClose = synchronized(stateLock) {
-            if (closed) {
-                false
-            } else {
-                closed = true
+        finish(null) { true }
+    }
+
+    private fun finish(
+        result: PrivilegeUiPermissionState?,
+        canFinish: () -> Boolean,
+    ) {
+        val claimed = synchronized(lock) {
+            if (finished || !canFinish()) false
+            else {
+                finished = true
                 true
             }
         }
-        if (!shouldClose) return
+        if (!claimed) return
+        completion.complete(result)
         runCatching { interactionPermit.close() }
-        completion.complete(Unit)
     }
 
-    private fun tryClaimCompletionLocked(ownerMatches: Boolean): Boolean {
-        if (closed || completionClaimed || !ownerMatches) return false
-        completionClaimed = true
-        return true
-    }
-
-    class Notification(
-        interactionPermit: AutoCloseable,
-    ) : PrivilegeUiPermissionRequest(interactionPermit)
+    class Notification(interactionPermit: AutoCloseable) :
+        PrivilegeUiPermissionRequest(interactionPermit)
 
     class LocalNetwork(
         val permission: String,

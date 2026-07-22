@@ -13,6 +13,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
 import priv.kit.shared.PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST
 import priv.kit.shared.isPrivilegeAdbPort
@@ -37,7 +38,7 @@ import kotlin.time.Duration.Companion.milliseconds
 internal class PrivilegeUiAdbPairingActions(
     private val store: PrivilegeUiViewModelStore,
     private val coroutineScope: CoroutineScope,
-    private val enableTcpMode: () -> Unit,
+    private val enableTcpMode: suspend () -> Unit,
     private val acquireInteractivePermit: () -> AutoCloseable? =
         PrivilegeUiStartGate.newInteractivePermitAcquirer(),
     private val hasInteractionHost: () -> Boolean = { true },
@@ -45,7 +46,6 @@ internal class PrivilegeUiAdbPairingActions(
     private val pairingPermitLock = Any()
     private var pairingPermit: AutoCloseable? = null
     private var notificationEventsJob: Job? = null
-    private var notificationPermissionRequestInFlight: Boolean = false
     private var pairingJob: Job? = null
     private var pairingSessionSerial: Int = 0
     private var pairingPort: Int? = null
@@ -95,15 +95,11 @@ internal class PrivilegeUiAdbPairingActions(
         }
     }
 
-    fun startNotificationPairing(
-        onNotificationPermissionRequired: () -> Boolean = { true },
+    suspend fun startNotificationPairing(
+        requestNotificationPermission: suspend () -> PrivilegeUiPermissionState? = { null },
     ) {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
-        if (
-            notificationPermissionRequestInFlight ||
-            store.startNotificationPairingAfterPermission ||
-            store.state.value.pairingNotificationPermissionWarningVisible
-        ) {
+        if (store.state.value.pairingNotificationPermissionWarningVisible) {
             return
         }
         if (!ensurePairingPermit()) return
@@ -111,20 +107,13 @@ internal class PrivilegeUiAdbPairingActions(
         if (!isNotificationPermissionGranted()) {
             resetPairingSessionForNotificationPermission()
             PrivilegeAdbPairingService.stop(context, notificationOwnerId)
-            store.startNotificationPairingAfterPermission = true
-            notificationPermissionRequestInFlight = true
-            try {
-                if (!onNotificationPermissionRequired()) {
-                    notificationPermissionRequestInFlight = false
-                    store.startNotificationPairingAfterPermission = false
-                    releasePairingPermit()
-                }
+            val permissionState = try {
+                requestNotificationPermission()
             } catch (throwable: Throwable) {
-                notificationPermissionRequestInFlight = false
-                store.startNotificationPairingAfterPermission = false
-                releasePairingPermit()
+                cancelNotificationPermissionRequest()
                 throw throwable
             }
+            continueAfterNotificationPermission(permissionState)
             return
         }
         startPairingWithNotification()
@@ -142,8 +131,6 @@ internal class PrivilegeUiAdbPairingActions(
     }
 
     fun cancelNotificationPermissionRequest() {
-        notificationPermissionRequestInFlight = false
-        store.startNotificationPairingAfterPermission = false
         store.updateState {
             it.copy(pairingNotificationPermissionWarningVisible = false)
         }
@@ -165,7 +152,6 @@ internal class PrivilegeUiAdbPairingActions(
     fun continuePairingWithoutNotification() {
         if (!store.state.value.pairingNotificationPermissionWarningVisible) return
         if (!ensurePairingPermit()) return
-        store.startNotificationPairingAfterPermission = false
         store.updateState {
             it.copy(pairingNotificationPermissionWarningVisible = false)
         }
@@ -192,11 +178,13 @@ internal class PrivilegeUiAdbPairingActions(
         submitPairingCode(store.state.value.pairingCode)
     }
 
-    fun handleNotificationPermissionResult(permissionState: PrivilegeUiPermissionState) {
-        notificationPermissionRequestInFlight = false
-        val startPairing = store.startNotificationPairingAfterPermission
-        store.startNotificationPairingAfterPermission = false
-        if (!startPairing) return
+    private fun continueAfterNotificationPermission(permissionState: PrivilegeUiPermissionState?) {
+        if (permissionState == null) {
+            if (!store.state.value.pairingStatus.isPrivilegeUiPairingSessionActive()) {
+                releasePairingPermit()
+            }
+            return
+        }
         if (!ensurePairingPermit()) {
             store.updateState {
                 it.copy(pairingNotificationPermissionWarningVisible = true)
@@ -221,8 +209,6 @@ internal class PrivilegeUiAdbPairingActions(
     }
 
     override fun close() {
-        notificationPermissionRequestInFlight = false
-        store.startNotificationPairingAfterPermission = false
         store.updateState {
             it.copy(pairingNotificationPermissionWarningVisible = false)
         }
@@ -250,7 +236,6 @@ internal class PrivilegeUiAdbPairingActions(
 
     private fun startPairingSession() {
         if (!ensurePairingPermit()) return
-        store.startNotificationPairingAfterPermission = false
         val adbDeviceName = store.currentAdbDeviceNameOverride()
         val session = startNewPairingSession()
         pairingPort = null
@@ -298,11 +283,11 @@ internal class PrivilegeUiAdbPairingActions(
             while (isActive && isCurrentPairingSession(session)) {
                 if (monitoredPort == null) {
                     val discovery = try {
-                        runInterruptible(Dispatchers.IO) {
-                            val port = starter.discoverPairingPort(PAIRING_DISCOVERY_ATTEMPT_TIMEOUT_MILLIS)
-                            val identityInfo = runCatching { starter.getIdentityInfo() }.getOrNull()
-                            port to identityInfo
+                        val port = starter.discoverPairingPort(PAIRING_DISCOVERY_ATTEMPT_TIMEOUT_MILLIS)
+                        val identityInfo = withContext(Dispatchers.IO) {
+                            runCatching { starter.getIdentityInfo() }.getOrNull()
                         }
+                        port to identityInfo
                     } catch (throwable: Throwable) {
                         if (throwable is CancellationException || !isCurrentPairingSession(session)) {
                             return@discovery
@@ -393,13 +378,11 @@ internal class PrivilegeUiAdbPairingActions(
         store.appendLog(pairingMessage)
         val job = createPairingJob("priv-ui-pairing-submit") submit@{
             try {
-                val result = runInterruptible(Dispatchers.IO) {
-                    Privilege.createAdbStarter(adbDeviceName = adbDeviceName).pair(
-                        pairingCode = code,
-                        port = port,
-                        discoverPort = false,
-                    )
-                }
+                val result = Privilege.createAdbStarter(adbDeviceName = adbDeviceName).pair(
+                    pairingCode = code,
+                    port = port,
+                    discoverPort = false,
+                )
                 if (!isCurrentPairingSession(session)) return@submit
 
                 pairingSessionSerial += 1
@@ -478,7 +461,6 @@ internal class PrivilegeUiAdbPairingActions(
         stopNotification: Boolean,
     ) {
         val wasActive = store.state.value.pairingStatus.isPrivilegeUiPairingSessionActive()
-        store.startNotificationPairingAfterPermission = false
         invalidatePairingSession()
         if (stopNotification) {
             PrivilegeAdbPairingService.stop(store.requireContext(), notificationOwnerId)
@@ -563,7 +545,7 @@ internal class PrivilegeUiAdbPairingActions(
     private fun isCurrentPairingSession(session: Int): Boolean =
         session == pairingSessionSerial
 
-    private fun enableTcpModeAfterPairing() {
+    private suspend fun enableTcpModeAfterPairing() {
         if (
             !PrivilegeUiStartGate.isSilentStartInProgress &&
             store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.AUTO_ENABLE_AFTER_WIRELESS_PAIRED &&

@@ -141,7 +141,6 @@ public data class PrivilegeAdbAuthorizationCheckResult public constructor(
 
 public enum class PrivilegeAdbAuthorizationEndReason {
     AUTOMATIC_TIMEOUT,
-    MANUAL_CANCELLED,
     FAILED,
 }
 
@@ -151,10 +150,6 @@ public data class PrivilegeAdbAuthorizationRequestResult public constructor(
     public val outputText: String = "",
     public val failureMessage: String? = null,
 )
-
-public fun interface PrivilegeAdbAuthorizationRequestCallback {
-    public fun onResult(result: PrivilegeAdbAuthorizationRequestResult)
-}
 
 internal object PrivilegeAdbPortSelector {
     fun chooseStartEndpoint(

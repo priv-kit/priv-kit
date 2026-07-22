@@ -6,54 +6,63 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.annotation.RequiresApi
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
 import priv.kit.shared.PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST
-import java.io.Closeable
 import java.io.IOException
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
-import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.time.Duration.Companion.milliseconds
 
 internal class PrivilegeAdbMdns(
     private val nsdManager: NsdManager,
     private val serviceType: String,
-) : Closeable {
+) {
     private val handler = Handler(Looper.getMainLooper())
     private val callbackExecutor = Executor { command -> handler.post(command) }
     private val serviceInfoCallbacks = mutableSetOf<NsdManager.ServiceInfoCallback>()
     private var registered = false
-    @Volatile
-    private var endpoint: PrivilegeAdbEndpoint? = null
-    private var latch: CountDownLatch? = null
+    private var closing = false
+    private var continuation: kotlinx.coroutines.CancellableContinuation<PrivilegeAdbEndpoint>? = null
     private val listener = DiscoveryListener()
 
-    @Throws(InterruptedException::class)
-    fun discoverEndpoint(timeoutMillis: Long): PrivilegeAdbEndpoint {
-        val discoveryLatch = CountDownLatch(1)
-        latch = discoveryLatch
-        handler.post {
-            nsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
-        }
+    suspend fun discoverEndpoint(timeoutMillis: Long): PrivilegeAdbEndpoint =
         try {
-            try {
-                discoveryLatch.await(timeoutMillis, TimeUnit.MILLISECONDS)
-            } catch (exception: InterruptedException) {
-                Thread.currentThread().interrupt()
-                throw exception
+            withTimeout(timeoutMillis.milliseconds) {
+                suspendCancellableCoroutine { continuation ->
+                    this@PrivilegeAdbMdns.continuation = continuation
+                    continuation.invokeOnCancellation { close() }
+                    handler.post {
+                        if (continuation.isActive) {
+                            registered = true
+                            runCatching {
+                                nsdManager.discoverServices(
+                                    serviceType,
+                                    NsdManager.PROTOCOL_DNS_SD,
+                                    listener,
+                                )
+                            }.onFailure {
+                                registered = false
+                                failDiscovery(it)
+                            }
+                        }
+                    }
+                }
             }
+        } catch (throwable: kotlinx.coroutines.TimeoutCancellationException) {
+            throw PrivilegeAdbException("Timed out discovering ADB service $serviceType", throwable)
         } finally {
             close()
         }
-        return endpoint ?: run {
-            throw PrivilegeAdbException("Timed out discovering ADB service $serviceType")
-        }
-    }
 
-    override fun close() {
+    private fun close() {
         handler.post {
+            closing = true
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 serviceInfoCallbacks.toList().forEach { callback ->
                     runCatching { nsdManager.unregisterServiceInfoCallback(callback) }
@@ -75,9 +84,16 @@ internal class PrivilegeAdbMdns(
             isPortListeningOnHost = ::isPortListeningOnHost,
         )
         if (resolvedEndpoint != null) {
-            endpoint = resolvedEndpoint
-            latch?.countDown()
+            val current = continuation
+            continuation = null
+            current?.takeIf { it.isActive }?.resume(resolvedEndpoint) { _, _, _ -> close() }
         }
+    }
+
+    private fun failDiscovery(throwable: Throwable) {
+        val current = continuation
+        continuation = null
+        current?.takeIf { it.isActive }?.resumeWithException(throwable)
     }
 
     private fun localServiceHost(info: NsdServiceInfo): String? {
@@ -119,10 +135,16 @@ internal class PrivilegeAdbMdns(
     private inner class DiscoveryListener : NsdManager.DiscoveryListener {
         override fun onDiscoveryStarted(serviceType: String) {
             registered = true
+            if (closing) {
+                runCatching { nsdManager.stopServiceDiscovery(this) }
+            }
         }
 
         override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-            latch?.countDown()
+            registered = false
+            failDiscovery(
+                PrivilegeAdbException("Failed to discover ADB service $serviceType: $errorCode"),
+            )
         }
 
         override fun onDiscoveryStopped(serviceType: String) {
@@ -134,6 +156,7 @@ internal class PrivilegeAdbMdns(
         }
 
         override fun onServiceFound(serviceInfo: NsdServiceInfo) {
+            if (closing) return
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 registerServiceInfoCallback(serviceInfo)
             } else {

@@ -23,7 +23,7 @@ import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeServerLaunchUncertainException
 import priv.kit.core.PrivilegeStartupException
 import priv.kit.core.adb.PrivilegeAdbAuthorizationRequestResult
-import java.util.concurrent.CopyOnWriteArrayList
+import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
@@ -43,6 +44,10 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.yield
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.withTimeout
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -479,25 +484,19 @@ class PrivilegeUiRuntimeActionsTest {
     }
 
     @Test
-    fun staleTcpAuthorizationResultCannotOverwriteNextSession() = runBlocking {
+    fun cancelledTcpAuthorizationCannotOverwriteNextSession() = runBlocking {
         RuntimeActionsFixture().use { (store, actions) ->
-            val callbacks = CopyOnWriteArrayList<(PrivilegeAdbAuthorizationRequestResult) -> Unit>()
-            val firstCommitEntered = CountDownLatch(1)
-            val releaseFirstCommit = CountDownLatch(1)
-            val firstCommit = AtomicBoolean(true)
+            val results = listOf(
+                CompletableDeferred<PrivilegeAdbAuthorizationRequestResult>(),
+                CompletableDeferred(),
+            )
+            val requestCount = AtomicInteger(0)
             val tcpActions = PrivilegeUiAdbTcpActions(
                 store = store,
                 runtimeActions = actions,
                 refreshTcpModeEnabled = {},
-                tcpAuthorizationRequester = { _, _, callback ->
-                    callbacks += callback
-                    AutoCloseable {}
-                },
-                beforeTcpAuthorizationResultCommit = {
-                    if (firstCommit.compareAndSet(true, false)) {
-                        firstCommitEntered.countDown()
-                        releaseFirstCommit.await(30, TimeUnit.SECONDS)
-                    }
+                tcpAuthorizationRequester = { _, _ ->
+                    results[requestCount.getAndIncrement()].await()
                 },
             )
 
@@ -515,54 +514,30 @@ class PrivilegeUiRuntimeActionsTest {
 
             try {
                 startAuthorization()
-                assertTrue(waitUntil { callbacks.size == 1 })
-                val staleCallback = callbacks.single()
-                val staleCommit = async(Dispatchers.Default) {
-                    staleCallback(PrivilegeAdbAuthorizationRequestResult(authorized = true))
-                }
-                assertTrue(firstCommitEntered.await(2, TimeUnit.SECONDS))
-
-                val cancellation = async(Dispatchers.Default) {
-                    actions.stopCurrentStart()
-                }
+                assertTrue(waitUntil { requestCount.get() == 1 })
+                actions.stopCurrentStart()
                 assertTrue(
                     waitUntil {
-                        store.state.value.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.CANCELLING
+                        store.state.value.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.IDLE
                     },
                 )
-                startAuthorization()
-                assertEquals(1, callbacks.size)
-
-                releaseFirstCommit.countDown()
-                cancellation.await()
-                staleCommit.await()
-                assertTrue(waitUntilIdle(store))
-
-                startAuthorization()
-                assertTrue(waitUntil { callbacks.size == 2 })
-                assertEquals(
-                    PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
-                    store.state.value.tcpAuthorizationStatus,
-                )
-                val currentRequest = store.tcpAuthorizationRequest
-                assertNotNull(currentRequest)
-
-                staleCallback(PrivilegeAdbAuthorizationRequestResult(authorized = true))
-
-                assertSame(currentRequest, store.tcpAuthorizationRequest)
-                assertEquals(
-                    PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
-                    store.state.value.tcpAuthorizationStatus,
-                )
+                results[0].complete(PrivilegeAdbAuthorizationRequestResult(authorized = true))
+                yield()
                 assertFalse(
-                    store.state.value.startupLogLines.contains(
-                        store.text(R.string.priv_ui_tcp_authorization_allowed),
-                    ),
+                    store.state.value.tcpAuthorizationStatus ==
+                        PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
                 )
+
+                startAuthorization()
+                assertTrue(waitUntil { requestCount.get() == 2 })
+                assertEquals(
+                    PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
+                    store.state.value.tcpAuthorizationStatus,
+                )
+                results[1].complete(PrivilegeAdbAuthorizationRequestResult(authorized = false))
+                assertTrue(waitUntilIdle(store))
             } finally {
-                releaseFirstCommit.countDown()
                 actions.stopCurrentStart()
-                tcpActions.close()
             }
         }
     }
@@ -805,8 +780,7 @@ class PrivilegeUiRuntimeActionsTest {
 
     @Test
     fun connectionClaimInterruptsCurrentAttemptAndPreventsFurtherFallback() = runBlocking {
-        val attemptStarted = CountDownLatch(1)
-        val releaseAttempt = CountDownLatch(1)
+        val attemptStarted = CompletableDeferred<Unit>()
         val attemptExited = AtomicBoolean(false)
         val nextAttemptStarted = AtomicBoolean(false)
         RuntimeActionsFixture().use { (store, actions) ->
@@ -817,10 +791,9 @@ class PrivilegeUiRuntimeActionsTest {
                         message = "adb",
                         startupSource = null,
                     ) {
-                        attemptStarted.countDown()
+                        attemptStarted.complete(Unit)
                         try {
-                            releaseAttempt.await(30, TimeUnit.SECONDS)
-                            error("blocked attempt should have been interrupted")
+                            awaitCancellation()
                         } finally {
                             attemptExited.set(true)
                         }
@@ -834,7 +807,7 @@ class PrivilegeUiRuntimeActionsTest {
                     },
                 ),
             )
-                assertTrue(attemptStarted.await(2, TimeUnit.SECONDS))
+                withTimeout(2_000L) { attemptStarted.await() }
 
                 actions.connectForTest(shellServerInfo())
 
@@ -843,7 +816,7 @@ class PrivilegeUiRuntimeActionsTest {
                 assertFalse(nextAttemptStarted.get())
                 assertEquals(PrivilegeUiRuntimeStartPhase.IDLE, store.state.value.runtimeStartPhase)
             } finally {
-                releaseAttempt.countDown()
+                actions.stopCurrentStart()
             }
         }
     }
@@ -913,15 +886,11 @@ class PrivilegeUiRuntimeActionsTest {
             assertEquals(PrivilegeUiRuntimeStatus.STARTING, store.state.value.runtimeStatus)
             assertEquals(PrivilegeUiRuntimeStartPhase.RUNNING, store.state.value.runtimeStartPhase)
             assertTrue(store.state.value.busy)
-            assertNotNull(store.runtimeStartSession)
-            assertTrue(store.runtimeStartJob?.isActive == true)
 
             actions.connectForTest(shellServerInfo())
 
             assertTrue(waitUntilConnected(store))
             assertEquals(PrivilegeUiRuntimeStartPhase.IDLE, store.state.value.runtimeStartPhase)
-            assertNull(store.runtimeStartSession)
-            assertNull(store.runtimeStartJob)
         }
     }
 
@@ -989,10 +958,6 @@ class PrivilegeUiRuntimeActionsTest {
 
             assertTrue(entered.await(2, TimeUnit.SECONDS))
             assertEquals(PrivilegeUiRuntimeStartPhase.RUNNING, store.state.value.runtimeStartPhase)
-            val session = store.runtimeStartSession
-            val job = store.runtimeStartJob
-            val generation = store.runtimeStartGeneration.get()
-
             actions.stopCurrentStart()
 
             assertEquals(PrivilegeUiRuntimeStartPhase.CANCELLING, store.state.value.runtimeStartPhase)
@@ -1002,9 +967,6 @@ class PrivilegeUiRuntimeActionsTest {
             actions.stopCurrentStart()
 
             assertEquals(PrivilegeUiRuntimeStartPhase.CANCELLING, store.state.value.runtimeStartPhase)
-            assertSame(session, store.runtimeStartSession)
-            assertSame(job, store.runtimeStartJob)
-            assertEquals(generation, store.runtimeStartGeneration.get())
             assertEquals(1, cleanupCount.get())
 
             release.countDown()
@@ -1093,11 +1055,11 @@ class PrivilegeUiRuntimeActionsTest {
 
     @Test
     fun cancellingFallbackDoesNotEnterNextAttempt() = runBlocking {
-        val firstStarted = CountDownLatch(1)
-        val releaseFirst = CountDownLatch(1)
+        val firstStarted = CompletableDeferred<Unit>()
+        val releaseFirst = CompletableDeferred<Unit>()
         val nextStarted = AtomicBoolean(false)
         RuntimeActionsFixture(
-            beforeClose = releaseFirst::countDown,
+            beforeClose = { releaseFirst.complete(Unit) },
         ).use { (store, actions) ->
             actions.runServerStartFallback(
                 listOf(
@@ -1105,8 +1067,8 @@ class PrivilegeUiRuntimeActionsTest {
                         message = "root",
                         startupSource = null,
                     ) {
-                        firstStarted.countDown()
-                        releaseFirst.await(30, TimeUnit.SECONDS)
+                        firstStarted.complete(Unit)
+                        releaseFirst.await()
                         error("cancelled attempt unexpectedly resumed")
                     },
                     PrivilegeUiRuntimeStartAttempt.Connect(
@@ -1119,7 +1081,7 @@ class PrivilegeUiRuntimeActionsTest {
                 ),
             )
 
-            assertTrue(firstStarted.await(2, TimeUnit.SECONDS))
+            withTimeout(2_000L) { firstStarted.await() }
             actions.stopCurrentStart()
 
             assertTrue(waitUntilIdle(store))
@@ -1158,11 +1120,10 @@ class PrivilegeUiRuntimeActionsTest {
 
             actions.connectForTest(shellServerInfo())
 
+            assertTrue(waitUntilConnected(store))
             assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, store.state.value.runtimeStatus)
             assertEquals(PrivilegeUiRuntimeStartPhase.IDLE, store.state.value.runtimeStartPhase)
             assertEquals(2000, store.state.value.serverInfo?.uid)
-            assertNull(store.runtimeStartSession)
-            assertNull(store.runtimeStartJob)
 
             release.countDown()
             assertTrue(returned.await(2, TimeUnit.SECONDS))
@@ -1196,7 +1157,6 @@ class PrivilegeUiRuntimeActionsTest {
             assertTrue(cleanupStarted.await(2, TimeUnit.SECONDS))
             assertEquals(PrivilegeUiRuntimeStatus.STARTING, store.state.value.runtimeStatus)
             assertEquals(PrivilegeUiRuntimeStartPhase.RUNNING, store.state.value.runtimeStartPhase)
-            assertNotNull(store.runtimeStartSession)
 
             actions.disconnectForTest()
             actions.connectForTest(
@@ -1212,7 +1172,6 @@ class PrivilegeUiRuntimeActionsTest {
 
             assertTrue(waitUntilConnected(store))
             assertEquals(0, store.state.value.serverInfo?.uid)
-            assertNull(store.runtimeStartSession)
             assertEquals(store.text(R.string.priv_ui_connected), store.state.value.startupLogLines.last())
         }
     }
@@ -1248,8 +1207,6 @@ class PrivilegeUiRuntimeActionsTest {
             assertTrue(waitUntil { store.state.value.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.IDLE })
             assertEquals(PrivilegeUiRuntimeStatus.DISCONNECTED, store.state.value.runtimeStatus)
             assertNull(store.state.value.serverInfo)
-            assertNull(store.runtimeStartSession)
-            assertNull(store.runtimeStartJob)
         }
     }
 
@@ -1291,10 +1248,9 @@ class PrivilegeUiRuntimeActionsTest {
             val lateConnection = async(Dispatchers.Default) {
                 actions.connectForTest(shellServerInfo())
             }
-            assertTrue(waitUntil { store.runtimeStartSession?.connectionClaimed == true })
+            lateConnection.await()
 
             releaseCleanup.countDown()
-            lateConnection.await()
 
             assertTrue(waitUntilConnected(store))
             assertEquals(PrivilegeUiRuntimeStartPhase.IDLE, store.state.value.runtimeStartPhase)
@@ -1331,14 +1287,13 @@ class PrivilegeUiRuntimeActionsTest {
 
             assertTrue("close blocked for ${elapsedMillis}ms", elapsedMillis < 500L)
             assertTrue(waitUntil { cleanupCount.get() == 1 })
-            assertNull(store.runtimeStartSession)
-            assertNull(store.runtimeStartJob)
 
             actions.close()
             assertEquals(1, cleanupCount.get())
 
             release.countDown()
             assertTrue(returned.await(2, TimeUnit.SECONDS))
+            waitUntilRuntimeCoordinatorIdle()
         }
     }
 
@@ -1391,8 +1346,10 @@ class PrivilegeUiRuntimeActionsTest {
     }
 
     @Test
-    fun cancellationResourceFailureDoesNotSkipRemainingResources() {
-        val session = PrivilegeUiRuntimeStartSession(generation = 1L)
+    fun cancellationResourceFailureDoesNotSkipRemainingResources() = runBlocking {
+        val session = PrivilegeUiRuntimeStartSession(
+            startPermit = AutoCloseable {},
+        ).apply { job = Job() }
         val closed = mutableListOf<String>()
         val failures = mutableListOf<Throwable>()
         session.addCloseable(
@@ -1404,12 +1361,11 @@ class PrivilegeUiRuntimeActionsTest {
         session.addCloseable(AutoCloseable { closed += "second" })
         session.addCloseable(AutoCloseable { closed += "third" })
 
-        assertTrue(session.markCancellationRequested())
-        session.closeCancellationResources(failures::add)
+        session.close(failures::add)
 
         assertEquals(listOf("throwing", "second", "third"), closed)
         assertEquals(listOf("cleanup failed"), failures.map { it.message })
-        assertFalse(session.markCancellationRequested())
+        session.close(failures::add)
         assertEquals(listOf("throwing", "second", "third"), closed)
     }
 
@@ -1459,8 +1415,8 @@ class PrivilegeUiRuntimeActionsTest {
     @Test
     fun stopCurrentStartInterruptsRunningStartAndKeepsStoppedState() = runBlocking {
         val context = RuntimeEnvironment.getApplication()
-        val started = CountDownLatch(1)
-        val interrupted = CountDownLatch(1)
+        val started = CompletableDeferred<Unit>()
+        val cancelled = CompletableDeferred<Unit>()
         RuntimeActionsFixture(context = context).use { (store, actions) ->
             actions.runServerStart(
                 PrivilegeUiRuntimeStartAttempt.Connect(
@@ -1468,18 +1424,16 @@ class PrivilegeUiRuntimeActionsTest {
                     startupSource = null,
                     runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
                 ) {
-                    started.countDown()
+                    started.complete(Unit)
                     try {
-                        CountDownLatch(1).await(30, TimeUnit.SECONDS)
-                    } catch (e: InterruptedException) {
-                        interrupted.countDown()
-                        throw e
+                        awaitCancellation()
+                    } finally {
+                        cancelled.complete(Unit)
                     }
-                    error("start was not stopped")
                 },
             )
 
-            assertTrue(started.await(2, TimeUnit.SECONDS))
+            withTimeout(2_000L) { started.await() }
             assertEquals(
                 PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
                 store.state.value.runtimeStartSource,
@@ -1487,7 +1441,7 @@ class PrivilegeUiRuntimeActionsTest {
             assertEquals(PrivilegeUiRuntimeStartPhase.RUNNING, store.state.value.runtimeStartPhase)
             actions.stopCurrentStart()
 
-            assertTrue(interrupted.await(2, TimeUnit.SECONDS))
+            withTimeout(2_000L) { cancelled.await() }
             assertTrue(waitUntilIdle(store))
             assertEquals(PrivilegeUiRuntimeStatus.DISCONNECTED, store.state.value.runtimeStatus)
             assertNull(store.state.value.runtimeStartSource)
@@ -1560,12 +1514,10 @@ class PrivilegeUiRuntimeActionsTest {
 
             assertTrue(cleanupStarted.await(2, TimeUnit.SECONDS))
             assertEquals(PrivilegeUiRuntimeStartPhase.CANCELLING, store.state.value.runtimeStartPhase)
-            assertNotNull(store.runtimeStartSession)
 
             releaseCleanup.countDown()
 
             assertTrue(waitUntilIdle(store))
-            assertNull(store.runtimeStartSession)
         }
     }
 
@@ -1590,6 +1542,21 @@ class PrivilegeUiRuntimeActionsTest {
             while (!condition()) delay(10L)
             true
         } ?: false
+
+    private suspend fun waitUntilRuntimeCoordinatorIdle() {
+        withTimeout(2_000L) {
+            while (true) {
+                val lease = PrivilegeRuntimeStartCoordinator.tryCommitClientStart(
+                    PrivilegeRuntimeStartCoordinator.beginPreflight(),
+                )
+                if (lease != null) {
+                    lease.close()
+                    return@withTimeout
+                }
+                yield()
+            }
+        }
+    }
 
     private suspend fun waitUntilRuntimeStartRequestSent(
         store: PrivilegeUiViewModelStore,

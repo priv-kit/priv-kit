@@ -32,9 +32,9 @@
 推荐入口集中在 `Privilege`：
 
 ```kotlin
-Privilege.startAdb()
-Privilege.startRoot()
-val stopListenConnected = Privilege.addServerConnectedListener { serverInfo -> ... }
+Privilege.startAdb()  // suspend
+Privilege.startRoot() // suspend
+Privilege.serverState.collect { serverInfo -> ... }
 val shellCommand = Privilege.createShellStartCommand()
 
 val connection = Privilege.bindUserService(spec)

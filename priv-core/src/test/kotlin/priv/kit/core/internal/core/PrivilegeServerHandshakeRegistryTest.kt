@@ -13,17 +13,20 @@ import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import java.lang.reflect.Proxy
 import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 class PrivilegeServerHandshakeRegistryTest {
     @Test
-    fun acceptedInitialLaunchIsReportedOnce() {
+    fun acceptedInitialLaunchIsReportedOnce(): Unit = runBlocking {
         val token = newToken()
         val initialLaunchId = newLaunchId()
         val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token, initialLaunchId)
-        val acceptedOrigins = mutableListOf<PrivilegeRuntimeConnectionOrigin>()
-        val listener = PrivilegeRuntimeStartCoordinator.addServerHandshakeAcceptedListener(
-            acceptedOrigins::add,
-        )
+        val acceptedOrigin = async(start = CoroutineStart.UNDISPATCHED) {
+            PrivilegeRuntimeStartCoordinator.serverHandshakeAcceptedEvents.first()
+        }
 
         try {
             assertTrue(
@@ -46,18 +49,17 @@ class PrivilegeServerHandshakeRegistryTest {
             )
 
             assertEquals(
-                listOf(PrivilegeRuntimeConnectionOrigin.INITIAL_LAUNCH),
-                acceptedOrigins,
+                PrivilegeRuntimeConnectionOrigin.INITIAL_LAUNCH,
+                acceptedOrigin.await(),
             )
             pendingHandshake.await(1)
         } finally {
             PrivilegeServerHandshakeRegistry.acknowledge(initialLaunchId)
-            listener.close()
         }
     }
 
     @Test
-    fun readyHandshakeCanBePreparedAfterDelivery() {
+    fun readyHandshakeCanBePreparedAfterDelivery() = runBlocking {
         val token = newToken()
         val initialLaunchId = newLaunchId()
         val binder = fakeBinder()
@@ -87,7 +89,7 @@ class PrivilegeServerHandshakeRegistryTest {
     }
 
     @Test
-    fun readyListenerReceivesUnpreparedHandshake() {
+    fun readyListenerReceivesUnpreparedHandshake() = runBlocking {
         val token = newToken()
         val received = AtomicReference<PrivilegeServerHandshakeResult?>()
         val listener = PrivilegeServerHandshakeRegistry.addReadyListener(token) { result ->
@@ -116,7 +118,7 @@ class PrivilegeServerHandshakeRegistryTest {
     }
 
     @Test
-    fun readyHandshakeIsCachedWhenListenerCannotInstallIt() {
+    fun readyHandshakeIsCachedWhenListenerCannotInstallIt() = runBlocking {
         val token = newToken()
         val binder = fakeBinder()
         val listener = PrivilegeServerHandshakeRegistry.addReadyListener(token) { false }
@@ -139,7 +141,7 @@ class PrivilegeServerHandshakeRegistryTest {
     }
 
     @Test
-    fun successfulNewerDeliveryClearsAnOlderFailedReadyHandoff() {
+    fun successfulNewerDeliveryClearsAnOlderFailedReadyHandoff() = runBlocking {
         val token = newToken()
         var installReady = false
         val listener = PrivilegeServerHandshakeRegistry.addReadyListener(token) { installReady }
@@ -172,7 +174,7 @@ class PrivilegeServerHandshakeRegistryTest {
     }
 
     @Test
-    fun ownerReconnectDoesNotCompletePendingClientStart() {
+    fun ownerReconnectDoesNotCompletePendingClientStart() = runBlocking {
         val token = newToken()
         val initialLaunchId = newLaunchId()
         val reconnectBinder = fakeBinder()
@@ -216,7 +218,7 @@ class PrivilegeServerHandshakeRegistryTest {
     }
 
     @Test
-    fun cachedOwnerReconnectIsNotConsumedByLaterPendingClientStart() {
+    fun cachedOwnerReconnectIsNotConsumedByLaterPendingClientStart() = runBlocking {
         val token = newToken()
         val initialLaunchId = newLaunchId()
         val reconnectBinder = fakeBinder()
@@ -258,7 +260,7 @@ class PrivilegeServerHandshakeRegistryTest {
     }
 
     @Test
-    fun initialLaunchWithDifferentIdDoesNotCompletePendingHandshake() {
+    fun initialLaunchWithDifferentIdDoesNotCompletePendingHandshake() = runBlocking {
         val token = newToken()
         val launchIdSuffix = System.nanoTime()
         val expectedLaunchId = "launch-expected-$launchIdSuffix"
@@ -300,7 +302,7 @@ class PrivilegeServerHandshakeRegistryTest {
     }
 
     @Test
-    fun duplicateDeliveryForPendingLaunchIsRejected() {
+    fun duplicateDeliveryForPendingLaunchIsRejected() = runBlocking {
         val token = newToken()
         val initialLaunchId = newLaunchId()
         val firstBinder = fakeBinder()
@@ -334,7 +336,7 @@ class PrivilegeServerHandshakeRegistryTest {
     }
 
     @Test
-    fun cancelAfterDeliveryForwardsUnacknowledgedResultToReadyListener() {
+    fun cancelAfterDeliveryForwardsUnacknowledgedResultToReadyListener() = runBlocking {
         val token = newToken()
         val initialLaunchId = newLaunchId()
         val binder = fakeBinder()
@@ -371,7 +373,7 @@ class PrivilegeServerHandshakeRegistryTest {
     }
 
     @Test
-    fun acknowledgeAfterDeliveryPreventsCancelFromForwardingResult() {
+    fun acknowledgeAfterDeliveryPreventsCancelFromForwardingResult() = runBlocking {
         val token = newToken()
         val initialLaunchId = newLaunchId()
         val received = AtomicReference<PrivilegeServerHandshakeResult?>()
@@ -407,7 +409,7 @@ class PrivilegeServerHandshakeRegistryTest {
     }
 
     @Test
-    fun cancelBeforeDeliveryAllowsLaterResultToReachReadyListener() {
+    fun cancelBeforeDeliveryAllowsLaterResultToReachReadyListener() = runBlocking {
         val token = newToken()
         val initialLaunchId = newLaunchId()
         val binder = fakeBinder()

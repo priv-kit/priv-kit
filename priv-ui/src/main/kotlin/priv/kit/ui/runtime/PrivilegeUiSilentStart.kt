@@ -1,8 +1,8 @@
 package priv.kit.ui.runtime
 
 import android.content.Context
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
@@ -42,7 +42,7 @@ internal class PrivilegeUiSilentStartRunner(
 
     private suspend fun startRoot(launch: PrivilegeRuntimeClientLaunch): PrivilegeServerInfo? {
         if (PrivilegeUiStartupMode.ROOT !in config.effectiveStartupModes()) return null
-        return runInterruptible { backend.startRoot(launch, config.startTimeoutMillis) }
+        return backend.startRoot(launch, config.startTimeoutMillis)
     }
 
     private suspend fun startWirelessAdb(
@@ -55,23 +55,21 @@ internal class PrivilegeUiSilentStartRunner(
         ) {
             return null
         }
-        return runInterruptible {
-            backend.startAdb(
-                launch = launch,
-                options = PrivilegeAdbStartOptions(
-                    discoverPort = true,
-                    tcpMode = false,
-                    tcpPort = config.tcpPort,
-                    wirelessDebuggingControl = if (config.enableManagedWirelessAdb) {
-                        PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE
-                    } else {
-                        PrivilegeAdbWirelessDebuggingControl.NEVER
-                    },
-                ),
-                timeoutMillis = config.startTimeoutMillis,
-                adbDeviceName = config.adbDeviceName.toSilentAdbDeviceName(),
-            )
-        }
+        return backend.startAdb(
+            launch = launch,
+            options = PrivilegeAdbStartOptions(
+                discoverPort = true,
+                tcpMode = false,
+                tcpPort = config.tcpPort,
+                wirelessDebuggingControl = if (config.enableManagedWirelessAdb) {
+                    PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE
+                } else {
+                    PrivilegeAdbWirelessDebuggingControl.NEVER
+                },
+            ),
+            timeoutMillis = config.startTimeoutMillis,
+            adbDeviceName = config.adbDeviceName.toSilentAdbDeviceName(),
+        )
     }
 
     private suspend fun startTcpipAdb(
@@ -83,20 +81,18 @@ internal class PrivilegeUiSilentStartRunner(
         ) {
             return null
         }
-        return runInterruptible {
-            backend.startAdb(
-                launch = launch,
-                options = PrivilegeAdbStartOptions(
-                    port = config.tcpPort,
-                    discoverPort = false,
-                    tcpMode = false,
-                    tcpPort = config.tcpPort,
-                    wirelessDebuggingControl = PrivilegeAdbWirelessDebuggingControl.NEVER,
-                ),
-                timeoutMillis = config.startTimeoutMillis,
-                adbDeviceName = config.adbDeviceName.toSilentAdbDeviceName(),
-            )
-        }
+        return backend.startAdb(
+            launch = launch,
+            options = PrivilegeAdbStartOptions(
+                port = config.tcpPort,
+                discoverPort = false,
+                tcpMode = false,
+                tcpPort = config.tcpPort,
+                wirelessDebuggingControl = PrivilegeAdbWirelessDebuggingControl.NEVER,
+            ),
+            timeoutMillis = config.startTimeoutMillis,
+            adbDeviceName = config.adbDeviceName.toSilentAdbDeviceName(),
+        )
     }
 
     private suspend fun startExternal(
@@ -106,7 +102,7 @@ internal class PrivilegeUiSilentStartRunner(
         withTimeoutOrNull(config.startTimeoutMillis.milliseconds) {
             val provider = config.externalStartProviders.firstOrNull { it.id == providerId }
                 ?: return@withTimeoutOrNull null
-            val snapshot = runInterruptible { provider.snapshot(applicationContext) }
+            val snapshot = provider.snapshot(applicationContext)
             if (!snapshot.canStart) return@withTimeoutOrNull null
             backend.startExternal(
                 launch = launch,
@@ -118,12 +114,12 @@ internal class PrivilegeUiSilentStartRunner(
 }
 
 internal interface PrivilegeUiSilentStartBackend {
-    fun startRoot(
+    suspend fun startRoot(
         launch: PrivilegeRuntimeClientLaunch,
         timeoutMillis: Long,
     ): PrivilegeServerInfo
 
-    fun startAdb(
+    suspend fun startAdb(
         launch: PrivilegeRuntimeClientLaunch,
         options: PrivilegeAdbStartOptions,
         timeoutMillis: Long,
@@ -139,7 +135,7 @@ internal interface PrivilegeUiSilentStartBackend {
 }
 
 private object PrivilegeUiPlatformSilentStartBackend : PrivilegeUiSilentStartBackend {
-    override fun startRoot(
+    override suspend fun startRoot(
         launch: PrivilegeRuntimeClientLaunch,
         timeoutMillis: Long,
     ): PrivilegeServerInfo =
@@ -148,7 +144,7 @@ private object PrivilegeUiPlatformSilentStartBackend : PrivilegeUiSilentStartBac
             timeoutMillis = timeoutMillis,
         )
 
-    override fun startAdb(
+    override suspend fun startAdb(
         launch: PrivilegeRuntimeClientLaunch,
         options: PrivilegeAdbStartOptions,
         timeoutMillis: Long,
@@ -169,15 +165,8 @@ private object PrivilegeUiPlatformSilentStartBackend : PrivilegeUiSilentStartBac
     ): PrivilegeServerInfo? {
         return withTimeoutOrNull(timeoutMillis.milliseconds) {
             val commandLine = PrivilegeRuntimeStartCoordinator.createShellStartCommand(launch)
-            val connected = CompletableDeferred<PrivilegeServerInfo>()
-            val listener = Privilege.addServerConnectedListener { serverInfo ->
-                connected.complete(serverInfo)
-            }
-            listener.use {
-                if (connected.isCompleted) return@withTimeoutOrNull connected.await()
-                runInterruptible { provider.start(context, commandLine) }
-                connected.await()
-            }
+            provider.start(context, commandLine)
+            Privilege.serverState.filterNotNull().first()
         }
     }
 }

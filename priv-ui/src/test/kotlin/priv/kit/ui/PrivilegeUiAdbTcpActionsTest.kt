@@ -1,7 +1,7 @@
 package priv.kit.ui
 
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -60,16 +60,12 @@ class PrivilegeUiAdbTcpActionsTest {
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
         val runtimeScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val runtimeActions = PrivilegeUiRuntimeActions(store, runtimeScope)
-        val authorizationCallback =
-            AtomicReference<((PrivilegeAdbAuthorizationRequestResult) -> Unit)?>(null)
+        val authorizationResult = CompletableDeferred<PrivilegeAdbAuthorizationRequestResult>()
         val tcpActions = PrivilegeUiAdbTcpActions(
             store = store,
             runtimeActions = runtimeActions,
             refreshTcpModeEnabled = {},
-            tcpAuthorizationRequester = { _, _, callback ->
-                authorizationCallback.set(callback)
-                AutoCloseable {}
-            },
+            tcpAuthorizationRequester = { _, _ -> authorizationResult.await() },
         )
         try {
             val snackbar = async(start = CoroutineStart.UNDISPATCHED) {
@@ -89,8 +85,11 @@ class PrivilegeUiAdbTcpActionsTest {
                 },
             )
 
-            assertTrue(waitUntil { authorizationCallback.get() != null })
-            authorizationCallback.get()!!.invoke(
+            assertTrue(waitUntil {
+                store.state.value.tcpAuthorizationStatus ==
+                    PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING
+            })
+            authorizationResult.complete(
                 PrivilegeAdbAuthorizationRequestResult(
                     authorized = false,
                     endReason = endReason,
@@ -103,7 +102,6 @@ class PrivilegeUiAdbTcpActionsTest {
             assertEquals(expectedStatus, store.state.value.tcpAuthorizationStatus)
             assertTrue(store.state.value.startupLogLines.any { diagnosticMessage in it })
         } finally {
-            tcpActions.close()
             runtimeActions.close()
             runtimeScope.cancel()
             store.close()

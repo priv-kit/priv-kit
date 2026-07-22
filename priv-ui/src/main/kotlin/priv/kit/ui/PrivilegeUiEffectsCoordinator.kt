@@ -1,16 +1,18 @@
 package priv.kit.ui
 
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import priv.kit.ui.adb.PrivilegeUiAdbActions
 import priv.kit.ui.external.PrivilegeUiExternalStartActions
 import priv.kit.ui.runtime.PrivilegeUiInteractiveStartOwner
@@ -29,207 +31,140 @@ internal class PrivilegeUiEffectsCoordinator(
     private val externalStartActions: PrivilegeUiExternalStartActions,
     private val coroutineScope: CoroutineScope,
 ) : AutoCloseable {
-    private val closed = AtomicBoolean(false)
-    private val lock = Any()
-    private val reconciledSilentCompletionSerial = AtomicLong(Long.MIN_VALUE)
     private val enabledState = MutableStateFlow(false)
     private var observerJob: Job? = null
-    private val wirelessStatusPolling = EffectPolling(
-        shouldPoll = {
-            store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB &&
-                isPrivilegeUiWirelessAdbSupported()
-        },
-        startPolling = adbActions::startWirelessAdbStatusPolling,
-        stopAllPolling = adbActions::stopWirelessAdbStatusPolling,
-    )
-    private val tcpModeStatusPolling = EffectPolling(
-        shouldPoll = {
-            store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB &&
-                store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED
-        },
-        startPolling = adbActions::startTcpModeStatusPolling,
-        stopAllPolling = adbActions::stopTcpModeStatusPolling,
-    )
-    private val externalStartStatusPolling = EffectPolling(
-        shouldPoll = {
-            store.state.value.selectedStartupMode == PrivilegeUiStartupMode.EXTERNAL
-        },
-        startPolling = externalStartActions::startExternalStartStatusPolling,
-        stopAllPolling = externalStartActions::stopExternalStartStatusPolling,
-    )
+    private var reconciledSilentCompletionSerial = 0L
 
     val startGateState: StateFlow<PrivilegeUiStartGateState> = PrivilegeUiStartGate.state
     val enabled: StateFlow<Boolean> = enabledState.asStateFlow()
     val interactionsEnabled: Boolean
-        get() = effectsAllowed(startGateState.value)
+        get() = enabledState.value && interactiveStartOwner.canInteract(startGateState.value)
 
     fun initialize() {
-        reconcile(startGateState.value)
-        observerJob = coroutineScope.launch(
-            Dispatchers.IO + CoroutineName("priv-ui-silent-start-completions"),
-        ) {
-            startGateState.collectLatest(::reconcile)
+        val gateState = startGateState.value
+        reconciledSilentCompletionSerial = gateState.silentCompletionSerial
+        enabledState.value = interactiveStartOwner.canInteract(gateState)
+        observerJob = coroutineScope.launch(CoroutineName("priv-ui-effects")) {
+            startGateState
+                .map { state ->
+                    EffectsGate(
+                        canInteract = interactiveStartOwner.canInteract(state),
+                        silentCompletionSerial = state.silentCompletionSerial,
+                    )
+                }
+                .distinctUntilChanged()
+                .collectLatest(::runEffects)
         }
     }
 
     fun effectsAllowed(gateState: PrivilegeUiStartGateState): Boolean =
-        enabledState.value &&
-            interactiveStartOwner.canInteract(gateState) &&
-            reconciledSilentCompletionSerial.get() == gateState.silentCompletionSerial
-
-    fun onStartupModeSelected() {
-        syncStatusPolling()
-        refreshTcpModeEnabledIfSelected()
-    }
+        enabledState.value && interactiveStartOwner.canInteract(gateState)
 
     fun refreshHostResumeState() {
-        runtimeActions.refreshAdbPermissionRestrictionStatus()
-        syncStatusPolling()
-        if (
-            store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB &&
-            isPrivilegeUiWirelessAdbSupported()
-        ) {
-            adbActions.refreshWirelessAdbStatus()
+        coroutineScope.launch(CoroutineName("priv-ui-host-resume")) {
+            runtimeActions.refreshAdbPermissionRestrictionStatus()
+            when (store.state.value.selectedStartupMode) {
+                PrivilegeUiStartupMode.ADB -> {
+                    if (isPrivilegeUiWirelessAdbSupported()) {
+                        adbActions.refreshWirelessAdbStatusNow()
+                    }
+                    if (store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED) {
+                        adbActions.refreshTcpModeEnabledNow()
+                    }
+                }
+                PrivilegeUiStartupMode.EXTERNAL ->
+                    externalStartActions.refreshExternalStartStatusNow(providerId = null)
+                else -> Unit
+            }
         }
-        if (store.state.value.selectedStartupMode == PrivilegeUiStartupMode.EXTERNAL) {
-            externalStartActions.refreshExternalStartStatus()
-        }
-        refreshTcpModeEnabledIfSelected()
-    }
-
-    fun pauseStatusPolling() {
-        synchronized(lock) {
-            wirelessStatusPolling.stopAll()
-            tcpModeStatusPolling.stopAll()
-            externalStartStatusPolling.stopAll()
-        }
-    }
-
-    fun stopWirelessStatusPolling() {
-        wirelessStatusPolling.stopAll()
-    }
-
-    fun stopTcpModeStatusPolling() {
-        tcpModeStatusPolling.stopAll()
-    }
-
-    fun stopExternalStartStatusPolling() {
-        externalStartStatusPolling.stopAll()
     }
 
     override fun close() {
-        if (!closed.compareAndSet(false, true)) return
+        enabledState.value = false
         observerJob?.cancel()
         observerJob = null
-        synchronized(lock) {
+    }
+
+    private suspend fun runEffects(gate: EffectsGate) {
+        if (!gate.canInteract) {
             enabledState.value = false
-            pauseStatusPolling()
+            return
+        }
+        val silentCompletionChanged =
+            gate.silentCompletionSerial != reconciledSilentCompletionSerial
+        if (silentCompletionChanged) {
+            enabledState.value = false
+            store.updateState { it.copy(runtimeStatusLoaded = false) }
+        }
+
+        runtimeActions.refreshRuntimeStatus(useCurrentState = !silentCompletionChanged)
+        if (!gate.isCurrent()) return
+        store.updateState { it.copy(runtimeStatusLoaded = true) }
+
+        reconciledSilentCompletionSerial = gate.silentCompletionSerial
+        enabledState.value = true
+
+        supervisorScope {
+            launch {
+                store.loadManualShellCommand()
+                store.updateState { it.copy(manualShellStatusLoaded = true) }
+            }
+            store.state
+                .map { it.selectedStartupMode }
+                .distinctUntilChanged()
+                .collectLatest(::pollSelectedMode)
         }
     }
 
-    private fun reconcile(gateState: PrivilegeUiStartGateState) {
-        if (closed.get() || !beginReconciliation(gateState)) return
-        runtimeActions.refreshRuntimeStatus()
-        completeReconciliation(gateState)
-    }
-
-    private fun beginReconciliation(gateState: PrivilegeUiStartGateState): Boolean =
-        synchronized(lock) {
-            if (!interactiveStartOwner.canInteract(gateState)) {
-                enabledState.value = false
-                pauseStatusPolling()
-                return@synchronized false
-            }
-            if (
-                reconciledSilentCompletionSerial.get() == gateState.silentCompletionSerial &&
-                enabledState.value
-            ) {
-                return@synchronized false
-            }
-
-            enabledState.value = false
-            pauseStatusPolling()
-            true
-        }
-
-    private fun completeReconciliation(gateState: PrivilegeUiStartGateState) {
-        synchronized(lock) {
-            if (closed.get()) return
-            val currentGateState = startGateState.value
-            if (
-                interactiveStartOwner.canInteract(currentGateState) &&
-                currentGateState.silentCompletionSerial == gateState.silentCompletionSerial
-            ) {
-                reconciledSilentCompletionSerial.set(gateState.silentCompletionSerial)
-                resumeAfterReconciliation()
-                val resumedGateState = startGateState.value
-                if (
-                    interactiveStartOwner.canInteract(resumedGateState) &&
-                    resumedGateState.silentCompletionSerial == gateState.silentCompletionSerial
-                ) {
-                    enabledState.value = true
+    private suspend fun pollSelectedMode(mode: PrivilegeUiStartupMode): Unit = coroutineScope {
+        when (mode) {
+            PrivilegeUiStartupMode.ADB -> {
+                if (!store.state.value.adbStatusLoaded) {
+                    supervisorScope {
+                        launch { adbActions.refreshAdbIdentityInfoNow() }
+                        if (isPrivilegeUiWirelessAdbSupported()) {
+                            launch { adbActions.refreshWirelessAdbStatusNow() }
+                        }
+                        if (store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED) {
+                            launch { adbActions.refreshTcpModeEnabledNow() }
+                        }
+                    }
+                    store.updateState { it.copy(adbStatusLoaded = true) }
+                }
+                if (isPrivilegeUiWirelessAdbSupported()) {
+                    launch(CoroutineName("priv-ui-wireless-adb-status")) {
+                        adbActions.pollWirelessAdbStatus()
+                    }
+                }
+                if (store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED) {
+                    launch(CoroutineName("priv-ui-tcp-mode-status")) {
+                        adbActions.pollTcpModeStatus()
+                    }
                 }
             }
-        }
-    }
-
-    private fun resumeAfterReconciliation() {
-        store.loadManualShellCommand()
-        externalStartActions.refreshExternalStartStatus()
-        adbActions.refreshAdbIdentityInfo()
-        syncStatusPolling(allowDuringReconciliation = true)
-        refreshTcpModeEnabledIfSelected(allowDuringReconciliation = true)
-    }
-
-    private fun syncStatusPolling(allowDuringReconciliation: Boolean = false) {
-        wirelessStatusPolling.sync(allowDuringReconciliation)
-        tcpModeStatusPolling.sync(allowDuringReconciliation)
-        externalStartStatusPolling.sync(allowDuringReconciliation)
-    }
-
-    private fun refreshTcpModeEnabledIfSelected(allowDuringReconciliation: Boolean = false) {
-        if (!allowDuringReconciliation && !interactionsEnabled) return
-        if (
-            store.state.value.selectedStartupMode == PrivilegeUiStartupMode.ADB &&
-            store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED
-        ) {
-            adbActions.refreshTcpModeEnabled()
-        }
-    }
-
-    private inner class EffectPolling(
-        private val shouldPoll: () -> Boolean,
-        private val startPolling: () -> AutoCloseable,
-        private val stopAllPolling: () -> Unit,
-    ) {
-        private var handle: AutoCloseable? = null
-
-        fun sync(allowDuringReconciliation: Boolean = false) {
-            synchronized(lock) {
-                if (!allowDuringReconciliation && !interactionsEnabled) {
-                    stopAllLocked()
-                } else if (shouldPoll()) {
-                    if (handle == null) handle = startPolling()
-                } else {
-                    releaseLocked()
+            PrivilegeUiStartupMode.EXTERNAL -> {
+                if (!store.state.value.externalStartStatusLoaded) {
+                    externalStartActions.refreshExternalStartStatusNow(providerId = null)
+                    store.updateState { it.copy(externalStartStatusLoaded = true) }
+                }
+                launch(CoroutineName("priv-ui-external-start-status")) {
+                    externalStartActions.pollExternalStartStatus()
                 }
             }
+            else -> Unit
         }
-
-        fun stopAll() {
-            synchronized(lock) {
-                stopAllLocked()
-            }
-        }
-
-        private fun stopAllLocked() {
-            releaseLocked()
-            stopAllPolling()
-        }
-
-        private fun releaseLocked() {
-            handle?.close()
-            handle = null
-        }
+        awaitCancellation()
     }
+
+    private fun EffectsGate.isCurrent(): Boolean {
+        val current = startGateState.value
+        return canInteract &&
+            current.silentCompletionSerial == silentCompletionSerial &&
+            interactiveStartOwner.canInteract(current)
+    }
+
+    private data class EffectsGate(
+        val canInteract: Boolean,
+        val silentCompletionSerial: Long,
+    )
 }

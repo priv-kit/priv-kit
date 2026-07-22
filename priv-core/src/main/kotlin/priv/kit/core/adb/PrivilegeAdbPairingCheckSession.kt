@@ -8,7 +8,7 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
     private val explicitPort: Int?,
     private val discoverPort: Boolean,
     private val portDiscoveryTimeoutMillis: Long,
-    private val discoverConnectEndpoint: (Long) -> PrivilegeAdbEndpoint,
+    private val discoverConnectEndpoint: suspend (Long) -> PrivilegeAdbEndpoint,
     private val clientFactory: (PrivilegeAdbEndpoint) -> PrivilegeAdbAuthorizationConnection,
 ) : Closeable {
     private val lock = Any()
@@ -23,8 +23,7 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
             connectedEndpoint?.port ?: explicitPort
         }
 
-    @Throws(InterruptedException::class)
-    public fun check(): PrivilegeAdbPairingCheckResult {
+    public suspend fun check(): PrivilegeAdbPairingCheckResult {
         val output = PrivilegeAdbOutput()
         output.append("diag", "ADB identity name=${identity.adbDeviceName}, keySignature=<redacted>")
         output.append("diag", "ADB public key fingerprint=$publicKeyFingerprint")
@@ -41,7 +40,8 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
             )
         }
 
-        checkExistingConnection(output)?.let { return it }
+        cancellableAdbCall(cancel = ::close) { checkExistingConnection(output) }
+            ?.let { return it }
         if (closed) {
             return failureResult(
                 port = port,
@@ -53,7 +53,9 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
 
         val endpointResolution = resolveEndpoint(output)
         return endpointResolution.endpoint?.let { activeEndpoint ->
-            connectNewClient(activeEndpoint, output)
+            cancellableAdbCall(cancel = ::close) {
+                connectNewClient(activeEndpoint, output)
+            }
         } ?: failureResult(
             port = null,
             output = output,
@@ -105,7 +107,7 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
         }
     }
 
-    private fun resolveEndpoint(output: PrivilegeAdbOutput): EndpointResolution {
+    private suspend fun resolveEndpoint(output: PrivilegeAdbOutput): EndpointResolution {
         explicitPort?.let { return EndpointResolution(endpoint = PrivilegeAdbEndpoint.local(it)) }
         if (!discoverPort) {
             output.append("diag", "ADB pairing check skipped because no connect port is available")

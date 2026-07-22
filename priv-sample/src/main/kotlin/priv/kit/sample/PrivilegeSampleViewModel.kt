@@ -2,27 +2,20 @@ package priv.kit.sample
 
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import priv.kit.core.Privilege
 
 internal class PrivilegeSampleViewModel : ViewModel() {
-    private val mutableServerRunning = MutableStateFlow(false)
-    val serverRunning = mutableServerRunning.asStateFlow()
-    private val serverConnectedListener = Privilege.addServerConnectedListener {
-        mutableServerRunning.value = true
-    }
-    private val serverDisconnectedListener = Privilege.addServerDisconnectedListener {
-        mutableServerRunning.value = false
-    }
+    val serverRunning = Privilege.serverState
+        .map { it != null }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Privilege.serverState.value != null)
 
     val backStack = mutableStateListOf<PrivilegeSampleRootDestination>(
         PrivilegeSampleRootDestination.Home,
     )
-
-    init {
-        mutableServerRunning.value = Privilege.pingServer()
-    }
 
     fun openDebug() {
         openRootDestination(PrivilegeSampleRootDestination.Debug)
@@ -43,9 +36,4 @@ internal class PrivilegeSampleViewModel : ViewModel() {
         backStack += destination
     }
 
-    override fun onCleared() {
-        serverConnectedListener.close()
-        serverDisconnectedListener.close()
-        super.onCleared()
-    }
 }

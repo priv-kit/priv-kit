@@ -4,10 +4,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
 
 class PrivilegeAdbTcpPreparationTest {
     @Test
-    fun availableEndpointIsReturnedWithoutPreparingAdb() {
+    fun availableEndpointIsReturnedWithoutPreparingAdb() = runBlocking {
         val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.AUTHORIZED)
         var enableCalls = 0
 
@@ -26,7 +27,7 @@ class PrivilegeAdbTcpPreparationTest {
     }
 
     @Test
-    fun unavailableEndpointWithoutPermissionReturnsImmediately() {
+    fun unavailableEndpointWithoutPermissionReturnsImmediately() = runBlocking {
         val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE)
         var enableCalls = 0
 
@@ -45,7 +46,7 @@ class PrivilegeAdbTcpPreparationTest {
     }
 
     @Test
-    fun unavailableUnconfiguredEndpointDoesNotEnableAdb() {
+    fun unavailableUnconfiguredEndpointDoesNotEnableAdb() = runBlocking {
         val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE)
         var enableCalls = 0
 
@@ -64,7 +65,7 @@ class PrivilegeAdbTcpPreparationTest {
     }
 
     @Test
-    fun unavailableDifferentConfiguredEndpointDoesNotEnableAdb() {
+    fun unavailableDifferentConfiguredEndpointDoesNotEnableAdb() = runBlocking {
         val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE)
         var enableCalls = 0
 
@@ -83,7 +84,7 @@ class PrivilegeAdbTcpPreparationTest {
     }
 
     @Test
-    fun manageableEndpointRetriesUntilAdbStartsListening() {
+    fun manageableEndpointRetriesUntilAdbStartsListening() = runBlocking {
         val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE)
         val checks = ArrayDeque(
             listOf(
@@ -115,7 +116,7 @@ class PrivilegeAdbTcpPreparationTest {
     }
 
     @Test
-    fun unauthorizedEndpointStopsRecoveryForExistingAuthorizationFlow() {
+    fun unauthorizedEndpointStopsRecoveryForExistingAuthorizationFlow() = runBlocking {
         val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE)
         var checkCalls = 0
 
@@ -139,7 +140,7 @@ class PrivilegeAdbTcpPreparationTest {
     }
 
     @Test
-    fun exhaustedRecoveryReturnsLastUnavailableResult() {
+    fun exhaustedRecoveryReturnsLastUnavailableResult() = runBlocking {
         val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE)
         var checkCalls = 0
 
@@ -167,7 +168,7 @@ class PrivilegeAdbTcpPreparationTest {
     }
 
     @Test
-    fun preparationFailureStaysUnavailableAndAddsDiagnostic() {
+    fun preparationFailureStaysUnavailableAndAddsDiagnostic() = runBlocking {
         val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE)
 
         val result = recoverTcpAuthorizationForStart(

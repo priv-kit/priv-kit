@@ -75,7 +75,6 @@ class PrivilegeUiFailurePolicyTest {
         )
         listOf(
             PrivilegeAdbAuthorizationEndReason.AUTOMATIC_TIMEOUT,
-            PrivilegeAdbAuthorizationEndReason.MANUAL_CANCELLED,
             null,
         ).forEach { endReason ->
             assertEquals(

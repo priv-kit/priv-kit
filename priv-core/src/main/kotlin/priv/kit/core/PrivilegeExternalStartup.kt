@@ -4,7 +4,17 @@ import priv.kit.core.internal.external.PrivilegeExternalStartupBridgeRunner
 import java.io.InputStream
 import java.util.Collections
 import java.util.concurrent.TimeUnit
-import kotlin.concurrent.thread
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withContext
 
 public data class PrivilegeExternalStartupOptions public constructor(
     public val shellPath: String = DEFAULT_SHELL_PATH,
@@ -25,16 +35,17 @@ public data class PrivilegeExternalStartupOptions public constructor(
 }
 
 public object PrivilegeExternalStartup {
-    public fun runInCurrentProcess(
+    public suspend fun runInCurrentProcess(
         commandLine: String,
         options: PrivilegeExternalStartupOptions = PrivilegeExternalStartupOptions(),
         startupLogListener: PrivilegeStartupLogListener? = null,
-    ): String =
+    ): String = withContext(Dispatchers.IO) {
         PrivilegeExternalStartupProcessRunner().run(
             commandLine = commandLine,
             options = options,
             startupLogListener = startupLogListener,
         )
+    }
 
     public fun createReceiver(
         startupLogListener: PrivilegeStartupLogListener,
@@ -45,7 +56,7 @@ public object PrivilegeExternalStartup {
             sourcePrefix = sourcePrefix,
         )
 
-    public fun runThroughBridge(
+    public suspend fun runThroughBridge(
         commandLine: String,
         bridge: PrivilegeExternalStartupBridge,
         options: PrivilegeExternalStartupBridgeOptions = PrivilegeExternalStartupBridgeOptions(),
@@ -58,7 +69,7 @@ public object PrivilegeExternalStartup {
             startupLogListener = startupLogListener,
         )
 
-    public fun runThroughBridge(
+    public suspend fun runThroughBridge(
         commandLine: String,
         bridge: PrivilegeExternalStartupBridge,
         startupLogListener: PrivilegeStartupLogListener,
@@ -119,11 +130,11 @@ internal class PrivilegeExternalStartupProcessRunner(
         ProcessBuilder(options.shellPath, "-c", commandLine).start()
     },
 ) {
-    fun run(
+    suspend fun run(
         commandLine: String,
         options: PrivilegeExternalStartupOptions,
         startupLogListener: PrivilegeStartupLogListener?,
-    ): String {
+    ): String = withContext(Dispatchers.IO) {
         require(commandLine.isNotBlank()) { "commandLine must not be blank" }
         val transcript = StartupTranscript(
             maxCapturedLines = options.maxCapturedLines,
@@ -143,76 +154,92 @@ internal class PrivilegeExternalStartupProcessRunner(
                 throwable,
             )
         }
+        val streams = listOf(process.inputStream, process.errorStream)
 
-        val readerThreads = listOf(
-            consume(process.inputStream, "stdout", transcript),
-            consume(process.errorStream, "stderr", transcript),
-        )
-
-        val completed = try {
-            process.waitFor(options.timeoutMillis, TimeUnit.MILLISECONDS)
-        } catch (exception: InterruptedException) {
-            Thread.currentThread().interrupt()
-            process.destroy()
-            transcript.append("diag", "Interrupted while waiting for shell start command")
-            throw PrivilegeStartupException(
-                "Interrupted while waiting for external startup command: ${transcript.text()}",
-                exception,
+        supervisorScope {
+            val readers = listOf(
+                async(CoroutineName("priv-kit-external-start-stdout")) {
+                    runInterruptible { consume(streams[0], "stdout", transcript) }
+                },
+                async(CoroutineName("priv-kit-external-start-stderr")) {
+                    runInterruptible { consume(streams[1], "stderr", transcript) }
+                },
             )
+
+            val completed = try {
+                runInterruptible {
+                    process.waitFor(options.timeoutMillis, TimeUnit.MILLISECONDS)
+                }
+            } catch (exception: CancellationException) {
+                closeProcess(process, streams)
+                throw exception
+            } catch (exception: InterruptedException) {
+                Thread.currentThread().interrupt()
+                closeProcess(process, streams)
+                transcript.append("diag", "Interrupted while waiting for shell start command")
+                throw PrivilegeStartupException(
+                    "Interrupted while waiting for external startup command: ${transcript.text()}",
+                    exception,
+                )
+            }
+
+            if (!completed) {
+                closeProcess(process, streams)
+                transcript.append(
+                    "diag",
+                    "Shell start command did not return after ${options.timeoutMillis}ms",
+                )
+                awaitReaders(streams, readers)
+                throw PrivilegeStartupException(
+                    "External startup command timed out: ${transcript.text()}",
+                )
+            }
+
+            awaitReaders(streams, readers)
+            val exitCode = process.exitValue()
+            transcript.append("diag", "Shell start command exited code=$exitCode")
+            if (exitCode != 0) {
+                throw PrivilegeStartupException(
+                    "External startup command exited code=$exitCode: ${transcript.text()}",
+                )
+            }
+            transcript.text()
         }
-
-        if (!completed) {
-            process.destroy()
-            transcript.append(
-                "diag",
-                "Shell start command did not return after ${options.timeoutMillis}ms",
-            )
-            joinReaders(readerThreads, timeoutMillis = READER_JOIN_TIMEOUT_MILLIS)
-            throw PrivilegeStartupException(
-                "External startup command timed out: ${transcript.text()}",
-            )
-        }
-
-        joinReaders(readerThreads, timeoutMillis = READER_JOIN_TIMEOUT_MILLIS)
-        val exitCode = process.exitValue()
-        transcript.append("diag", "Shell start command exited code=$exitCode")
-        if (exitCode != 0) {
-            throw PrivilegeStartupException(
-                "External startup command exited code=$exitCode: ${transcript.text()}",
-            )
-        }
-        return transcript.text()
     }
 
     private fun consume(
         inputStream: InputStream,
         source: String,
         transcript: StartupTranscript,
-    ): Thread =
-        thread(name = "priv-kit-external-start-$source", isDaemon = true) {
-            runCatching {
-                inputStream.bufferedReader().useLines { lines ->
-                    lines.forEach { line ->
-                        transcript.append(source, line)
-                    }
-                }
-            }.onFailure { throwable ->
-                transcript.append(source, throwable.toOutputLine("Failed to read output"))
-            }
-        }
-
-    private fun joinReaders(
-        readerThreads: List<Thread>,
-        timeoutMillis: Long,
     ) {
-        readerThreads.forEach { reader ->
-            try {
-                reader.join(timeoutMillis)
-            } catch (_: InterruptedException) {
-                Thread.currentThread().interrupt()
-                return
+        runCatching {
+            inputStream.bufferedReader().useLines { lines ->
+                lines.forEach { line ->
+                    transcript.append(source, line)
+                }
             }
+        }.onFailure { throwable ->
+            transcript.append(source, throwable.toOutputLine("Failed to read output"))
         }
+    }
+
+    private suspend fun awaitReaders(
+        streams: List<InputStream>,
+        readers: List<Deferred<Unit>>,
+    ) {
+        if (withTimeoutOrNull(READER_JOIN_TIMEOUT_MILLIS) { readers.awaitAll() } == null) {
+            streams.forEach { runCatching(it::close) }
+            readers.forEach { it.cancel() }
+            readers.joinAll()
+        }
+    }
+
+    private fun closeProcess(
+        process: Process,
+        streams: List<InputStream>,
+    ) {
+        process.destroy()
+        streams.forEach { runCatching(it::close) }
     }
 
     private companion object {

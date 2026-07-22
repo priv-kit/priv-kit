@@ -10,18 +10,25 @@ import priv.kit.core.PrivilegeStartupException
 import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.core.StartupTranscript
 import java.io.IOException
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
-import kotlin.concurrent.thread
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration.Companion.milliseconds
 
 internal class PrivilegeExternalStartupBridgeRunner {
-    fun run(
+    suspend fun run(
         commandLine: String,
         bridge: PrivilegeExternalStartupBridge,
         options: PrivilegeExternalStartupBridgeOptions,
         startupLogListener: PrivilegeStartupLogListener?,
-    ): String {
+    ): String = withContext(Dispatchers.IO) {
         require(commandLine.isNotBlank()) { "commandLine must not be blank" }
         val forwardedListener = startupLogListener?.let { listener ->
             val receiver = PrivilegeExternalStartup.createReceiver(
@@ -41,38 +48,32 @@ internal class PrivilegeExternalStartupBridgeRunner {
             stdoutPipe.closeAll()
             throw throwable
         }
-        val completionLatch = CountDownLatch(BRIDGE_COMPLETION_SIGNAL_COUNT)
-        val resultRef = AtomicReference<ExternalStartupBridgeResult?>()
-        val streamFailureRef = AtomicReference<Throwable?>()
+        val result = CompletableDeferred<ExternalStartupBridgeResult>()
         val resultReceiver = object : ResultReceiver(null) {
             override fun onReceiveResult(
                 resultCode: Int,
                 resultData: Bundle?,
             ) {
-                if (
-                    !resultRef.compareAndSet(
-                        null,
-                        ExternalStartupBridgeResult(resultCode, resultData ?: Bundle.EMPTY),
-                    )
-                ) return
-                completionLatch.countDown()
+                result.complete(
+                    ExternalStartupBridgeResult(resultCode, resultData ?: Bundle.EMPTY),
+                )
             }
         }
-        val readerThreads = listOf(
-            consumePipe(
-                descriptor = stdoutPipe.readEnd,
-                source = STDOUT_SOURCE,
-                transcript = transcript,
-                completionLatch = completionLatch,
-                streamFailureRef = streamFailureRef,
-            ),
-            consumePipe(
-                descriptor = stderrPipe.readEnd,
-                source = STDERR_SOURCE,
-                transcript = transcript,
-                completionLatch = completionLatch,
-                streamFailureRef = streamFailureRef,
-            ),
+        val readers = listOf(
+            async {
+                consumePipe(
+                    descriptor = stdoutPipe.readEnd,
+                    source = STDOUT_SOURCE,
+                    transcript = transcript,
+                )
+            },
+            async {
+                consumePipe(
+                    descriptor = stderrPipe.readEnd,
+                    source = STDERR_SOURCE,
+                    transcript = transcript,
+                )
+            },
         )
 
         try {
@@ -84,9 +85,7 @@ internal class PrivilegeExternalStartupBridgeRunner {
                     resultReceiver = resultReceiver,
                 )
             } catch (throwable: Throwable) {
-                if (throwable is InterruptedException) {
-                    Thread.currentThread().interrupt()
-                }
+                if (throwable is CancellationException) throw throwable
                 if (throwable is PrivilegeStartupException) throw throwable
                 throw PrivilegeStartupException("External startup bridge failed to start command", throwable)
             } finally {
@@ -94,34 +93,34 @@ internal class PrivilegeExternalStartupBridgeRunner {
                 stderrPipe.closeWriteEnd()
             }
 
-            val completed = try {
-                completionLatch.await(options.timeoutMillis, TimeUnit.MILLISECONDS)
-            } catch (exception: InterruptedException) {
-                Thread.currentThread().interrupt()
+            val completion = try {
+                withTimeout(options.timeoutMillis.milliseconds) {
+                    result.await() to readers.awaitAll().firstOrNull { it != null }
+                }
+            } catch (exception: kotlinx.coroutines.TimeoutCancellationException) {
                 throw PrivilegeStartupException(
-                    "Interrupted while waiting for external startup bridge result",
+                    "External startup bridge timed out after ${options.timeoutMillis}ms: ${transcript.text()}",
                     exception,
                 )
             }
-            if (!completed) {
-                throw PrivilegeStartupException(
-                    "External startup bridge timed out after ${options.timeoutMillis}ms: ${transcript.text()}",
-                )
-            }
 
-            val result = resultRef.get()
-                ?: throw PrivilegeStartupException("External startup bridge returned no result")
-            if (result.resultCode != ExternalStartupBridgeProtocol.RESULT_SUCCESS) {
-                throw result.toException(transcript.text())
+            val bridgeResult = completion.first
+            if (bridgeResult.resultCode != ExternalStartupBridgeProtocol.RESULT_SUCCESS) {
+                throw bridgeResult.toException(transcript.text())
             }
-            streamFailureRef.get()?.let { throwable ->
+            completion.second?.let { throwable ->
                 throw PrivilegeStartupException("Failed to read external startup bridge output", throwable)
             }
-            return transcript.text()
+            return@withContext transcript.text()
         } finally {
             stdoutPipe.closeAll()
             stderrPipe.closeAll()
-            joinReaders(readerThreads)
+            readers.forEach { it.cancel() }
+            withContext(NonCancellable) {
+                withTimeoutOrNull(READER_JOIN_TIMEOUT_MILLIS.milliseconds) {
+                    readers.joinAll()
+                }
+            }
         }
     }
 
@@ -136,38 +135,21 @@ internal class PrivilegeExternalStartupBridgeRunner {
         descriptor: ParcelFileDescriptor,
         source: String,
         transcript: StartupTranscript,
-        completionLatch: CountDownLatch,
-        streamFailureRef: AtomicReference<Throwable?>,
-    ): Thread =
-        thread(name = "priv-kit-external-bridge-$source", isDaemon = true) {
-            try {
-                ParcelFileDescriptor.AutoCloseInputStream(descriptor)
-                    .bufferedReader(Charsets.UTF_8)
-                    .useLines { lines ->
-                        lines.forEach { message ->
-                            transcript.append(source, message)
-                        }
+    ): Throwable? =
+        try {
+            ParcelFileDescriptor.AutoCloseInputStream(descriptor)
+                .bufferedReader(Charsets.UTF_8)
+                .useLines { lines ->
+                    lines.forEach { message ->
+                        transcript.append(source, message)
                     }
-            } catch (throwable: Throwable) {
-                streamFailureRef.compareAndSet(null, throwable)
-            } finally {
-                completionLatch.countDown()
-            }
+                }
+            null
+        } catch (throwable: Throwable) {
+            throwable
         }
-
-    private fun joinReaders(readerThreads: List<Thread>) {
-        readerThreads.forEach { reader ->
-            try {
-                reader.join(READER_JOIN_TIMEOUT_MILLIS)
-            } catch (_: InterruptedException) {
-                Thread.currentThread().interrupt()
-                return
-            }
-        }
-    }
 
     private companion object {
-        const val BRIDGE_COMPLETION_SIGNAL_COUNT = 3
         const val READER_JOIN_TIMEOUT_MILLIS = 500L
         const val STDOUT_SOURCE = "stdout"
         const val STDERR_SOURCE = "stderr"

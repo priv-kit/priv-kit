@@ -6,10 +6,12 @@ import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.core.adb.PrivilegeAdbStartOptions
 import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
-import java.io.Closeable
-import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.UUID
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 public data class PrivilegeRuntimeConnectionEvent public constructor(
     public val serverInfo: PrivilegeServerInfo,
@@ -56,8 +58,20 @@ public object PrivilegeRuntimeStartCoordinator {
     private val arbiter = PrivilegeRuntimeStartArbiter(
         elapsedRealtime = SystemClock::elapsedRealtime,
     )
-    private val serverHandshakeAcceptedListeners =
-        CopyOnWriteArraySet<(PrivilegeRuntimeConnectionOrigin) -> Unit>()
+    private val mutableServerHandshakeAcceptedEvents =
+        MutableSharedFlow<PrivilegeRuntimeConnectionOrigin>(
+            extraBufferCapacity = 1,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        )
+
+    public val serverConnectionEvents: SharedFlow<PrivilegeRuntimeConnectionEvent>
+        get() {
+            Privilege.initializeRuntimeConnection()
+            return Privilege.serverConnectionEvents
+        }
+
+    public val serverHandshakeAcceptedEvents: SharedFlow<PrivilegeRuntimeConnectionOrigin> =
+        mutableServerHandshakeAcceptedEvents.asSharedFlow()
 
     public fun beginPreflight(): PrivilegeRuntimeStartPreflight =
         arbiter.beginPreflight()
@@ -89,7 +103,7 @@ public object PrivilegeRuntimeStartCoordinator {
         }
     }
 
-    public fun startRoot(
+    public suspend fun startRoot(
         launch: PrivilegeRuntimeClientLaunch,
         timeoutMillis: Long,
         startupLogListener: PrivilegeStartupLogListener? = null,
@@ -99,7 +113,7 @@ public object PrivilegeRuntimeStartCoordinator {
         startupLogListener = startupLogListener,
     )
 
-    public fun startAdb(
+    public suspend fun startAdb(
         launch: PrivilegeRuntimeClientLaunch,
         options: PrivilegeAdbStartOptions,
         timeoutMillis: Long,
@@ -116,20 +130,6 @@ public object PrivilegeRuntimeStartCoordinator {
     public fun createShellStartCommand(
         launch: PrivilegeRuntimeClientLaunch,
     ): String = Privilege.createShellStartCommandWithLaunchId(launch.initialLaunchId)
-
-    public fun addServerConnectedListener(
-        listener: (PrivilegeRuntimeConnectionEvent) -> Unit,
-    ): Closeable =
-        Privilege.addServerConnectionEventListener(listener)
-
-    public fun addServerHandshakeAcceptedListener(
-        listener: (PrivilegeRuntimeConnectionOrigin) -> Unit,
-    ): Closeable {
-        serverHandshakeAcceptedListeners += listener
-        return Closeable {
-            serverHandshakeAcceptedListeners -= listener
-        }
-    }
 
     internal fun markOwnerProcessStarted() {
         arbiter.markOwnerProcessStarted(RECONNECT_GRACE_MILLIS)
@@ -164,9 +164,7 @@ public object PrivilegeRuntimeStartCoordinator {
             PrivilegeServerHandshakeOrigin.OWNER_RECONNECT ->
                 PrivilegeRuntimeConnectionOrigin.OWNER_RECONNECT
         }
-        serverHandshakeAcceptedListeners.forEach { listener ->
-            runCatching { listener(origin) }
-        }
+        mutableServerHandshakeAcceptedEvents.tryEmit(origin)
     }
 
     private fun finishClientStart(operationId: Long) {

@@ -1,11 +1,12 @@
 package priv.kit.ui.runtime
 
 import android.content.Context
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -28,9 +29,6 @@ import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiExternalStartProvider
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
 import priv.kit.ui.PrivilegeUiStartupMode
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -85,26 +83,23 @@ class PrivilegeUiSilentStartRunnerTest {
     }
 
     @Test
-    fun cancellingRootStartInterruptsBlockingBackendCall() = runBlocking {
-        val entered = CountDownLatch(1)
-        val interrupted = CountDownLatch(1)
-        val neverReleased = CountDownLatch(1)
+    fun cancellingRootStartCancelsSuspendingBackendCall() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val cancelled = CompletableDeferred<Unit>()
         val backend = object : PrivilegeUiSilentStartBackend {
-            override fun startRoot(
+            override suspend fun startRoot(
                 launch: PrivilegeRuntimeClientLaunch,
                 timeoutMillis: Long,
             ): PrivilegeServerInfo {
-                entered.countDown()
+                entered.complete(Unit)
                 try {
-                    neverReleased.await()
-                } catch (exception: InterruptedException) {
-                    interrupted.countDown()
-                    throw exception
+                    awaitCancellation()
+                } finally {
+                    cancelled.complete(Unit)
                 }
-                error("unexpected release")
             }
 
-            override fun startAdb(
+            override suspend fun startAdb(
                 launch: PrivilegeRuntimeClientLaunch,
                 options: PrivilegeAdbStartOptions,
                 timeoutMillis: Long,
@@ -118,22 +113,16 @@ class PrivilegeUiSilentStartRunnerTest {
                 timeoutMillis: Long,
             ): PrivilegeServerInfo? = error("unexpected external start")
         }
-        val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
-        try {
-            val job = launch(dispatcher) {
-                runner(
-                    config = PrivilegeUiConfig(startupModes = setOf(PrivilegeUiStartupMode.ROOT)),
-                    backend = backend,
-                ).start(PrivilegeUiStartMethod.Root, clientLaunch)
-            }
-
-            assertEquals(true, entered.await(2, TimeUnit.SECONDS))
-            job.cancelAndJoin()
-
-            assertEquals(true, interrupted.await(2, TimeUnit.SECONDS))
-        } finally {
-            dispatcher.close()
+        val job = launch {
+            runner(
+                config = PrivilegeUiConfig(startupModes = setOf(PrivilegeUiStartupMode.ROOT)),
+                backend = backend,
+            ).start(PrivilegeUiStartMethod.Root, clientLaunch)
         }
+
+        withTimeout(2_000L) { entered.await() }
+        job.cancelAndJoin()
+        withTimeout(2_000L) { cancelled.await() }
     }
 
     @Test
@@ -294,13 +283,13 @@ class PrivilegeUiSilentStartRunnerTest {
             snapshot = PrivilegeUiExternalStartSnapshot(available = true, authorized = true),
         )
         val backend = object : PrivilegeUiSilentStartBackend {
-            override fun startRoot(
+            override suspend fun startRoot(
                 launch: PrivilegeRuntimeClientLaunch,
                 timeoutMillis: Long,
             ): PrivilegeServerInfo =
                 error("unexpected Root start")
 
-            override fun startAdb(
+            override suspend fun startAdb(
                 launch: PrivilegeRuntimeClientLaunch,
                 options: PrivilegeAdbStartOptions,
                 timeoutMillis: Long,
@@ -351,7 +340,7 @@ class PrivilegeUiSilentStartRunnerTest {
         val totalCalls: Int
             get() = rootCalls + adbCalls + externalCalls
 
-        override fun startRoot(
+        override suspend fun startRoot(
             launch: PrivilegeRuntimeClientLaunch,
             timeoutMillis: Long,
         ): PrivilegeServerInfo {
@@ -360,7 +349,7 @@ class PrivilegeUiSilentStartRunnerTest {
             return result
         }
 
-        override fun startAdb(
+        override suspend fun startAdb(
             launch: PrivilegeRuntimeClientLaunch,
             options: PrivilegeAdbStartOptions,
             timeoutMillis: Long,
@@ -393,16 +382,16 @@ class PrivilegeUiSilentStartRunnerTest {
         var snapshotCalls = 0
         var authorizationCalls = 0
 
-        override fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot {
+        override suspend fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot {
             snapshotCalls++
             return snapshot
         }
 
-        override fun requestAuthorization(context: Context): PrivilegeUiExternalStartSnapshot {
+        override suspend fun requestAuthorization(context: Context): PrivilegeUiExternalStartSnapshot {
             authorizationCalls++
             return snapshot
         }
 
-        override fun start(context: Context, commandLine: String) = Unit
+        override suspend fun start(context: Context, commandLine: String) = Unit
     }
 }

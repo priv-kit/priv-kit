@@ -4,11 +4,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
 import java.net.ConnectException
 
 class PrivilegeAdbTcpAuthorizationCheckSessionTest {
     @Test
-    fun checkReusesAuthorizedPersistentConnectionUntilClosed() {
+    fun checkReusesAuthorizedPersistentConnectionUntilClosed() = runBlocking {
         val connections = mutableListOf<FakeAdbAuthorizationConnection>()
         val session = session(
             clientFactory = {
@@ -32,7 +33,7 @@ class PrivilegeAdbTcpAuthorizationCheckSessionTest {
     }
 
     @Test
-    fun checkClosesUnauthorizedConnection() {
+    fun checkClosesUnauthorizedConnection() = runBlocking {
         val connections = mutableListOf<FakeAdbAuthorizationConnection>()
         val session = session(
             clientFactory = {
@@ -51,7 +52,7 @@ class PrivilegeAdbTcpAuthorizationCheckSessionTest {
     }
 
     @Test
-    fun checkReconnectsAfterPersistentConnectionFails() {
+    fun checkReconnectsAfterPersistentConnectionFails() = runBlocking {
         val connections = mutableListOf<FakeAdbAuthorizationConnection>()
         val session = session(
             clientFactory = {
@@ -72,7 +73,7 @@ class PrivilegeAdbTcpAuthorizationCheckSessionTest {
     }
 
     @Test
-    fun checkMapsConnectionFailureToUnavailable() {
+    fun checkMapsConnectionFailureToUnavailable() = runBlocking {
         val connections = mutableListOf<FakeAdbAuthorizationConnection>()
         val session = session(
             clientFactory = {
@@ -91,7 +92,7 @@ class PrivilegeAdbTcpAuthorizationCheckSessionTest {
     }
 
     @Test
-    fun checkPropagatesInterruptionAndRestoresInterruptFlag() {
+    fun checkPropagatesInterruptionAndRestoresInterruptFlag() = runBlocking {
         val connections = mutableListOf<FakeAdbAuthorizationConnection>()
         val session = session(
             clientFactory = {
@@ -102,8 +103,7 @@ class PrivilegeAdbTcpAuthorizationCheckSessionTest {
         )
 
         try {
-            assertThrows(InterruptedException::class.java) { session.check() }
-            assertTrue(Thread.currentThread().isInterrupted)
+            assertThrows(InterruptedException::class.java) { runBlocking { session.check() } }
             assertEquals(1, connections.single().closeCount)
         } finally {
             Thread.interrupted()

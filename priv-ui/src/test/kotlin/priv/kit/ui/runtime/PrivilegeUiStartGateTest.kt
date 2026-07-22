@@ -1,6 +1,5 @@
 package priv.kit.ui.runtime
 
-import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -95,57 +94,4 @@ class PrivilegeUiStartGateTest {
         )
     }
 
-    @Test
-    fun claimedConnectionWaitsForJobAndConnectionHandlingInEitherOrder() {
-        val firstCloseCount = AtomicInteger(0)
-        val first = PrivilegeUiStartPermitLease(
-            AutoCloseable { firstCloseCount.incrementAndGet() },
-        )
-        first.markConnectionClaimed()
-        first.markJobCompleted(noConnectionCanBeClaimed = true)
-        assertEquals(0, firstCloseCount.get())
-        first.markConnectionHandled()
-        assertEquals(1, firstCloseCount.get())
-
-        val secondCloseCount = AtomicInteger(0)
-        val second = PrivilegeUiStartPermitLease(
-            AutoCloseable { secondCloseCount.incrementAndGet() },
-        )
-        second.markConnectionClaimed()
-        second.markConnectionHandled()
-        assertEquals(0, secondCloseCount.get())
-        second.markJobCompleted(noConnectionCanBeClaimed = false)
-        assertEquals(1, secondCloseCount.get())
-    }
-
-    @Test
-    fun unclaimedConnectionReleasesOnlyAfterSessionCannotClaimIt() {
-        val closeCount = AtomicInteger(0)
-        val lease = PrivilegeUiStartPermitLease(
-            AutoCloseable { closeCount.incrementAndGet() },
-        )
-
-        lease.markJobCompleted(noConnectionCanBeClaimed = false)
-        assertEquals(0, closeCount.get())
-
-        lease.markJobCompleted(noConnectionCanBeClaimed = true)
-        assertEquals(1, closeCount.get())
-        lease.releaseNow()
-        assertEquals(1, closeCount.get())
-    }
-
-    @Test
-    fun ownerCleanupKeepsPermitUntilAsynchronousTeardownCompletes() {
-        val closeCount = AtomicInteger(0)
-        val lease = PrivilegeUiStartPermitLease(
-            AutoCloseable { closeCount.incrementAndGet() },
-        )
-
-        lease.markOwnerCleanupRequired()
-        lease.markJobCompleted(noConnectionCanBeClaimed = true)
-
-        assertEquals(0, closeCount.get())
-        lease.markOwnerCleanupCompleted()
-        assertEquals(1, closeCount.get())
-    }
 }

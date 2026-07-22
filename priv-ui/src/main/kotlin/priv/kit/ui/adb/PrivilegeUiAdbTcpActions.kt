@@ -1,6 +1,6 @@
 package priv.kit.ui.adb
 
-import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.CancellationException
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.adb.PrivilegeAdbAuthorizationEndReason
@@ -19,20 +19,17 @@ import priv.kit.ui.runtime.PrivilegeUiRuntimeStartSession
 import priv.kit.ui.state.PrivilegeUiFailureKind
 import priv.kit.ui.state.PrivilegeUiViewModelStore
 import priv.kit.ui.state.privilegeUiTcpAuthorizationFailureKind
-import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.coroutines.resume
 
 internal class PrivilegeUiAdbTcpActions(
     private val store: PrivilegeUiViewModelStore,
     private val runtimeActions: PrivilegeUiRuntimeActions,
     private val refreshTcpModeEnabled: () -> Unit,
-    private val tcpAuthorizationRequester: ((
+    private val tcpAuthorizationRequester: (suspend (
         tcpPort: Int,
         timeoutMillis: Long,
-        callback: (PrivilegeAdbAuthorizationRequestResult) -> Unit,
-    ) -> AutoCloseable)? = null,
+    ) -> PrivilegeAdbAuthorizationRequestResult)? = null,
     private val beforeTcpAuthorizationResultCommit: () -> Unit = {},
-) : AutoCloseable {
+) {
     fun enableTcpMode() {
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
         val tcpPort = store.config.tcpPort
@@ -65,107 +62,31 @@ internal class PrivilegeUiAdbTcpActions(
     ): Boolean {
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return false
         session.appendStartupLog(store.text(R.string.priv_ui_adb_static_authorize_action))
-        return suspendCancellableCoroutine { continuation ->
-            var previousRequest: AutoCloseable? = null
-            var requestGeneration = 0L
-            synchronized(store) {
-                previousRequest = store.tcpAuthorizationRequest
-                requestGeneration = store.tcpAuthorizationRequestGeneration.incrementAndGet()
-                store.tcpAuthorizationRequest = null
-                store.updateState {
-                    it.copy(
-                        tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
-                    )
-                }
-            }
-            runCatching { previousRequest?.close() }
-
-            val completed = AtomicBoolean(false)
-            val resultCommitted = AtomicBoolean(false)
-            val requestLock = Any()
-            lateinit var request: AutoCloseable
-
-            fun finish(result: PrivilegeAdbAuthorizationRequestResult) {
-                var authorized = false
-                synchronized(requestLock) {
-                    if (!completed.compareAndSet(false, true)) return
-                    beforeTcpAuthorizationResultCommit()
-                    synchronized(store) {
-                        if (
-                            store.tcpAuthorizationRequestGeneration.get() == requestGeneration &&
-                            ownsTcpAuthorizationSessionLocked(session)
-                        ) {
-                            store.tcpAuthorizationRequest = null
-                            authorized = applyTcpAuthorizationResult(
-                                session = session,
-                                result = result,
-                                showFailure = session.showAttemptFeedback && !session.stop.get(),
-                            )
-                            resultCommitted.set(true)
-                        }
-                    }
-                }
-                if (continuation.isActive) continuation.resume(authorized)
-            }
-
-            val callback: (PrivilegeAdbAuthorizationRequestResult) -> Unit = { result -> finish(result) }
-            request = tcpAuthorizationRequester?.invoke(
+        store.updateState {
+            it.copy(tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING)
+        }
+        val result = try {
+            tcpAuthorizationRequester?.invoke(
                 tcpPort,
                 store.config.adbAuthorizationTimeoutMillis,
-                callback,
             ) ?: Privilege.createAdbStarter(
                 adbDeviceName = store.currentAdbDeviceNameOverride(),
             ).requestTcpAuthorization(
                 tcpPort = tcpPort,
                 timeoutMillis = store.config.adbAuthorizationTimeoutMillis,
-                callback = callback,
             )
-            val sessionRequest = AutoCloseable {
-                var closeRequest = false
-                synchronized(requestLock) {
-                    closeRequest = completed.compareAndSet(false, true)
-                    synchronized(store) {
-                        if (store.tcpAuthorizationRequestGeneration.get() == requestGeneration) {
-                            store.tcpAuthorizationRequestGeneration.incrementAndGet()
-                            store.tcpAuthorizationRequest = null
-                            if (!resultCommitted.get()) {
-                                markTcpAuthorizationUnauthorizedIfAuthorizing()
-                            }
-                        }
-                    }
-                }
-                if (closeRequest) runCatching { request.close() }
-            }
-            continuation.invokeOnCancellation {
-                sessionRequest.close()
-            }
-            session.addCloseable(sessionRequest)
-            var installed = false
-            synchronized(requestLock) {
-                if (!completed.get()) {
-                    synchronized(store) {
-                        if (
-                            store.tcpAuthorizationRequestGeneration.get() == requestGeneration &&
-                            ownsTcpAuthorizationSessionLocked(session) &&
-                            store.state.value.tcpAuthorizationStatus == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING
-                        ) {
-                            store.tcpAuthorizationRequest = sessionRequest
-                            installed = true
-                        }
-                    }
-                }
-            }
-            if (!installed) sessionRequest.close()
+        } catch (exception: CancellationException) {
+            markTcpAuthorizationUnauthorizedIfAuthorizing()
+            throw exception
         }
+        session.checkActive()
+        beforeTcpAuthorizationResultCommit()
+        return applyTcpAuthorizationResult(
+            session = session,
+            result = result,
+            showFailure = session.showAttemptFeedback && !session.cancellationRequested,
+        )
     }
-
-    private fun ownsTcpAuthorizationSessionLocked(session: PrivilegeUiRuntimeStartSession): Boolean =
-        !runtimeActions.isClosed &&
-            store.runtimeStartGeneration.get() == session.generation &&
-            store.runtimeStartSession === session &&
-            !session.cancellationRequested &&
-            !session.finished &&
-            !session.connectionClaimed
 
     fun tcpAdbStartAttempt(tcpPort: Int): PrivilegeUiRuntimeStartAttempt.Connect {
         return PrivilegeUiRuntimeStartAttempt.Connect(
@@ -181,7 +102,7 @@ internal class PrivilegeUiAdbTcpActions(
         }
     }
 
-    fun prepareStaticTcpForStart(
+    suspend fun prepareStaticTcpForStart(
         tcpPort: Int,
         session: PrivilegeUiRuntimeStartSession,
     ): PrivilegeUiStaticTcpPreparationResult {
@@ -217,7 +138,7 @@ internal class PrivilegeUiAdbTcpActions(
         )
     }
 
-    fun requireStaticTcpReady(
+    suspend fun requireStaticTcpReady(
         starter: PrivilegeAdbStarter,
         session: PrivilegeUiRuntimeStartSession,
     ): Int {
@@ -248,7 +169,7 @@ internal class PrivilegeUiAdbTcpActions(
         throwStaticTcpStartFailed(session)
     }
 
-    fun startTcpAdbNow(
+    suspend fun startTcpAdbNow(
         tcpPort: Int,
         session: PrivilegeUiRuntimeStartSession,
     ): PrivilegeServerInfo {
@@ -271,16 +192,6 @@ internal class PrivilegeUiAdbTcpActions(
         val message = store.text(R.string.priv_ui_adb_static_start_failed)
         session.appendStartupLog(message)
         throw IllegalStateException(message)
-    }
-
-    override fun close() {
-        var request: AutoCloseable? = null
-        synchronized(store) {
-            request = store.tcpAuthorizationRequest
-            store.tcpAuthorizationRequestGeneration.incrementAndGet()
-            store.tcpAuthorizationRequest = null
-        }
-        runCatching { request?.close() }
     }
 
     private fun applyTcpAuthorizationResult(
@@ -331,7 +242,6 @@ private fun PrivilegeAdbAuthorizationEndReason?.toUiTcpAuthorizationStatus(): Pr
     when (this) {
         PrivilegeAdbAuthorizationEndReason.FAILED -> PrivilegeUiAdbTcpAuthorizationStatus.FAILED
         PrivilegeAdbAuthorizationEndReason.AUTOMATIC_TIMEOUT,
-        PrivilegeAdbAuthorizationEndReason.MANUAL_CANCELLED,
         null,
         -> PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED
     }

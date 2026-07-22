@@ -8,6 +8,7 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -22,7 +23,7 @@ class PrivilegeAdbStarterTest {
     }
 
     @Test
-    fun switchToTcpSkipsCommandWhenTargetPortIsAlreadyActive() {
+    fun switchToTcpSkipsCommandWhenTargetPortIsAlreadyActive() = runBlocking {
         setSystemProperty(SERVICE_ADB_TCP_PORT, "5555")
         val starter = starter(
             loadKeyBytes = { error("key should not be loaded when TCP port is already active") },

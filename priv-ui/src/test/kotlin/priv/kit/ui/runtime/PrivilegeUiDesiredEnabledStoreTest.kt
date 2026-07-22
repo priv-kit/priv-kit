@@ -1,6 +1,5 @@
 package priv.kit.ui.runtime
 
-import java.io.Closeable
 import java.io.File
 import java.nio.charset.StandardCharsets
 import org.junit.After
@@ -13,6 +12,10 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.test.runTest
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
 
 @RunWith(RobolectricTestRunner::class)
@@ -60,23 +63,37 @@ class PrivilegeUiDesiredEnabledStoreTest {
     }
 
     @Test
-    fun initialLaunchEnablesButOwnerReconnectDoesNot() {
-        var listener: ((PrivilegeRuntimeConnectionOrigin) -> Unit)? = null
-        val manager = PrivilegeUiDesiredEnabledManager(application) { registered ->
-            listener = registered
-            Closeable {}
-        }
+    fun managerPublishesAndPersistsDesiredState() {
+        val manager = PrivilegeUiDesiredEnabledManager(application)
         try {
-            checkNotNull(listener).invoke(PrivilegeRuntimeConnectionOrigin.INITIAL_LAUNCH)
-
+            manager.setDesiredEnabled(true)
             assertTrue(manager.desiredEnabled.value)
             assertEquals("1", file.readText(StandardCharsets.UTF_8))
 
             manager.setDesiredEnabled(false)
-            checkNotNull(listener).invoke(PrivilegeRuntimeConnectionOrigin.OWNER_RECONNECT)
-
             assertFalse(manager.desiredEnabled.value)
             assertEquals("0", file.readText(StandardCharsets.UTF_8))
+        } finally {
+            manager.close()
+        }
+    }
+
+    @Test
+    fun initialLaunchIsPersistedWithoutViewModel() = runTest {
+        val events = MutableSharedFlow<PrivilegeRuntimeConnectionOrigin>()
+        val manager = PrivilegeUiDesiredEnabledManager(
+            context = application,
+            serverHandshakeAcceptedEvents = events,
+            coroutineScope = this,
+        )
+        try {
+            val emitted = async(start = CoroutineStart.UNDISPATCHED) {
+                events.emit(PrivilegeRuntimeConnectionOrigin.INITIAL_LAUNCH)
+            }
+            emitted.await()
+
+            assertTrue(manager.desiredEnabled.value)
+            assertEquals("1", file.readText(StandardCharsets.UTF_8))
         } finally {
             manager.close()
         }

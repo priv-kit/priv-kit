@@ -3,25 +3,34 @@ package priv.kit.core.internal.external
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.os.ResultReceiver
+import java.io.BufferedWriter
+import java.io.Closeable
+import java.io.OutputStreamWriter
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.yield
 import priv.kit.core.PrivilegeExternalStartupOptions
 import priv.kit.core.PrivilegeExternalStartupProcessRunner
 import priv.kit.core.PrivilegeStartupLogLine
 import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.shared.toPrivilegeDiagnosticString
-import java.io.BufferedWriter
-import java.io.Closeable
-import java.io.OutputStreamWriter
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
-import kotlin.concurrent.thread
 
 internal class PrivilegeExternalStartupBridgeHost(
     private val options: PrivilegeExternalStartupOptions,
     private val processRunner: PrivilegeExternalStartupProcessRunner,
 ) : Closeable {
     private val closed = AtomicBoolean(false)
-    private val running = AtomicBoolean(false)
-    private val activeThread = AtomicReference<Thread?>()
+    private val command = Mutex()
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO + CoroutineName("priv-kit-external-bridge-host"),
+    )
 
     fun start(
         commandLine: String,
@@ -30,62 +39,47 @@ internal class PrivilegeExternalStartupBridgeHost(
         resultReceiver: ResultReceiver,
     ) {
         if (closed.get()) {
-            reject(
-                stdout = stdout,
-                stderr = stderr,
-                resultReceiver = resultReceiver,
-                resultCode = ExternalStartupBridgeProtocol.RESULT_CLOSED,
-                failure = IllegalStateException("External startup host is closed"),
-            )
+            rejectClosed(stdout, stderr, resultReceiver)
             return
         }
-        if (!running.compareAndSet(false, true)) {
+        if (!command.tryLock()) {
             reject(
-                stdout = stdout,
-                stderr = stderr,
-                resultReceiver = resultReceiver,
-                resultCode = ExternalStartupBridgeProtocol.RESULT_BUSY,
-                failure = IllegalStateException("External startup command is already running"),
+                stdout,
+                stderr,
+                resultReceiver,
+                ExternalStartupBridgeProtocol.RESULT_BUSY,
+                IllegalStateException("External startup command is already running"),
             )
             return
         }
         if (closed.get()) {
-            running.set(false)
-            reject(
-                stdout = stdout,
-                stderr = stderr,
-                resultReceiver = resultReceiver,
-                resultCode = ExternalStartupBridgeProtocol.RESULT_CLOSED,
-                failure = IllegalStateException("External startup host is closed"),
-            )
+            command.unlock()
+            rejectClosed(stdout, stderr, resultReceiver)
             return
         }
 
         val output = try {
             duplicateOutput(stdout, stderr)
         } catch (throwable: Throwable) {
-            running.set(false)
+            command.unlock()
             reject(
-                stdout = stdout,
-                stderr = stderr,
-                resultReceiver = resultReceiver,
-                resultCode = ExternalStartupBridgeProtocol.RESULT_FAILURE,
-                failure = throwable,
+                stdout,
+                stderr,
+                resultReceiver,
+                ExternalStartupBridgeProtocol.RESULT_FAILURE,
+                throwable,
             )
             return
         }
-        runCatching { stdout.close() }
-        runCatching { stderr.close() }
+        runCatching(stdout::close)
+        runCatching(stderr::close)
 
-        val worker = thread(
-            start = false,
-            name = "priv-kit-external-bridge-host",
-            isDaemon = true,
-        ) {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
             var resultCode = ExternalStartupBridgeProtocol.RESULT_SUCCESS
             var resultData = Bundle.EMPTY
             var failure: Throwable? = null
             try {
+                yield()
                 processRunner.run(
                     commandLine = commandLine,
                     options = options,
@@ -96,37 +90,16 @@ internal class PrivilegeExternalStartupBridgeHost(
                 resultData = throwable.toResultData()
                 failure = throwable
             } finally {
-                if (failure != null) {
-                    output.writeFailure(failure)
-                }
+                failure?.let(output::writeFailure)
                 output.close()
-                activeThread.compareAndSet(Thread.currentThread(), null)
-                running.set(false)
+                command.unlock()
                 sendResult(resultReceiver, resultCode, resultData)
             }
-        }
-        activeThread.set(worker)
-        try {
-            worker.start()
-            if (closed.get()) {
-                worker.interrupt()
-            }
-        } catch (throwable: Throwable) {
-            activeThread.compareAndSet(worker, null)
-            running.set(false)
-            output.writeFailure(throwable)
-            output.close()
-            sendResult(
-                resultReceiver = resultReceiver,
-                resultCode = ExternalStartupBridgeProtocol.RESULT_FAILURE,
-                resultData = throwable.toResultData(),
-            )
         }
     }
 
     override fun close() {
-        if (!closed.compareAndSet(false, true)) return
-        activeThread.get()?.interrupt()
+        if (closed.compareAndSet(false, true)) scope.cancel()
     }
 
     private fun duplicateOutput(
@@ -137,14 +110,29 @@ internal class PrivilegeExternalStartupBridgeHost(
         val ownedStderr = try {
             ParcelFileDescriptor.dup(stderr.fileDescriptor)
         } catch (throwable: Throwable) {
-            runCatching { ownedStdout.close() }
+            runCatching(ownedStdout::close)
             throw throwable
         }
-        return ExternalStartupBridgeHostOutput(
-            stdout = ownedStdout,
-            stderr = ownedStderr,
-        )
+        return try {
+            ExternalStartupBridgeHostOutput(ownedStdout, ownedStderr)
+        } catch (throwable: Throwable) {
+            runCatching(ownedStdout::close)
+            runCatching(ownedStderr::close)
+            throw throwable
+        }
     }
+
+    private fun rejectClosed(
+        stdout: ParcelFileDescriptor,
+        stderr: ParcelFileDescriptor,
+        resultReceiver: ResultReceiver,
+    ) = reject(
+        stdout,
+        stderr,
+        resultReceiver,
+        ExternalStartupBridgeProtocol.RESULT_CLOSED,
+        IllegalStateException("External startup host is closed"),
+    )
 
     private fun reject(
         stdout: ParcelFileDescriptor,
@@ -153,14 +141,17 @@ internal class PrivilegeExternalStartupBridgeHost(
         resultCode: Int,
         failure: Throwable,
     ) {
-        val output = ExternalStartupBridgeHostOutput(stdout, stderr)
-        output.writeFailure(failure)
-        output.close()
-        sendResult(
-            resultReceiver = resultReceiver,
-            resultCode = resultCode,
-            resultData = failure.toResultData(),
-        )
+        try {
+            runCatching {
+                stderr.toWriter().use { writer ->
+                    writer.writeLine(failure.toPrivilegeDiagnosticString())
+                }
+            }
+        } finally {
+            runCatching(stdout::close)
+            runCatching(stderr::close)
+        }
+        sendResult(resultReceiver, resultCode, failure.toResultData())
     }
 
     private fun sendResult(
@@ -168,9 +159,7 @@ internal class PrivilegeExternalStartupBridgeHost(
         resultCode: Int,
         resultData: Bundle,
     ) {
-        runCatching {
-            resultReceiver.send(resultCode, resultData)
-        }
+        runCatching { resultReceiver.send(resultCode, resultData) }
     }
 }
 
@@ -182,19 +171,17 @@ private class ExternalStartupBridgeHostOutput(
     private val stderrWriter = stderr.toWriter()
 
     fun write(line: PrivilegeStartupLogLine) {
-        val writer = if (line.source == STDOUT_SOURCE) stdoutWriter else stderrWriter
-        writer.writeLine(line.message)
+        (if (line.source == STDOUT_SOURCE) stdoutWriter else stderrWriter)
+            .writeLine(line.message)
     }
 
     fun writeFailure(throwable: Throwable) {
-        runCatching {
-            stderrWriter.writeLine(throwable.toPrivilegeDiagnosticString())
-        }
+        runCatching { stderrWriter.writeLine(throwable.toPrivilegeDiagnosticString()) }
     }
 
     override fun close() {
-        runCatching { stdoutWriter.close() }
-        runCatching { stderrWriter.close() }
+        runCatching(stdoutWriter::close)
+        runCatching(stderrWriter::close)
     }
 }
 
@@ -212,17 +199,16 @@ private fun BufferedWriter.writeLine(message: String) {
     }
 }
 
-private fun Throwable.toResultData(): Bundle =
-    Bundle().apply {
-        putString(
-            ExternalStartupBridgeProtocol.RESULT_MESSAGE_KEY,
-            message
-                ?.lineSequence()
-                ?.firstOrNull { it.isNotBlank() }
-                ?.take(MAX_RESULT_MESSAGE_CHARS)
-                ?: javaClass.name,
-        )
-    }
+private fun Throwable.toResultData(): Bundle = Bundle().apply {
+    putString(
+        ExternalStartupBridgeProtocol.RESULT_MESSAGE_KEY,
+        message
+            ?.lineSequence()
+            ?.firstOrNull(String::isNotBlank)
+            ?.take(MAX_RESULT_MESSAGE_CHARS)
+            ?: javaClass.name,
+    )
+}
 
 private const val STDOUT_SOURCE = "stdout"
 private const val MAX_RESULT_MESSAGE_CHARS = 512

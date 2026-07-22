@@ -1,7 +1,6 @@
 package priv.kit.ui.state
 
 import android.content.Context
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -14,10 +13,7 @@ import priv.kit.ui.PrivilegeUiStartupMode
 import priv.kit.ui.PrivilegeUiState
 import priv.kit.ui.R
 import priv.kit.ui.effectiveStartupModes
-import priv.kit.ui.runtime.PrivilegeUiRuntimeStartSession
-import java.io.Closeable
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicLong
 
 internal class PrivilegeUiViewModelStore(
     context: Context? = null,
@@ -29,21 +25,9 @@ internal class PrivilegeUiViewModelStore(
     @Volatile
     var applicationContext: Context? = context?.applicationContext ?: context
     var config: PrivilegeUiConfig = PrivilegeUiConfig()
-    var serverConnectedListener: Closeable? = null
-    var serverDisconnectedWatcher: Closeable? = null
-    var startNotificationPairingAfterPermission: Boolean = false
     val notificationPairingOwnerId: String = UUID.randomUUID().toString()
-    var pendingExternalStartProviderId: String? = null
     @Volatile
     var serverShutdownRequestedByOwner: Boolean = false
-    @Volatile
-    var runtimeStartJob: Job? = null
-    @Volatile
-    var runtimeStartSession: PrivilegeUiRuntimeStartSession? = null
-    val runtimeStartGeneration = AtomicLong(0L)
-    @Volatile
-    var tcpAuthorizationRequest: AutoCloseable? = null
-    val tcpAuthorizationRequestGeneration = AtomicLong(0L)
 
     fun initializeState(config: PrivilegeUiConfig) {
         val context = requireContext()
@@ -152,15 +136,7 @@ internal class PrivilegeUiViewModelStore(
             ?.toPrivilegeUiAdbDeviceNameText()
             ?.ifBlank { null }
 
-    override fun close() {
-        var request: AutoCloseable? = null
-        synchronized(this) {
-            request = tcpAuthorizationRequest
-            tcpAuthorizationRequestGeneration.incrementAndGet()
-            tcpAuthorizationRequest = null
-        }
-        runCatching { request?.close() }
-    }
+    override fun close() = Unit
 
     private companion object {
         const val MAX_STARTUP_LOG_LINES = 240

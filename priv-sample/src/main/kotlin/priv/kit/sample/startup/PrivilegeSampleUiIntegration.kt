@@ -14,6 +14,9 @@ import priv.kit.ui.PrivilegeUiStreamingExternalStartProvider
 import priv.kit.ui.PrivilegeUiStartupMode
 import priv.kit.ui.PrivilegeUiViewModel
 import rikka.shizuku.Shizuku
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 internal class PrivilegeSamplePrivilegeUiViewModel(
     application: Application,
@@ -63,9 +66,9 @@ private class PrivilegeSampleShizukuExternalStartProvider(
 ) : PrivilegeUiStreamingExternalStartProvider {
     override val id: String = "shizuku"
 
-    override fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot =
+    override suspend fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot =
         runCatching {
-            shizukuSnapshot(context, requestPermission = false)
+            shizukuSnapshot(context)
         }.getOrElse { throwable ->
             PrivilegeUiExternalStartSnapshot(
                 message = throwable.message ?: throwable.javaClass.name,
@@ -73,17 +76,56 @@ private class PrivilegeSampleShizukuExternalStartProvider(
             )
         }
 
-    override fun requestAuthorization(context: Context): PrivilegeUiExternalStartSnapshot =
-        runCatching {
-            shizukuSnapshot(context, requestPermission = true)
-        }.getOrElse { throwable ->
-            PrivilegeUiExternalStartSnapshot(
-                message = throwable.message ?: throwable.javaClass.name,
-                exceptionText = throwable.toDiagnosticString(),
-            )
+    override suspend fun requestAuthorization(
+        context: Context,
+    ): PrivilegeUiExternalStartSnapshot {
+        val current = snapshot(context)
+        if (
+            !current.available ||
+            current.canStart ||
+            Shizuku.shouldShowRequestPermissionRationale()
+        ) {
+            return current
         }
 
-    override fun start(
+        return suspendCancellableCoroutine { continuation ->
+            val completed = AtomicBoolean(false)
+            lateinit var listener: Shizuku.OnRequestPermissionResultListener
+            fun finish(result: PrivilegeUiExternalStartSnapshot) {
+                if (!completed.compareAndSet(false, true)) return
+                Shizuku.removeRequestPermissionResultListener(listener)
+                if (continuation.isActive) continuation.resume(result)
+            }
+
+            listener = Shizuku.OnRequestPermissionResultListener { requestCode, _ ->
+                if (requestCode == SHIZUKU_PERMISSION_REQUEST_CODE) {
+                    finish(shizukuSnapshot(context))
+                }
+            }
+            continuation.invokeOnCancellation {
+                if (completed.compareAndSet(false, true)) {
+                    Shizuku.removeRequestPermissionResultListener(listener)
+                }
+            }
+            Shizuku.addRequestPermissionResultListener(listener)
+            try {
+                if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+                    finish(shizukuSnapshot(context))
+                } else {
+                    Shizuku.requestPermission(SHIZUKU_PERMISSION_REQUEST_CODE)
+                }
+            } catch (throwable: Throwable) {
+                finish(
+                    PrivilegeUiExternalStartSnapshot(
+                        message = throwable.message ?: throwable.javaClass.name,
+                        exceptionText = throwable.toDiagnosticString(),
+                    ),
+                )
+            }
+        }
+    }
+
+    override suspend fun start(
         context: Context,
         commandLine: String,
     ) {
@@ -92,7 +134,7 @@ private class PrivilegeSampleShizukuExternalStartProvider(
         }
     }
 
-    override fun start(
+    override suspend fun start(
         context: Context,
         commandLine: String,
         startupLogListener: PrivilegeStartupLogListener,
@@ -102,10 +144,7 @@ private class PrivilegeSampleShizukuExternalStartProvider(
         }
     }
 
-    private fun shizukuSnapshot(
-        context: Context,
-        requestPermission: Boolean,
-    ): PrivilegeUiExternalStartSnapshot {
+    private fun shizukuSnapshot(context: Context): PrivilegeUiExternalStartSnapshot {
         if (!Shizuku.pingBinder()) {
             return PrivilegeUiExternalStartSnapshot(
                 message = context.getString(R.string.sample_privilege_ui_shizuku_not_running),
@@ -144,16 +183,6 @@ private class PrivilegeSampleShizukuExternalStartProvider(
                 uid = uid,
                 version = version,
                 message = context.getString(R.string.sample_privilege_ui_shizuku_permission_denied),
-            )
-        }
-
-        if (requestPermission) {
-            Shizuku.requestPermission(SHIZUKU_PERMISSION_REQUEST_CODE)
-            return PrivilegeUiExternalStartSnapshot(
-                available = true,
-                uid = uid,
-                version = version,
-                message = context.getString(R.string.sample_privilege_ui_shizuku_permission_requested),
             )
         }
 

@@ -137,14 +137,14 @@ public interface PrivilegeUiExternalStartProvider {
 
     public val label: CharSequence
 
-    public fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot =
+    public suspend fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot =
         PrivilegeUiExternalStartSnapshot()
 
-    public fun requestAuthorization(context: Context): PrivilegeUiExternalStartSnapshot =
+    public suspend fun requestAuthorization(context: Context): PrivilegeUiExternalStartSnapshot =
         snapshot(context)
 
     @Throws(PrivilegeStartupException::class)
-    public fun start(
+    public suspend fun start(
         context: Context,
         commandLine: String,
     )
@@ -152,7 +152,7 @@ public interface PrivilegeUiExternalStartProvider {
 
 public interface PrivilegeUiStreamingExternalStartProvider : PrivilegeUiExternalStartProvider {
     @Throws(PrivilegeStartupException::class)
-    public fun start(
+    public suspend fun start(
         context: Context,
         commandLine: String,
         startupLogListener: PrivilegeStartupLogListener,
@@ -180,6 +180,7 @@ public data class PrivilegeUiExternalStartItemState public constructor(
 public data class PrivilegeUiState public constructor(
     public val busy: Boolean = false,
     public val runtimeStatus: PrivilegeUiRuntimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+    public val runtimeStatusLoaded: Boolean = false,
     public val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
     public val serverInfo: PrivilegeServerInfo? = null,
     public val selectedStartupMode: PrivilegeUiStartupMode = PrivilegeUiStartupMode.ADB,
@@ -190,6 +191,7 @@ public data class PrivilegeUiState public constructor(
     ),
     public val runtimeProgressMessage: String? = null,
     public val manualShellCommandLine: String? = null,
+    public val manualShellStatusLoaded: Boolean = false,
     public val pairingCode: String = "",
     public val pairingStatus: PrivilegeUiAdbPairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
     public val pairingMessage: String = "",
@@ -205,8 +207,10 @@ public data class PrivilegeUiState public constructor(
     public val tcpAuthorizationStatus: PrivilegeUiAdbTcpAuthorizationStatus =
         PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
     public val adbKeyFingerprint: String? = null,
+    public val adbStatusLoaded: Boolean = false,
     public val notificationPairingRunning: Boolean = false,
     public val externalStartItems: List<PrivilegeUiExternalStartItemState> = emptyList(),
+    public val externalStartStatusLoaded: Boolean = false,
     public val startupLogLines: List<String> = emptyList(),
     public val connectionSerial: Long = 0L,
     public val runtimeStartPhase: PrivilegeUiRuntimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,

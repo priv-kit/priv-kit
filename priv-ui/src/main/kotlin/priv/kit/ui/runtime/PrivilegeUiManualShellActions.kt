@@ -4,12 +4,16 @@ import priv.kit.ui.*
 import priv.kit.ui.state.*
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
 
-internal fun PrivilegeUiViewModelStore.loadManualShellCommand() {
-    val commandLine = runCatching {
-        Privilege.createShellStartCommand()
-            .toPrivilegeUiHostAdbShellCommand()
+internal suspend fun PrivilegeUiViewModelStore.loadManualShellCommand() {
+    val commandLine = withContext(Dispatchers.IO) {
+        runCatching {
+            Privilege.createShellStartCommand()
+                .toPrivilegeUiHostAdbShellCommand()
+        }
     }.getOrElse { throwable ->
         appendLog(throwable.toPrivilegeUiDiagnosticString())
         null

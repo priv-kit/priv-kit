@@ -25,7 +25,6 @@ import priv.kit.ui.runtime.PrivilegeUiStartGate
 import priv.kit.ui.runtime.PrivilegeUiStartGateState
 import priv.kit.ui.runtime.copyManualShellCommand
 import priv.kit.ui.runtime.directStartTargets
-import priv.kit.ui.state.PrivilegeUiNoopCloseable
 import priv.kit.ui.state.PrivilegeUiViewModelStore
 import priv.kit.ui.state.copyToClipboard
 import priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported
@@ -56,7 +55,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     private val externalStartActions = PrivilegeUiExternalStartActions(
         store = store,
         runtimeActions = runtimeActions,
-        coroutineScope = viewModelScope,
         acquireInteractivePermit = acquireInteractivePermit,
     )
     private val ownerClosed = AtomicBoolean(false)
@@ -69,14 +67,13 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         coroutineScope = viewModelScope,
     )
     private val permissionCoordinator = PrivilegeUiPermissionCoordinator(
-        coroutineScope = viewModelScope,
         acquireInteractivePermit = acquireInteractivePermit,
         interactionsEnabled = { uiInteractionsEnabled },
         ownerClosed = ownerClosed::get,
-        handleNotificationPermissionResult = adbActions::handleNotificationPermissionResult,
-        cancelNotificationPermissionRequest = adbActions::cancelNotificationPermissionRequest,
         cancelPairingWithoutInteractionHost = adbActions::cancelPairingWithoutInteractionHost,
     )
+    private var notificationPairingStartJob: Job? = null
+    private var externalAuthorizationJob: Job? = null
     private var batteryOptimizationRefreshJob: Job? = null
     private var deliveredConnectionSerial = 0L
     private var hostResumeDispatchInProgress = false
@@ -171,7 +168,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         if (!uiInteractionsEnabled) return
         if (mode !in store.state.value.startupModes) return
         store.updateState { it.copy(selectedStartupMode = mode) }
-        effectsCoordinator.onStartupModeSelected()
     }
 
     public open fun startRoot() {
@@ -182,10 +178,10 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     /** Starts the foreground provider sequence used by the service-status action. */
     public open fun startInteractive() {
         if (!uiInteractionsEnabled) return
-        startInteractiveFallback()
+        viewModelScope.launch { startInteractiveFallback() }
     }
 
-    private fun startInteractiveFallback() {
+    private suspend fun startInteractiveFallback() {
         if (
             store.state.value.busy ||
             store.state.value.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE ||
@@ -256,9 +252,10 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
     public open fun startNotificationPairing() {
         if (!uiInteractionsEnabled) return
-        adbActions.startNotificationPairing(
-            onNotificationPermissionRequired = ::requestNotificationPermission,
-        )
+        if (notificationPairingStartJob?.isActive == true) return
+        notificationPairingStartJob = viewModelScope.launch {
+            adbActions.startNotificationPairing(permissionCoordinator::requestNotificationPermission)
+        }
     }
 
     public open fun stopNotificationPairing() {
@@ -268,6 +265,8 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
     public open fun cancelPendingPairingStart() {
         if (!uiInteractionsEnabled) return
+        notificationPairingStartJob?.cancel()
+        notificationPairingStartJob = null
         adbActions.cancelPendingPairingStart()
     }
 
@@ -301,33 +300,19 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         permissionState,
     )
 
-    internal fun completeLocalNetworkPermissionRequest(hostId: String) =
-        permissionCoordinator.completeLocalNetworkPermissionRequest(hostId)
+    internal fun completeLocalNetworkPermissionRequest(
+        hostId: String,
+        permissionState: PrivilegeUiPermissionState,
+    ) = permissionCoordinator.completeLocalNetworkPermissionRequest(hostId, permissionState)
 
     public open fun startWirelessAdb() {
         if (!uiInteractionsEnabled) return
-        adbActions.startWirelessAdb(::requestLocalNetworkPermission)
+        adbActions.startWirelessAdb(permissionCoordinator::requestLocalNetworkPermission)
     }
 
     public open fun startAdb() {
         if (!uiInteractionsEnabled) return
-        adbActions.startAdb(::requestLocalNetworkPermission)
-    }
-
-    public open fun startWirelessAdbStatusPolling(): AutoCloseable =
-        if (!uiInteractionsEnabled) {
-            PrivilegeUiNoopCloseable
-        } else if (isPrivilegeUiWirelessAdbSupported()) {
-            adbActions.startWirelessAdbStatusPolling()
-        } else {
-            adbActions.stopWirelessAdbStatusPolling()
-            PrivilegeUiNoopCloseable
-        }
-
-    public open fun refreshWirelessAdbStatus() {
-        if (uiInteractionsEnabled && isPrivilegeUiWirelessAdbSupported()) {
-            adbActions.refreshWirelessAdbStatus()
-        }
+        adbActions.startAdb(permissionCoordinator::requestLocalNetworkPermission)
     }
 
     public open fun onHostResume() {
@@ -341,8 +326,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         if (uiInteractionsEnabled) {
             adbActions.continuePendingPairingIfNotificationPermissionGranted()
             effectsCoordinator.refreshHostResumeState()
-        } else {
-            effectsCoordinator.pauseStatusPolling()
         }
         scheduleBatteryOptimizationStateRechecks()
     }
@@ -376,39 +359,19 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         }
     }
 
-    public open fun stopWirelessAdbStatusPolling() {
-        effectsCoordinator.stopWirelessStatusPolling()
-    }
-
-    public open fun startTcpModeStatusPolling(): AutoCloseable =
-        if (uiInteractionsEnabled) {
-            adbActions.startTcpModeStatusPolling()
-        } else {
-            PrivilegeUiNoopCloseable
-        }
-
-    public open fun stopTcpModeStatusPolling() {
-        effectsCoordinator.stopTcpModeStatusPolling()
-    }
-
     public open fun enableTcpMode() {
         if (!uiInteractionsEnabled) return
-        adbActions.enableTcpMode()
-    }
-
-    public open fun refreshTcpModeEnabled() {
-        if (!uiInteractionsEnabled) return
-        adbActions.refreshTcpModeEnabled()
+        viewModelScope.launch { adbActions.enableTcpMode() }
     }
 
     public open fun startStaticTcpAdb() {
         if (!uiInteractionsEnabled) return
-        adbActions.startStaticTcpAdb(::requestLocalNetworkPermission)
+        adbActions.startStaticTcpAdb(permissionCoordinator::requestLocalNetworkPermission)
     }
 
     public open fun confirmStaticTcpSwitch() {
         if (!uiInteractionsEnabled) return
-        adbActions.confirmStaticTcpSwitch(::requestLocalNetworkPermission)
+        adbActions.confirmStaticTcpSwitch()
     }
 
     public open fun cancelStaticTcpSwitch() {
@@ -416,37 +379,16 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         adbActions.cancelStaticTcpSwitch()
     }
 
-    public open fun refreshExternalStartStatus(providerId: String? = null) {
-        if (!uiInteractionsEnabled) return
-        externalStartActions.refreshExternalStartStatus(providerId)
-    }
-
-    public open fun startExternalStartStatusPolling(): AutoCloseable =
-        if (uiInteractionsEnabled) {
-            externalStartActions.startExternalStartStatusPolling()
-        } else {
-            PrivilegeUiNoopCloseable
-        }
-
-    public open fun stopExternalStartStatusPolling() {
-        effectsCoordinator.stopExternalStartStatusPolling()
-    }
-
     public open fun authorizeOrStartExternal(providerId: String) {
         if (!uiInteractionsEnabled) return
-        externalStartActions.authorizeOrStartExternal(providerId)
-    }
-
-    private fun requestNotificationPermission(): Boolean {
-        return permissionCoordinator.requestNotificationPermission()
+        if (externalAuthorizationJob?.isActive == true) return
+        externalAuthorizationJob = viewModelScope.launch {
+            externalStartActions.authorizeOrStartExternal(providerId)
+        }
     }
 
     private fun hasPermissionInteractionHost(): Boolean =
         permissionCoordinator.hasInteractionHost()
-
-    private fun requestLocalNetworkPermission(permission: String) {
-        permissionCoordinator.requestLocalNetworkPermission(permission)
-    }
 
     internal fun registerPermissionHost(hostId: String) = permissionCoordinator.registerHost(hostId)
 
@@ -454,9 +396,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         hostId: String,
         changingConfigurations: Boolean,
     ) = permissionCoordinator.unregisterHost(hostId, changingConfigurations)
-
-    internal fun completePermissionRequest(request: PrivilegeUiPermissionRequest) =
-        permissionCoordinator.completeRequest(request)
 
     internal fun cancelPermissionRequest(
         hostId: String,
@@ -473,7 +412,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         batteryOptimizationRefreshJob = null
         runCatching { effectsCoordinator.close() }
         runtimeActions.close()
-        runCatching { externalStartActions.close() }
         runCatching { adbActions.close() }
         permissionCoordinator.close()
         runCatching { store.close() }

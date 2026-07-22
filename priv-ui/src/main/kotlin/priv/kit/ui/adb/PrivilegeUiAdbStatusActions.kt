@@ -1,252 +1,161 @@
 package priv.kit.ui.adb
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import priv.kit.core.Privilege
 import priv.kit.core.adb.PrivilegeAdbAuthorizationStatus
+import priv.kit.core.adb.PrivilegeAdbPairingCheckSession
 import priv.kit.core.adb.PrivilegeAdbPairingCheckStatus
+import priv.kit.core.adb.PrivilegeAdbStarter
+import priv.kit.core.adb.PrivilegeAdbTcpAuthorizationCheckSession
 import priv.kit.ui.PrivilegeAdbPairingService
 import priv.kit.ui.PrivilegeUiAdbTcpAuthorizationStatus
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiManagedWirelessAdbStatus
 import priv.kit.ui.PrivilegeUiWirelessAdbStatus
-import priv.kit.ui.state.PrivilegeUiNoopCloseable
-import priv.kit.ui.state.PrivilegeUiPollingSlot
-import priv.kit.ui.state.PrivilegeUiStatusRefreshController
 import priv.kit.ui.state.PrivilegeUiViewModelStore
 import priv.kit.ui.state.toPrivilegeUiDiagnosticString
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration.Companion.milliseconds
 
 internal class PrivilegeUiAdbStatusActions(
     private val store: PrivilegeUiViewModelStore,
     private val coroutineScope: CoroutineScope,
-    private val adbConnectionSessions: PrivilegeUiAdbConnectionSessions,
-) {
-    private val wirelessAdbStatusRefresh = PrivilegeUiStatusRefreshController(
-        scope = coroutineScope,
-        name = "priv-ui-wireless-adb-refresh",
-    )
-    private val tcpModeStatusRefresh = PrivilegeUiStatusRefreshController(
-        scope = coroutineScope,
-        name = "priv-ui-tcp-mode-refresh",
-    )
-    private val tcpModeStatusPolling = PrivilegeUiPollingSlot(
-        scope = coroutineScope,
-        name = "priv-ui-tcp-mode-status",
-        onStop = {
-            adbConnectionSessions.closeTcpAuthorizationCheckSession()
-        },
-    ) { stop ->
-        pollTcpModeStatus(stop)
-    }
-    private val wirelessAdbStatusPolling = PrivilegeUiPollingSlot(
-        scope = coroutineScope,
-        name = "priv-ui-wireless-adb-status",
-        onStart = {
-            store.updateState {
-                it.copy(
-                    wifiConnected = store.isWifiConnected(),
-                    wirelessDebuggingStatus = it.wirelessDebuggingStatus.checkingIfUnknown(),
-                    wirelessPairingServiceStatus = it.wirelessPairingServiceStatus.checkingIfUnknown(),
-                    wirelessPairingCheckStatus = privilegeUiRefreshingPairingCheckStatus(
-                        wirelessDebuggingStatus = it.wirelessDebuggingStatus,
-                        currentStatus = it.wirelessPairingCheckStatus,
-                    ),
-                    managedWirelessAdbStatus = it.managedWirelessAdbStatus.checkingIfUnknown(),
-                    notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
-                        store.notificationPairingOwnerId,
-                    ),
-                )
-            }
-        },
-        onStop = {
-            adbConnectionSessions.closeWirelessPairingCheckSession()
-            store.updateState {
-                it.copy(
-                    notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
-                        store.notificationPairingOwnerId,
-                    ),
-                )
-            }
-        },
-    ) { stop ->
-        pollWirelessAdbStatus(stop)
-    }
+) : AutoCloseable {
+    private val wirelessRefresh = Mutex()
+    private val tcpRefresh = Mutex()
+    private var pairingSession: PrivilegeAdbPairingCheckSession? = null
+    private var tcpSession: PrivilegeAdbTcpAuthorizationCheckSession? = null
+    private var tcpSessionPort: Int? = null
 
     fun refreshTcpModeEnabled() {
-        refreshTcpModeEnabled(markChecking = true)
+        coroutineScope.launch(CoroutineName("priv-ui-tcp-mode-refresh")) {
+            refreshTcpModeEnabled(markChecking = true)
+        }
     }
 
-    fun refreshTcpModeEnabled(markChecking: Boolean): Boolean {
-        if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) {
-            store.updateTcpModePort(null)
-            store.updateConfiguredTcpModePort(null)
-            adbConnectionSessions.closeTcpAuthorizationCheckSession()
-            store.updateState {
-                it.copy(tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN)
+    suspend fun pollTcpModeStatus() {
+        try {
+            var firstRefresh = true
+            while (currentCoroutineContext().isActive) {
+                refreshTcpModeEnabled(markChecking = firstRefresh)
+                firstRefresh = false
+                delay(store.config.wirelessStatusPollIntervalMillis.milliseconds)
             }
-            return true
-        }
-        val pollingStop = tcpModeStatusPolling.currentStop()
-        return tcpModeStatusRefresh.start {
-            refreshTcpModeEnabledNow(stop = pollingStop, markChecking = markChecking)
+        } finally {
+            closeTcpSession()
         }
     }
 
-    fun startTcpModeStatusPolling(): AutoCloseable {
-        if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) {
-            stopTcpModeStatusPolling()
-            return PrivilegeUiNoopCloseable
+    suspend fun pollWirelessAdbStatus() {
+        markWirelessAdbStatusChecking()
+        try {
+            while (currentCoroutineContext().isActive) {
+                refreshWirelessAdbStatus(markChecking = false)
+                delay(store.config.wirelessStatusPollIntervalMillis.milliseconds)
+            }
+        } finally {
+            closePairingSession()
+            updateNotificationPairingRunning()
         }
-        return tcpModeStatusPolling.acquire()
     }
 
-    fun stopTcpModeStatusPolling() {
-        tcpModeStatusPolling.stopAll()
-        adbConnectionSessions.closeTcpAuthorizationCheckSession()
-    }
-
-    fun refreshAdbIdentityInfo() {
-        coroutineScope.launch(Dispatchers.IO + CoroutineName("priv-ui-adb-identity")) {
-            runCatching {
+    suspend fun refreshAdbIdentityInfoNow() {
+        runCatching {
+            withContext(Dispatchers.IO) {
                 Privilege.createAdbStarter(
                     adbDeviceName = store.currentAdbDeviceNameOverride(),
                 ).getIdentityInfo()
-            }.onSuccess { info ->
-                store.updateState {
-                    it.copy(adbKeyFingerprint = info.publicKeyFingerprint)
-                }
-            }.onFailure { throwable ->
-                store.appendLog(throwable.toPrivilegeUiDiagnosticString())
             }
-        }
-    }
-
-    fun startWirelessAdbStatusPolling(): AutoCloseable =
-        wirelessAdbStatusPolling.acquire()
-
-    fun refreshWirelessAdbStatus() {
-        val stop = wirelessAdbStatusPolling.currentStop() ?: return
-        wirelessAdbStatusRefresh.start {
-            refreshWirelessAdbStatusNow(stop = stop, markChecking = true)
+        }.onSuccess { info ->
+            store.updateState { it.copy(adbKeyFingerprint = info.publicKeyFingerprint) }
+        }.onFailure { throwable ->
+            if (throwable is CancellationException) throw throwable
+            store.appendLog(throwable.toPrivilegeUiDiagnosticString())
         }
     }
 
     fun refreshWifiConnected() {
-        store.updateState {
-            it.copy(wifiConnected = store.isWifiConnected())
+        store.updateState { it.copy(wifiConnected = store.isWifiConnected()) }
+    }
+
+    suspend fun forceWirelessAdbStatusRefreshForAction(): Boolean {
+        val refreshed = withTimeoutOrNull(actionRefreshTimeoutMillis().milliseconds) {
+            refreshWirelessAdbStatus(markChecking = true)
+            true
         }
+        if (refreshed == null) closePairingSession()
+        return refreshed ?: false
     }
 
-    fun stopWirelessAdbStatusPolling() {
-        wirelessAdbStatusPolling.stopAll()
-        adbConnectionSessions.closeWirelessPairingCheckSession()
-    }
-
-    suspend fun forceWirelessAdbStatusRefreshForAction(
-        stop: AtomicBoolean? = null,
-    ): Boolean =
-        forceStatusRefreshForAction(
-            controller = wirelessAdbStatusRefresh,
-            stop = stop,
-            refreshStop = {
-                wirelessAdbStatusPolling.currentStop()?.takeUnless { it.get() } ?: AtomicBoolean(false)
-            },
-            refresh = { refreshStop ->
-                refreshWirelessAdbStatusNow(
-                    stop = refreshStop ?: AtomicBoolean(false),
-                    markChecking = true,
-                )
-            },
-            activeAfterRefresh = { refreshStop -> refreshStop?.get() != true },
-        )
-
-    suspend fun forceTcpModeStatusRefreshForAction(
-        stop: AtomicBoolean? = null,
-    ): Boolean =
-        forceStatusRefreshForAction(
-            controller = tcpModeStatusRefresh,
-            stop = stop,
-            refreshStop = { tcpModeStatusPolling.currentStop()?.takeUnless { it.get() } },
-            refresh = { refreshStop ->
-                refreshTcpModeEnabledNow(stop = refreshStop, markChecking = true)
-            },
-        )
-
-    fun close() {
-        stopTcpModeStatusPolling()
-        stopWirelessAdbStatusPolling()
-    }
-
-    private suspend fun pollWirelessAdbStatus(stop: AtomicBoolean) {
-        while (!stop.get()) {
-            wirelessAdbStatusRefresh.run {
-                refreshWirelessAdbStatusNow(stop = stop, markChecking = false)
-            }
-            if (!sleepPolling(stop, store.config.wirelessStatusPollIntervalMillis)) return
+    suspend fun forceTcpModeStatusRefreshForAction(): Boolean {
+        val refreshed = withTimeoutOrNull(actionRefreshTimeoutMillis().milliseconds) {
+            refreshTcpModeEnabled(markChecking = true)
+            true
         }
+        if (refreshed == null) closeTcpSession()
+        return refreshed ?: false
     }
 
-    private suspend fun pollTcpModeStatus(stop: AtomicBoolean) {
-        var firstRefresh = true
-        while (!stop.get()) {
-            tcpModeStatusRefresh.run {
-                refreshTcpModeEnabledNow(stop = stop, markChecking = firstRefresh)
-            }
-            firstRefresh = false
-            if (!sleepPolling(stop, store.config.wirelessStatusPollIntervalMillis)) return
-        }
+    override fun close() {
+        closePairingSession()
+        closeTcpSession()
     }
 
-    private fun refreshTcpModeEnabledNow(
-        stop: AtomicBoolean?,
-        markChecking: Boolean,
-    ) {
-        if (markChecking) {
-            store.updateState {
-                it.copy(tcpAuthorizationStatus = it.tcpAuthorizationStatus.checkingUnlessAuthorizedOrAuthorizing())
-            }
-        }
-        refreshTcpModeAndAuthorization(stop)
-    }
+    fun resetWirelessPairingSession() = closePairingSession()
 
-    private fun refreshTcpModeAndAuthorization(stop: AtomicBoolean?) {
-        if (shouldSkipTcpAuthorizationRefresh(store.state.value.tcpAuthorizationStatus)) {
-            return
-        }
-        val starter = Privilege.createAdbStarter(
-            adbDeviceName = store.currentAdbDeviceNameOverride(),
-        )
-        val activeTcpPort = runCatching { starter.getActiveTcpPort() }.getOrNull()
-        val configuredTcpPort = runCatching { starter.getConfiguredTcpPort() }.getOrNull()
-        store.updateTcpModePort(activeTcpPort)
-        store.updateConfiguredTcpModePort(configuredTcpPort)
-        if (configuredTcpPort == null) {
-            adbConnectionSessions.closeTcpAuthorizationCheckSession()
+    private suspend fun refreshTcpModeEnabled(markChecking: Boolean): Unit = tcpRefresh.withLock {
+        if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) {
+            store.updateTcpModePort(null)
+            store.updateConfiguredTcpModePort(null)
+            closeTcpSession()
             store.updateState {
                 it.copy(tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN)
             }
-            return
+            return@withLock
+        }
+        if (markChecking) {
+            store.updateState {
+                it.copy(
+                    tcpAuthorizationStatus =
+                        it.tcpAuthorizationStatus.checkingUnlessAuthorizedOrAuthorizing(),
+                )
+            }
+        }
+        if (shouldSkipTcpAuthorizationRefresh(store.state.value.tcpAuthorizationStatus)) return@withLock
+
+        val starter = Privilege.createAdbStarter(
+            adbDeviceName = store.currentAdbDeviceNameOverride(),
+        )
+        val activeTcpPort = withContext(Dispatchers.IO) {
+            runCatching { starter.getActiveTcpPort() }.getOrNull()
+        }
+        val configuredTcpPort = withContext(Dispatchers.IO) {
+            runCatching { starter.getConfiguredTcpPort() }.getOrNull()
+        }
+        store.updateTcpModePort(activeTcpPort)
+        store.updateConfiguredTcpModePort(configuredTcpPort)
+        if (configuredTcpPort == null) {
+            closeTcpSession()
+            store.updateState {
+                it.copy(tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN)
+            }
+            return@withLock
         }
 
-        val authorization = if (stop != null) {
-            adbConnectionSessions.checkTcpAuthorization(
-                starter = starter,
-                tcpPort = configuredTcpPort,
-                stop = stop,
-            ) ?: return
-        } else {
-            starter.checkTcpAuthorization(tcpPort = configuredTcpPort)
-        }
+        val authorization = checkTcpAuthorization(starter, configuredTcpPort)
         val previousStatus = store.state.value.tcpAuthorizationStatus
         val nextStatus = authorization.status.toUiTcpAuthorizationStatus()
-        store.updateState {
-            it.copy(tcpAuthorizationStatus = nextStatus)
-        }
+        store.updateState { it.copy(tcpAuthorizationStatus = nextStatus) }
         if (
             shouldAppendTcpAuthorizationFailureLog(
                 previousStatus = previousStatus,
@@ -258,30 +167,48 @@ internal class PrivilegeUiAdbStatusActions(
         }
     }
 
-    private fun refreshWirelessAdbStatusNow(
-        stop: AtomicBoolean,
-        markChecking: Boolean,
-    ) {
-        if (markChecking) {
-            markWirelessAdbStatusChecking()
+    private suspend fun checkTcpAuthorization(
+        starter: PrivilegeAdbStarter,
+        port: Int,
+    ) = tcpSession
+        ?.takeIf { tcpSessionPort == port }
+        ?.check()
+        ?.also { result ->
+            if (result.status != PrivilegeAdbAuthorizationStatus.AUTHORIZED) closeTcpSession()
         }
-        runCatching {
-            pollWirelessAdbStatusOnce(stop)
-        }.onFailure { throwable ->
-            if (stop.get()) return@onFailure
-            store.updateState {
-                it.withWirelessAdbOffline(
-                    managedWirelessAdbStatus = it.managedWirelessAdbStatus.failedUnlessManagedWirelessAdbHidden(
-                        enabled = store.config.enableManagedWirelessAdb,
-                    ),
-                    notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
-                        store.notificationPairingOwnerId,
-                    ),
-                )
+        ?: run {
+            closeTcpSession()
+            val session = runCatching { starter.openTcpAuthorizationCheckSession(port) }
+                .getOrElse { return@run starter.checkTcpAuthorization(port) }
+            tcpSession = session
+            tcpSessionPort = port
+            session.check().also { result ->
+                if (result.status != PrivilegeAdbAuthorizationStatus.AUTHORIZED) closeTcpSession()
             }
-            store.appendLog(throwable.toPrivilegeUiDiagnosticString())
         }
-    }
+
+    private suspend fun refreshWirelessAdbStatus(markChecking: Boolean): Unit =
+        wirelessRefresh.withLock {
+            if (markChecking) markWirelessAdbStatusChecking()
+            try {
+                pollWirelessAdbStatusOnce()
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (throwable: Throwable) {
+                store.updateState {
+                    it.withWirelessAdbOffline(
+                        managedWirelessAdbStatus =
+                            it.managedWirelessAdbStatus.failedUnlessManagedWirelessAdbHidden(
+                                enabled = store.config.enableManagedWirelessAdb,
+                            ),
+                        notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
+                            store.notificationPairingOwnerId,
+                        ),
+                    )
+                }
+                store.appendLog(throwable.toPrivilegeUiDiagnosticString())
+            }
+        }
 
     private fun markWirelessAdbStatusChecking() {
         val wifiConnected = store.isWifiConnected()
@@ -314,16 +241,17 @@ internal class PrivilegeUiAdbStatusActions(
         }
     }
 
-    private fun pollWirelessAdbStatusOnce(stop: AtomicBoolean) {
+    private suspend fun pollWirelessAdbStatusOnce() {
         val wifiConnected = store.isWifiConnected()
         if (!wifiConnected) {
-            adbConnectionSessions.closeWirelessPairingCheckSession()
+            closePairingSession()
             store.updateState {
                 it.withWirelessAdbOffline(
                     wifiConnected = false,
-                    managedWirelessAdbStatus = it.managedWirelessAdbStatus.failedUnlessManagedWirelessAdbHidden(
-                        enabled = store.config.enableManagedWirelessAdb,
-                    ),
+                    managedWirelessAdbStatus =
+                        it.managedWirelessAdbStatus.failedUnlessManagedWirelessAdbHidden(
+                            enabled = store.config.enableManagedWirelessAdb,
+                        ),
                     notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
                         store.notificationPairingOwnerId,
                     ),
@@ -331,18 +259,21 @@ internal class PrivilegeUiAdbStatusActions(
             }
             return
         }
+
         val starter = Privilege.createAdbStarter(
             adbDeviceName = store.currentAdbDeviceNameOverride(),
         )
         val timeoutMillis = store.config.wirelessStatusDiscoveryTimeoutMillis
-        val wirelessControlStatus = starter.getWirelessDebuggingControlStatus()
+        val wirelessControlStatus = withContext(Dispatchers.IO) {
+            starter.getWirelessDebuggingControlStatus()
+        }
         val managedWirelessStatus = if (store.config.enableManagedWirelessAdb) {
             wirelessControlStatus.toUiManagedWirelessAdbStatus()
         } else {
             PrivilegeUiManagedWirelessAdbStatus.UNKNOWN
         }
         if (!wirelessControlStatus.wirelessDebuggingEnabled) {
-            adbConnectionSessions.closeWirelessPairingCheckSession()
+            closePairingSession()
             store.updateState {
                 it.withWirelessAdbOffline(
                     wifiConnected = true,
@@ -354,26 +285,27 @@ internal class PrivilegeUiAdbStatusActions(
             }
             return
         }
-        val connectPort = runCatching {
+
+        val connectPort = try {
             starter.discoverConnectPort(timeoutMillis)
-        }.getOrNull()
-        if (stop.get()) return
-        val pairingServiceOn = runCatching {
-            starter.discoverPairingPort(timeoutMillis)
-        }.isSuccess
-        if (stop.get()) return
-        val pairingCheck = if (connectPort != null) {
-            adbConnectionSessions.checkWirelessAdbPairing(
-                starter = starter,
-                connectPort = connectPort,
-                timeoutMillis = timeoutMillis,
-                stop = stop,
-            )
-        } else {
-            adbConnectionSessions.closeWirelessPairingCheckSession()
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (_: Throwable) {
             null
         }
-        if (stop.get()) return
+        val pairingServiceOn = try {
+            starter.discoverPairingPort(timeoutMillis)
+            true
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (_: Throwable) {
+            false
+        }
+        val pairingCheck = connectPort?.let { checkWirelessPairing(starter, it, timeoutMillis) }
+            ?: run {
+                closePairingSession()
+                null
+            }
 
         store.updateState {
             it.copy(
@@ -392,7 +324,7 @@ internal class PrivilegeUiAdbStatusActions(
                 managedWirelessAdbStatus = managedWirelessStatus,
                 adbKeyFingerprint = pairingCheck
                     ?.publicKeyFingerprint
-                    ?.takeIf { fingerprint -> fingerprint.isNotBlank() }
+                    ?.takeIf(String::isNotBlank)
                     ?: it.adbKeyFingerprint,
                 notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
                     store.notificationPairingOwnerId,
@@ -401,40 +333,44 @@ internal class PrivilegeUiAdbStatusActions(
         }
     }
 
-    private fun statusRefreshActionDeadlineMillis(): Long =
-        System.currentTimeMillis() +
-            store.config.wirelessStatusDiscoveryTimeoutMillis * STATUS_REFRESH_ACTION_WAIT_ATTEMPTS
+    private suspend fun checkWirelessPairing(
+        starter: PrivilegeAdbStarter,
+        port: Int,
+        timeoutMillis: Long,
+    ) = pairingSession
+        ?.check()
+        ?.also { result -> if (!result.paired) closePairingSession() }
+        ?: starter.openPairingCheckSession(
+            port = port,
+            discoverPort = false,
+            portDiscoveryTimeoutMillis = timeoutMillis,
+        ).also { pairingSession = it }
+            .check()
+            .also { result -> if (!result.paired) closePairingSession() }
 
-    private fun remainingStatusRefreshActionMillis(deadline: Long): Long =
-        deadline - System.currentTimeMillis()
+    private fun closePairingSession() {
+        pairingSession?.close()
+        pairingSession = null
+    }
 
-    private suspend fun forceStatusRefreshForAction(
-        controller: PrivilegeUiStatusRefreshController,
-        stop: AtomicBoolean?,
-        refreshStop: () -> AtomicBoolean?,
-        refresh: (AtomicBoolean?) -> Unit,
-        activeAfterRefresh: (AtomicBoolean?) -> Boolean = { true },
-    ): Boolean {
-        val deadline = statusRefreshActionDeadlineMillis()
-        while (true) {
-            if (stop?.get() == true) return false
-            val remainingBeforeJoin = remainingStatusRefreshActionMillis(deadline)
-            if (remainingBeforeJoin <= 0L) return false
-            if (!controller.join(remainingBeforeJoin)) return false
-            val nextStop = stop ?: refreshStop()
-            if (controller.start { refresh(nextStop) }) {
-                val remainingAfterStart = remainingStatusRefreshActionMillis(deadline)
-                return remainingAfterStart > 0L &&
-                    controller.join(remainingAfterStart) &&
-                    activeAfterRefresh(nextStop)
-            }
+    private fun closeTcpSession() {
+        tcpSession?.close()
+        tcpSession = null
+        tcpSessionPort = null
+    }
+
+    private fun updateNotificationPairingRunning() {
+        store.updateState {
+            it.copy(
+                notificationPairingRunning = PrivilegeAdbPairingService.isRunning(
+                    store.notificationPairingOwnerId,
+                ),
+            )
         }
     }
 
-    private suspend fun sleepPolling(stop: AtomicBoolean, intervalMillis: Long): Boolean {
-        delay(intervalMillis.milliseconds)
-        return !stop.get()
-    }
+    private fun actionRefreshTimeoutMillis(): Long =
+        store.config.wirelessStatusDiscoveryTimeoutMillis * STATUS_REFRESH_ACTION_WAIT_ATTEMPTS
 
     private fun PrivilegeUiWirelessAdbStatus.checkingUnlessOn(): PrivilegeUiWirelessAdbStatus =
         if (this == PrivilegeUiWirelessAdbStatus.ON) this else PrivilegeUiWirelessAdbStatus.CHECKING
@@ -450,13 +386,12 @@ internal class PrivilegeUiAdbStatusActions(
         }
 
     private fun PrivilegeUiAdbTcpAuthorizationStatus.checkingUnlessAuthorizedOrAuthorizing():
-        PrivilegeUiAdbTcpAuthorizationStatus =
-        when (this) {
-            PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
-            PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
-            -> this
-            else -> PrivilegeUiAdbTcpAuthorizationStatus.CHECKING
-        }
+        PrivilegeUiAdbTcpAuthorizationStatus = when (this) {
+        PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
+        PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
+        -> this
+        else -> PrivilegeUiAdbTcpAuthorizationStatus.CHECKING
+    }
 
     private fun priv.kit.core.adb.PrivilegeAdbPairingCheckResult.toKnownPairingCheckPaired(): Boolean? =
         when (status) {
@@ -466,36 +401,32 @@ internal class PrivilegeUiAdbStatusActions(
             PrivilegeAdbPairingCheckStatus.ERROR,
             -> null
         }
-
 }
 
 private fun PrivilegeUiManagedWirelessAdbStatus.failedUnlessManagedWirelessAdbHidden(
     enabled: Boolean,
-): PrivilegeUiManagedWirelessAdbStatus =
-    when {
-        !enabled -> PrivilegeUiManagedWirelessAdbStatus.UNKNOWN
-        this == PrivilegeUiManagedWirelessAdbStatus.UNDECLARED -> this
-        else -> PrivilegeUiManagedWirelessAdbStatus.FAILED
-    }
+): PrivilegeUiManagedWirelessAdbStatus = when {
+    !enabled -> PrivilegeUiManagedWirelessAdbStatus.UNKNOWN
+    this == PrivilegeUiManagedWirelessAdbStatus.UNDECLARED -> this
+    else -> PrivilegeUiManagedWirelessAdbStatus.FAILED
+}
 
 internal fun shouldAppendTcpAuthorizationFailureLog(
     previousStatus: PrivilegeUiAdbTcpAuthorizationStatus,
     nextStatus: PrivilegeUiAdbTcpAuthorizationStatus,
     failureMessage: String?,
-): Boolean =
-    !failureMessage.isNullOrBlank() && previousStatus != nextStatus
+): Boolean = !failureMessage.isNullOrBlank() && previousStatus != nextStatus
 
-internal fun PrivilegeAdbAuthorizationStatus.toUiTcpAuthorizationStatus(): PrivilegeUiAdbTcpAuthorizationStatus =
-    when (this) {
-        PrivilegeAdbAuthorizationStatus.AUTHORIZED -> PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED
-        PrivilegeAdbAuthorizationStatus.UNAUTHORIZED -> PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED
-        PrivilegeAdbAuthorizationStatus.UNAVAILABLE -> PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE
-        PrivilegeAdbAuthorizationStatus.ERROR -> PrivilegeUiAdbTcpAuthorizationStatus.FAILED
-    }
+internal fun PrivilegeAdbAuthorizationStatus.toUiTcpAuthorizationStatus():
+    PrivilegeUiAdbTcpAuthorizationStatus = when (this) {
+    PrivilegeAdbAuthorizationStatus.AUTHORIZED -> PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED
+    PrivilegeAdbAuthorizationStatus.UNAUTHORIZED -> PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED
+    PrivilegeAdbAuthorizationStatus.UNAVAILABLE -> PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE
+    PrivilegeAdbAuthorizationStatus.ERROR -> PrivilegeUiAdbTcpAuthorizationStatus.FAILED
+}
 
 internal fun shouldSkipTcpAuthorizationRefresh(
     status: PrivilegeUiAdbTcpAuthorizationStatus,
-): Boolean =
-    status == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING
+): Boolean = status == PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING
 
 private const val STATUS_REFRESH_ACTION_WAIT_ATTEMPTS = 3L

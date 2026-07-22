@@ -47,7 +47,6 @@ internal fun privilegeUiTcpAuthorizationFailureKind(
         PrivilegeAdbAuthorizationEndReason.FAILED ->
             PrivilegeUiFailureKind.TCP_AUTHORIZATION_FAILED
         PrivilegeAdbAuthorizationEndReason.AUTOMATIC_TIMEOUT,
-        PrivilegeAdbAuthorizationEndReason.MANUAL_CANCELLED,
         null,
         -> PrivilegeUiFailureKind.TCP_AUTHORIZATION_NOT_COMPLETED
     }

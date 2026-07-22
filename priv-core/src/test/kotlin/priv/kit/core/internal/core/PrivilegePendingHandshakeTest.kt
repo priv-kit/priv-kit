@@ -1,23 +1,19 @@
 package priv.kit.core.internal.core
 
 import org.junit.Assert.assertThrows
-import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
+import priv.kit.core.PrivilegeStartupException
 
 class PrivilegePendingHandshakeTest {
     @Test
-    fun awaitRestoresInterruptFlagBeforePropagatingInterruption() {
+    fun awaitTimesOutWithoutAHandshake(): Unit = runBlocking {
         val pendingHandshake = PrivilegePendingHandshake()
 
-        try {
-            Thread.currentThread().interrupt()
-
-            assertThrows(InterruptedException::class.java) {
+        assertThrows(PrivilegeStartupException::class.java) {
+            runBlocking {
                 pendingHandshake.await(timeoutMillis = 1_000L)
             }
-            assertTrue(Thread.currentThread().isInterrupted)
-        } finally {
-            Thread.interrupted()
         }
     }
 }

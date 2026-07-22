@@ -92,7 +92,7 @@ class PrivilegeBinderWrapperTest {
     }
 
     @Test
-    fun serverConnectedListenerReceivesDirectConnectionOnce() {
+    fun serverStateTracksDirectConnection() {
         PrivilegeContext.install(RuntimeEnvironment.getApplication())
         val server = FakePrivilegeServer()
         val serverInfo = PrivilegeServerInfo(
@@ -100,9 +100,6 @@ class PrivilegeBinderWrapperTest {
             pid = 1234,
             protocolVersion = PrivilegeProtocol.VERSION,
         )
-        val connectedServers = mutableListOf<PrivilegeServerInfo>()
-        val listener = Privilege.addServerConnectedListener(connectedServers::add)
-
         try {
             repeat(2) {
                 Privilege.connectHandshake(
@@ -112,12 +109,11 @@ class PrivilegeBinderWrapperTest {
                     ),
                 )
             }
+            assertEquals(serverInfo, Privilege.serverState.value)
         } finally {
-            listener.close()
+            runCatching { Privilege.shutdownServer() }
             resetRuntimeConnectionListener()
         }
-
-        assertEquals(listOf(serverInfo), connectedServers)
     }
 
     private fun withServer(

@@ -17,7 +17,7 @@ internal sealed interface PrivilegeUiRuntimeStartAttempt {
         override val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
         val onFailure: ((Throwable) -> PrivilegeUiRuntimeStartFailureDisposition?)? = null,
         override val runtimeStartProviderId: String? = null,
-        val start: PrivilegeUiRuntimeStartSession.() -> PrivilegeServerInfo,
+        val start: suspend PrivilegeUiRuntimeStartSession.() -> PrivilegeServerInfo,
     ) : PrivilegeUiRuntimeStartAttempt
 
     class Request(
@@ -26,7 +26,7 @@ internal sealed interface PrivilegeUiRuntimeStartAttempt {
         override val startupSource: String?,
         override val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
         override val runtimeStartProviderId: String? = null,
-        val start: PrivilegeUiRuntimeStartSession.() -> Unit,
+        val start: suspend PrivilegeUiRuntimeStartSession.() -> Unit,
     ) : PrivilegeUiRuntimeStartAttempt
 
     class Workflow(
@@ -54,7 +54,10 @@ internal sealed interface PrivilegeUiRuntimeStartResult {
 }
 
 internal sealed interface RuntimeStartCompletion {
-    class Connected(val serverInfo: PrivilegeServerInfo) : RuntimeStartCompletion
+    class Connected(
+        val serverInfo: PrivilegeServerInfo,
+        val successfulMethod: PrivilegeUiStartMethod?,
+    ) : RuntimeStartCompletion
     class Failure(
         val throwable: Throwable,
         val failureKind: PrivilegeUiFailureKind,

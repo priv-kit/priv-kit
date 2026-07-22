@@ -6,15 +6,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.Job
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeUserServiceConnection
 import priv.kit.sample.startup.PrivilegeSampleShizukuExternalStarter
 import priv.kit.sample.userservice.IPrivilegeSampleDedicatedUserService
 import priv.kit.sample.userservice.IPrivilegeSampleEmbeddedUserService
-import java.io.Closeable
 import java.util.UUID
-import java.util.concurrent.Executors
 
 internal class PrivilegeSampleDebugViewModel : ViewModel() {
     var screenState by mutableStateOf(PrivilegeSampleScreenState())
@@ -22,9 +21,7 @@ internal class PrivilegeSampleDebugViewModel : ViewModel() {
         PrivilegeSampleDebugDestination.Connection,
     )
     var selectedStartupTab by mutableStateOf<PrivilegeStartupTab>(PrivilegeStartupTab.Root)
-    val executor = Executors.newSingleThreadExecutor()
-    var serverConnectedListener: Closeable? = null
-    var serverDisconnectedWatcher: Closeable? = null
+    var serverWatcherJob: Job? = null
     var sampleMqsNativeBinder: IBinder? = null
     var sampleUserManager: PrivilegeSampleUserManagerProxy? = null
     var dedicatedUserServiceConnection: PrivilegeUserServiceConnection? = null
@@ -60,7 +57,6 @@ internal class PrivilegeSampleDebugViewModel : ViewModel() {
     @SuppressLint("EmptySuperCall")
     override fun onCleared() {
         clearRuntimeResources()
-        executor.shutdownNow()
         super.onCleared()
     }
 
@@ -75,10 +71,8 @@ internal class PrivilegeSampleDebugViewModel : ViewModel() {
     }
 
     fun closeHostObservers() {
-        serverConnectedListener?.close()
-        serverConnectedListener = null
-        serverDisconnectedWatcher?.close()
-        serverDisconnectedWatcher = null
+        serverWatcherJob?.cancel()
+        serverWatcherJob = null
     }
 
     private fun clearSampleUserServices() {

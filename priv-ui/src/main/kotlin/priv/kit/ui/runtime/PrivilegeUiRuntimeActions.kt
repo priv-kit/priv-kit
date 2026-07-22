@@ -10,8 +10,11 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionEvent
@@ -30,8 +33,10 @@ internal class PrivilegeUiRuntimeActions(
     private var nextStopOperationId = 0L
     private val activeStopOperationIds = mutableSetOf<Long>()
     private val adbRestrictionRefreshGeneration = AtomicLong(0L)
+    private var runtimeWatcherJob: Job? = null
     private val runtimeStartCoordinator = PrivilegeUiRuntimeStartCoordinator(
         store = store,
+        coroutineScope = coroutineScope,
         isClosed = closed::get,
         publishConnectedServer = ::publishConnectedServerLocked,
         acquireStartPermit = acquireStartPermit,
@@ -141,17 +146,35 @@ internal class PrivilegeUiRuntimeActions(
         runtimeStartCoordinator.stopCurrentStart()
     }
 
-    fun refreshRuntimeStatus() {
+    suspend fun refreshRuntimeStatus(useCurrentState: Boolean = true) {
         if (closed.get()) return
-        val observedConnectionSerial = store.state.value.connectionSerial
-        try {
-            if (Privilege.pingServer()) {
-                connectServer(Privilege.getServerInfo())
-            } else {
-                updateDisconnectedIfIdle(observedConnectionSerial)
+        if (useCurrentState) {
+            Privilege.serverState.value?.let { serverInfo ->
+                runtimeStartCoordinator.handleRefreshedServerConnected(
+                    serverInfo = serverInfo,
+                    deduplicatePassiveConnection = true,
+                )
+                return
             }
+        }
+        val observedConnectionSerial = store.state.value.connectionSerial
+        val serverInfo = try {
+            withContext(operationDispatcher) {
+                if (Privilege.pingServer()) Privilege.getServerInfo() else null
+            }
+        } catch (exception: CancellationException) {
+            throw exception
         } catch (_: Throwable) {
+            null
+        }
+        if (closed.get()) return
+        if (serverInfo == null) {
             updateDisconnectedIfIdle(observedConnectionSerial)
+        } else {
+            runtimeStartCoordinator.handleRefreshedServerConnected(
+                serverInfo = serverInfo,
+                deduplicatePassiveConnection = true,
+            )
         }
     }
 
@@ -170,12 +193,16 @@ internal class PrivilegeUiRuntimeActions(
     }
 
     fun installRuntimeWatchers() {
-        store.serverConnectedListener?.close()
-        store.serverConnectedListener =
-            PrivilegeRuntimeStartCoordinator.addServerConnectedListener(::handleServerConnected)
-        store.serverDisconnectedWatcher?.close()
-        store.serverDisconnectedWatcher = Privilege.addServerDisconnectedListener {
-            handleServerDisconnected()
+        runtimeWatcherJob?.cancel()
+        runtimeWatcherJob = coroutineScope.launch(CoroutineName("priv-ui-runtime-watcher")) {
+            launch {
+                PrivilegeRuntimeStartCoordinator.serverConnectionEvents.collect(
+                    ::handleServerConnected,
+                )
+            }
+            Privilege.serverState.drop(1).collect { serverInfo ->
+                if (serverInfo == null) handleServerDisconnected()
+            }
         }
     }
 
@@ -204,7 +231,7 @@ internal class PrivilegeUiRuntimeActions(
     fun <T> runBusy(
         message: String,
         failureKind: PrivilegeUiFailureKind,
-        action: () -> T,
+        action: suspend () -> T,
         onFailure: ((Throwable) -> Unit)? = null,
         onSuccess: (T) -> String,
     ) {
@@ -231,7 +258,7 @@ internal class PrivilegeUiRuntimeActions(
         try {
             val job = coroutineScope.launch(operationDispatcher + CoroutineName("priv-ui-runtime-busy")) {
                 try {
-                    val result = runInterruptible { action() }
+                    val result = action()
                     if (!closed.get()) {
                         val resultMessage = onSuccess(result)
                         store.updateState { it.copy(busy = false) }
@@ -260,10 +287,8 @@ internal class PrivilegeUiRuntimeActions(
         if (!synchronized(store) { closed.compareAndSet(false, true) }) return
         adbRestrictionRefreshGeneration.incrementAndGet()
         runtimeStartCoordinator.close()
-        runCatching { store.serverConnectedListener?.close() }
-        runCatching { store.serverDisconnectedWatcher?.close() }
-        store.serverConnectedListener = null
-        store.serverDisconnectedWatcher = null
+        runtimeWatcherJob?.cancel()
+        runtimeWatcherJob = null
     }
 
     private fun connectServer(serverInfo: PrivilegeServerInfo) {
@@ -275,13 +300,13 @@ internal class PrivilegeUiRuntimeActions(
 
     private fun handleServerDisconnected() {
         if (closed.get()) return
+        runtimeStartCoordinator.handleServerDisconnected()
         val message = if (store.serverShutdownRequestedByOwner) {
             store.text(R.string.priv_ui_service_stopped)
         } else {
             store.text(R.string.priv_ui_binder_died)
         }
         synchronized(store) {
-            store.runtimeStartSession?.recordDisconnectedServer()
             store.updateStateAndAppendStartupLog(message) {
                 if (it.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.IDLE) {
                     it.toDisconnectedRuntimeIdle()

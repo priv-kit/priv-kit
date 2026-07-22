@@ -11,9 +11,9 @@ import priv.kit.core.PrivilegeStartupException
 import priv.kit.core.PrivilegeStartupLogListener
 import rikka.shizuku.Shizuku
 import java.io.Closeable
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 
 internal class PrivilegeSampleShizukuExternalStarter(
     context: Context,
@@ -32,17 +32,17 @@ internal class PrivilegeSampleShizukuExternalStarter(
             Shizuku.getVersion() >= SHIZUKU_USER_SERVICE_MIN_VERSION &&
             Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
 
-    fun start(commandLine: String): String =
+    suspend fun start(commandLine: String): String =
         startAndWait(commandLine, startupLogListener = null)
 
-    fun start(
+    suspend fun start(
         commandLine: String,
         startupLogListener: PrivilegeStartupLogListener,
     ) {
         startAndWait(commandLine, startupLogListener)
     }
 
-    private fun startAndWait(
+    private suspend fun startAndWait(
         commandLine: String,
         startupLogListener: PrivilegeStartupLogListener?,
     ): String {
@@ -66,14 +66,12 @@ internal class PrivilegeSampleShizukuExternalStarter(
         removeUserService(connection)
     }
 
-    private fun bindOrGetService(): IPrivilegeSampleShizukuStartService {
+    private suspend fun bindOrGetService(): IPrivilegeSampleShizukuStartService {
         service?.takeIf { service ->
             runCatching { service.asBinder().pingBinder() }.getOrDefault(false)
         }?.let { return it }
 
-        val serviceRef = AtomicReference<IPrivilegeSampleShizukuStartService?>()
-        val failureRef = AtomicReference<Throwable?>()
-        val latch = CountDownLatch(1)
+        val binding = CompletableDeferred<IPrivilegeSampleShizukuStartService>()
         val connection = object : ServiceConnection {
             override fun onServiceConnected(
                 name: ComponentName,
@@ -81,19 +79,19 @@ internal class PrivilegeSampleShizukuExternalStarter(
             ) {
                 val startService = IPrivilegeSampleShizukuStartService.Stub.asInterface(binder)
                 if (startService == null) {
-                    failureRef.set(PrivilegeStartupException("Shizuku UserService returned an invalid Binder"))
+                    binding.completeExceptionally(
+                        PrivilegeStartupException("Shizuku UserService returned an invalid Binder"),
+                    )
                 } else {
-                    serviceRef.set(startService)
+                    binding.complete(startService)
                 }
-                latch.countDown()
             }
 
             override fun onServiceDisconnected(name: ComponentName) {
                 service = null
-                if (serviceRef.get() == null) {
-                    failureRef.set(PrivilegeStartupException("Shizuku UserService disconnected while binding"))
-                    latch.countDown()
-                }
+                binding.completeExceptionally(
+                    PrivilegeStartupException("Shizuku UserService disconnected while binding"),
+                )
             }
         }
 
@@ -105,21 +103,16 @@ internal class PrivilegeSampleShizukuExternalStarter(
             throw PrivilegeStartupException("Failed to bind Shizuku UserService", throwable)
         }
 
-        if (!latch.await(SHIZUKU_BIND_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
+        val boundService = try {
+            withTimeoutOrNull(SHIZUKU_BIND_TIMEOUT_MILLIS) { binding.await() }
+                ?: throw PrivilegeStartupException("Timed out binding Shizuku UserService")
+        } catch (throwable: Throwable) {
             removeUserService(connection)
             serviceConnection = null
-            throw PrivilegeStartupException("Timed out binding Shizuku UserService")
-        }
-
-        failureRef.get()?.let { throwable ->
-            removeUserService(connection)
-            serviceConnection = null
+            if (throwable is CancellationException) throw throwable
             if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to bind Shizuku UserService", throwable)
         }
-
-        val boundService = serviceRef.get()
-            ?: throw PrivilegeStartupException("Shizuku UserService returned no Binder")
         service = boundService
         return boundService
     }

@@ -1,66 +1,40 @@
 package priv.kit.ui
 
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.launch
-import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 internal class PrivilegeUiPermissionCoordinator(
-    private val coroutineScope: CoroutineScope,
     private val acquireInteractivePermit: () -> AutoCloseable?,
     private val interactionsEnabled: () -> Boolean,
     private val ownerClosed: () -> Boolean,
-    private val handleNotificationPermissionResult: (PrivilegeUiPermissionState) -> Unit,
-    private val cancelNotificationPermissionRequest: () -> Unit,
     private val cancelPairingWithoutInteractionHost: () -> Unit,
 ) : AutoCloseable {
     private val closed = AtomicBoolean(false)
     private val lock = Any()
+    private val requestMutex = Mutex()
     private val attachedHostIds = mutableSetOf<String>()
-    private val detachedHostSerials = mutableMapOf<String, Long>()
-    private val hostRebindJobs = mutableMapOf<String, Job>()
-    private val hostDetachSerial = AtomicLong(0L)
-    private val queuedRequests = ArrayDeque<PrivilegeUiPermissionRequest>()
-    private val activeRequestState = MutableStateFlow<PrivilegeUiPermissionRequest?>(null)
+    private val activeRequest = MutableStateFlow<PrivilegeUiPermissionRequest?>(null)
 
-    val requests: Flow<PrivilegeUiPermissionRequest> = activeRequestState.filterNotNull()
+    val requests: Flow<PrivilegeUiPermissionRequest> = activeRequest.filterNotNull()
 
-    fun hasInteractionHost(): Boolean =
-        synchronized(lock) {
-            attachedHostIds.isNotEmpty() || detachedHostSerials.isNotEmpty()
-        }
+    fun hasInteractionHost(): Boolean = synchronized(lock) { attachedHostIds.isNotEmpty() }
 
-    fun requestNotificationPermission(): Boolean {
-        if (!interactionsEnabled()) return false
-        val permit = acquireInteractivePermit() ?: return false
-        return enqueue(PrivilegeUiPermissionRequest.Notification(permit))
-    }
+    suspend fun requestNotificationPermission(): PrivilegeUiPermissionState? =
+        awaitRequest { PrivilegeUiPermissionRequest.Notification(it) }
 
-    fun requestLocalNetworkPermission(permission: String) {
-        if (!interactionsEnabled()) return
-        val permit = acquireInteractivePermit() ?: return
-        enqueue(PrivilegeUiPermissionRequest.LocalNetwork(permission, permit))
-    }
+    suspend fun requestLocalNetworkPermission(permission: String): PrivilegeUiPermissionState? =
+        awaitRequest { PrivilegeUiPermissionRequest.LocalNetwork(permission, it) }
 
     fun completeNotificationPermissionRequest(
         hostId: String,
         permissionState: PrivilegeUiPermissionState,
     ) {
-        val request = synchronized(lock) {
-            val activeRequest =
-                activeRequestState.value as? PrivilegeUiPermissionRequest.Notification
-            activeRequest
-                ?.takeIf { it.tryClaimLaunchedCompletion(hostId) }
-                ?.also { advanceLocked() }
-        } ?: return
-        finishNotificationRequest(request, permissionState)
+        (activeRequest.value as? PrivilegeUiPermissionRequest.Notification)
+            ?.complete(hostId, permissionState)
     }
 
     fun completeUnlaunchedNotificationPermissionRequest(
@@ -68,216 +42,79 @@ internal class PrivilegeUiPermissionCoordinator(
         request: PrivilegeUiPermissionRequest.Notification,
         permissionState: PrivilegeUiPermissionState,
     ) {
-        val claimed = synchronized(lock) {
-            if (
-                hostId !in attachedHostIds ||
-                activeRequestState.value !== request ||
-                !request.tryClaimUnlaunchedCompletion()
-            ) {
-                false
-            } else {
-                advanceLocked()
-                true
-            }
+        if (synchronized(lock) { hostId in attachedHostIds } && activeRequest.value === request) {
+            request.completeUnlaunched(permissionState)
         }
-        if (claimed) finishNotificationRequest(request, permissionState)
     }
 
-    fun completeLocalNetworkPermissionRequest(hostId: String) {
-        val request = synchronized(lock) {
-            val activeRequest =
-                activeRequestState.value as? PrivilegeUiPermissionRequest.LocalNetwork
-            activeRequest
-                ?.takeIf { it.tryClaimLaunchedCompletion(hostId) }
-                ?.also { advanceLocked() }
-        } ?: return
-        request.close()
+    fun completeLocalNetworkPermissionRequest(
+        hostId: String,
+        permissionState: PrivilegeUiPermissionState,
+    ) {
+        (activeRequest.value as? PrivilegeUiPermissionRequest.LocalNetwork)
+            ?.complete(hostId, permissionState)
     }
 
     fun registerHost(hostId: String) {
-        val rebindJob = synchronized(lock) {
-            if (isClosed()) return
-            attachedHostIds += hostId
-            detachedHostSerials.remove(hostId)
-            hostRebindJobs.remove(hostId)
+        synchronized(lock) {
+            if (!isClosed()) attachedHostIds += hostId
         }
-        rebindJob?.cancel()
     }
 
     fun unregisterHost(
         hostId: String,
         changingConfigurations: Boolean,
     ) {
-        if (changingConfigurations) {
-            detachHostForConfigurationChange(hostId)
-            return
-        }
-        val (requestsToCancel, noInteractionHostsRemain) = synchronized(lock) {
-            if (!attachedHostIds.remove(hostId)) return
-            val activeRequest = activeRequestState.value
-            val noHostsRemain = attachedHostIds.isEmpty() && detachedHostSerials.isEmpty()
-            val requests = when {
-                noHostsRemain -> clearRequestsLocked()
-                activeRequest?.wasLaunchedBy(hostId) == true -> {
-                    if (activeRequest.tryClaimCancellation(hostId)) {
-                        advanceLocked()
-                        listOf(activeRequest)
-                    } else {
-                        emptyList()
-                    }
-                }
-                else -> emptyList()
-            }
-            requests to noHostsRemain
-        }
-        finishHostCleanup(requestsToCancel, noInteractionHostsRemain)
-    }
-
-    fun completeRequest(request: PrivilegeUiPermissionRequest) {
+        val requestToCancel: PrivilegeUiPermissionRequest?
+        val noHostsRemain: Boolean
         synchronized(lock) {
-            request.tryClaimCancellation()
-            if (activeRequestState.value === request) {
-                advanceLocked()
-            } else {
-                queuedRequests.remove(request)
+            if (!attachedHostIds.remove(hostId)) return
+            noHostsRemain = attachedHostIds.isEmpty()
+            requestToCancel = activeRequest.value.takeIf {
+                !changingConfigurations && (noHostsRemain || it?.wasLaunchedBy(hostId) == true)
             }
         }
-        request.close()
+        requestToCancel?.close()
+        if (!changingConfigurations && noHostsRemain) cancelPairingWithoutInteractionHost()
     }
 
     fun cancelRequest(
         hostId: String,
         request: PrivilegeUiPermissionRequest,
     ) {
-        val removed = synchronized(lock) {
-            if (
-                activeRequestState.value !== request ||
-                !request.tryClaimCancellation(hostId)
-            ) {
-                false
-            } else {
-                advanceLocked()
-                true
-            }
-        }
-        if (removed) cancelRequests(listOf(request))
+        if (activeRequest.value === request) request.cancel(hostId)
     }
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
-        val (requestsToClose, rebindJobsToCancel) = synchronized(lock) {
-            attachedHostIds.clear()
-            detachedHostSerials.clear()
-            val rebindJobs = hostRebindJobs.values.toList()
-            hostRebindJobs.clear()
-            clearRequestsLocked() to rebindJobs
-        }
-        rebindJobsToCancel.forEach(Job::cancel)
-        requestsToClose.forEach(PrivilegeUiPermissionRequest::close)
+        synchronized(lock) { attachedHostIds.clear() }
+        activeRequest.value?.close()
     }
 
-    private fun finishNotificationRequest(
-        request: PrivilegeUiPermissionRequest.Notification,
-        permissionState: PrivilegeUiPermissionState,
-    ) {
-        request.use {
-            handleNotificationPermissionResult(permissionState)
-        }
-    }
-
-    private fun detachHostForConfigurationChange(hostId: String) {
-        val serial = synchronized(lock) {
-            if (!attachedHostIds.remove(hostId) || isClosed()) return
-            hostRebindJobs.remove(hostId)?.cancel()
-            hostDetachSerial.incrementAndGet().also { detachSerial ->
-                detachedHostSerials[hostId] = detachSerial
+    private suspend fun awaitRequest(
+        createRequest: (AutoCloseable) -> PrivilegeUiPermissionRequest,
+    ): PrivilegeUiPermissionState? = requestMutex.withLock {
+        if (!interactionsEnabled()) return null
+        val permit = acquireInteractivePermit() ?: return null
+        val request = createRequest(permit)
+        val accepted = synchronized(lock) {
+            if (isClosed() || attachedHostIds.isEmpty()) false
+            else {
+                activeRequest.value = request
+                true
             }
         }
-        val rebindJob = coroutineScope.launch(
-            CoroutineName("priv-ui-permission-host-rebind"),
-        ) {
-            delay(PERMISSION_HOST_REBIND_GRACE_MILLIS.milliseconds)
-            expireDetachedHost(hostId, serial)
+        if (!accepted) {
+            request.close()
+            return null
         }
-        synchronized(lock) {
-            if (detachedHostSerials[hostId] == serial && !isClosed()) {
-                hostRebindJobs[hostId] = rebindJob
-            } else {
-                rebindJob.cancel()
-            }
+        try {
+            request.awaitCompletion()
+        } finally {
+            if (activeRequest.value === request) activeRequest.value = null
+            request.close()
         }
-    }
-
-    private fun expireDetachedHost(
-        hostId: String,
-        serial: Long,
-    ) {
-        val (requestsToCancel, noInteractionHostsRemain) = synchronized(lock) {
-            if (detachedHostSerials[hostId] != serial) return
-            detachedHostSerials.remove(hostId)
-            hostRebindJobs.remove(hostId)
-            val noHostsRemain = attachedHostIds.isEmpty() && detachedHostSerials.isEmpty()
-            val requests = buildList {
-                val activeRequest = activeRequestState.value
-                if (
-                    activeRequest?.wasLaunchedBy(hostId) == true &&
-                    activeRequest.tryClaimCancellation(hostId)
-                ) {
-                    advanceLocked()
-                    add(activeRequest)
-                }
-                if (noHostsRemain) addAll(clearRequestsLocked())
-            }.distinct()
-            requests to noHostsRemain
-        }
-        finishHostCleanup(requestsToCancel, noInteractionHostsRemain)
-    }
-
-    private fun enqueue(request: PrivilegeUiPermissionRequest): Boolean {
-        synchronized(lock) {
-            if (isClosed() || attachedHostIds.isEmpty()) {
-                request.close()
-                return false
-            }
-            if (activeRequestState.value == null) {
-                activeRequestState.value = request
-            } else {
-                queuedRequests += request
-            }
-        }
-        return true
-    }
-
-    private fun advanceLocked() {
-        activeRequestState.value = queuedRequests.removeFirstOrNull()
-    }
-
-    private fun clearRequestsLocked(): List<PrivilegeUiPermissionRequest> =
-        buildList {
-            activeRequestState.value?.let(::add)
-            addAll(queuedRequests)
-        }.also { requests ->
-            requests.forEach { request -> request.tryClaimCancellation() }
-            activeRequestState.value = null
-            queuedRequests.clear()
-        }
-
-    private fun cancelRequests(requests: List<PrivilegeUiPermissionRequest>) {
-        if (requests.any { it is PrivilegeUiPermissionRequest.Notification }) {
-            cancelNotificationPermissionRequest()
-        }
-        requests.forEach(PrivilegeUiPermissionRequest::close)
-    }
-
-    private fun finishHostCleanup(
-        requests: List<PrivilegeUiPermissionRequest>,
-        noInteractionHostsRemain: Boolean,
-    ) {
-        cancelRequests(requests)
-        if (noInteractionHostsRemain) cancelPairingWithoutInteractionHost()
     }
 
     private fun isClosed(): Boolean = closed.get() || ownerClosed()
 }
-
-private const val PERMISSION_HOST_REBIND_GRACE_MILLIS = 10_000L
