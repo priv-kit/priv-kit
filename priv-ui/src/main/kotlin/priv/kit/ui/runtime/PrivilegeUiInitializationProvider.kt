@@ -6,7 +6,7 @@ import android.database.Cursor
 import android.net.Uri
 
 /** Installs UI-owned listeners after core initialization and before app providers are published. */
-internal class PrivilegeUiInitializationProvider public constructor() : ContentProvider() {
+internal class PrivilegeUiInitializationProvider : ContentProvider() {
     override fun onCreate(): Boolean {
         context?.applicationContext?.let(PrivilegeUiDesiredEnabledManagers::get)
         return true

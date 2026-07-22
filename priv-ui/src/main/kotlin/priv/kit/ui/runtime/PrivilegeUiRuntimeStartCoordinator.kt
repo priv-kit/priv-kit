@@ -99,19 +99,6 @@ internal class PrivilegeUiRuntimeStartCoordinator(
         publishPassiveConnection(event.serverInfo, deduplicatePassiveConnection)
     }
 
-    fun handlePassiveServerConnected(
-        serverInfo: PrivilegeServerInfo,
-        deduplicatePassiveConnection: Boolean,
-    ) {
-        val session = activeSession
-        if (session != null) {
-            session.connect(PrivilegeUiRuntimeConnection(serverInfo, successfulMethod = null))
-            completeCancelledSessionFromConnection(session)
-        } else {
-            publishPassiveConnection(serverInfo, deduplicatePassiveConnection)
-        }
-    }
-
     fun handleRefreshedServerConnected(
         serverInfo: PrivilegeServerInfo,
         deduplicatePassiveConnection: Boolean,
@@ -174,7 +161,7 @@ internal class PrivilegeUiRuntimeStartCoordinator(
         ) {
             val completion = try {
                 if (preflight.remainingReconnectGraceMillis > 0L) {
-                    delay(preflight.remainingReconnectGraceMillis)
+                    delay(preflight.remainingReconnectGraceMillis.milliseconds)
                 }
                 session.connected?.let {
                     return@launch withContext(NonCancellable) {

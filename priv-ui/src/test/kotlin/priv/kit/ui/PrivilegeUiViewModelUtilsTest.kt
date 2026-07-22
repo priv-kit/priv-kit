@@ -1,9 +1,5 @@
 package priv.kit.ui
 
-import priv.kit.ui.adb.*
-import priv.kit.ui.adb.pairing.*
-import priv.kit.ui.runtime.*
-import priv.kit.ui.external.*
 import priv.kit.ui.state.*
 
 import org.junit.Assert.assertEquals

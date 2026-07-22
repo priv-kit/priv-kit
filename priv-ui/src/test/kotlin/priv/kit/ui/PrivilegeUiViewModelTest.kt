@@ -1,9 +1,7 @@
 package priv.kit.ui
 
 import priv.kit.ui.adb.*
-import priv.kit.ui.adb.pairing.*
 import priv.kit.ui.runtime.*
-import priv.kit.ui.external.*
 import priv.kit.ui.state.*
 
 import android.Manifest
@@ -25,7 +23,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import java.io.Closeable
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -864,14 +861,5 @@ class PrivilegeUiViewModelTest {
         val field = PrivilegeUiViewModel::class.java.getDeclaredField("runtimeActions")
         field.isAccessible = true
         return field.get(this) as PrivilegeUiRuntimeActions
-    }
-
-    private class CloseCounter : Closeable {
-        var closeCount = 0
-            private set
-
-        override fun close() {
-            closeCount += 1
-        }
     }
 }

@@ -1,13 +1,9 @@
 package priv.kit.ui
 
 import priv.kit.ui.adb.*
-import priv.kit.ui.adb.pairing.*
 import priv.kit.ui.component.PrivilegeUiStartAction
 import priv.kit.ui.component.privilegeUiPairingCodeSubmitEnabled
 import priv.kit.ui.component.privilegeUiPairingInputHint
-import priv.kit.ui.runtime.*
-import priv.kit.ui.external.*
-import priv.kit.ui.state.*
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

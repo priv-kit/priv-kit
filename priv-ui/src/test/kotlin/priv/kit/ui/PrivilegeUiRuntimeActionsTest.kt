@@ -2,16 +2,13 @@ package priv.kit.ui
 
 import android.content.Context
 import priv.kit.ui.adb.*
-import priv.kit.ui.adb.pairing.*
 import priv.kit.ui.runtime.*
-import priv.kit.ui.external.*
 import priv.kit.ui.state.*
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,6 +20,8 @@ import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeServerLaunchUncertainException
 import priv.kit.core.PrivilegeStartupException
 import priv.kit.core.adb.PrivilegeAdbAuthorizationRequestResult
+import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionEvent
+import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -1594,12 +1593,14 @@ class PrivilegeUiRuntimeActionsTest {
     }
 
     private fun PrivilegeUiRuntimeActions.connectForTest(serverInfo: PrivilegeServerInfo) {
-        val method = PrivilegeUiRuntimeActions::class.java.getDeclaredMethod(
-            "connectServer",
-            PrivilegeServerInfo::class.java,
+        handleServerConnected(
+            PrivilegeRuntimeConnectionEvent(
+                serverInfo = serverInfo,
+                origin = PrivilegeRuntimeConnectionOrigin.OWNER_RECONNECT,
+                clientStartOperationId = null,
+                initialLaunchId = null,
+            ),
         )
-        method.isAccessible = true
-        method.invoke(this, serverInfo)
     }
 
     private fun PrivilegeUiRuntimeActions.disconnectForTest() {

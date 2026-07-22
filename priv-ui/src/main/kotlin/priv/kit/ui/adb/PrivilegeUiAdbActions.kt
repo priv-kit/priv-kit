@@ -6,9 +6,11 @@ import priv.kit.ui.runtime.*
 import priv.kit.ui.state.*
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import priv.kit.core.Privilege
 import priv.kit.core.adb.isPrivilegeAdbLocalNetworkAccessFailure
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
+import kotlin.time.Duration.Companion.milliseconds
 
 internal class PrivilegeUiAdbActions(
     private val store: PrivilegeUiViewModelStore,
@@ -116,22 +118,12 @@ internal class PrivilegeUiAdbActions(
     fun startStaticTcpAdb(
         requestLocalNetworkPermission: suspend (String) -> PrivilegeUiPermissionState? = { null },
     ) {
-        startStaticTcpAdb(
-            requestLocalNetworkPermission = requestLocalNetworkPermission,
-            confirmTcpSwitch = true,
-        )
-    }
-
-    private fun startStaticTcpAdb(
-        requestLocalNetworkPermission: suspend (String) -> PrivilegeUiPermissionState?,
-        confirmTcpSwitch: Boolean,
-    ) {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
         runtimeActions.runServerStartWorkflow(
             staticTcpAdbStartWorkflow(
                 requestLocalNetworkPermission = requestLocalNetworkPermission,
-                confirmTcpSwitch = confirmTcpSwitch,
+                confirmTcpSwitch = true,
             ),
         )
     }
@@ -393,7 +385,7 @@ internal class PrivilegeUiAdbActions(
         }
         return when (authorizationStatus) {
             PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED -> {
-                val serverInfo = tcpActions.tcpAdbStartAttempt(tcpPort).start(session)
+                val serverInfo = tcpActions.tcpAdbStartAttempt().start(session)
                 PrivilegeUiRuntimeStartResult.Connected(serverInfo)
             }
             PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
@@ -409,7 +401,7 @@ internal class PrivilegeUiAdbActions(
             ) {
                 PrivilegeUiRuntimeStartResult.Finished
             } else {
-                val serverInfo = tcpActions.tcpAdbStartAttempt(tcpPort).start(session)
+                val serverInfo = tcpActions.tcpAdbStartAttempt().start(session)
                 PrivilegeUiRuntimeStartResult.Connected(serverInfo)
             }
             PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE -> {
@@ -500,7 +492,7 @@ internal class PrivilegeUiAdbActions(
                     managedWirelessAdbStatus = store.state.value.managedWirelessAdbStatus,
                 ),
             )
-            kotlinx.coroutines.delay(PRIVILEGE_UI_TCP_START_DELAY_MILLIS)
+            delay(PRIVILEGE_UI_TCP_START_DELAY_MILLIS.milliseconds)
             val activeTcpPort = tcpActions.requireStaticTcpReady(starter, this)
             appendStartupLog(store.text(R.string.priv_ui_tcp_enabled))
             appendStartupLog(store.text(R.string.priv_ui_tcp_starting))

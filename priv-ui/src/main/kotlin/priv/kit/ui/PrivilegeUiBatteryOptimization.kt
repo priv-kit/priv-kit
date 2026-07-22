@@ -1,6 +1,7 @@
 package priv.kit.ui
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -17,6 +18,7 @@ internal fun Context.isPrivilegeUiBatteryOptimizationPromptVisible(): Boolean =
         !powerManager.isIgnoringBatteryOptimizations(packageName)
     }.getOrDefault(false)
 
+@SuppressLint("BatteryLife")
 internal fun Context.requestPrivilegeUiBatteryOptimizationExemption(): Boolean {
     val context = this
     val packageUri = Uri.fromParts("package", packageName, null)

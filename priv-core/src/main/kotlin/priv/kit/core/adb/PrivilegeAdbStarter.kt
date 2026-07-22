@@ -15,7 +15,9 @@ import java.net.SocketException
 import java.net.SocketTimeoutException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlin.time.Duration.Companion.milliseconds
 
 public class PrivilegeAdbStarter private constructor(
     private val identity: PrivilegeAdbIdentity,
@@ -138,7 +140,7 @@ public class PrivilegeAdbStarter private constructor(
             canManageAdb = canManageAdb,
             enableAdb = controller::enableAdb,
             checkAuthorization = { checkTcpAuthorization(tcpPort = tcpPort) },
-            sleep = { delayMillis -> kotlinx.coroutines.delay(delayMillis) },
+            sleep = { delayMillis -> delay(delayMillis.milliseconds) },
         )
     }
 

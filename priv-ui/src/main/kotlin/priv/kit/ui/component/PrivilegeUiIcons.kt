@@ -1,3 +1,5 @@
+@file:Suppress("ObjectPropertyName")
+
 package priv.kit.ui.component
 
 import androidx.compose.ui.graphics.Color

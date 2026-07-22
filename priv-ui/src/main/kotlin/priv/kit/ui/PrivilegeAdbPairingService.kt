@@ -60,17 +60,21 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
                     ?.trim()
                     .orEmpty(),
             )
-            PrivilegeAdbPairingIntentContract.ACTION_INPUT_LEFT -> updatePairingInput {
-                it.moveLeft()
+            PrivilegeAdbPairingIntentContract.ACTION_INPUT_LEFT -> {
+                updatePairingInput { it.moveLeft() }
+                null
             }
-            PrivilegeAdbPairingIntentContract.ACTION_INPUT_UP -> updatePairingInput {
-                it.incrementDigit()
+            PrivilegeAdbPairingIntentContract.ACTION_INPUT_UP -> {
+                updatePairingInput { it.incrementDigit() }
+                null
             }
-            PrivilegeAdbPairingIntentContract.ACTION_INPUT_DOWN -> updatePairingInput {
-                it.decrementDigit()
+            PrivilegeAdbPairingIntentContract.ACTION_INPUT_DOWN -> {
+                updatePairingInput { it.decrementDigit() }
+                null
             }
-            PrivilegeAdbPairingIntentContract.ACTION_INPUT_RIGHT -> updatePairingInput {
-                it.moveRight()
+            PrivilegeAdbPairingIntentContract.ACTION_INPUT_RIGHT -> {
+                updatePairingInput { it.moveRight() }
+                null
             }
             PrivilegeAdbPairingIntentContract.ACTION_INPUT_SUBMIT -> submitPairingCode(pairingInputState.code)
             PrivilegeAdbPairingIntentContract.ACTION_STOP -> {
@@ -125,11 +129,10 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
 
     private fun updatePairingInput(
         transform: (PrivilegeAdbPairingInputState) -> PrivilegeAdbPairingInputState,
-    ): Notification? {
-        if (notificationOwnerId == null || !ensureNotificationUiAvailable()) return null
+    ) {
+        if (notificationOwnerId == null || !ensureNotificationUiAvailable()) return
         pairingInputState = transform(pairingInputState)
         showInputNotification()
-        return null
     }
 
     private fun submitPairingCode(code: String): Notification? {
@@ -147,10 +150,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
     private fun showInputNotification(): Boolean {
         if (notificationOwnerId == null || !ensureNotificationUiAvailable()) return false
         return try {
-            notifySafely(
-                PrivilegeAdbPairingIntentContract.INPUT_NOTIFICATION_ID,
-                notificationFactory.inputNotification(pairingInputState),
-            )
+            notifyInputSafely(notificationFactory.inputNotification(pairingInputState))
             true
         } catch (_: SecurityException) {
             handleNotificationUnavailable(
@@ -219,8 +219,8 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
     }
 
     @SuppressLint("MissingPermission")
-    private fun notifySafely(id: Int, notification: Notification) {
-        notificationManager.notify(id, notification)
+    private fun notifyInputSafely(notification: Notification) {
+        notificationManager.notify(PrivilegeAdbPairingIntentContract.INPUT_NOTIFICATION_ID, notification)
     }
 
     private fun clearActiveService(ownerId: String?) {

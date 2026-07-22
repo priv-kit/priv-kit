@@ -2,7 +2,6 @@ package priv.kit.core
 
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue

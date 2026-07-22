@@ -31,6 +31,7 @@ import priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported
 import priv.kit.ui.state.privilegeUiStaticTcpOpenCommand
 import priv.kit.ui.state.toPrivilegeUiDiagnosticString
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration.Companion.milliseconds
 
 public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     application: Application,
@@ -353,7 +354,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         batteryOptimizationRefreshJob?.cancel()
         batteryOptimizationRefreshJob = viewModelScope.launch {
             for (delayMillis in BATTERY_OPTIMIZATION_RECHECK_DELAYS_MILLIS) {
-                delay(delayMillis)
+                delay(delayMillis.milliseconds)
                 refreshBatteryOptimizationState()
             }
         }

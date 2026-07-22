@@ -1,7 +1,6 @@
 package priv.kit.core
 
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
 import android.os.IBinder
 import android.os.Process

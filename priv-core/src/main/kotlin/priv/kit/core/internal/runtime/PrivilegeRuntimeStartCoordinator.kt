@@ -1,6 +1,7 @@
 package priv.kit.core.internal.runtime
 
 import android.os.SystemClock
+import androidx.annotation.RestrictTo
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeStartupLogListener
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
+@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 public data class PrivilegeRuntimeConnectionEvent public constructor(
     public val serverInfo: PrivilegeServerInfo,
     public val origin: PrivilegeRuntimeConnectionOrigin,
@@ -20,16 +22,19 @@ public data class PrivilegeRuntimeConnectionEvent public constructor(
     public val initialLaunchId: String?,
 )
 
+@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 public enum class PrivilegeRuntimeConnectionOrigin {
     INITIAL_LAUNCH,
     OWNER_RECONNECT,
 }
 
+@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 public class PrivilegeRuntimeStartPreflight internal constructor(
     internal val stateSerial: Long,
     public val remainingReconnectGraceMillis: Long,
 )
 
+@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 public class PrivilegeRuntimeStartLease internal constructor(
     public val operationId: Long,
     private val release: (Long) -> Unit,
@@ -43,6 +48,7 @@ public class PrivilegeRuntimeStartLease internal constructor(
     }
 }
 
+@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 public class PrivilegeRuntimeClientLaunch internal constructor(
     internal val operationId: Long,
     public val initialLaunchId: String,
@@ -54,6 +60,7 @@ public class PrivilegeRuntimeClientLaunch internal constructor(
  * This type is public only because Kotlin `internal` cannot cross the runtime/UI artifact boundary.
  * It is not a supported integration API.
  */
+@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 public object PrivilegeRuntimeStartCoordinator {
     private val arbiter = PrivilegeRuntimeStartArbiter(
         elapsedRealtime = SystemClock::elapsedRealtime,

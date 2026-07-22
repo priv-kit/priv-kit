@@ -6,12 +6,11 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeStartupLogLine
 import priv.kit.core.PrivilegeStartupLogListener
@@ -25,7 +24,7 @@ internal class PrivilegeUiRuntimeStartSession(
     val showAttemptFeedback: Boolean = true,
     val recordSuccessfulMethod: Boolean = true,
     private val startupLogSink: (String) -> Unit = {},
-    private val structuredStartupLogSink: (PrivilegeStartupLogLine) -> Unit = {
+    structuredStartupLogSink: (PrivilegeStartupLogLine) -> Unit = {
         startupLogSink("[${it.source}] ${it.message}")
     },
 ) {
@@ -34,7 +33,7 @@ internal class PrivilegeUiRuntimeStartSession(
     private val cleanupLock = Any()
     private val closeables = mutableListOf<AutoCloseable>()
     private val cleanupFailures = mutableListOf<Throwable>()
-    private var cleanupJob: Deferred<Unit>? = null
+    private var cleanupJob: Job? = null
     val connection = CompletableDeferred<PrivilegeUiRuntimeConnection>()
     lateinit var job: Job
     @Volatile var active: Boolean = true
@@ -121,7 +120,7 @@ internal class PrivilegeUiRuntimeStartSession(
     suspend fun close(onFailure: (Throwable) -> Unit = {}) {
         active = false
         try {
-            startCleanup().await()
+            startCleanup().join()
             cleanupFailures.forEach(onFailure)
             runtimeStartLease?.let { runCatching(it::close) }
             runtimeStartLease = null
@@ -130,8 +129,8 @@ internal class PrivilegeUiRuntimeStartSession(
         }
     }
 
-    private fun startCleanup(): Deferred<Unit> = synchronized(cleanupLock) {
-        cleanupJob ?: cleanupScope.async(
+    private fun startCleanup(): Job = synchronized(cleanupLock) {
+        cleanupJob ?: cleanupScope.launch(
             context = Dispatchers.IO + CoroutineName("priv-ui-runtime-start-cleanup"),
             start = CoroutineStart.LAZY,
         ) {

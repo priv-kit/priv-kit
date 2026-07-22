@@ -15,6 +15,7 @@ import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
+import kotlin.time.Duration.Companion.milliseconds
 
 public data class PrivilegeExternalStartupOptions public constructor(
     public val shellPath: String = DEFAULT_SHELL_PATH,
@@ -227,7 +228,7 @@ internal class PrivilegeExternalStartupProcessRunner(
         streams: List<InputStream>,
         readers: List<Deferred<Unit>>,
     ) {
-        if (withTimeoutOrNull(READER_JOIN_TIMEOUT_MILLIS) { readers.awaitAll() } == null) {
+        if (withTimeoutOrNull(READER_JOIN_TIMEOUT_MILLIS.milliseconds) { readers.awaitAll() } == null) {
             streams.forEach { runCatching(it::close) }
             readers.forEach { it.cancel() }
             readers.joinAll()

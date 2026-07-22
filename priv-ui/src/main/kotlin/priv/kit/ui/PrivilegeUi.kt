@@ -12,6 +12,7 @@ import priv.kit.ui.runtime.PrivilegeUiDesiredEnabledStore
 import priv.kit.ui.runtime.PrivilegeUiSilentStartRunner
 import priv.kit.ui.runtime.PrivilegeUiStartGate
 import priv.kit.ui.runtime.PrivilegeUiStartMethodStore
+import kotlin.time.Duration.Companion.milliseconds
 
 public object PrivilegeUi {
     /**
@@ -55,7 +56,7 @@ public object PrivilegeUi {
             connectedOrReadyServerOrNull()?.let { return@withContext it }
             val preflight = PrivilegeRuntimeStartCoordinator.beginPreflight()
             if (preflight.remainingReconnectGraceMillis > 0L) {
-                delay(preflight.remainingReconnectGraceMillis)
+                delay(preflight.remainingReconnectGraceMillis.milliseconds)
             }
             connectedOrReadyServerOrNull()?.let { return@withContext it }
             val method = try {

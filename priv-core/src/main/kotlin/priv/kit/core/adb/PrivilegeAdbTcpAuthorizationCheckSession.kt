@@ -24,18 +24,12 @@ public class PrivilegeAdbTcpAuthorizationCheckSession internal constructor(
         output.append("diag", "ADB public key fingerprint=$publicKeyFingerprint")
         output.append("diag", "ADB TCP authorization check port=$tcpPort, persistent=true")
         if (closed) {
-            return failureResult(
-                output = output,
-                failureMessage = "ADB TCP authorization check session is closed",
-            )
+            return closedResult(output)
         }
 
         checkExistingConnection(output)?.let { return it }
         if (closed) {
-            return failureResult(
-                output = output,
-                failureMessage = "ADB TCP authorization check session is closed",
-            )
+            return closedResult(output)
         }
 
         return connectNewClient(output)
@@ -82,10 +76,7 @@ public class PrivilegeAdbTcpAuthorizationCheckSession internal constructor(
         val newClient = clientFactory()
         if (!setClient(newClient)) {
             newClient.close()
-            return failureResult(
-                output = output,
-                failureMessage = "ADB TCP authorization check session is closed",
-            )
+            return closedResult(output)
         }
         return try {
             output.append(
@@ -150,16 +141,13 @@ public class PrivilegeAdbTcpAuthorizationCheckSession internal constructor(
             output = output,
         )
 
-    private fun failureResult(
-        output: PrivilegeAdbOutput,
-        failureMessage: String,
-    ): PrivilegeAdbAuthorizationCheckResult =
+    private fun closedResult(output: PrivilegeAdbOutput): PrivilegeAdbAuthorizationCheckResult =
         PrivilegeAdbAuthorizationCheckResult(
             status = PrivilegeAdbAuthorizationStatus.ERROR,
             outputText = output.text(),
             identity = identity,
             publicKeyFingerprint = publicKeyFingerprint,
-            failureMessage = failureMessage,
+            failureMessage = "ADB TCP authorization check session is closed",
         )
 
     private fun statusResult(

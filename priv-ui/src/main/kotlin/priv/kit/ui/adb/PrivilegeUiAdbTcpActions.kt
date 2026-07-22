@@ -88,7 +88,7 @@ internal class PrivilegeUiAdbTcpActions(
         )
     }
 
-    fun tcpAdbStartAttempt(tcpPort: Int): PrivilegeUiRuntimeStartAttempt.Connect {
+    fun tcpAdbStartAttempt(): PrivilegeUiRuntimeStartAttempt.Connect {
         return PrivilegeUiRuntimeStartAttempt.Connect(
             progressText = store.resourceText(R.string.priv_ui_tcp_starting),
             startupSource = store.text(R.string.priv_ui_auth_method_adb),

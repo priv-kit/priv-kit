@@ -291,13 +291,6 @@ internal class PrivilegeUiRuntimeActions(
         runtimeWatcherJob = null
     }
 
-    private fun connectServer(serverInfo: PrivilegeServerInfo) {
-        runtimeStartCoordinator.handlePassiveServerConnected(
-            serverInfo = serverInfo,
-            deduplicatePassiveConnection = true,
-        )
-    }
-
     private fun handleServerDisconnected() {
         if (closed.get()) return
         runtimeStartCoordinator.handleServerDisconnected()

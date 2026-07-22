@@ -75,7 +75,7 @@ internal object PrivilegeServerHandshakeRegistry {
                         ?.handshake
                 }
                 if (pendingHandshake != null) {
-                    duplicatePendingHandshake = pendingHandshake?.complete(result) == false
+                    duplicatePendingHandshake = pendingHandshake.complete(result) == false
                 } else {
                     listeners = readyListeners[token]?.toList().orEmpty()
                 }

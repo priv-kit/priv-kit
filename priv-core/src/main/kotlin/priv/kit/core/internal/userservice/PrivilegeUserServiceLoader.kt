@@ -19,7 +19,9 @@ internal object PrivilegeUserServiceLoader {
         runCatching {
             activityThread()
         }.onFailure { throwable ->
-            logWarning("UserService Context runtime could not be prepared", throwable)
+            runCatching {
+                Log.w(TAG, "UserService Context runtime could not be prepared", throwable)
+            }
         }
     }
 
@@ -327,15 +329,6 @@ internal object PrivilegeUserServiceLoader {
             block()
         } finally {
             thread.contextClassLoader = previousClassLoader
-        }
-    }
-
-    private fun logWarning(
-        message: String,
-        throwable: Throwable,
-    ) {
-        runCatching {
-            Log.w(TAG, message, throwable)
         }
     }
 
