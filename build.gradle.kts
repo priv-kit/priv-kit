@@ -124,8 +124,7 @@ subprojects {
     pluginManager.withPlugin("com.vanniktech.maven.publish") {
         configure<MavenPublishBaseExtension> {
             coordinates(project.group.toString(), project.name, project.version.toString())
-
-            if (properties.contains("signing.keyId")) {
+            if (project.providers.gradleProperty("signing.keyId").isPresent) {
                 publishToMavenCentral()
                 signAllPublications()
             }
