@@ -73,7 +73,7 @@ public fun PrivilegeScaffold(
     contentColor: Color = contentColorFor(containerColor),
     contentWindowInsets: WindowInsets = ScaffoldDefaults.contentWindowInsets,
 ) {
-    val activity = LocalActivity.current
+    val activity = LocalActivity.current!!
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val view = LocalView.current
@@ -87,13 +87,12 @@ public fun PrivilegeScaffold(
     } else {
         null
     }
+    val requestPermissionContract = remember { ActivityResultContracts.RequestPermission() }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
+        contract = requestPermissionContract,
         onResult = { granted ->
-            val permissionState = activity?.let { currentActivity ->
-                notificationPermission?.let { permission ->
-                    privilegeUiPermissionState(currentActivity, permission)
-                }
+            val permissionState = notificationPermission?.let { permission ->
+                privilegeUiPermissionState(activity, permission)
             } ?: if (granted) {
                 PrivilegeUiPermissionState.Granted
             } else {
@@ -103,7 +102,7 @@ public fun PrivilegeScaffold(
         },
     )
     val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
+        contract = requestPermissionContract,
         onResult = { granted ->
             viewModel.completeLocalNetworkPermissionRequest(
                 hostId = permissionHostId,
@@ -115,12 +114,12 @@ public fun PrivilegeScaffold(
             )
         },
     )
-    DisposableEffect(viewModel, activity, permissionHostId) {
+    DisposableEffect(Unit) {
         viewModel.registerPermissionHost(permissionHostId)
         onDispose {
             viewModel.unregisterPermissionHost(
                 hostId = permissionHostId,
-                changingConfigurations = activity?.isChangingConfigurations == true,
+                changingConfigurations = activity.isChangingConfigurations,
             )
         }
     }
@@ -144,7 +143,7 @@ public fun PrivilegeScaffold(
             viewModel.dispatchConnected(state.connectionSerial, serverInfo)
         }
     }
-    LaunchedEffect(viewModel, activity, permissionHostId) {
+    LaunchedEffect(Unit) {
         viewModel.permissionRequests.collect { request ->
             when (request) {
                 is PrivilegeUiPermissionRequest.Notification -> {
@@ -154,10 +153,8 @@ public fun PrivilegeScaffold(
                         if (notificationPermission == null) {
                             viewModel.cancelPermissionRequest(permissionHostId, request)
                         } else {
-                            val permissionState = activity?.let {
-                                privilegeUiPermissionState(it, notificationPermission)
-                            }
-                            if (permissionState == null || permissionState.shouldLaunchPermissionRequest()) {
+                            val permissionState = privilegeUiPermissionState(activity, notificationPermission)
+                            if (permissionState.shouldLaunchPermissionRequest()) {
                                 if (request.tryMarkLaunched(permissionHostId)) {
                                     markPrivilegeUiPermissionRequested(notificationPermission)
                                     runCatching {
@@ -191,7 +188,7 @@ public fun PrivilegeScaffold(
             }
         }
     }
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(Unit) {
         viewModel.snackbarTexts.collect { text ->
             snackbarHostState.currentSnackbarData?.dismiss()
             snackbarHostState.showSnackbar(message = text.asString(context))
@@ -202,7 +199,7 @@ public fun PrivilegeScaffold(
         lifecycleOwner = lifecycleOwner,
         onEvent = viewModel::dispatchHostResume,
     )
-    DisposableEffect(viewModel, lifecycleOwner, view) {
+    DisposableEffect(Unit) {
         val lifecycle = lifecycleOwner.lifecycle
         val refreshObserver = ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
             if (hasFocus && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
