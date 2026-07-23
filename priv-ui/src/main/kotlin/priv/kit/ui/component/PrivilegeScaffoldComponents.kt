@@ -1,6 +1,5 @@
 package priv.kit.ui.component
 
-import android.os.Process
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +39,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import priv.kit.core.PrivilegeServerInfo
+import priv.kit.shared.PRIVILEGE_INTERNAL_ROOT_UID
+import priv.kit.shared.PRIVILEGE_INTERNAL_SHELL_UID
 import priv.kit.ui.PrivilegeUiPermissionRestrictionStatus
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
@@ -545,7 +546,7 @@ private fun PrivilegeUiState.runtimeStatusDetail(): String =
 @Composable
 private fun PrivilegeServerInfo?.runtimeSourceText(): String =
     when (this?.uid) {
-        Process.ROOT_UID -> stringResource(R.string.priv_ui_service_source_root)
-        Process.SHELL_UID -> stringResource(R.string.priv_ui_service_source_shell)
+        PRIVILEGE_INTERNAL_ROOT_UID -> stringResource(R.string.priv_ui_service_source_root)
+        PRIVILEGE_INTERNAL_SHELL_UID -> stringResource(R.string.priv_ui_service_source_shell)
         else -> stringResource(R.string.priv_ui_service_source_unknown)
     }

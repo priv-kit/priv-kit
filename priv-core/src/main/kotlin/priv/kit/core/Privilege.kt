@@ -27,6 +27,7 @@ import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.core.internal.runtime.PrivilegeUserServiceClient
 import priv.kit.core.internal.runtime.PrivilegeServerLaunchCommandBuilder
 import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS
+import priv.kit.shared.PRIVILEGE_INTERNAL_ROOT_UID
 import priv.kit.shared.PrivilegeManifestPermissions
 import priv.kit.shared.toPrivilegeAdbDeviceNameText
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
@@ -237,7 +238,7 @@ public object Privilege {
      */
     public fun isPermissionRestricted(): Boolean {
         val connection = requireServerConnection()
-        if (connection.serverInfo.uid == Process.ROOT_UID) return false
+        if (connection.serverInfo.uid == PRIVILEGE_INTERNAL_ROOT_UID) return false
         return serverControlCall {
             !connection.server.canGrantRuntimePermissions()
         }
@@ -430,7 +431,7 @@ public object Privilege {
         permissionName: String,
         userId: Int,
     ): Boolean {
-        if (serverInfo.uid != Process.ROOT_UID && !server.canGrantRuntimePermissions()) {
+        if (serverInfo.uid != PRIVILEGE_INTERNAL_ROOT_UID && !server.canGrantRuntimePermissions()) {
             return false
         }
         server.grantRuntimePermission(

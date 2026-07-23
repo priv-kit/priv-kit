@@ -17,6 +17,8 @@ import priv.kit.core.internal.core.PrivilegeServerHandshakeRegistry
 import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
 import priv.kit.core.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.core.internal.userservice.PrivilegeUserServiceHandshakeRegistry
+import priv.kit.shared.PRIVILEGE_INTERNAL_ROOT_UID
+import priv.kit.shared.PRIVILEGE_INTERNAL_SHELL_UID
 import java.util.concurrent.ConcurrentHashMap
 
 internal class PrivilegeHandshakeProvider : ContentProvider() {
@@ -257,9 +259,9 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
 
     private fun isTrustedServerStarterCaller(callingUid: Int): Boolean {
         val ownerUid = PrivilegeContext.require().applicationInfo.uid
-        return callingUid == Process.ROOT_UID ||
+        return callingUid == PRIVILEGE_INTERNAL_ROOT_UID ||
             callingUid == Process.SYSTEM_UID ||
-            callingUid == Process.SHELL_UID ||
+            callingUid == PRIVILEGE_INTERNAL_SHELL_UID ||
             ownerUid == callingUid
     }
 

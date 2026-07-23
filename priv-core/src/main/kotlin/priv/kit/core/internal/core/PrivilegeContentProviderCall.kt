@@ -12,6 +12,7 @@ import android.os.Process
 import android.os.ServiceManager
 import android.util.Log
 import androidx.annotation.RequiresApi
+import priv.kit.shared.PRIVILEGE_INTERNAL_SHELL_UID
 
 internal object PrivilegeContentProviderCall {
     fun call(
@@ -144,7 +145,7 @@ internal object PrivilegeContentProviderCall {
     }
 
     private fun callingPackageName(): String? =
-        if (Process.myUid() == Process.SHELL_UID) SHELL_PACKAGE_NAME else null
+        if (Process.myUid() == PRIVILEGE_INTERNAL_SHELL_UID) SHELL_PACKAGE_NAME else null
 
     private object Api31 {
         @RequiresApi(Build.VERSION_CODES.S)

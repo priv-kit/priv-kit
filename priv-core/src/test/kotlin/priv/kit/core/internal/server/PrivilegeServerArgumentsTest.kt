@@ -1,11 +1,11 @@
 package priv.kit.core.internal.server
 
-import android.os.Process
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import priv.kit.core.internal.core.PrivilegeProtocol
+import priv.kit.shared.PRIVILEGE_INTERNAL_SHELL_UID
 import java.io.File
 
 class PrivilegeServerArgumentsTest {
@@ -17,7 +17,7 @@ class PrivilegeServerArgumentsTest {
             args = emptyArray(),
             classpath = apk.path,
             initialLaunchId = null,
-            uid = Process.SHELL_UID,
+            uid = PRIVILEGE_INTERNAL_SHELL_UID,
         )
 
         assertEquals("", config.token)
@@ -50,7 +50,7 @@ class PrivilegeServerArgumentsTest {
             args = emptyArray(),
             classpath = testApk("example.launch-hash").path,
             initialLaunchId = "launch-1",
-            uid = Process.SHELL_UID,
+            uid = PRIVILEGE_INTERNAL_SHELL_UID,
         )
 
         assertEquals("launch-1", config.initialLaunchId)
@@ -62,7 +62,7 @@ class PrivilegeServerArgumentsTest {
             PrivilegeServerArguments.parse(
                 args = arrayOf("--token", "token"),
                 classpath = testApk("example.args-hash").path,
-                uid = Process.SHELL_UID,
+                uid = PRIVILEGE_INTERNAL_SHELL_UID,
             )
         }
     }
@@ -73,7 +73,7 @@ class PrivilegeServerArgumentsTest {
             PrivilegeServerArguments.parse(
                 args = emptyArray(),
                 classpath = " ",
-                uid = Process.SHELL_UID,
+                uid = PRIVILEGE_INTERNAL_SHELL_UID,
             )
         }
     }
