@@ -4,11 +4,29 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
 
 class PrivilegeRuntimeStartArbiterTest {
+    @Test
+    fun runtimeStartLeaseRejectsRepeatedClose() {
+        val releasedOperationIds = mutableListOf<Long>()
+        val lease = PrivilegeRuntimeStartLease(
+            operationId = 7L,
+            release = { operationId -> releasedOperationIds += operationId },
+        )
+
+        lease.close()
+        val exception = assertThrows(IllegalStateException::class.java) {
+            lease.close()
+        }
+
+        assertEquals(listOf(7L), releasedOperationIds)
+        assertTrue(exception.message.orEmpty().contains("already closed"))
+    }
+
     @Test
     fun preflightReportsRemainingOwnerReconnectGrace() {
         var nowMillis = 100L

@@ -9,7 +9,7 @@ import android.util.Log
 import priv.kit.core.adb.PrivilegeAdbIdentity
 import priv.kit.core.adb.PrivilegeAdbStartOptions
 import priv.kit.core.adb.PrivilegeAdbStartResult
-import priv.kit.core.adb.PrivilegeAdbStarter
+import priv.kit.core.adb.PrivilegeAdbManager
 import priv.kit.core.binder.serverControlCall
 import priv.kit.core.binder.serverUnavailable
 import priv.kit.core.internal.binder.IPrivilegeServer
@@ -139,10 +139,10 @@ public object Privilege {
         buildShortNativeStarterCommand(initialLaunchId = initialLaunchId)
 
     @Throws(PrivilegeStartupException::class)
-    public fun createAdbStarter(
+    public fun createAdbManager(
         adbDeviceName: String? = null,
-    ): PrivilegeAdbStarter =
-        buildAdbStarter(adbDeviceName = adbDeviceName)
+    ): PrivilegeAdbManager =
+        buildAdbManager(adbDeviceName = adbDeviceName)
 
     @Throws(PrivilegeStartupException::class)
     public fun connectReadyServer(): PrivilegeServerInfo? {
@@ -179,7 +179,7 @@ public object Privilege {
         startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeServerInfo {
         val token = ownerTokenStore().readOrCreate()
-        val adbStarter = buildAdbStarter(
+        val adbManager = buildAdbManager(
             adbDeviceName = adbDeviceName,
         )
         val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token, initialLaunchId)
@@ -188,7 +188,7 @@ public object Privilege {
         try {
             Log.i(TAG, "Starting through ADB keySignature=<redacted>")
             startupLogListener.emitStartupLog("runtime", "Starting through ADB")
-            val adbStartResult = adbStarter.start(
+            val adbStartResult = adbManager.start(
                 PrivilegeServerLaunchCommandBuilder.build(initialLaunchId),
                 options,
                 startupLogListener = startupLogListener,
@@ -212,7 +212,7 @@ public object Privilege {
             if (adbResult != null) {
                 val serverDiagnostics = readAdbServerDiagnostics(
                     adbResult = adbResult,
-                    adbStarter = adbStarter,
+                    adbManager = adbManager,
                     startupLogListener = startupLogListener,
                 )
                 throw PrivilegeServerLaunchUncertainException(
@@ -544,10 +544,10 @@ public object Privilege {
             clearInheritedLaunchId = false,
         )
 
-    private fun buildAdbStarter(
+    private fun buildAdbManager(
         adbDeviceName: String?,
-    ): PrivilegeAdbStarter {
-        return PrivilegeAdbStarter.create(
+    ): PrivilegeAdbManager {
+        return PrivilegeAdbManager.create(
             adbDeviceName = resolveAdbDeviceName(adbDeviceName),
         )
     }
@@ -575,11 +575,11 @@ public object Privilege {
 
     private suspend fun readAdbServerDiagnostics(
         adbResult: PrivilegeAdbStartResult,
-        adbStarter: PrivilegeAdbStarter,
+        adbManager: PrivilegeAdbManager,
         startupLogListener: PrivilegeStartupLogListener?,
     ): String {
         val output = runCatching {
-            adbStarter.readRuntimeDiagnostics(
+            adbManager.readRuntimeDiagnostics(
                 endpoint = adbResult.endpoint,
                 startupLogListener = startupLogListener,
             )

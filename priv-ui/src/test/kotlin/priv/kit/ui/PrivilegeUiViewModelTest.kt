@@ -44,7 +44,7 @@ class PrivilegeUiViewModelTest {
 
     @Test
     fun silentOwnerBlocksInteractiveEntryUntilRuntimeIsReconciled() = runBlocking {
-        val silentPermit = PrivilegeUiStartGate.tryAcquireSilent()!!
+        var silentPermit: AutoCloseable? = PrivilegeUiStartGate.tryAcquireSilent()!!
         val viewModel = RootOnlyPrivilegeUiViewModel(application())
         try {
             assertFalse(viewModel.uiInteractionsEnabled)
@@ -52,7 +52,8 @@ class PrivilegeUiViewModelTest {
             assertFalse(viewModel.state.value.busy)
             assertEquals(PrivilegeUiRuntimeStartPhase.IDLE, viewModel.state.value.runtimeStartPhase)
 
-            silentPermit.close()
+            silentPermit?.close()
+            silentPermit = null
             withTimeout(TimeUnit.SECONDS.toMillis(2)) {
                 while (!viewModel.uiEffectsEnabled.value) {
                     shadowOf(Looper.getMainLooper()).idle()
@@ -62,7 +63,7 @@ class PrivilegeUiViewModelTest {
 
             assertTrue(viewModel.uiInteractionsEnabled)
         } finally {
-            silentPermit.close()
+            silentPermit?.close()
         }
     }
 

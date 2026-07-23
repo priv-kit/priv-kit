@@ -40,9 +40,10 @@ internal object PrivilegeUiStartGate {
         if (!acquireInteractive(ownerToken)) return null
         val released = AtomicBoolean(false)
         return AutoCloseable {
-            if (released.compareAndSet(false, true)) {
-                releaseInteractive(ownerToken)
+            check(released.compareAndSet(false, true)) {
+                "Privilege UI interactive start permit is already closed"
             }
+            releaseInteractive(ownerToken)
         }
     }
 
@@ -63,9 +64,10 @@ internal object PrivilegeUiStartGate {
         val acquiredState = acquireSilent() ?: return null
         val released = AtomicBoolean(false)
         return AutoCloseable {
-            if (released.compareAndSet(false, true)) {
-                releaseSilent(acquiredState)
+            check(released.compareAndSet(false, true)) {
+                "Privilege UI silent start permit is already closed"
             }
+            releaseSilent(acquiredState)
         }
     }
 

@@ -100,3 +100,33 @@ internal class AndroidPrivilegeAdbWirelessDebuggingController(
         internal const val ADB_ALLOWED_CONNECTION_TIME: String = "adb_allowed_connection_time"
     }
 }
+
+internal fun shouldEnableWirelessDebuggingForStart(
+    control: PrivilegeAdbWirelessDebuggingControl,
+    status: PrivilegeAdbWirelessDebuggingControlStatus,
+): Boolean =
+    control != PrivilegeAdbWirelessDebuggingControl.NEVER &&
+        !status.wirelessDebuggingEnabled &&
+        status.canManage
+
+internal fun shouldRejectWirelessDebuggingForStart(
+    control: PrivilegeAdbWirelessDebuggingControl,
+    status: PrivilegeAdbWirelessDebuggingControlStatus,
+): Boolean =
+    control == PrivilegeAdbWirelessDebuggingControl.REQUIRE &&
+        !status.wirelessDebuggingEnabled &&
+        !status.canManage
+
+internal fun disableManagedWirelessDebuggingAfterStart(
+    shouldDisable: Boolean,
+    controller: PrivilegeAdbWirelessDebuggingController?,
+    output: PrivilegeAdbOutput,
+) {
+    if (!shouldDisable || controller == null) return
+    runCatching {
+        controller.setWirelessDebuggingEnabled(false)
+        output.append("adb", "Wireless debugging disabled")
+    }.onFailure { throwable ->
+        output.append("diag", "Failed to disable Wireless debugging: ${throwable.toFailureMessage()}")
+    }
+}

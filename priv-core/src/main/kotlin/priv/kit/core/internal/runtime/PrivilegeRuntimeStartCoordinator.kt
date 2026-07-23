@@ -42,9 +42,10 @@ public class PrivilegeRuntimeStartLease internal constructor(
     private val closed = AtomicBoolean(false)
 
     override fun close() {
-        if (closed.compareAndSet(false, true)) {
-            release(operationId)
+        check(closed.compareAndSet(false, true)) {
+            "Runtime start lease is already closed"
         }
+        release(operationId)
     }
 }
 

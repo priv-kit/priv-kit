@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -66,16 +67,36 @@ class PrivilegeUiStartGateTest {
     }
 
     @Test
-    fun closingPermitMoreThanOnceDoesNotReleaseAnotherOwner() {
+    fun closingSilentPermitMoreThanOnceFailsWithoutReleasingAnotherOwner() {
         val acquireInteractive = PrivilegeUiStartGate.newInteractivePermitAcquirer()
         val firstPermit = PrivilegeUiStartGate.tryAcquireSilent()!!
         firstPermit.close()
         val secondPermit = acquireInteractive()!!
 
-        firstPermit.close()
+        val exception = assertThrows(IllegalStateException::class.java) {
+            firstPermit.close()
+        }
 
+        assertTrue(exception.message.orEmpty().contains("already closed"))
         assertNull(PrivilegeUiStartGate.tryAcquireSilent())
         secondPermit.close()
+    }
+
+    @Test
+    fun closingInteractivePermitMoreThanOnceFailsWithoutConsumingNestedLease() {
+        val owner = PrivilegeUiStartGate.newInteractiveOwner()
+        val firstPermit = owner.tryAcquire()!!
+        val secondPermit = owner.tryAcquire()!!
+
+        firstPermit.close()
+        val exception = assertThrows(IllegalStateException::class.java) {
+            firstPermit.close()
+        }
+
+        assertTrue(exception.message.orEmpty().contains("already closed"))
+        assertEquals(1, PrivilegeUiStartGate.state.value.interactiveLeaseCount)
+        secondPermit.close()
+        assertNull(PrivilegeUiStartGate.state.value.owner)
     }
 
     @Test
@@ -87,7 +108,9 @@ class PrivilegeUiStartGateTest {
 
         val silentPermit = PrivilegeUiStartGate.tryAcquireSilent()!!
         silentPermit.close()
-        silentPermit.close()
+        assertThrows(IllegalStateException::class.java) {
+            silentPermit.close()
+        }
         assertEquals(
             initialSerial + 1L,
             PrivilegeUiStartGate.state.value.silentCompletionSerial,

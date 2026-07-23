@@ -7,7 +7,7 @@ import priv.kit.core.adb.PrivilegeAdbAuthorizationEndReason
 import priv.kit.core.adb.PrivilegeAdbAuthorizationRequestResult
 import priv.kit.core.adb.PrivilegeAdbAuthorizationStatus
 import priv.kit.core.adb.PrivilegeAdbStartOptions
-import priv.kit.core.adb.PrivilegeAdbStarter
+import priv.kit.core.adb.PrivilegeAdbManager
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.ui.PrivilegeUiAdbTcpAuthorizationStatus
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
@@ -40,10 +40,10 @@ internal class PrivilegeUiAdbTcpActions(
                 store.updateTcpModePort(null)
             },
             action = {
-                val starter = Privilege.createAdbStarter(
+                val manager = Privilege.createAdbManager(
                     adbDeviceName = store.currentAdbDeviceNameOverride(),
                 )
-                starter.switchToTcp(
+                manager.switchToTcp(
                     tcpPort = tcpPort,
                 )
             },
@@ -69,7 +69,7 @@ internal class PrivilegeUiAdbTcpActions(
             tcpAuthorizationRequester?.invoke(
                 tcpPort,
                 store.config.adbAuthorizationTimeoutMillis,
-            ) ?: Privilege.createAdbStarter(
+            ) ?: Privilege.createAdbManager(
                 adbDeviceName = store.currentAdbDeviceNameOverride(),
             ).requestTcpAuthorization(
                 tcpPort = tcpPort,
@@ -94,10 +94,10 @@ internal class PrivilegeUiAdbTcpActions(
             startupSource = store.text(R.string.priv_ui_auth_method_adb),
             runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_STATIC_TCP,
         ) {
-            val starter = Privilege.createAdbStarter(
+            val manager = Privilege.createAdbManager(
                 adbDeviceName = store.currentAdbDeviceNameOverride(),
             )
-            val activeTcpPort = requireStaticTcpReady(starter, this)
+            val activeTcpPort = requireStaticTcpReady(manager, this)
             startTcpAdbNow(activeTcpPort, this)
         }
     }
@@ -106,16 +106,16 @@ internal class PrivilegeUiAdbTcpActions(
         tcpPort: Int,
         session: PrivilegeUiRuntimeStartSession,
     ): PrivilegeUiStaticTcpPreparationResult {
-        val starter = Privilege.createAdbStarter(
+        val manager = Privilege.createAdbManager(
             adbDeviceName = store.currentAdbDeviceNameOverride(),
         )
-        val initialAuthorization = starter.prepareTcpForStart(tcpPort = tcpPort)
-        val configuredTcpPort = starter.getConfiguredTcpPort()
-        val activeTcpPort = starter.getActiveTcpPort()
+        val initialAuthorization = manager.prepareTcpForStart(tcpPort = tcpPort)
+        val configuredTcpPort = manager.getConfiguredTcpPort()
+        val activeTcpPort = manager.getActiveTcpPort()
         val authorization = when {
             configuredTcpPort == null -> null
             configuredTcpPort == tcpPort -> initialAuthorization
-            else -> starter.prepareTcpForStart(tcpPort = configuredTcpPort)
+            else -> manager.prepareTcpForStart(tcpPort = configuredTcpPort)
         }
         val authorizationStatus = authorization
             ?.status
@@ -139,10 +139,10 @@ internal class PrivilegeUiAdbTcpActions(
     }
 
     suspend fun requireStaticTcpReady(
-        starter: PrivilegeAdbStarter,
+        manager: PrivilegeAdbManager,
         session: PrivilegeUiRuntimeStartSession,
     ): Int {
-        val configuredTcpPort = starter.getConfiguredTcpPort()
+        val configuredTcpPort = manager.getConfiguredTcpPort()
         store.updateConfiguredTcpModePort(configuredTcpPort)
         if (configuredTcpPort == null) {
             store.updateTcpModePort(null)
@@ -151,8 +151,8 @@ internal class PrivilegeUiAdbTcpActions(
             }
             throwStaticTcpStartFailed(session)
         }
-        val authorization = starter.prepareTcpForStart(tcpPort = configuredTcpPort)
-        val activeTcpPort = starter.getActiveTcpPort()
+        val authorization = manager.prepareTcpForStart(tcpPort = configuredTcpPort)
+        val activeTcpPort = manager.getActiveTcpPort()
         store.updateTcpModePort(activeTcpPort)
         store.updateState {
             it.copy(tcpAuthorizationStatus = authorization.status.toUiTcpAuthorizationStatus())

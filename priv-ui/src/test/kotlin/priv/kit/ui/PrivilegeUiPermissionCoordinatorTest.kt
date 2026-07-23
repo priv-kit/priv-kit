@@ -11,6 +11,25 @@ import org.junit.Test
 
 class PrivilegeUiPermissionCoordinatorTest {
     @Test
+    fun closeIsIdempotentAndReleasesActiveRequestOnce() = runBlocking {
+        val permitsClosed = AtomicInteger(0)
+        val coordinator = coordinator {
+            AutoCloseable { permitsClosed.incrementAndGet() }
+        }
+        coordinator.registerHost("permission-host")
+        val result = async(start = CoroutineStart.UNDISPATCHED) {
+            coordinator.requestNotificationPermission()
+        }
+        coordinator.requests.first()
+
+        coordinator.close()
+        coordinator.close()
+
+        assertEquals(null, result.await())
+        assertEquals(1, permitsClosed.get())
+    }
+
+    @Test
     fun notificationResultResumesTheRequestingCoroutine() = runBlocking {
         val permitsClosed = AtomicInteger(0)
         val coordinator = coordinator {

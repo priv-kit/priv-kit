@@ -1,6 +1,7 @@
 package priv.kit.core.adb
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resumeWithException
@@ -22,3 +23,14 @@ internal suspend fun <T> cancellableAdbCall(
         }
     }
 }
+
+internal fun Throwable.rethrowIfInterrupted() {
+    if (this is CancellationException) throw this
+    if (this is InterruptedException) {
+        Thread.currentThread().interrupt()
+        throw this
+    }
+}
+
+internal suspend fun <T : AutoCloseable, R> T.cancellableUse(block: (T) -> R): R =
+    cancellableAdbCall(cancel = ::close) { use(block) }

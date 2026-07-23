@@ -15,3 +15,10 @@ public fun Throwable.isPrivilegeAdbLocalNetworkAccessFailure(): Boolean =
 
 internal fun privilegeAdbError(message: Any): Nothing =
     throw PrivilegeAdbException(message.toString())
+
+internal fun Throwable.toLocalNetworkAccessFailure(endpoint: PrivilegeAdbEndpoint): Throwable =
+    if (!endpoint.isLocalHost && !isAdbKeyNotAuthorized()) {
+        PrivilegeAdbLocalNetworkAccessException(endpoint, this)
+    } else {
+        this
+    }

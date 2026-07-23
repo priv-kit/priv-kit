@@ -22,6 +22,14 @@ import kotlinx.coroutines.runBlocking
 @Config(sdk = [28])
 class PrivilegeExternalStartupBridgeTest {
     @Test
+    fun publicBridgeHostCloseIsIdempotent() {
+        val host = testHost(FakeProcess(exitCode = 0))
+
+        host.close()
+        host.close()
+    }
+
+    @Test
     fun bridgeHostCompletesSuccessfulCommand(): Unit = runBlocking {
         val process = FakeProcess(
             stdout = "ready\nmore\n",

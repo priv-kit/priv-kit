@@ -30,6 +30,7 @@ import priv.kit.ui.adb.currentTcpModePort
 import priv.kit.ui.runtime.PrivilegeUiStartGate
 import priv.kit.ui.state.PrivilegeUiFailureKind
 import priv.kit.ui.state.PrivilegeUiViewModelStore
+import priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported
 import priv.kit.ui.state.toPrivilegeUiDiagnosticString
 import java.io.IOException
 import java.net.InetSocketAddress
@@ -280,15 +281,16 @@ internal class PrivilegeUiAdbPairingActions(
         adbDeviceName: String?,
         initialPort: Int? = null,
     ) {
+        if (!isPrivilegeUiWirelessAdbSupported()) return
         val job = createPairingJob("priv-ui-pairing-session") discovery@{
-            val starter = Privilege.createAdbStarter(adbDeviceName = adbDeviceName)
+            val manager = Privilege.createAdbManager(adbDeviceName = adbDeviceName)
             var monitoredPort = initialPort
             while (isActive && isCurrentPairingSession(session)) {
                 if (monitoredPort == null) {
                     val discovery = try {
-                        val port = starter.discoverPairingPort(PAIRING_DISCOVERY_ATTEMPT_TIMEOUT_MILLIS)
+                        val port = manager.discoverPairingPort(PAIRING_DISCOVERY_ATTEMPT_TIMEOUT_MILLIS)
                         val identityInfo = withContext(Dispatchers.IO) {
-                            runCatching { starter.getIdentityInfo() }.getOrNull()
+                            runCatching { manager.getIdentityInfo() }.getOrNull()
                         }
                         port to identityInfo
                     } catch (throwable: Throwable) {
@@ -348,6 +350,7 @@ internal class PrivilegeUiAdbPairingActions(
     }
 
     private fun submitPairingCode(pairingCode: String) {
+        if (!isPrivilegeUiWirelessAdbSupported()) return
         if (!store.state.value.pairingStatus.isPrivilegeUiPairingSessionActive()) return
         if (!ensurePairingPermit()) return
         val code = pairingCode.trim()
@@ -381,7 +384,7 @@ internal class PrivilegeUiAdbPairingActions(
         store.appendLog(store.resolveText(pairingText))
         val job = createPairingJob("priv-ui-pairing-submit") submit@{
             try {
-                val result = Privilege.createAdbStarter(adbDeviceName = adbDeviceName).pair(
+                val result = Privilege.createAdbManager(adbDeviceName = adbDeviceName).pair(
                     pairingCode = code,
                     port = port,
                     discoverPort = false,

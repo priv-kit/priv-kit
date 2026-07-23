@@ -284,11 +284,12 @@ internal class PrivilegeUiAdbActions(
     private fun managedWirelessAdbStatusForStart(
         currentStatus: PrivilegeUiManagedWirelessAdbStatus,
     ): PrivilegeUiManagedWirelessAdbStatus {
+        if (!isPrivilegeUiWirelessAdbSupported()) return currentStatus
         if (!store.config.enableManagedWirelessAdb || currentStatus == PrivilegeUiManagedWirelessAdbStatus.READY) {
             return currentStatus
         }
         val refreshedStatus = runCatching {
-            Privilege.createAdbStarter(
+            Privilege.createAdbManager(
                 adbDeviceName = store.currentAdbDeviceNameOverride(),
             ).getWirelessDebuggingControlStatus().toUiManagedWirelessAdbStatus()
         }.getOrNull() ?: return currentStatus
@@ -479,11 +480,11 @@ internal class PrivilegeUiAdbActions(
             runtimeStartSource = PrivilegeUiRuntimeStartSource.ADB_STATIC_TCP,
         ) {
             val tcpPort = store.config.tcpPort
-            val starter = Privilege.createAdbStarter(
+            val manager = Privilege.createAdbManager(
                 adbDeviceName = store.currentAdbDeviceNameOverride(),
             )
             appendStartupLog(store.text(R.string.priv_ui_tcp_enabling))
-            starter.switchToTcp(
+            manager.switchToTcp(
                 tcpPort = tcpPort,
                 options = privilegeUiStaticTcpSwitchOptions(
                     tcpPort = tcpPort,
@@ -492,7 +493,7 @@ internal class PrivilegeUiAdbActions(
                 ),
             )
             delay(PRIVILEGE_UI_TCP_START_DELAY_MILLIS.milliseconds)
-            val activeTcpPort = tcpActions.requireStaticTcpReady(starter, this)
+            val activeTcpPort = tcpActions.requireStaticTcpReady(manager, this)
             appendStartupLog(store.text(R.string.priv_ui_tcp_enabled))
             appendStartupLog(store.text(R.string.priv_ui_tcp_starting))
             tcpActions.startTcpAdbNow(activeTcpPort, this)
@@ -556,17 +557,19 @@ internal class PrivilegeUiAdbActions(
         }
     }
 
-    private fun currentWirelessDebuggingStatus(): PrivilegeUiWirelessAdbStatus =
-        privilegeUiWirelessDebuggingStatus(
-            Privilege.createAdbStarter(
+    private fun currentWirelessDebuggingStatus(): PrivilegeUiWirelessAdbStatus {
+        if (!isPrivilegeUiWirelessAdbSupported()) return PrivilegeUiWirelessAdbStatus.OFF
+        return privilegeUiWirelessDebuggingStatus(
+            Privilege.createAdbManager(
                 adbDeviceName = store.currentAdbDeviceNameOverride(),
             ).getWirelessDebuggingControlStatus().wirelessDebuggingEnabled,
         )
+    }
 
     private fun activeTcpPortForWirelessAdbStart(adbDeviceName: String?): Int? {
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return null
         return runCatching {
-            Privilege.createAdbStarter(adbDeviceName = adbDeviceName).getActiveTcpPort()
+            Privilege.createAdbManager(adbDeviceName = adbDeviceName).getActiveTcpPort()
         }.getOrNull()
     }
 

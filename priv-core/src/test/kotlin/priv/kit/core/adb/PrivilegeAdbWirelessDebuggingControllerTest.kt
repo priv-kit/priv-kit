@@ -3,6 +3,8 @@ package priv.kit.core.adb
 import android.Manifest
 import android.provider.Settings
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -13,6 +15,67 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class PrivilegeAdbWirelessDebuggingControllerTest {
+    @Test
+    fun alreadyEnabledWirelessDebuggingIsNotTemporarilyManagedForStart() {
+        val status = PrivilegeAdbWirelessDebuggingControlStatus(
+            supported = true,
+            permissionDeclared = true,
+            permissionGranted = true,
+            wirelessDebuggingEnabled = true,
+            canManage = true,
+        )
+
+        assertFalse(
+            shouldEnableWirelessDebuggingForStart(
+                PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
+                status,
+            ),
+        )
+        assertFalse(
+            shouldRejectWirelessDebuggingForStart(
+                PrivilegeAdbWirelessDebuggingControl.REQUIRE,
+                status.copy(
+                    permissionGranted = false,
+                    canManage = false,
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun startManagementOnlyChangesDisabledWirelessDebugging() {
+        val disabledManageable = PrivilegeAdbWirelessDebuggingControlStatus(
+            supported = true,
+            permissionDeclared = true,
+            permissionGranted = true,
+            wirelessDebuggingEnabled = false,
+            canManage = true,
+        )
+        val disabledUnmanageable = disabledManageable.copy(
+            permissionGranted = false,
+            canManage = false,
+        )
+
+        assertTrue(
+            shouldEnableWirelessDebuggingForStart(
+                PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
+                disabledManageable,
+            ),
+        )
+        assertFalse(
+            shouldEnableWirelessDebuggingForStart(
+                PrivilegeAdbWirelessDebuggingControl.NEVER,
+                disabledManageable,
+            ),
+        )
+        assertTrue(
+            shouldRejectWirelessDebuggingForStart(
+                PrivilegeAdbWirelessDebuggingControl.REQUIRE,
+                disabledUnmanageable,
+            ),
+        )
+    }
+
     @Test
     fun staticTcpRecoveryOnlyEnablesCoreAdbService() {
         val context = RuntimeEnvironment.getApplication()

@@ -16,11 +16,27 @@ import priv.kit.core.internal.core.PrivilegeProtocol
 import priv.kit.core.internal.core.PrivilegeServerHandshakeResult
 import priv.kit.core.testing.TestBinder
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 
 class PrivilegeTest {
     @After
     fun clearServer() {
         runCatching { Privilege.shutdownServer() }
+    }
+
+    @Test
+    fun userServiceConnectionCloseIsIdempotent() {
+        val unbindCalls = AtomicInteger(0)
+        val connection = PrivilegeUserServiceConnection(
+            id = "connection-id",
+            binder = TestBinder(),
+            unbind = { unbindCalls.incrementAndGet() },
+        )
+
+        connection.close()
+        connection.close()
+
+        assertEquals(1, unbindCalls.get())
     }
 
     @Test

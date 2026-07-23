@@ -1,5 +1,7 @@
 package priv.kit.ui.adb
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -16,7 +18,7 @@ import priv.kit.core.Privilege
 import priv.kit.core.adb.PrivilegeAdbAuthorizationStatus
 import priv.kit.core.adb.PrivilegeAdbPairingCheckSession
 import priv.kit.core.adb.PrivilegeAdbPairingCheckStatus
-import priv.kit.core.adb.PrivilegeAdbStarter
+import priv.kit.core.adb.PrivilegeAdbManager
 import priv.kit.core.adb.PrivilegeAdbTcpAuthorizationCheckSession
 import priv.kit.ui.PrivilegeAdbPairingService
 import priv.kit.ui.PrivilegeUiAdbTcpAuthorizationStatus
@@ -24,6 +26,7 @@ import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiManagedWirelessAdbStatus
 import priv.kit.ui.PrivilegeUiWirelessAdbStatus
 import priv.kit.ui.state.PrivilegeUiViewModelStore
+import priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported
 import priv.kit.ui.state.toPrivilegeUiDiagnosticString
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -72,7 +75,7 @@ internal class PrivilegeUiAdbStatusActions(
     suspend fun refreshAdbIdentityInfoNow() {
         runCatching {
             withContext(Dispatchers.IO) {
-                Privilege.createAdbStarter(
+                Privilege.createAdbManager(
                     adbDeviceName = store.currentAdbDeviceNameOverride(),
                 ).getIdentityInfo()
             }
@@ -133,14 +136,14 @@ internal class PrivilegeUiAdbStatusActions(
         }
         if (shouldSkipTcpAuthorizationRefresh(store.state.value.tcpAuthorizationStatus)) return@withLock
 
-        val starter = Privilege.createAdbStarter(
+        val manager = Privilege.createAdbManager(
             adbDeviceName = store.currentAdbDeviceNameOverride(),
         )
         val activeTcpPort = withContext(Dispatchers.IO) {
-            runCatching { starter.getActiveTcpPort() }.getOrNull()
+            runCatching { manager.getActiveTcpPort() }.getOrNull()
         }
         val configuredTcpPort = withContext(Dispatchers.IO) {
-            runCatching { starter.getConfiguredTcpPort() }.getOrNull()
+            runCatching { manager.getConfiguredTcpPort() }.getOrNull()
         }
         store.updateTcpModePort(activeTcpPort)
         store.updateConfiguredTcpModePort(configuredTcpPort)
@@ -152,7 +155,7 @@ internal class PrivilegeUiAdbStatusActions(
             return@withLock
         }
 
-        val authorization = checkTcpAuthorization(starter, configuredTcpPort)
+        val authorization = checkTcpAuthorization(manager, configuredTcpPort)
         val previousStatus = store.state.value.tcpAuthorizationStatus
         val nextStatus = authorization.status.toUiTcpAuthorizationStatus()
         store.updateState { it.copy(tcpAuthorizationStatus = nextStatus) }
@@ -168,7 +171,7 @@ internal class PrivilegeUiAdbStatusActions(
     }
 
     private suspend fun checkTcpAuthorization(
-        starter: PrivilegeAdbStarter,
+        manager: PrivilegeAdbManager,
         port: Int,
     ) = tcpSession
         ?.takeIf { tcpSessionPort == port }
@@ -178,8 +181,8 @@ internal class PrivilegeUiAdbStatusActions(
         }
         ?: run {
             closeTcpSession()
-            val session = runCatching { starter.openTcpAuthorizationCheckSession(port) }
-                .getOrElse { return@run starter.checkTcpAuthorization(port) }
+            val session = runCatching { manager.openTcpAuthorizationCheckSession(port) }
+                .getOrElse { return@run manager.checkTcpAuthorization(port) }
             tcpSession = session
             tcpSessionPort = port
             session.check().also { result ->
@@ -242,6 +245,7 @@ internal class PrivilegeUiAdbStatusActions(
     }
 
     private suspend fun pollWirelessAdbStatusOnce() {
+        if (!isPrivilegeUiWirelessAdbSupported()) return
         val wifiConnected = store.isWifiConnected()
         if (!wifiConnected) {
             closePairingSession()
@@ -260,12 +264,12 @@ internal class PrivilegeUiAdbStatusActions(
             return
         }
 
-        val starter = Privilege.createAdbStarter(
+        val manager = Privilege.createAdbManager(
             adbDeviceName = store.currentAdbDeviceNameOverride(),
         )
         val timeoutMillis = store.config.wirelessStatusDiscoveryTimeoutMillis
         val wirelessControlStatus = withContext(Dispatchers.IO) {
-            starter.getWirelessDebuggingControlStatus()
+            manager.getWirelessDebuggingControlStatus()
         }
         val managedWirelessStatus = if (store.config.enableManagedWirelessAdb) {
             wirelessControlStatus.toUiManagedWirelessAdbStatus()
@@ -287,21 +291,21 @@ internal class PrivilegeUiAdbStatusActions(
         }
 
         val connectPort = try {
-            starter.discoverConnectPort(timeoutMillis)
+            manager.discoverConnectPort(timeoutMillis)
         } catch (exception: CancellationException) {
             throw exception
         } catch (_: Throwable) {
             null
         }
         val pairingServiceOn = try {
-            starter.discoverPairingPort(timeoutMillis)
+            manager.discoverPairingPort(timeoutMillis)
             true
         } catch (exception: CancellationException) {
             throw exception
         } catch (_: Throwable) {
             false
         }
-        val pairingCheck = connectPort?.let { checkWirelessPairing(starter, it, timeoutMillis) }
+        val pairingCheck = connectPort?.let { checkWirelessPairing(manager, it, timeoutMillis) }
             ?: run {
                 closePairingSession()
                 null
@@ -333,14 +337,15 @@ internal class PrivilegeUiAdbStatusActions(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.R)
     private suspend fun checkWirelessPairing(
-        starter: PrivilegeAdbStarter,
+        manager: PrivilegeAdbManager,
         port: Int,
         timeoutMillis: Long,
     ) = pairingSession
         ?.check()
         ?.also { result -> if (!result.paired) closePairingSession() }
-        ?: starter.openPairingCheckSession(
+        ?: manager.openPairingCheckSession(
             port = port,
             discoverPort = false,
             portDiscoveryTimeoutMillis = timeoutMillis,

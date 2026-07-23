@@ -16,7 +16,7 @@ import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeUserServiceConnection
 import priv.kit.core.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 import priv.kit.core.adb.PrivilegeAdbStartOptions
-import priv.kit.core.adb.PrivilegeAdbStarter
+import priv.kit.core.adb.PrivilegeAdbManager
 import priv.kit.core.binder.PrivilegeServerUnavailableException
 import priv.kit.sample.startup.PrivilegeSampleShizukuExternalStarter
 import priv.kit.sample.startup.SHIZUKU_PERMISSION_REQUEST_CODE
@@ -121,7 +121,7 @@ internal fun PrivilegeSampleDebugHost.refreshAdbFingerprint() {
     sampleViewModel.viewModelScope.launch {
         try {
             val info = withContext(Dispatchers.IO) {
-                createAdbStarter(adbDeviceName).getIdentityInfo()
+                createAdbManager(adbDeviceName).getIdentityInfo()
             }
             screenState = screenState.copy(
                 adbDeviceName = info.identity.deviceName,
@@ -147,6 +147,7 @@ internal fun PrivilegeSampleDebugHost.refreshAdbFingerprint() {
 }
 
 internal fun PrivilegeSampleDebugHost.checkWirelessAdbPairing(showBusy: Boolean) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
     if (showBusy && screenState.busy) return
 
     val adbDeviceName = currentAdbDeviceNameOverride()
@@ -161,7 +162,7 @@ internal fun PrivilegeSampleDebugHost.checkWirelessAdbPairing(showBusy: Boolean)
 
     sampleViewModel.viewModelScope.launch {
         try {
-            val result = createAdbStarter(adbDeviceName).checkPairing()
+            val result = createAdbManager(adbDeviceName).checkPairing()
             val resultMessage = if (result.paired) {
                 "Current owner-token key is paired on port ${result.port}."
             } else {
@@ -201,8 +202,8 @@ internal fun PrivilegeSampleDebugHost.checkWirelessAdbPairing(showBusy: Boolean)
 private fun PrivilegeSampleDebugHost.currentAdbDeviceNameOverride(): String? =
     screenState.adbDeviceNameText.trim().ifBlank { null }
 
-private fun PrivilegeSampleDebugHost.createAdbStarter(adbDeviceName: String?): PrivilegeAdbStarter =
-    Privilege.createAdbStarter(adbDeviceName = adbDeviceName)
+private fun PrivilegeSampleDebugHost.createAdbManager(adbDeviceName: String?): PrivilegeAdbManager =
+    Privilege.createAdbManager(adbDeviceName = adbDeviceName)
 
 private fun PrivilegeSampleDebugHost.loadAdbDeviceNameOverride(): String =
     runCatching {
@@ -396,6 +397,7 @@ private fun PrivilegeSampleDebugHost.applyShizukuReadiness(readiness: ShizukuRea
 }
 
 internal fun PrivilegeSampleDebugHost.pairWirelessAdb() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
     val code = screenState.pairingCode.trim()
     val adbDeviceName = currentAdbDeviceNameOverride()
     if (code.isBlank()) {
@@ -414,7 +416,7 @@ internal fun PrivilegeSampleDebugHost.pairWirelessAdb() {
     runBusy(
         message = "Discovering ADB pairing port and pairing...",
         action = {
-            createAdbStarter(adbDeviceName).pair(pairingCode = code)
+            createAdbManager(adbDeviceName).pair(pairingCode = code)
         },
         onFailure = {
             screenState = screenState.copy(
@@ -514,7 +516,7 @@ internal fun PrivilegeSampleDebugHost.switchToTcp() {
     runBusy(
         message = "Opening or reusing ADB TCP port $tcpPort...",
         action = {
-            createAdbStarter(adbDeviceName).switchToTcp(tcpPort = tcpPort)
+            createAdbManager(adbDeviceName).switchToTcp(tcpPort = tcpPort)
         },
     ) {
         screenState = screenState.copy(connectPortText = tcpPort.toString())
@@ -546,7 +548,7 @@ internal fun PrivilegeSampleDebugHost.stopTcp() {
     runBusy(
         message = "Stopping ADB TCP mode...",
         action = {
-            createAdbStarter(adbDeviceName).stopTcp(tcpPort = tcpPort)
+            createAdbManager(adbDeviceName).stopTcp(tcpPort = tcpPort)
         },
     ) {
         "ADB TCP mode stop requested"

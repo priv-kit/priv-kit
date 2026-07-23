@@ -403,12 +403,8 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         request: PrivilegeUiPermissionRequest,
     ) = permissionCoordinator.cancelRequest(hostId, request)
 
-    override fun onCleared() {
-        closeOwner()
-    }
-
     private fun closeOwner() {
-        if (!ownerClosed.compareAndSet(false, true)) return
+        ownerClosed.set(true)
         batteryOptimizationRefreshJob?.cancel()
         batteryOptimizationRefreshJob = null
         runCatching { effectsCoordinator.close() }

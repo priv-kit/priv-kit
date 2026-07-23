@@ -8,7 +8,7 @@ Common entry points:
 
 - `Privilege.startRoot()` for the minimal Root runtime loop.
 - `Privilege.startAdb()` for Wireless Debugging / TCP ADB startup, configured with `PrivilegeAdbStartOptions`.
-- `Privilege.createAdbStarter()` for Wireless ADB pairing, TCP mode, and identity diagnostics backed by `PrivilegeAdbStarter`.
+- `Privilege.createAdbManager()` for Wireless ADB pairing, TCP mode, and identity diagnostics backed by `PrivilegeAdbManager`.
 - Process-wide current Privileged Server Binder state, exposed through `Privilege` global methods.
 - `Privilege.isPermissionRestricted()` for checking whether the connected privileged server is subject to permission restrictions. Root servers return `false` without a permission Binder call.
 - UserService entry points for app-defined Binder services: start, bind, and stop.
@@ -21,7 +21,7 @@ Advanced entry points:
 
 Runtime owns token generation, shared server launch command construction, the native starter executable, Root `su` execution, ADB pairing/connect/startup, pending handshakes, protocol validation, current server Binder installation, Privileged Server entry points, and Binder death handling. Public ADB configuration and pairing types live in `priv.kit.core.adb`; raw startup transport SPI and wire protocol live under `priv.kit.core.internal.*`.
 
-ADB startup supports managed ADB recovery as an internal strategy. When `PrivilegeAdbStartOptions.wirelessDebuggingControl` allows it, the merged app manifest still declares `WRITE_SECURE_SETTINGS`, and the app holds that permission, the runtime enables `adb_wifi_enabled`, discovers the dynamic `_adb-tls-connect._tcp` port, starts the server, and disables Wireless Debugging after the start attempt by default. For an explicit static-TCP start, `PrivilegeAdbStarter.prepareTcpForStart()` first probes the configured port and only writes `ADB_ENABLED=1` when the listener is unavailable; it does not enable Wireless Debugging. After a Privileged Server connects, the runtime attempts to grant `WRITE_SECURE_SETTINGS` to the owner package when the permission is still declared and the server is root or has `android.permission.GRANT_RUNTIME_PERMISSIONS`, so later starts can use these managed ADB paths. If the permission declaration was removed with manifest merge or the permission is not granted, startup continues with the existing manual Wireless Debugging / TCP behavior.
+ADB startup supports managed ADB recovery as an internal strategy. When `PrivilegeAdbStartOptions.wirelessDebuggingControl` allows it, the merged app manifest still declares `WRITE_SECURE_SETTINGS`, and the app holds that permission, the runtime enables `adb_wifi_enabled`, discovers the dynamic `_adb-tls-connect._tcp` port, starts the server, and disables Wireless Debugging after the start attempt by default. For an explicit static-TCP start, `PrivilegeAdbManager.prepareTcpForStart()` first probes the configured port and only writes `ADB_ENABLED=1` when the listener is unavailable; it does not enable Wireless Debugging. After a Privileged Server connects, the runtime attempts to grant `WRITE_SECURE_SETTINGS` to the owner package when the permission is still declared and the server is root or has `android.permission.GRANT_RUNTIME_PERMISSIONS`, so later starts can use these managed ADB paths. If the permission declaration was removed with manifest merge or the permission is not granted, startup continues with the existing manual Wireless Debugging / TCP behavior.
 
 `Privilege.checkPermission(permName, pkgName, userId = cached current user id)` and `Privilege.grantRuntimePermission(packageName, permissionName, userId = cached current user id)` are thin pass-through calls to server-side `IPackageManager`. They do not add policy, discovery, batching, permission groups, app-ops, install flows, or package management abstractions.
 
@@ -43,7 +43,7 @@ The latest owner-death configuration is held in the runtime process and returned
 
 Like shizuku-api, the runtime treats the Privileged Server Binder as a single process-wide handle. A repeated handshake for the same Binder keeps the current global server state; a handshake for a replacement Binder installs the new server state.
 
-`Privilege.getServerInfo()` and `PrivilegeBinderWrapper` both resolve the server Binder through the same global getter. If the server was killed after a caller cached a framework service proxy backed by `PrivilegeBinderWrapper`, the next transaction is normalized to `PrivilegeServerDisconnectedException` instead of leaking raw Binder state.
+`Privilege.getServerInfo()` and `PrivilegeBinderWrapper` both resolve the server Binder through the same global getter. If the server was killed after a caller cached a framework service proxy backed by `PrivilegeBinderWrapper`, the next transaction is normalized to `PrivilegeServerUnavailableException` instead of leaking raw Binder state.
 
 If a server reports a different protocol or APK classpath identity than the current app runtime, the runtime rejects that Binder handoff. When the caller is a trusted existing server, the app returns the current native starter command so the stale server can replace itself from the current install.
 
