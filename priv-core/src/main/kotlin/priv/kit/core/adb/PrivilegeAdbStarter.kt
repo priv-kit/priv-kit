@@ -254,7 +254,7 @@ public class PrivilegeAdbStarter private constructor(
     }
 
     private suspend fun discoverPairingEndpoint(
-        timeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
+        timeoutMillis: Long,
     ): PrivilegeAdbEndpoint {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             throw PrivilegeStartupException("Wireless ADB pairing requires Android 11 or above")

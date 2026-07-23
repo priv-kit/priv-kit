@@ -49,7 +49,7 @@ The UI covers ordinary user-facing authorization only:
 - External startup through app-provided `PrivilegeUiExternalStartProvider` implementations, with status refreshed on foreground resume and while the External tab is selected.
 - Realtime startup transcript for Root, ADB, and streaming external startup providers.
 - Service started/not-started status.
-- A connected-server warning above the authorization method tabs when the device restricts ADB shell permissions. The status is checked after each connection and whenever the host returns to the foreground; Root servers skip the permission check.
+- A connected-server warning above the authorization method tabs when the privileged service is subject to permission restrictions. The status is checked after each connection and whenever the host returns to the foreground; Root servers skip the permission check.
 
 Battery-optimization guidance directly opens Android's exemption confirmation for the
 host package and rechecks the result when the page returns to the foreground. `priv-ui`

@@ -1,5 +1,6 @@
 package priv.kit.ui.component
 
+import android.os.Process
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,7 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import priv.kit.core.PrivilegeServerInfo
-import priv.kit.ui.PrivilegeUiAdbRestrictionStatus
+import priv.kit.ui.PrivilegeUiPermissionRestrictionStatus
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
 import priv.kit.ui.PrivilegeUiRuntimeStatus
@@ -79,11 +80,11 @@ internal fun ItemPanel(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-internal fun PrivilegeUiScreenScope.AdbPermissionRestrictionWarning() {
+internal fun PrivilegeUiScreenScope.PermissionRestrictionWarning() {
     if (
-        !privilegeUiAdbPermissionRestrictionWarningVisible(
+        !privilegeUiPermissionRestrictionWarningVisible(
             runtimeStatus = state.runtimeStatus,
-            restrictionStatus = state.adbRestrictionStatus,
+            restrictionStatus = state.permissionRestrictionStatus,
         )
     ) {
         return
@@ -112,25 +113,25 @@ internal fun PrivilegeUiScreenScope.AdbPermissionRestrictionWarning() {
                 Spacer(modifier = Modifier.width(PrivilegeUiSpacing.medium))
                 Text(
                     modifier = Modifier.weight(1f),
-                    text = stringResource(R.string.priv_ui_adb_restricted_title),
+                    text = stringResource(R.string.priv_ui_permission_restricted_title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
             Text(
-                text = stringResource(R.string.priv_ui_adb_restricted_message),
+                text = stringResource(R.string.priv_ui_permission_restricted_message),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
     }
 }
 
-internal fun privilegeUiAdbPermissionRestrictionWarningVisible(
+internal fun privilegeUiPermissionRestrictionWarningVisible(
     runtimeStatus: PrivilegeUiRuntimeStatus,
-    restrictionStatus: PrivilegeUiAdbRestrictionStatus,
+    restrictionStatus: PrivilegeUiPermissionRestrictionStatus,
 ): Boolean =
     runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED &&
-        restrictionStatus == PrivilegeUiAdbRestrictionStatus.RESTRICTED
+        restrictionStatus == PrivilegeUiPermissionRestrictionStatus.RESTRICTED
 
 @Composable
 internal fun CommandBlock(commandLine: String) {
@@ -544,10 +545,7 @@ private fun PrivilegeUiState.runtimeStatusDetail(): String =
 @Composable
 private fun PrivilegeServerInfo?.runtimeSourceText(): String =
     when (this?.uid) {
-        ROOT_UID -> stringResource(R.string.priv_ui_service_source_root)
-        SHELL_UID -> stringResource(R.string.priv_ui_service_source_shell)
+        Process.ROOT_UID -> stringResource(R.string.priv_ui_service_source_root)
+        Process.SHELL_UID -> stringResource(R.string.priv_ui_service_source_shell)
         else -> stringResource(R.string.priv_ui_service_source_unknown)
     }
-
-private const val ROOT_UID = 0
-private const val SHELL_UID = 2000

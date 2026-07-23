@@ -122,7 +122,7 @@ private fun StartupTabButton(
     label: String,
     selected: Boolean,
     enabled: Boolean,
-    modifier: Modifier = Modifier,
+    modifier: Modifier,
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme

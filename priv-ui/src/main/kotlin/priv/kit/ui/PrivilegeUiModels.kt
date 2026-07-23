@@ -23,7 +23,7 @@ internal enum class PrivilegeUiRuntimeStartPhase {
     CANCELLING,
 }
 
-internal enum class PrivilegeUiAdbRestrictionStatus {
+internal enum class PrivilegeUiPermissionRestrictionStatus {
     UNKNOWN,
     NOT_RESTRICTED,
     RESTRICTED,
@@ -216,8 +216,8 @@ internal data class PrivilegeUiState(
     val runtimeStartPhase: PrivilegeUiRuntimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
     val runtimeStartProviderId: String? = null,
     val configuredTcpModePort: Int? = null,
-    val adbRestrictionStatus: PrivilegeUiAdbRestrictionStatus =
-        PrivilegeUiAdbRestrictionStatus.UNKNOWN,
+    val permissionRestrictionStatus: PrivilegeUiPermissionRestrictionStatus =
+        PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
     val desiredEnabled: Boolean = false,
 )
 

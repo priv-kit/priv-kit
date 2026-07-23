@@ -233,42 +233,43 @@ class PrivilegeUiRuntimeActionsTest {
     }
 
     @Test
-    fun connectionForegroundRefreshAndDisconnectUpdateAdbRestrictionStatus() = runBlocking {
+    fun connectionForegroundRefreshAndDisconnectUpdatePermissionRestrictionStatus() =
+        runBlocking {
         val restricted = AtomicBoolean(true)
         RuntimeActionsFixture(
-            isAdbPermissionRestricted = restricted::get,
+            isPermissionRestricted = restricted::get,
         ).use { (store, actions) ->
             actions.connectForTest(shellServerInfo())
 
             assertTrue(waitUntil {
-                store.state.value.adbRestrictionStatus ==
-                    PrivilegeUiAdbRestrictionStatus.RESTRICTED
+                store.state.value.permissionRestrictionStatus ==
+                    PrivilegeUiPermissionRestrictionStatus.RESTRICTED
             })
 
             restricted.set(false)
-            actions.refreshAdbPermissionRestrictionStatus()
+            actions.refreshPermissionRestrictionStatus()
 
             assertTrue(waitUntil {
-                store.state.value.adbRestrictionStatus ==
-                    PrivilegeUiAdbRestrictionStatus.NOT_RESTRICTED
+                store.state.value.permissionRestrictionStatus ==
+                    PrivilegeUiPermissionRestrictionStatus.NOT_RESTRICTED
             })
 
             actions.disconnectForTest()
 
             assertEquals(
-                PrivilegeUiAdbRestrictionStatus.UNKNOWN,
-                store.state.value.adbRestrictionStatus,
+                PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
+                store.state.value.permissionRestrictionStatus,
             )
         }
     }
 
     @Test
-    fun staleAdbRestrictionRefreshCannotOverwriteNewerResult() = runBlocking {
+    fun stalePermissionRestrictionRefreshCannotOverwriteNewerResult() = runBlocking {
         val firstRefreshEntered = CountDownLatch(1)
         val releaseFirstRefresh = CountDownLatch(1)
         val refreshCount = AtomicInteger(0)
         RuntimeActionsFixture(
-            isAdbPermissionRestricted = {
+            isPermissionRestricted = {
                 if (refreshCount.incrementAndGet() == 1) {
                     firstRefreshEntered.countDown()
                     releaseFirstRefresh.await(2, TimeUnit.SECONDS)
@@ -282,18 +283,18 @@ class PrivilegeUiRuntimeActionsTest {
                 actions.connectForTest(shellServerInfo())
                 assertTrue(firstRefreshEntered.await(2, TimeUnit.SECONDS))
 
-                actions.refreshAdbPermissionRestrictionStatus()
+                actions.refreshPermissionRestrictionStatus()
                 assertTrue(waitUntil {
-                    store.state.value.adbRestrictionStatus ==
-                        PrivilegeUiAdbRestrictionStatus.NOT_RESTRICTED
+                    store.state.value.permissionRestrictionStatus ==
+                        PrivilegeUiPermissionRestrictionStatus.NOT_RESTRICTED
                 })
 
                 releaseFirstRefresh.countDown()
                 delay(50L)
 
                 assertEquals(
-                    PrivilegeUiAdbRestrictionStatus.NOT_RESTRICTED,
-                    store.state.value.adbRestrictionStatus,
+                    PrivilegeUiPermissionRestrictionStatus.NOT_RESTRICTED,
+                    store.state.value.permissionRestrictionStatus,
                 )
             } finally {
                 releaseFirstRefresh.countDown()
@@ -302,11 +303,11 @@ class PrivilegeUiRuntimeActionsTest {
     }
 
     @Test
-    fun failedAdbRestrictionRefreshPreservesLastKnownStatus() = runBlocking {
+    fun failedPermissionRestrictionRefreshPreservesLastKnownStatus() = runBlocking {
         val failRefresh = AtomicBoolean(false)
         val refreshCount = AtomicInteger(0)
         RuntimeActionsFixture(
-            isAdbPermissionRestricted = {
+            isPermissionRestricted = {
                 refreshCount.incrementAndGet()
                 if (failRefresh.get()) error("restriction check failed")
                 true
@@ -314,17 +315,17 @@ class PrivilegeUiRuntimeActionsTest {
         ).use { (store, actions) ->
             actions.connectForTest(shellServerInfo())
             assertTrue(waitUntil {
-                store.state.value.adbRestrictionStatus ==
-                    PrivilegeUiAdbRestrictionStatus.RESTRICTED
+                store.state.value.permissionRestrictionStatus ==
+                    PrivilegeUiPermissionRestrictionStatus.RESTRICTED
             })
 
             failRefresh.set(true)
-            actions.refreshAdbPermissionRestrictionStatus()
+            actions.refreshPermissionRestrictionStatus()
             assertTrue(waitUntil { refreshCount.get() >= 2 })
 
             assertEquals(
-                PrivilegeUiAdbRestrictionStatus.RESTRICTED,
-                store.state.value.adbRestrictionStatus,
+                PrivilegeUiPermissionRestrictionStatus.RESTRICTED,
+                store.state.value.permissionRestrictionStatus,
             )
         }
     }
@@ -1631,7 +1632,7 @@ class PrivilegeUiRuntimeActionsTest {
         context: Context = RuntimeEnvironment.getApplication(),
         configureStore: (PrivilegeUiViewModelStore) -> Unit = {},
         shutdownServer: () -> Unit = { Privilege.shutdownServer() },
-        isAdbPermissionRestricted: () -> Boolean = Privilege::isAdbPermissionRestricted,
+        isPermissionRestricted: () -> Boolean = Privilege::isPermissionRestricted,
         acquireStartPermit: () -> AutoCloseable? = { AutoCloseable {} },
         operationDispatcher: CoroutineDispatcher = Dispatchers.IO,
         private val beforeClose: () -> Unit = {},
@@ -1642,7 +1643,7 @@ class PrivilegeUiRuntimeActionsTest {
             store = store,
             coroutineScope = scope,
             shutdownServer = shutdownServer,
-            isAdbPermissionRestricted = isAdbPermissionRestricted,
+            isPermissionRestricted = isPermissionRestricted,
             acquireStartPermit = acquireStartPermit,
             operationDispatcher = operationDispatcher,
         )

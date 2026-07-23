@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import priv.kit.ui.component.PrivilegeUiServiceStatusAction
 import priv.kit.ui.component.privilegeUiAutoRecoveryWarningVisible
-import priv.kit.ui.component.privilegeUiAdbPermissionRestrictionWarningVisible
+import priv.kit.ui.component.privilegeUiPermissionRestrictionWarningVisible
 import priv.kit.ui.component.privilegeUiServiceStatusAction
 import priv.kit.ui.component.privilegeUiServiceStatusActionEnabled
 
@@ -51,29 +51,29 @@ class PrivilegeUiServiceStatusTest {
     }
 
     @Test
-    fun adbRestrictionWarningRequiresConnectedRestrictedServer() {
+    fun permissionRestrictionWarningRequiresConnectedRestrictedRuntime() {
         assertTrue(
-            privilegeUiAdbPermissionRestrictionWarningVisible(
+            privilegeUiPermissionRestrictionWarningVisible(
                 runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
-                restrictionStatus = PrivilegeUiAdbRestrictionStatus.RESTRICTED,
+                restrictionStatus = PrivilegeUiPermissionRestrictionStatus.RESTRICTED,
             ),
         )
         assertFalse(
-            privilegeUiAdbPermissionRestrictionWarningVisible(
+            privilegeUiPermissionRestrictionWarningVisible(
                 runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
-                restrictionStatus = PrivilegeUiAdbRestrictionStatus.RESTRICTED,
+                restrictionStatus = PrivilegeUiPermissionRestrictionStatus.RESTRICTED,
             ),
         )
         assertFalse(
-            privilegeUiAdbPermissionRestrictionWarningVisible(
+            privilegeUiPermissionRestrictionWarningVisible(
                 runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
-                restrictionStatus = PrivilegeUiAdbRestrictionStatus.NOT_RESTRICTED,
+                restrictionStatus = PrivilegeUiPermissionRestrictionStatus.NOT_RESTRICTED,
             ),
         )
         assertFalse(
-            privilegeUiAdbPermissionRestrictionWarningVisible(
+            privilegeUiPermissionRestrictionWarningVisible(
                 runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
-                restrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
+                restrictionStatus = PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
             ),
         )
     }

@@ -10,7 +10,7 @@ Common entry points:
 - `Privilege.startAdb()` for Wireless Debugging / TCP ADB startup, configured with `PrivilegeAdbStartOptions`.
 - `Privilege.createAdbStarter()` for Wireless ADB pairing, TCP mode, and identity diagnostics backed by `PrivilegeAdbStarter`.
 - Process-wide current Privileged Server Binder state, exposed through `Privilege` global methods.
-- `Privilege.isAdbPermissionRestricted()` for checking whether a connected non-root server lacks the runtime-permission grant capability commonly restricted for ADB shell processes. Root servers return `false` without a permission Binder call.
+- `Privilege.isPermissionRestricted()` for checking whether the connected privileged server is subject to permission restrictions. Root servers return `false` without a permission Binder call.
 - UserService entry points for app-defined Binder services: start, bind, and stop.
 
 Advanced entry points:

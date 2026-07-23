@@ -112,7 +112,7 @@ internal object PrivilegeServerHandshakeSender {
         val accepted: Boolean,
         val ownerBinder: IBinder?,
         val ownerConfig: PrivilegeServerConfig,
-        val replacementStarted: Boolean = false,
+        val replacementStarted: Boolean,
     )
 
     private fun callHandshakeProvider(

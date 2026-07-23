@@ -62,7 +62,7 @@ internal class PrivilegeUiEffectsCoordinator(
 
     fun refreshHostResumeState() {
         coroutineScope.launch(CoroutineName("priv-ui-host-resume")) {
-            runtimeActions.refreshAdbPermissionRestrictionStatus()
+            runtimeActions.refreshPermissionRestrictionStatus()
             when (store.state.value.selectedStartupMode) {
                 PrivilegeUiStartupMode.ADB -> {
                     if (isPrivilegeUiWirelessAdbSupported()) {

@@ -16,9 +16,8 @@ internal class PrivilegeUiAdbActions(
     private val store: PrivilegeUiViewModelStore,
     private val runtimeActions: PrivilegeUiRuntimeActions,
     private val coroutineScope: CoroutineScope,
-    private val acquireInteractivePermit: () -> AutoCloseable? =
-        PrivilegeUiStartGate.newInteractivePermitAcquirer(),
-    private val hasInteractionHost: () -> Boolean = { true },
+    private val acquireInteractivePermit: () -> AutoCloseable?,
+    private val hasInteractionHost: () -> Boolean,
 ) : AutoCloseable {
     private val staticTcpConfirmationController = PrivilegeUiStaticTcpConfirmationController()
     private val statusActions = PrivilegeUiAdbStatusActions(
@@ -52,7 +51,7 @@ internal class PrivilegeUiAdbActions(
     }
 
     suspend fun startNotificationPairing(
-        requestNotificationPermission: suspend () -> PrivilegeUiPermissionState? = { null },
+        requestNotificationPermission: suspend () -> PrivilegeUiPermissionState?,
     ) {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
         pairingActions.startNotificationPairing(requestNotificationPermission)
@@ -93,7 +92,7 @@ internal class PrivilegeUiAdbActions(
     }
 
     fun startWirelessAdb(
-        requestLocalNetworkPermission: suspend (String) -> PrivilegeUiPermissionState? = { null },
+        requestLocalNetworkPermission: suspend (String) -> PrivilegeUiPermissionState?,
     ) {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
         refreshAdbStartPrerequisites()
@@ -101,7 +100,7 @@ internal class PrivilegeUiAdbActions(
     }
 
     fun startAdb(
-        requestLocalNetworkPermission: suspend (String) -> PrivilegeUiPermissionState? = { null },
+        requestLocalNetworkPermission: suspend (String) -> PrivilegeUiPermissionState?,
     ) {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
         val tcpModePort = store.currentTcpModePort()
@@ -116,7 +115,7 @@ internal class PrivilegeUiAdbActions(
     }
 
     fun startStaticTcpAdb(
-        requestLocalNetworkPermission: suspend (String) -> PrivilegeUiPermissionState? = { null },
+        requestLocalNetworkPermission: suspend (String) -> PrivilegeUiPermissionState?,
     ) {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return

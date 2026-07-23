@@ -15,8 +15,8 @@
     <string name="priv_ui_auto_recovery_disconnected_message">自动恢复仍处于开启状态，下次启动应用时会再次尝试启动服务。</string>
     <string name="priv_ui_auto_recovery_disable_action">关闭自动恢复</string>
     <string name="priv_ui_auto_recovery_disable_failed">无法关闭自动恢复</string>
-    <string name="priv_ui_adb_restricted_title">ADB 权限受限</string>
-    <string name="priv_ui_adb_restricted_message">当前系统限制了 ADB 权限，修改应用权限、模拟点击等操作可能无法正常工作，请检查并修改开发者选项中的相关安全设置。</string>
+    <string name="priv_ui_permission_restricted_title">权限受限</string>
+    <string name="priv_ui_permission_restricted_message">当前特权服务受到系统权限限制，修改应用权限、模拟点击等操作可能无法正常工作。相关设置更改会立即生效，返回此页面时状态会自动刷新。</string>
     <string name="priv_ui_service_start_action_description">启动服务</string>
     <string name="priv_ui_service_stop_action_description">停止服务</string>
     <string name="priv_ui_start_failed">启动失败</string>

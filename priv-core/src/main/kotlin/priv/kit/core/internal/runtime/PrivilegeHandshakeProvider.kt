@@ -7,10 +7,10 @@ import android.net.Uri
 import android.os.Binder
 import android.os.Bundle
 import android.os.IBinder
+import android.os.Process
 import android.util.Log
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
-import priv.kit.core.internal.core.PrivilegeAndroidUsers
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.core.PrivilegeProtocol
 import priv.kit.core.internal.core.PrivilegeServerHandshakeRegistry
@@ -257,9 +257,9 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
 
     private fun isTrustedServerStarterCaller(callingUid: Int): Boolean {
         val ownerUid = PrivilegeContext.require().applicationInfo.uid
-        return callingUid == PrivilegeAndroidUsers.ROOT_UID ||
-            callingUid == PrivilegeAndroidUsers.SYSTEM_UID ||
-            callingUid == PrivilegeAndroidUsers.SHELL_UID ||
+        return callingUid == Process.ROOT_UID ||
+            callingUid == Process.SYSTEM_UID ||
+            callingUid == Process.SHELL_UID ||
             ownerUid == callingUid
     }
 

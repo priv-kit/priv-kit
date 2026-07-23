@@ -24,15 +24,15 @@ internal class PrivilegeUiRuntimeActions(
     private val store: PrivilegeUiViewModelStore,
     private val coroutineScope: CoroutineScope,
     private val shutdownServer: () -> Unit = { Privilege.shutdownServer() },
-    private val isAdbPermissionRestricted: () -> Boolean =
-        Privilege::isAdbPermissionRestricted,
+    private val isPermissionRestricted: () -> Boolean =
+        Privilege::isPermissionRestricted,
     private val acquireStartPermit: () -> AutoCloseable? = { AutoCloseable {} },
     private val operationDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : AutoCloseable {
     private val closed = AtomicBoolean(false)
     private var nextStopOperationId = 0L
     private val activeStopOperationIds = mutableSetOf<Long>()
-    private val adbRestrictionRefreshGeneration = AtomicLong(0L)
+    private val permissionRestrictionRefreshGeneration = AtomicLong(0L)
     private var runtimeWatcherJob: Job? = null
     private val runtimeStartCoordinator = PrivilegeUiRuntimeStartCoordinator(
         store = store,
@@ -146,7 +146,7 @@ internal class PrivilegeUiRuntimeActions(
         runtimeStartCoordinator.stopCurrentStart()
     }
 
-    suspend fun refreshRuntimeStatus(useCurrentState: Boolean = true) {
+    suspend fun refreshRuntimeStatus(useCurrentState: Boolean) {
         if (closed.get()) return
         if (useCurrentState) {
             Privilege.serverState.value?.let { serverInfo ->
@@ -178,7 +178,7 @@ internal class PrivilegeUiRuntimeActions(
         }
     }
 
-    fun refreshAdbPermissionRestrictionStatus() {
+    fun refreshPermissionRestrictionStatus() {
         synchronized(store) {
             val current = store.state.value
             if (
@@ -188,7 +188,7 @@ internal class PrivilegeUiRuntimeActions(
             ) {
                 return
             }
-            scheduleAdbPermissionRestrictionRefresh(current.connectionSerial)
+            schedulePermissionRestrictionRefresh(current.connectionSerial)
         }
     }
 
@@ -285,7 +285,7 @@ internal class PrivilegeUiRuntimeActions(
 
     override fun close() {
         if (!synchronized(store) { closed.compareAndSet(false, true) }) return
-        adbRestrictionRefreshGeneration.incrementAndGet()
+        permissionRestrictionRefreshGeneration.incrementAndGet()
         runtimeStartCoordinator.close()
         runtimeWatcherJob?.cancel()
         runtimeWatcherJob = null
@@ -307,7 +307,8 @@ internal class PrivilegeUiRuntimeActions(
                     it.copy(
                         runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
                         serverInfo = null,
-                        adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
+                        permissionRestrictionStatus =
+                            PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
                     )
                 }
             }
@@ -339,32 +340,32 @@ internal class PrivilegeUiRuntimeActions(
                 connectionSerial = connectionSerial,
             )
         }
-        scheduleAdbPermissionRestrictionRefresh(connectionSerial)
+        schedulePermissionRestrictionRefresh(connectionSerial)
     }
 
-    private fun scheduleAdbPermissionRestrictionRefresh(expectedConnectionSerial: Long) {
-        val generation = adbRestrictionRefreshGeneration.incrementAndGet()
+    private fun schedulePermissionRestrictionRefresh(expectedConnectionSerial: Long) {
+        val generation = permissionRestrictionRefreshGeneration.incrementAndGet()
         coroutineScope.launch(
-            Dispatchers.IO + CoroutineName("priv-ui-refresh-adb-restriction"),
+            Dispatchers.IO + CoroutineName("priv-ui-refresh-permission-restriction"),
         ) {
             val restrictionStatus = runCatching {
-                if (isAdbPermissionRestricted()) {
-                    PrivilegeUiAdbRestrictionStatus.RESTRICTED
+                if (isPermissionRestricted()) {
+                    PrivilegeUiPermissionRestrictionStatus.RESTRICTED
                 } else {
-                    PrivilegeUiAdbRestrictionStatus.NOT_RESTRICTED
+                    PrivilegeUiPermissionRestrictionStatus.NOT_RESTRICTED
                 }
             }.getOrNull() ?: return@launch
             store.updateState { current ->
                 if (
                     closed.get() ||
-                    adbRestrictionRefreshGeneration.get() != generation ||
+                    permissionRestrictionRefreshGeneration.get() != generation ||
                     current.connectionSerial != expectedConnectionSerial ||
                     current.runtimeStatus != PrivilegeUiRuntimeStatus.CONNECTED ||
                     current.serverInfo == null
                 ) {
                     current
                 } else {
-                    current.copy(adbRestrictionStatus = restrictionStatus)
+                    current.copy(permissionRestrictionStatus = restrictionStatus)
                 }
             }
         }

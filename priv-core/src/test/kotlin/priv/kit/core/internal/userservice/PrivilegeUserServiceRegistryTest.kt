@@ -204,10 +204,8 @@ class PrivilegeUserServiceRegistryTest {
         assertEquals(
             "LoadedApk.mPackageName is unavailable",
             PrivilegeUserServiceLoader.makeApplicationPreflightFailure(
-                FakeLoadedApk(
-                    mPackageName = null,
-                    mApplicationInfo = Any(),
-                ),
+                packageName = null,
+                hasApplicationInfo = true,
             ),
         )
     }
@@ -216,10 +214,19 @@ class PrivilegeUserServiceRegistryTest {
     fun makeApplicationPreflightAllowsAvailableLoadedApkState() {
         assertNull(
             PrivilegeUserServiceLoader.makeApplicationPreflightFailure(
-                FakeLoadedApk(
-                    mPackageName = "priv.kit.sample.debug",
-                    mApplicationInfo = Any(),
-                ),
+                packageName = "priv.kit.sample.debug",
+                hasApplicationInfo = true,
+            ),
+        )
+    }
+
+    @Test
+    fun makeApplicationPreflightDetectsUnavailableApplicationInfo() {
+        assertEquals(
+            "LoadedApk.mApplicationInfo is unavailable",
+            PrivilegeUserServiceLoader.makeApplicationPreflightFailure(
+                packageName = "priv.kit.sample.debug",
+                hasApplicationInfo = false,
             ),
         )
     }
@@ -269,12 +276,5 @@ class PrivilegeUserServiceRegistryTest {
 
         constructor(context: Context) : this(context.packageName)
     }
-
-    private class FakeLoadedApk(
-        @Suppress("MemberVisibilityCanBePrivate")
-        val mPackageName: String?,
-        @Suppress("MemberVisibilityCanBePrivate")
-        val mApplicationInfo: Any?,
-    )
 
 }

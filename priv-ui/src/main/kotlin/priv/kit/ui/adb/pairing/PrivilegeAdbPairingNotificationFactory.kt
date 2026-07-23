@@ -36,7 +36,7 @@ internal class PrivilegeAdbPairingNotificationFactory(
     }
 
     fun statusNotification(
-        text: String = text(R.string.priv_ui_pairing_search_text),
+        text: String,
     ): Notification =
         baseNotification(
             title = text(R.string.priv_ui_pairing_working_title),

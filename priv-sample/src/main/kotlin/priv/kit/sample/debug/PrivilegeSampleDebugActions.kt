@@ -201,7 +201,7 @@ internal fun PrivilegeSampleDebugHost.checkWirelessAdbPairing(showBusy: Boolean)
 private fun PrivilegeSampleDebugHost.currentAdbDeviceNameOverride(): String? =
     screenState.adbDeviceNameText.trim().ifBlank { null }
 
-private fun PrivilegeSampleDebugHost.createAdbStarter(adbDeviceName: String? = currentAdbDeviceNameOverride()): PrivilegeAdbStarter =
+private fun PrivilegeSampleDebugHost.createAdbStarter(adbDeviceName: String?): PrivilegeAdbStarter =
     Privilege.createAdbStarter(adbDeviceName = adbDeviceName)
 
 private fun PrivilegeSampleDebugHost.loadAdbDeviceNameOverride(): String =
@@ -245,7 +245,7 @@ internal fun PrivilegeSampleDebugHost.startRootRuntime() {
     }
 }
 
-internal fun PrivilegeSampleDebugHost.refreshShizukuStatus(append: Boolean = true) {
+internal fun PrivilegeSampleDebugHost.refreshShizukuStatus(append: Boolean) {
     val readiness = checkShizukuReadiness(requestPermission = false)
     applyShizukuReadiness(readiness)
     if (append) {
@@ -924,7 +924,7 @@ private fun List<PrivilegeSampleUserInfo>.toBinderMessage(): String =
 
 private fun PrivilegeSampleDebugHost.runServerStart(
     message: String,
-    startupSource: String? = null,
+    startupSource: String?,
     start: suspend () -> PrivilegeServerInfo,
 ) {
     if (!beginServerStart(message, startupSource)) return
@@ -942,7 +942,7 @@ private fun PrivilegeSampleDebugHost.runServerStart(
 private fun PrivilegeSampleDebugHost.runServerStartRequest(
     message: String,
     startedMessage: String,
-    startupSource: String? = null,
+    startupSource: String?,
     start: suspend () -> String,
 ) {
     if (!beginServerStart(message, startupSource)) return

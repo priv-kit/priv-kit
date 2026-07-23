@@ -43,8 +43,8 @@ internal fun privilegeUiWirelessAdbStartOptions(
 
 internal fun privilegeUiStaticTcpSwitchOptions(
     tcpPort: Int,
-    managedWirelessAdbEnabled: Boolean = true,
-    managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
+    managedWirelessAdbEnabled: Boolean,
+    managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus,
 ): PrivilegeAdbStartOptions =
     PrivilegeAdbStartOptions(
         tcpPort = tcpPort,

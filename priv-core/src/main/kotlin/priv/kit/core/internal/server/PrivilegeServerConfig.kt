@@ -7,7 +7,7 @@ internal data class PrivilegeServerConfig(
     val initialLaunchId: String? = null,
     val packageName: String,
     val userId: Int = 0,
-    val classpath: String = System.getenv("CLASSPATH").orEmpty(),
+    val classpath: String,
     val protocolVersion: Int = PrivilegeProtocol.VERSION,
     val followDeathDelayMillis: Long = PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
     val activeReconnectOnOwnerDeath: Boolean = PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,

@@ -43,7 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import priv.kit.ui.component.AdbPanel
-import priv.kit.ui.component.AdbPermissionRestrictionWarning
+import priv.kit.ui.component.PermissionRestrictionWarning
 import priv.kit.ui.component.AuthorizationModeTabs
 import priv.kit.ui.component.AutoRecoveryWarning
 import priv.kit.ui.component.ExternalStartPanel
@@ -262,7 +262,7 @@ public fun PrivilegeScaffold(
                     }
                     screenScope.ServiceStatusPanel()
                 }
-                screenScope.AdbPermissionRestrictionWarning()
+                screenScope.PermissionRestrictionWarning()
             } else {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }

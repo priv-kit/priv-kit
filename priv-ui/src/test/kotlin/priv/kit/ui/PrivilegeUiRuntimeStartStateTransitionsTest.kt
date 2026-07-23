@@ -38,7 +38,7 @@ class PrivilegeUiRuntimeStartStateTransitionsTest {
                 runtimeStartSource = null,
                 runtimeStartProviderId = null,
                 serverInfo = null,
-                adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
+                permissionRestrictionStatus = PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
                 runtimeProgressText = null,
             ),
             active.toDisconnectedRuntimeIdle(),
@@ -57,7 +57,7 @@ class PrivilegeUiRuntimeStartStateTransitionsTest {
                 runtimeStartSource = null,
                 runtimeStartProviderId = null,
                 serverInfo = serverInfo,
-                adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
+                permissionRestrictionStatus = PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
                 runtimeProgressText = null,
                 connectionSerial = 8L,
             ),
@@ -74,7 +74,7 @@ class PrivilegeUiRuntimeStartStateTransitionsTest {
             connectionSerial = 7L,
             runtimeStartPhase = PrivilegeUiRuntimeStartPhase.RUNNING,
             runtimeStartProviderId = "provider",
-            adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.RESTRICTED,
+            permissionRestrictionStatus = PrivilegeUiPermissionRestrictionStatus.RESTRICTED,
             runtimeProgressText = PrivilegeUiText.Literal("starting"),
         )
 }

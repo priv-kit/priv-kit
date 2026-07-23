@@ -1,7 +1,7 @@
 package priv.kit.ui.runtime
 
 import priv.kit.core.PrivilegeServerInfo
-import priv.kit.ui.PrivilegeUiAdbRestrictionStatus
+import priv.kit.ui.PrivilegeUiPermissionRestrictionStatus
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
 import priv.kit.ui.PrivilegeUiRuntimeStatus
 import priv.kit.ui.PrivilegeUiState
@@ -26,7 +26,7 @@ internal fun PrivilegeUiState.startingAttempt(
             runtimeStartSource = attempt.runtimeStartSource,
             runtimeStartProviderId = attempt.runtimeStartProviderId,
             serverInfo = null,
-            adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
+            permissionRestrictionStatus = PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
             runtimeProgressText = attempt.progressText,
         )
     }
@@ -44,14 +44,14 @@ internal fun PrivilegeUiState.toDisconnectedRuntimeIdle(): PrivilegeUiState =
     finishRuntimeStartPreservingStatus().copy(
         runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
         serverInfo = null,
-        adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
+        permissionRestrictionStatus = PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
     )
 
 internal fun PrivilegeUiState.toFailedRuntimeIdle(): PrivilegeUiState =
     finishRuntimeStartPreservingStatus().copy(
         runtimeStatus = PrivilegeUiRuntimeStatus.FAILED,
         serverInfo = null,
-        adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
+        permissionRestrictionStatus = PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
     )
 
 internal fun PrivilegeUiState.toConnectedRuntimeIdle(
@@ -61,7 +61,7 @@ internal fun PrivilegeUiState.toConnectedRuntimeIdle(
     finishRuntimeStartPreservingStatus().copy(
         runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
         serverInfo = serverInfo,
-        adbRestrictionStatus = PrivilegeUiAdbRestrictionStatus.UNKNOWN,
+        permissionRestrictionStatus = PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
         connectionSerial = connectionSerial,
     )
 

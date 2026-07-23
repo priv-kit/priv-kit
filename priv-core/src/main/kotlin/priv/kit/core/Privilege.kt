@@ -42,7 +42,6 @@ import kotlinx.coroutines.runInterruptible
 
 public object Privilege {
     private const val GRANT_RUNTIME_PERMISSIONS = "android.permission.GRANT_RUNTIME_PERMISSIONS"
-    private const val ROOT_UID = 0
     private const val TAG = "PrivKit"
 
     private val serverLock = Any()
@@ -232,14 +231,13 @@ public object Privilege {
         requireServerConnection().serverInfo
 
     /**
-     * Returns whether the connected non-root server is missing the Android permission commonly
-     * restricted by device manufacturers for ADB shell processes.
+     * Returns whether the connected privileged server is subject to permission restrictions.
      *
      * Root servers are always treated as unrestricted without making a permission Binder call.
      */
-    public fun isAdbPermissionRestricted(): Boolean {
+    public fun isPermissionRestricted(): Boolean {
         val connection = requireServerConnection()
-        if (connection.serverInfo.uid == ROOT_UID) return false
+        if (connection.serverInfo.uid == Process.ROOT_UID) return false
         return serverControlCall {
             !connection.server.canGrantRuntimePermissions()
         }
@@ -432,7 +430,7 @@ public object Privilege {
         permissionName: String,
         userId: Int,
     ): Boolean {
-        if (serverInfo.uid != ROOT_UID && !server.canGrantRuntimePermissions()) {
+        if (serverInfo.uid != Process.ROOT_UID && !server.canGrantRuntimePermissions()) {
             return false
         }
         server.grantRuntimePermission(

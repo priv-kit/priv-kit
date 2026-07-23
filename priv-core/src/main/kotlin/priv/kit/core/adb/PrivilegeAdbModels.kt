@@ -87,7 +87,7 @@ internal data class PrivilegeAdbStartResult(
     val endpoint: PrivilegeAdbEndpoint,
     val outputText: String,
     val identity: PrivilegeAdbIdentity,
-    val publicKeyFingerprint: String = "",
+    val publicKeyFingerprint: String,
 ) {
     val port: Int
         get() = endpoint.port

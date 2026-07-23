@@ -119,7 +119,7 @@ class PrivilegeTest {
     }
 
     @Test
-    fun rootServerIsNeverAdbPermissionRestrictedWithoutPermissionCheck() {
+    fun rootServerIsNeverPermissionRestrictedWithoutPermissionCheck() {
         val server = FakePrivilegeServer(
             permissionResult = PackageManager.PERMISSION_DENIED,
         )
@@ -134,19 +134,19 @@ class PrivilegeTest {
             ),
         )
 
-        assertFalse(Privilege.isAdbPermissionRestricted())
+        assertFalse(Privilege.isPermissionRestricted())
         assertTrue(server.serverPermissionChecks.isEmpty())
     }
 
     @Test
-    fun nonRootServerAdbPermissionRestrictionUsesGrantPermission() {
+    fun nonRootPermissionRestrictionUsesGrantPermissionRegardlessOfUid() {
         val grantedServer = FakePrivilegeServer(
             permissionResult = PackageManager.PERMISSION_GRANTED,
         )
         Privilege.connectHandshake(
             PrivilegeServerHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
-                    uid = 2000,
+                    uid = 1000,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
                 ),
@@ -154,7 +154,7 @@ class PrivilegeTest {
             ),
         )
 
-        assertFalse(Privilege.isAdbPermissionRestricted())
+        assertFalse(Privilege.isPermissionRestricted())
         assertEquals(
             listOf("android.permission.GRANT_RUNTIME_PERMISSIONS"),
             grantedServer.serverPermissionChecks,
@@ -175,7 +175,7 @@ class PrivilegeTest {
             ),
         )
 
-        assertTrue(Privilege.isAdbPermissionRestricted())
+        assertTrue(Privilege.isPermissionRestricted())
         assertEquals(
             listOf("android.permission.GRANT_RUNTIME_PERMISSIONS"),
             deniedServer.serverPermissionChecks,
@@ -183,9 +183,9 @@ class PrivilegeTest {
     }
 
     @Test
-    fun adbPermissionRestrictionWithoutServerThrowsDisconnectedException() {
+    fun permissionRestrictionWithoutConnectionThrowsDisconnectedException() {
         assertThrows(PrivilegeServerUnavailableException::class.java) {
-            Privilege.isAdbPermissionRestricted()
+            Privilege.isPermissionRestricted()
         }
     }
 

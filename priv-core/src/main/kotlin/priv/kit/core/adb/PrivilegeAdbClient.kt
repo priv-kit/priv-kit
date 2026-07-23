@@ -114,7 +114,7 @@ internal class PrivilegeAdbClient private constructor(
         )
     }
 
-    private fun connectSocket(output: PrivilegeAdbOutput? = null) {
+    private fun connectSocket(output: PrivilegeAdbOutput?) {
         closeTransport()
         output.diagnostic("Connecting to $endpoint")
         val newSocket = Socket()

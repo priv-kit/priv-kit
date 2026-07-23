@@ -2,17 +2,15 @@ package priv.kit.core.internal.userservice
 
 import android.app.ActivityThread
 import android.app.Application
-import android.app.Instrumentation
 import android.content.Context
+import android.content.res.CompatibilityInfo
 import android.os.Looper
 import android.os.UserHandleHidden
 import android.util.Log
 import priv.kit.core.internal.hidden.castedHidden
 import priv.kit.core.userservice.PrivilegeUserServiceException
 import java.lang.reflect.Constructor
-import java.lang.reflect.Field
 import java.lang.reflect.InvocationTargetException
-import java.lang.reflect.Method
 
 internal object PrivilegeUserServiceLoader {
     fun prepareContextRuntime() {
@@ -185,9 +183,7 @@ internal object PrivilegeUserServiceLoader {
         packageName: String,
         userId: Int,
     ): Context {
-        val systemContext = findMethod(activityThread.javaClass, "getSystemContext")
-            ?.invoke(activityThread) as? Context
-            ?: throw IllegalStateException("ActivityThread system Context is unavailable")
+        val systemContext = activityThread.systemContext
         val userHandle = UserHandleHidden.of(userId)
         return systemContext.castedHidden.createPackageContextAsUser(
             packageName,
@@ -200,35 +196,28 @@ internal object PrivilegeUserServiceLoader {
         activityThread: ActivityThread,
         packageContext: Context,
     ): Application {
-        val loadedApk = findField(packageContext.javaClass, "mPackageInfo")
-            ?.get(packageContext)
-            ?: throw NoSuchFieldException("ContextImpl.mPackageInfo")
-        makeApplicationPreflightFailure(loadedApk)?.let { reason ->
+        val loadedApk = activityThread.getPackageInfoNoCheck(
+            packageContext.applicationInfo,
+            CompatibilityInfo.DEFAULT_COMPATIBILITY_INFO,
+        )
+        makeApplicationPreflightFailure(
+            packageName = loadedApk.packageName,
+            hasApplicationInfo = loadedApk.applicationInfo != null,
+        )?.let { reason ->
             throw IllegalStateException(reason)
         }
-        val makeApplication = findMethod(
-            loadedApk.javaClass,
-            "makeApplication",
-            Boolean::class.javaPrimitiveType!!,
-            Instrumentation::class.java,
-        ) ?: throw NoSuchMethodException("LoadedApk.makeApplication")
-        val application = makeApplication.invoke(loadedApk, true, null) as Application
-        findField(activityThread.javaClass, "mInitialApplication")
-            ?.set(activityThread, application)
-        return application
+        return loadedApk.makeApplication(true, null)
     }
 
-    internal fun makeApplicationPreflightFailure(loadedApk: Any): String? {
-        val packageNameField = findField(loadedApk.javaClass, "mPackageName")
-        if (packageNameField != null) {
-            val packageName = packageNameField.get(loadedApk) as? String
-            if (packageName.isNullOrBlank()) {
-                return "LoadedApk.mPackageName is unavailable"
-            }
+    internal fun makeApplicationPreflightFailure(
+        packageName: String?,
+        hasApplicationInfo: Boolean,
+    ): String? {
+        if (packageName.isNullOrBlank()) {
+            return "LoadedApk.mPackageName is unavailable"
         }
 
-        val applicationInfoField = findField(loadedApk.javaClass, "mApplicationInfo")
-        if (applicationInfoField != null && applicationInfoField.get(loadedApk) == null) {
+        if (!hasApplicationInfo) {
             return "LoadedApk.mApplicationInfo is unavailable"
         }
 
@@ -279,43 +268,6 @@ internal object PrivilegeUserServiceLoader {
             "UserService class was not found: $serviceClassName",
             failure,
         )
-    }
-
-    private fun findMethod(
-        type: Class<*>,
-        name: String,
-        vararg parameterTypes: Class<*>,
-    ): Method? {
-        var current: Class<*>? = type
-        while (current != null) {
-            val method = runCatching {
-                current.getDeclaredMethod(name, *parameterTypes)
-            }.getOrNull()
-            if (method != null) {
-                method.isAccessible = true
-                return method
-            }
-            current = current.superclass
-        }
-        return null
-    }
-
-    private fun findField(
-        type: Class<*>,
-        name: String,
-    ): Field? {
-        var current: Class<*>? = type
-        while (current != null) {
-            val field = runCatching {
-                current.getDeclaredField(name)
-            }.getOrNull()
-            if (field != null) {
-                field.isAccessible = true
-                return field
-            }
-            current = current.superclass
-        }
-        return null
     }
 
     private inline fun <T> withContextClassLoader(
