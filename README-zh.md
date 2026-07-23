@@ -69,6 +69,14 @@ val commandLine = Privilege.createShellStartCommand()
 YourApp.showCommandToUser(commandLine)
 ```
 
+内置 `priv-ui` 的手动面板不会改变这个 core API；在 Android 11 及以上且应用专属外部文件目录可用时，它会原子写入
+`getExternalFilesDir(null)/priv-kit.sh`，并展示较短的宿主命令
+`adb shell sh /sdcard/Android/data/<applicationId>/files/priv-kit.sh`。该脚本直接执行当前
+native starter 命令，并在手动面板准备命令时刷新，避免在 native starter 运行前先拉起应用进程。
+应用更新后，应重新打开手动面板再复用此前复制的命令。如果外部文件目录不可用或脚本写入失败，UI 会回退到直接执行
+`adb shell <native-starter-path>`。Android 10 及以下始终使用直接命令，避免其他拥有存储权限的
+应用篡改应用专属外部文件后借手动启动获得 shell UID。
+
 把启动命令交给 Shizuku UserService 或其他能够在兼容特权身份中执行代码的外部启动入口。
 
 runtime 负责通用桥接机制：主进程调用 `PrivilegeExternalStartup.runThroughBridge(...)`，特权端只需把唯一启动方法委托给 `PrivilegeExternalStartupHost`；`ParcelFileDescriptor` 管道、实时日志、完成通知、超时和并发拒绝均由 runtime 处理。`runInCurrentProcess(...)` 与 `createReceiver(...)` 继续作为底层 helper。接入应用只保留 Shizuku UserService 绑定和应用自有 AIDL，并负责限制该 Binder 入口的访问范围。

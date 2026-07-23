@@ -46,6 +46,23 @@ public class PrivilegeBinaryFileStoreTest {
         }
     }
 
+    @Test
+    public fun doesNotConsumeAnotherWritersFixedTemporaryFile() {
+        withTemporaryDirectory { directory ->
+            val file = File(directory, ".priv-kit/adbkey")
+            val fixedTemporaryFile = File(file.parentFile, "${file.name}.tmp")
+            val unrelatedBytes = byteArrayOf(0x01, 0x02)
+            val targetBytes = byteArrayOf(0x03, 0x04)
+            assertTrue(requireNotNull(fixedTemporaryFile.parentFile).mkdirs())
+            fixedTemporaryFile.writeBytes(unrelatedBytes)
+
+            PrivilegeBinaryFileStore.writeAtomically(file, targetBytes)
+
+            assertArrayEquals(targetBytes, file.readBytes())
+            assertArrayEquals(unrelatedBytes, fixedTemporaryFile.readBytes())
+        }
+    }
+
     private fun withTemporaryDirectory(block: (File) -> Unit) {
         val directory = Files.createTempDirectory("priv-shared-binary-file-store").toFile()
         try {

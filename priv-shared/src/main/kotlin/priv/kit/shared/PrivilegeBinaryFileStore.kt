@@ -8,9 +8,10 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
 /**
- * Binary file operations shared by Priv Kit's private stores.
+ * Binary file operations shared by Priv Kit's file stores.
  *
- * Callers must coordinate writes to the same target across processes.
+ * Concurrent replacements use independent temporary files; if they target the same file,
+ * the last completed replacement wins.
  */
 public object PrivilegeBinaryFileStore {
     public fun readIfExists(file: File): ByteArray? =
@@ -19,11 +20,11 @@ public object PrivilegeBinaryFileStore {
     public fun writeAtomically(file: File, bytes: ByteArray) {
         val directory = file.parentFile
             ?: throw IOException("File has no parent directory: ${file.absolutePath}")
-        if (!directory.exists() && !directory.mkdirs()) {
+        if (!directory.isDirectory && !directory.mkdirs() && !directory.isDirectory) {
             throw IOException("Failed to create directory: ${directory.absolutePath}")
         }
 
-        val temporaryFile = File(directory, "${file.name}.tmp")
+        val temporaryFile = File.createTempFile(".${file.name}.", ".tmp", directory)
         try {
             FileOutputStream(temporaryFile).use { output ->
                 output.write(bytes)

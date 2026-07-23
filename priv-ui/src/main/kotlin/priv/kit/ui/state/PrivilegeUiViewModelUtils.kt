@@ -25,6 +25,16 @@ internal fun String.toPrivilegeUiHostAdbShellCommand(): String {
     }
 }
 
+internal fun String.toPrivilegeUiHostAdbShellScriptCommand(): String =
+    ADB_SHELL_PREFIX + "sh " + toPrivilegeUiShellArg()
+
+internal fun String.toPrivilegeUiAdbVisibleExternalPath(): String =
+    if (startsWith(PRIMARY_EXTERNAL_STORAGE_PREFIX)) {
+        SDCARD_PREFIX + removePrefix(PRIMARY_EXTERNAL_STORAGE_PREFIX)
+    } else {
+        this
+    }
+
 internal fun privilegeUiStaticTcpOpenCommand(tcpPort: Int): String =
     "adb tcpip $tcpPort"
 
@@ -38,4 +48,29 @@ internal fun Throwable.failureMessage(): String =
 internal fun Throwable.toPrivilegeUiDiagnosticString(): String =
     toPrivilegeDiagnosticString()
 
+private fun String.toPrivilegeUiShellArg(): String =
+    if (isNotEmpty() && all(::isPrivilegeUiShellBareChar)) {
+        this
+    } else {
+        "'" + replace("'", "'\"'\"'") + "'"
+    }
+
+private fun isPrivilegeUiShellBareChar(char: Char): Boolean =
+    char in 'A'..'Z' ||
+        char in 'a'..'z' ||
+        char in '0'..'9' ||
+        char == '/' ||
+        char == '.' ||
+        char == '_' ||
+        char == '-' ||
+        char == ':' ||
+        char == '=' ||
+        char == '@' ||
+        char == '%' ||
+        char == '+' ||
+        char == ',' ||
+        char == '~'
+
 private const val ADB_SHELL_PREFIX = "adb shell "
+private const val PRIMARY_EXTERNAL_STORAGE_PREFIX = "/storage/emulated/0/"
+private const val SDCARD_PREFIX = "/sdcard/"

@@ -145,6 +145,15 @@ ADB 策略可以在内部托管 ADB 状态恢复：当最终 merged manifest 仍
 
 共享的 `app_process` 服务端启动命令由运行时根据内部启动值模型构造。供 shell/ADB 通道复用的 native starter 可执行文件也由 `:priv-core` 打包。Root 执行器只负责 `su` 执行通道和失败诊断；ADB 实现只负责 pairing/connect、ADB 命令执行通道和失败诊断。运行时负责 token、Root/ADB pending handshake、ready-server handoff、全局 server-binder 安装、Shell Start Command 和 death handling。
 
+Android 11 及以上的 `priv-ui` 手动面板可以在 `getExternalFilesDir(null)` 下原子写入一个固定名称的
+`priv-kit.sh` 引导脚本，并向用户展示 `adb shell sh <script-path>`。引导脚本直接 `exec`
+手动面板本次取得的 native starter 命令，不得在 native starter 之前通过 provider 拉起 owner
+应用进程；手动面板每次准备命令时都刷新脚本。应用更新后需要重新打开手动面板，使脚本中的安装
+路径同步到当前版本。外部目录为空或写入失败时，UI 必须回退到直接执行当前 native starter 的
+宿主命令。Android 10 及以下也必须使用直接命令，避免其他拥有外部存储权限的应用篡改引导脚本后
+借手动启动获得 shell UID。这个 UI 包装不得改变 Root、ADB、外部启动入口或公开
+`Privilege.createShellStartCommand()` 使用的共享 Shell Start Command。
+
 app 侧 handshake provider 必须保持 exported，以便 shell、root 或外部启动入口启动的 server 回传 Binder；同时 provider 使用 `android.permission.INTERACT_ACROSS_USERS_FULL` 阻止普通应用直接调用，并继续用 owner token 校验真正的 server handoff。
 
 启动入口、命令执行者和服务端实际运行身份是三个概念：Root、ADB、手动 shell 或外部启动入口描述命令从哪里触发；服务端最终运行身份以 `PrivilegeServerInfo.uid` 和 `pid` 为准。运行时不再提供额外的 root/shell 分类，避免把设备上的实际 UID 强行归类为权限等级。

@@ -69,6 +69,17 @@ val commandLine = Privilege.createShellStartCommand()
 YourApp.showCommandToUser(commandLine)
 ```
 
+The built-in `priv-ui` manual panel keeps this core API unchanged, but on Android 11 and
+newer presents a shorter host-side command when app-specific external files are available. It atomically writes
+`priv-kit.sh` under `getExternalFilesDir(null)` and displays
+`adb shell sh /sdcard/Android/data/<applicationId>/files/priv-kit.sh`. The script directly
+executes the current native starter command and is refreshed whenever the manual panel prepares
+the command, avoiding an app-process startup before the native starter runs. Reopen the manual
+panel after updating the app before reusing a previously copied command. If the external files
+directory is unavailable or the script cannot be written, the UI falls back to the direct
+`adb shell <native-starter-path>` command. Android 10 and older always use the direct command
+because another storage-authorized app could modify app-specific external files there.
+
 Pass the startup command to Shizuku UserService or another external startup entry point that can execute code under a compatible privileged identity.
 
 The runtime owns the reusable bridge mechanics. The main process calls `PrivilegeExternalStartup.runThroughBridge(...)`, while the privileged endpoint delegates its single start method to `PrivilegeExternalStartupHost`; the runtime manages `ParcelFileDescriptor` pipes, live logs, completion, timeouts, and concurrent-call rejection. `runInCurrentProcess(...)` and `createReceiver(...)` remain available as lower-level helpers. The integrating app keeps only its Shizuku UserService binding and app-owned AIDL contract, and must restrict access to that Binder endpoint.
