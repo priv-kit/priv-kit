@@ -53,12 +53,11 @@ class PrivilegeHandshakeProviderTest {
     }
 
     @Test
-    fun tokenlessHandshakeIsDeliveredAsInitialLaunch() {
-        val application = prepareRuntimeApplication()
-        val token = PrivilegeOwnerTokenStore.readOrCreate()
+    fun handshakeIsDeliveredAsInitialLaunch() {
+        prepareRuntimeApplication()
         val serverBinder = Binder()
         val received = AtomicReference<PrivilegeServerHandshakeResult?>()
-        val listener = PrivilegeServerHandshakeRegistry.addReadyListener(token) { result ->
+        val listener = PrivilegeServerHandshakeRegistry.addReadyListener { result ->
             received.set(result)
             true
         }
@@ -72,7 +71,6 @@ class PrivilegeHandshakeProviderTest {
 
             assertNotNull(response)
             assertTrue(response!!.getBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, false))
-            assertEquals(token, response.getString(PrivilegeHandshakeContract.RESULT_TOKEN))
             assertSame(serverBinder, received.get()?.serverBinder)
             assertEquals(
                 PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
@@ -84,12 +82,11 @@ class PrivilegeHandshakeProviderTest {
     }
 
     @Test
-    fun persistedTokenHandshakeIsDeliveredAsOwnerReconnect() {
+    fun explicitReconnectHandshakeIsDeliveredAsOwnerReconnect() {
         prepareRuntimeApplication()
-        val token = PrivilegeOwnerTokenStore.readOrCreate()
         val serverBinder = Binder()
         val received = AtomicReference<PrivilegeServerHandshakeResult?>()
-        val listener = PrivilegeServerHandshakeRegistry.addReadyListener(token) { result ->
+        val listener = PrivilegeServerHandshakeRegistry.addReadyListener { result ->
             received.set(result)
             true
         }
@@ -97,9 +94,9 @@ class PrivilegeHandshakeProviderTest {
         try {
             val response = PrivilegeHandshakeProvider().call(
                 PrivilegeHandshakeContract.METHOD_SERVER_READY,
-                token,
+                null,
                 currentHandshakeExtras(serverBinder).apply {
-                    putString(PrivilegeHandshakeContract.EXTRA_TOKEN, token)
+                    putBoolean(PrivilegeHandshakeContract.EXTRA_OWNER_RECONNECT, true)
                 },
             )
 
@@ -116,15 +113,14 @@ class PrivilegeHandshakeProviderTest {
     }
 
     @Test
-    fun staleServerWithValidTokenReceivesReplacementCommand() {
+    fun staleTrustedServerReceivesReplacementCommand() {
         prepareRuntimeApplication()
-        val token = PrivilegeOwnerTokenStore.readOrCreate()
 
         val response = PrivilegeHandshakeProvider().call(
             PrivilegeHandshakeContract.METHOD_SERVER_READY,
-            token,
+            null,
             Bundle().apply {
-                putString(PrivilegeHandshakeContract.EXTRA_TOKEN, token)
+                putBoolean(PrivilegeHandshakeContract.EXTRA_OWNER_RECONNECT, true)
                 putBinder(PrivilegeHandshakeContract.EXTRA_SERVER_BINDER, Binder())
                 putInt(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION, PrivilegeProtocol.VERSION)
                 putString(
@@ -137,7 +133,7 @@ class PrivilegeHandshakeProviderTest {
         assertNotNull(response)
         assertFalse(response!!.getBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, true))
         assertEquals(
-            "${PrivilegeHandshakeContract.ENV_INITIAL_LAUNCH_ID}='' " +
+            "${PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID}='' " +
                 "/data/app/priv.kit.sample-current/lib/arm64/libprivkitstarter.so",
             response.getString(PrivilegeHandshakeContract.RESULT_REPLACEMENT_COMMAND),
         )

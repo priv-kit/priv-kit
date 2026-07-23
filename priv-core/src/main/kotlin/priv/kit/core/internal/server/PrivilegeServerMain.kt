@@ -8,6 +8,7 @@ import android.os.RemoteException
 import android.os.SystemClock
 import android.util.Log
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
+import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
 import java.io.File
 import kotlin.system.exitProcess
 
@@ -356,7 +357,11 @@ public object PrivilegeServerMain {
     ): Boolean {
         val result = runCatching {
             Log.i(TAG, "Owner reconnect attempt $attempt")
-            PrivilegeServerHandshakeSender.send(config, serverBinder)
+            PrivilegeServerHandshakeSender.send(
+                config = config,
+                serverBinder = serverBinder,
+                origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
+            )
         }.getOrElse { throwable ->
             Log.w(TAG, "Owner reconnect attempt $attempt failed", throwable)
             null

@@ -91,10 +91,10 @@ internal class PrivilegeUiRuntimeStartSession(
     fun ownsRuntimeConnection(
         origin: PrivilegeRuntimeConnectionOrigin,
         clientStartOperationId: Long?,
-        initialLaunchId: String?,
+        launchCorrelationId: String?,
     ): Boolean = origin == PrivilegeRuntimeConnectionOrigin.INITIAL_LAUNCH &&
         clientStartOperationId == runtimeStartOperationId &&
-        initialLaunchId == committedStart?.launch?.initialLaunchId
+        launchCorrelationId == committedStart?.launch?.launchCorrelationId
 
     fun appendStartupLog(line: String) = startupLogSink(line)
 

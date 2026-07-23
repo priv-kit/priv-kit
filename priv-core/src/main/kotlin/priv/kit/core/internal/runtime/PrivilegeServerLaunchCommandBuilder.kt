@@ -4,12 +4,12 @@ import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.core.PrivilegeServerLaunchCommand
 
 internal object PrivilegeServerLaunchCommandBuilder {
-    fun build(initialLaunchId: String): PrivilegeServerLaunchCommand {
+    fun build(launchCorrelationId: String): PrivilegeServerLaunchCommand {
         val context = PrivilegeContext.require()
         val packageName = context.packageName
         val classpath = buildClasspath()
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(packageName)
-        val starterCommandLine = buildNativeStarterCommand(initialLaunchId)
+        val starterCommandLine = buildNativeStarterCommand(launchCorrelationId)
 
         return PrivilegeServerLaunchCommand(
             commandLine = starterCommandLine,
@@ -20,23 +20,23 @@ internal object PrivilegeServerLaunchCommandBuilder {
     }
 
     internal fun buildNativeStarterCommand(
-        initialLaunchId: String? = null,
-        clearInheritedLaunchId: Boolean = false,
+        launchCorrelationId: String? = null,
+        clearInheritedLaunchCorrelationId: Boolean = false,
     ): String = buildNativeStarterCommand(
         starterPath = buildNativeStarterPath(),
-        initialLaunchId = initialLaunchId,
-        clearInheritedLaunchId = clearInheritedLaunchId,
+        launchCorrelationId = launchCorrelationId,
+        clearInheritedLaunchCorrelationId = clearInheritedLaunchCorrelationId,
     )
 
     internal fun buildNativeStarterCommand(
         starterPath: String,
-        initialLaunchId: String?,
-        clearInheritedLaunchId: Boolean,
+        launchCorrelationId: String?,
+        clearInheritedLaunchCorrelationId: Boolean,
     ): String {
         val starter = shellArg(starterPath)
-        if (initialLaunchId == null && !clearInheritedLaunchId) return starter
-        return "${PrivilegeHandshakeContract.ENV_INITIAL_LAUNCH_ID}=" +
-            shellArg(initialLaunchId.orEmpty()) +
+        if (launchCorrelationId == null && !clearInheritedLaunchCorrelationId) return starter
+        return "${PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID}=" +
+            shellArg(launchCorrelationId.orEmpty()) +
             " " +
             starter
     }

@@ -355,7 +355,7 @@ private fun WirelessAdbPage(
         )
         SampleField("ADB device name (blank = app name)", state.adbDeviceNameText, onAdbDeviceNameChanged)
         RuntimeInfoRow(label = "adb name", value = state.adbDeviceName)
-        RuntimeInfoRow(label = "key source", value = "owner-token")
+        RuntimeInfoRow(label = "key source", value = "persisted ADB key")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SampleAction(
                 label = "Refresh Identity",

@@ -48,7 +48,7 @@ class PrivilegeRuntimeStartArbiterTest {
         val preflight = arbiter.beginPreflight()
         val reconnectTicket = arbiter.tryAcceptHandshake(
             origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
-            initialLaunchId = null,
+            launchCorrelationId = null,
         )
 
         assertNotNull(reconnectTicket)
@@ -66,25 +66,25 @@ class PrivilegeRuntimeStartArbiterTest {
         val operationId = requireNotNull(
             arbiter.tryCommitClientStart(arbiter.beginPreflight()),
         )
-        val initialLaunchId = "launch-1"
-        assertTrue(arbiter.beginClientLaunch(operationId, initialLaunchId))
+        val launchCorrelationId = "launch-1"
+        assertTrue(arbiter.beginClientLaunch(operationId, launchCorrelationId))
 
         assertNull(
             arbiter.tryAcceptHandshake(
                 origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
-                initialLaunchId = null,
+                launchCorrelationId = null,
             ),
         )
         assertNull(
             arbiter.tryAcceptHandshake(
                 origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
-                initialLaunchId = "different-launch",
+                launchCorrelationId = "different-launch",
             ),
         )
 
         val initialLaunchTicket = arbiter.tryAcceptHandshake(
             origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
-            initialLaunchId = initialLaunchId,
+            launchCorrelationId = launchCorrelationId,
         )
         assertNotNull(initialLaunchTicket)
         assertEquals(operationId, initialLaunchTicket?.clientStartOperationId)
@@ -94,7 +94,7 @@ class PrivilegeRuntimeStartArbiterTest {
 
         val reconnectTicket = arbiter.tryAcceptHandshake(
             origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
-            initialLaunchId = null,
+            launchCorrelationId = null,
         )
         assertNotNull(reconnectTicket)
         arbiter.finishHandshake(requireNotNull(reconnectTicket))
@@ -136,13 +136,13 @@ class PrivilegeRuntimeStartArbiterTest {
         assertNull(
             arbiter.tryAcceptHandshake(
                 origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
-                initialLaunchId = null,
+                launchCorrelationId = null,
             ),
         )
         assertNull(
             arbiter.tryAcceptHandshake(
                 origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
-                initialLaunchId = "launch-while-connected",
+                launchCorrelationId = "launch-while-connected",
             ),
         )
 
@@ -163,7 +163,7 @@ class PrivilegeRuntimeStartArbiterTest {
         assertNull(
             arbiter.tryAcceptHandshake(
                 origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
-                initialLaunchId = null,
+                launchCorrelationId = null,
             ),
         )
 
@@ -176,18 +176,18 @@ class PrivilegeRuntimeStartArbiterTest {
         val operationId = requireNotNull(
             arbiter.tryCommitClientStart(arbiter.beginPreflight()),
         )
-        val initialLaunchId = "launch-success"
-        assertTrue(arbiter.beginClientLaunch(operationId, initialLaunchId))
+        val launchCorrelationId = "launch-success"
+        assertTrue(arbiter.beginClientLaunch(operationId, launchCorrelationId))
         assertNull(
             arbiter.tryAcceptHandshake(
                 origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
-                initialLaunchId = null,
+                launchCorrelationId = null,
             ),
         )
         val initialLaunchTicket = requireNotNull(
             arbiter.tryAcceptHandshake(
                 origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
-                initialLaunchId = initialLaunchId,
+                launchCorrelationId = launchCorrelationId,
             ),
         )
         arbiter.finishHandshake(initialLaunchTicket)
@@ -205,20 +205,20 @@ class PrivilegeRuntimeStartArbiterTest {
         val firstTicket = requireNotNull(
             arbiter.tryAcceptHandshake(
                 origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
-                initialLaunchId = null,
+                launchCorrelationId = null,
             ),
         )
 
         assertNull(
             arbiter.tryAcceptHandshake(
                 origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
-                initialLaunchId = null,
+                launchCorrelationId = null,
             ),
         )
         assertNull(
             arbiter.tryAcceptHandshake(
                 origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
-                initialLaunchId = "launch-while-handshake-in-flight",
+                launchCorrelationId = "launch-while-handshake-in-flight",
             ),
         )
 
@@ -226,14 +226,14 @@ class PrivilegeRuntimeStartArbiterTest {
 
         val nextTicket = arbiter.tryAcceptHandshake(
             origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
-            initialLaunchId = "launch-after-handshake",
+            launchCorrelationId = "launch-after-handshake",
         )
         assertNotNull(nextTicket)
         arbiter.finishHandshake(requireNotNull(nextTicket))
     }
 
     @Test
-    fun lateLaunchIdFromReleasedOperationIsRejectedByCurrentOperation() {
+    fun lateLaunchCorrelationIdFromReleasedOperationIsRejectedByCurrentOperation() {
         val arbiter = PrivilegeRuntimeStartArbiter { 0L }
         val firstOperationId = requireNotNull(
             arbiter.tryCommitClientStart(arbiter.beginPreflight()),
@@ -249,12 +249,12 @@ class PrivilegeRuntimeStartArbiterTest {
         assertNull(
             arbiter.tryAcceptHandshake(
                 origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
-                initialLaunchId = "launch-old",
+                launchCorrelationId = "launch-old",
             ),
         )
         val currentTicket = arbiter.tryAcceptHandshake(
             origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
-            initialLaunchId = "launch-current",
+            launchCorrelationId = "launch-current",
         )
 
         assertNotNull(currentTicket)

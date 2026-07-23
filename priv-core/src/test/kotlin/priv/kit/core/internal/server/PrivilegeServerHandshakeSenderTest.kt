@@ -11,33 +11,37 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
+import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class PrivilegeServerHandshakeSenderTest {
     @Test
-    fun initialHandshakeSendsLaunchIdAndClearsItFromOwnerConfig() {
+    fun initialHandshakeSendsLaunchCorrelationIdAndClearsItFromOwnerConfig() {
         val config = PrivilegeServerConfig(
-            initialLaunchId = "launch-1",
+            launchCorrelationId = "launch-1",
             packageName = "priv.kit.sample",
             classpath = "/data/app/priv.kit.sample/base.apk",
         )
         val ownerBinder = Binder()
         var providerArg: String? = "not-called"
-        var sentLaunchId: String? = null
+        var sentCorrelationId: String? = null
+        var ownerReconnect = true
 
         val result = PrivilegeServerHandshakeSender.send(
             config = config,
             serverBinder = PrivilegeServerBinder(config),
             providerCall = { _, _, arg, extras, _ ->
                 providerArg = arg
-                sentLaunchId = extras.getString(
-                    PrivilegeHandshakeContract.EXTRA_INITIAL_LAUNCH_ID,
+                sentCorrelationId = extras.getString(
+                    PrivilegeHandshakeContract.EXTRA_LAUNCH_CORRELATION_ID,
+                )
+                ownerReconnect = extras.getBoolean(
+                    PrivilegeHandshakeContract.EXTRA_OWNER_RECONNECT,
                 )
                 Bundle().apply {
                     putBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, true)
                     putBinder(PrivilegeHandshakeContract.RESULT_OWNER_BINDER, ownerBinder)
-                    putString(PrivilegeHandshakeContract.RESULT_TOKEN, "owner-token")
                     putLong(
                         PrivilegeHandshakeContract.EXTRA_FOLLOW_DEATH_DELAY_MILLIS,
                         1_000L,
@@ -53,29 +57,33 @@ class PrivilegeServerHandshakeSenderTest {
 
         assertTrue(result.accepted)
         assertNull(providerArg)
-        assertEquals("launch-1", sentLaunchId)
-        assertEquals("owner-token", result.ownerConfig.token)
-        assertNull(result.ownerConfig.initialLaunchId)
+        assertEquals("launch-1", sentCorrelationId)
+        assertFalse(ownerReconnect)
+        assertNull(result.ownerConfig.launchCorrelationId)
     }
 
     @Test
-    fun ownerReconnectDoesNotSendInitialLaunchId() {
+    fun ownerReconnectDoesNotSendLaunchCorrelationId() {
         val config = PrivilegeServerConfig(
-            token = "owner-token",
-            initialLaunchId = null,
+            launchCorrelationId = null,
             packageName = "priv.kit.sample",
             classpath = "/data/app/priv.kit.sample/base.apk",
         )
-        var providerArg: String? = null
-        var launchIdWasSent = true
+        var providerArg: String? = "not-called"
+        var correlationIdWasSent = true
+        var ownerReconnect = false
 
         val result = PrivilegeServerHandshakeSender.send(
             config = config,
             serverBinder = PrivilegeServerBinder(config),
+            origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
             providerCall = { _, _, arg, extras, _ ->
                 providerArg = arg
-                launchIdWasSent = extras.containsKey(
-                    PrivilegeHandshakeContract.EXTRA_INITIAL_LAUNCH_ID,
+                correlationIdWasSent = extras.containsKey(
+                    PrivilegeHandshakeContract.EXTRA_LAUNCH_CORRELATION_ID,
+                )
+                ownerReconnect = extras.getBoolean(
+                    PrivilegeHandshakeContract.EXTRA_OWNER_RECONNECT,
                 )
                 Bundle().apply {
                     putBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, true)
@@ -86,15 +94,15 @@ class PrivilegeServerHandshakeSenderTest {
         )
 
         assertTrue(result.accepted)
-        assertEquals("owner-token", providerArg)
-        assertFalse(launchIdWasSent)
-        assertNull(result.ownerConfig.initialLaunchId)
+        assertNull(providerArg)
+        assertTrue(ownerReconnect)
+        assertFalse(correlationIdWasSent)
+        assertNull(result.ownerConfig.launchCorrelationId)
     }
 
     @Test
     fun rejectedHandshakeStartsReplacementCommand() {
         val config = PrivilegeServerConfig(
-            token = "token-1",
             packageName = "priv.kit.sample",
             classpath = "/data/app/priv.kit.sample-old/base.apk",
         )
@@ -103,6 +111,7 @@ class PrivilegeServerHandshakeSenderTest {
         val result = PrivilegeServerHandshakeSender.send(
             config = config,
             serverBinder = PrivilegeServerBinder(config),
+            origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
             providerCall = { _, _, _, _, _ ->
                 Bundle().apply {
                     putBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, false)

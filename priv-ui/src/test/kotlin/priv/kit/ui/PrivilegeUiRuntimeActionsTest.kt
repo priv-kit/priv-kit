@@ -1599,7 +1599,7 @@ class PrivilegeUiRuntimeActionsTest {
                 serverInfo = serverInfo,
                 origin = PrivilegeRuntimeConnectionOrigin.OWNER_RECONNECT,
                 clientStartOperationId = null,
-                initialLaunchId = null,
+                launchCorrelationId = null,
             ),
         )
     }

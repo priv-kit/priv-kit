@@ -16,12 +16,11 @@ class PrivilegeServerArgumentsTest {
         val config = PrivilegeServerArguments.parse(
             args = emptyArray(),
             classpath = apk.path,
-            initialLaunchId = null,
+            launchCorrelationId = null,
             uid = PRIVILEGE_INTERNAL_SHELL_UID,
         )
 
-        assertEquals("", config.token)
-        assertNull(config.initialLaunchId)
+        assertNull(config.launchCorrelationId)
         assertEquals("example.app", config.packageName)
         assertEquals(0, config.userId)
         assertEquals(apk.path, config.classpath)
@@ -45,15 +44,15 @@ class PrivilegeServerArgumentsTest {
     }
 
     @Test
-    fun parseRetainsInitialLaunchIdFromEnvironmentInput() {
+    fun parseRetainsLaunchCorrelationIdFromEnvironmentInput() {
         val config = PrivilegeServerArguments.parse(
             args = emptyArray(),
             classpath = testApk("example.launch-hash").path,
-            initialLaunchId = "launch-1",
+            launchCorrelationId = "launch-1",
             uid = PRIVILEGE_INTERNAL_SHELL_UID,
         )
 
-        assertEquals("launch-1", config.initialLaunchId)
+        assertEquals("launch-1", config.launchCorrelationId)
     }
 
     @Test

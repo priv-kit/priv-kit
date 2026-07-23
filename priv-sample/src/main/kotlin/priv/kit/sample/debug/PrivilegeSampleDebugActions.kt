@@ -100,7 +100,7 @@ internal fun PrivilegeSampleDebugHost.updateAdbDeviceName(value: String) {
         adbDeviceNameText = value,
         adbDeviceName = value.trim().ifBlank { defaultAdbDeviceName() },
         pairingMessage = if (screenState.pairingStatus == PrivilegeAdbPairingStatus.NOT_PAIRED) {
-            "ADB name updated. The owner-token key is unchanged."
+            "ADB name updated. The persisted ADB key is unchanged."
         } else {
             screenState.pairingMessage
         },
@@ -113,7 +113,7 @@ internal fun PrivilegeSampleDebugHost.refreshAdbFingerprint() {
     screenState = screenState.copy(
         adbKeyFingerprintLoading = true,
         pairingMessage = if (screenState.pairingStatus == PrivilegeAdbPairingStatus.NOT_PAIRED) {
-            "Loading fingerprint for the owner-token identity..."
+            "Loading fingerprint for the persisted ADB identity..."
         } else {
             screenState.pairingMessage
         },
@@ -164,9 +164,9 @@ internal fun PrivilegeSampleDebugHost.checkWirelessAdbPairing(showBusy: Boolean)
         try {
             val result = createAdbManager(adbDeviceName).checkPairing()
             val resultMessage = if (result.paired) {
-                "Current owner-token key is paired on port ${result.port}."
+                "Current persisted ADB key is paired on port ${result.port}."
             } else {
-                "Current owner-token key is not paired" +
+                "Current persisted ADB key is not paired" +
                     (result.failureMessage?.let { ": $it" } ?: ".")
             }
             screenState = screenState.copy(

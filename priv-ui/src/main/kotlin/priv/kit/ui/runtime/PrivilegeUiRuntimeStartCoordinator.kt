@@ -83,7 +83,7 @@ internal class PrivilegeUiRuntimeStartCoordinator(
             val exactStart = session.active && session.ownsRuntimeConnection(
                 origin = event.origin,
                 clientStartOperationId = event.clientStartOperationId,
-                initialLaunchId = event.initialLaunchId,
+                launchCorrelationId = event.launchCorrelationId,
             )
             session.connect(
                 PrivilegeUiRuntimeConnection(

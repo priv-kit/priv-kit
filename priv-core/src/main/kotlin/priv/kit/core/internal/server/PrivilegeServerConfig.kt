@@ -3,8 +3,7 @@ package priv.kit.core.internal.server
 import priv.kit.core.internal.core.PrivilegeProtocol
 
 internal data class PrivilegeServerConfig(
-    val token: String = "",
-    val initialLaunchId: String? = null,
+    val launchCorrelationId: String? = null,
     val packageName: String,
     val userId: Int = 0,
     val classpath: String,

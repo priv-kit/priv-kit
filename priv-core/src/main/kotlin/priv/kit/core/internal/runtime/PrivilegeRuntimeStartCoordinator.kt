@@ -19,7 +19,7 @@ public data class PrivilegeRuntimeConnectionEvent public constructor(
     public val serverInfo: PrivilegeServerInfo,
     public val origin: PrivilegeRuntimeConnectionOrigin,
     public val clientStartOperationId: Long?,
-    public val initialLaunchId: String?,
+    public val launchCorrelationId: String?,
 )
 
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
@@ -52,7 +52,7 @@ public class PrivilegeRuntimeStartLease internal constructor(
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 public class PrivilegeRuntimeClientLaunch internal constructor(
     internal val operationId: Long,
-    public val initialLaunchId: String,
+    public val launchCorrelationId: String,
 )
 
 /**
@@ -100,11 +100,11 @@ public object PrivilegeRuntimeStartCoordinator {
     public fun beginClientLaunch(
         lease: PrivilegeRuntimeStartLease,
     ): PrivilegeRuntimeClientLaunch? {
-        val initialLaunchId = newInitialLaunchId()
-        return if (arbiter.beginClientLaunch(lease.operationId, initialLaunchId)) {
+        val launchCorrelationId = newLaunchCorrelationId()
+        return if (arbiter.beginClientLaunch(lease.operationId, launchCorrelationId)) {
             PrivilegeRuntimeClientLaunch(
                 operationId = lease.operationId,
-                initialLaunchId = initialLaunchId,
+                launchCorrelationId = launchCorrelationId,
             )
         } else {
             null
@@ -115,8 +115,8 @@ public object PrivilegeRuntimeStartCoordinator {
         launch: PrivilegeRuntimeClientLaunch,
         timeoutMillis: Long,
         startupLogListener: PrivilegeStartupLogListener? = null,
-    ): PrivilegeServerInfo = Privilege.startRootWithLaunchId(
-        initialLaunchId = launch.initialLaunchId,
+    ): PrivilegeServerInfo = Privilege.startRootWithLaunchCorrelationId(
+        launchCorrelationId = launch.launchCorrelationId,
         timeoutMillis = timeoutMillis,
         startupLogListener = startupLogListener,
     )
@@ -127,8 +127,8 @@ public object PrivilegeRuntimeStartCoordinator {
         timeoutMillis: Long,
         adbDeviceName: String?,
         startupLogListener: PrivilegeStartupLogListener? = null,
-    ): PrivilegeServerInfo = Privilege.startAdbWithLaunchId(
-        initialLaunchId = launch.initialLaunchId,
+    ): PrivilegeServerInfo = Privilege.startAdbWithLaunchCorrelationId(
+        launchCorrelationId = launch.launchCorrelationId,
         options = options,
         timeoutMillis = timeoutMillis,
         adbDeviceName = adbDeviceName,
@@ -137,7 +137,7 @@ public object PrivilegeRuntimeStartCoordinator {
 
     public fun createShellStartCommand(
         launch: PrivilegeRuntimeClientLaunch,
-    ): String = Privilege.createShellStartCommandWithLaunchId(launch.initialLaunchId)
+    ): String = Privilege.createShellStartCommandWithLaunchCorrelationId(launch.launchCorrelationId)
 
     internal fun markOwnerProcessStarted() {
         arbiter.markOwnerProcessStarted(RECONNECT_GRACE_MILLIS)
@@ -153,10 +153,10 @@ public object PrivilegeRuntimeStartCoordinator {
 
     internal fun tryAcceptHandshake(
         origin: PrivilegeServerHandshakeOrigin,
-        initialLaunchId: String?,
+        launchCorrelationId: String?,
     ): PrivilegeRuntimeHandshakeTicket? =
         Privilege.withServerConnectionLock {
-            arbiter.tryAcceptHandshake(origin, initialLaunchId)
+            arbiter.tryAcceptHandshake(origin, launchCorrelationId)
         }
 
     internal fun finishHandshake(ticket: PrivilegeRuntimeHandshakeTicket) {
@@ -188,7 +188,7 @@ public object PrivilegeRuntimeStartCoordinator {
 
     internal const val RECONNECT_GRACE_MILLIS: Long = 1_000L
 
-    internal fun newInitialLaunchId(): String = UUID.randomUUID().toString()
+    internal fun newLaunchCorrelationId(): String = UUID.randomUUID().toString()
 }
 
 internal data class PrivilegeRuntimeHandshakeTicket(
@@ -204,7 +204,7 @@ internal class PrivilegeRuntimeStartArbiter(
     private var stateSerial = 0L
     private var nextClientStartOperationId = 0L
     private var activeClientStartOperationId: Long? = null
-    private var activeClientLaunchId: String? = null
+    private var activeLaunchCorrelationId: String? = null
     private var serverConnected = false
     private var ownerReconnectDeferred = false
     private var reconnectGraceDeadlineMillis = 0L
@@ -251,7 +251,7 @@ internal class PrivilegeRuntimeStartArbiter(
             if (activeClientStartOperationId != operationId) return false
             val notifyDeferredReconnect = ownerReconnectDeferred && !serverConnected
             activeClientStartOperationId = null
-            activeClientLaunchId = null
+            activeLaunchCorrelationId = null
             ownerReconnectDeferred = false
             stateSerial += 1L
             notifyDeferredReconnect
@@ -276,12 +276,12 @@ internal class PrivilegeRuntimeStartArbiter(
 
     fun beginClientLaunch(
         operationId: Long,
-        initialLaunchId: String,
+        launchCorrelationId: String,
     ): Boolean {
-        require(initialLaunchId.isNotBlank()) { "initialLaunchId must not be blank" }
+        require(launchCorrelationId.isNotBlank()) { "launchCorrelationId must not be blank" }
         return synchronized(lock) {
             if (activeClientStartOperationId != operationId) return false
-            activeClientLaunchId = initialLaunchId
+            activeLaunchCorrelationId = launchCorrelationId
             stateSerial += 1L
             true
         }
@@ -289,7 +289,7 @@ internal class PrivilegeRuntimeStartArbiter(
 
     fun tryAcceptHandshake(
         origin: PrivilegeServerHandshakeOrigin,
-        initialLaunchId: String?,
+        launchCorrelationId: String?,
     ): PrivilegeRuntimeHandshakeTicket? =
         synchronized(lock) {
             if (serverConnected) return null
@@ -310,7 +310,7 @@ internal class PrivilegeRuntimeStartArbiter(
             if (
                 origin == PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH &&
                 activeOperationId != null &&
-                initialLaunchId != activeClientLaunchId
+                launchCorrelationId != activeLaunchCorrelationId
             ) {
                 return null
             }

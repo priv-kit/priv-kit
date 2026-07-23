@@ -23,17 +23,17 @@ class PrivilegeShellStartCommandTest {
             "/data/app/priv.kit.sample/lib/arm64/libprivkitstarter.so",
             commandLine,
         )
-        assertFalse(commandLine.contains(PrivilegeHandshakeContract.ENV_INITIAL_LAUNCH_ID))
+        assertFalse(commandLine.contains(PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID))
     }
 
     @Test
-    fun coordinatedShellStartCommandIncludesInitialLaunchEnvironment() {
+    fun coordinatedShellStartCommandIncludesLaunchCorrelationEnvironment() {
         installRuntimeContext()
 
-        val commandLine = Privilege.createShellStartCommandWithLaunchId("launch-1")
+        val commandLine = Privilege.createShellStartCommandWithLaunchCorrelationId("launch-1")
 
         assertEquals(
-            "${PrivilegeHandshakeContract.ENV_INITIAL_LAUNCH_ID}=launch-1 " +
+            "${PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID}=launch-1 " +
                 "/data/app/priv.kit.sample/lib/arm64/libprivkitstarter.so",
             commandLine,
         )

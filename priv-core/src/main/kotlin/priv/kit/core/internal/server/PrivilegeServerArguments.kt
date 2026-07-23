@@ -10,8 +10,8 @@ internal object PrivilegeServerArguments {
     fun parse(
         args: Array<String>,
         classpath: String = System.getenv("CLASSPATH").orEmpty(),
-        initialLaunchId: String? =
-            System.getenv(PrivilegeHandshakeContract.ENV_INITIAL_LAUNCH_ID)
+        launchCorrelationId: String? =
+            System.getenv(PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID)
                 ?.takeIf { it.isNotBlank() },
         uid: Int = Process.myUid(),
     ): PrivilegeServerConfig {
@@ -20,7 +20,7 @@ internal object PrivilegeServerArguments {
         require(normalizedClasspath.isNotBlank()) { "Server classpath is unavailable" }
         val packageName = inferPackageName(normalizedClasspath)
         return PrivilegeServerConfig(
-            initialLaunchId = initialLaunchId,
+            launchCorrelationId = launchCorrelationId,
             packageName = packageName,
             userId = PrivilegeAndroidUsers.userIdFromUid(uid),
             classpath = normalizedClasspath,

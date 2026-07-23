@@ -5,16 +5,19 @@ import android.os.IBinder
 import android.util.Log
 import priv.kit.core.internal.core.PrivilegeContentProviderCall
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
+import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
 import java.io.File
 
 internal object PrivilegeServerHandshakeSender {
     fun send(
         config: PrivilegeServerConfig,
         serverBinder: PrivilegeServerBinder,
+        origin: PrivilegeServerHandshakeOrigin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
     ): Result =
         send(
             config = config,
             serverBinder = serverBinder,
+            origin = origin,
             providerCall = PrivilegeServerHandshakeSender::callHandshakeProvider,
             replacementStarter = PrivilegeServerReplacementStarter::start,
         )
@@ -22,6 +25,7 @@ internal object PrivilegeServerHandshakeSender {
     internal fun send(
         config: PrivilegeServerConfig,
         serverBinder: PrivilegeServerBinder,
+        origin: PrivilegeServerHandshakeOrigin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
         providerCall: (
             authority: String,
             method: String,
@@ -32,12 +36,13 @@ internal object PrivilegeServerHandshakeSender {
         replacementStarter: (String) -> Unit,
     ): Result {
         val extras = Bundle().apply {
-            config.token.takeIf { it.isNotBlank() }?.let {
-                putString(PrivilegeHandshakeContract.EXTRA_TOKEN, it)
-            }
-            if (config.token.isBlank()) {
-                config.initialLaunchId?.takeIf { it.isNotBlank() }?.let {
-                    putString(PrivilegeHandshakeContract.EXTRA_INITIAL_LAUNCH_ID, it)
+            putBoolean(
+                PrivilegeHandshakeContract.EXTRA_OWNER_RECONNECT,
+                origin == PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
+            )
+            if (origin == PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH) {
+                config.launchCorrelationId?.takeIf { it.isNotBlank() }?.let {
+                    putString(PrivilegeHandshakeContract.EXTRA_LAUNCH_CORRELATION_ID, it)
                 }
             }
             putBinder(PrivilegeHandshakeContract.EXTRA_SERVER_BINDER, serverBinder.asBinder())
@@ -52,7 +57,7 @@ internal object PrivilegeServerHandshakeSender {
         val response = providerCall(
             providerAuthority,
             PrivilegeHandshakeContract.METHOD_SERVER_READY,
-            config.token.takeIf { it.isNotBlank() },
+            null,
             extras,
             config.userId,
         )
@@ -63,15 +68,12 @@ internal object PrivilegeServerHandshakeSender {
                 "Accepted handshake response is missing ${PrivilegeHandshakeContract.RESULT_OWNER_BINDER}"
             }
         }
-        val ownerConfig = if (accepted && config.token.isBlank()) {
-            val token = requireNotNull(
-                response.getString(PrivilegeHandshakeContract.RESULT_TOKEN)?.takeIf { it.isNotBlank() },
-            ) {
-                "Accepted initial handshake response is missing ${PrivilegeHandshakeContract.RESULT_TOKEN}"
-            }
+        val ownerConfig = if (
+            accepted &&
+            origin == PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH
+        ) {
             config.copy(
-                token = token,
-                initialLaunchId = null,
+                launchCorrelationId = null,
                 followDeathDelayMillis = response.requireLong(
                     PrivilegeHandshakeContract.EXTRA_FOLLOW_DEATH_DELAY_MILLIS,
                 ),

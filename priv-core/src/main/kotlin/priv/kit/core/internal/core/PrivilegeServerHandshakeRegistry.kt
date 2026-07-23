@@ -7,59 +7,54 @@ import java.io.Closeable
 
 internal object PrivilegeServerHandshakeRegistry {
     private val lock = Any()
-    private val pendingHandshakesByLaunchId = mutableMapOf<String, PendingHandshakeEntry>()
-    private val readyHandshakes = mutableMapOf<String, PrivilegeServerHandshakeResult>()
-    private val latestReadyDeliverySerials = mutableMapOf<String, Long>()
+    private val pendingHandshakesByCorrelationId = mutableMapOf<String, PrivilegePendingHandshake>()
+    private var readyHandshake: PrivilegeServerHandshakeResult? = null
+    private var latestReadyDeliverySerial: Long? = null
     private val readyListeners =
-        mutableMapOf<String, MutableSet<(PrivilegeServerHandshakeResult) -> Boolean>>()
+        linkedSetOf<(PrivilegeServerHandshakeResult) -> Boolean>()
 
-    fun prepare(
-        token: String,
-        initialLaunchId: String,
-    ): PrivilegePendingHandshake {
-        require(token.isNotBlank()) { "token must not be blank" }
-        require(initialLaunchId.isNotBlank()) { "initialLaunchId must not be blank" }
+    fun prepare(launchCorrelationId: String): PrivilegePendingHandshake {
+        require(launchCorrelationId.isNotBlank()) { "launchCorrelationId must not be blank" }
         val handshake = PrivilegePendingHandshake()
         synchronized(lock) {
             check(
-                pendingHandshakesByLaunchId.put(
-                    initialLaunchId,
-                    PendingHandshakeEntry(token, handshake),
+                pendingHandshakesByCorrelationId.put(
+                    launchCorrelationId,
+                    handshake,
                 ) == null,
             ) {
-                "initialLaunchId is already pending"
+                "launchCorrelationId is already pending"
             }
-            readyHandshakes[token]
+            readyHandshake
                 ?.takeIf {
                     it.origin == PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH &&
-                        it.initialLaunchId == initialLaunchId
+                        it.launchCorrelationId == launchCorrelationId
                 }
-                ?.also { readyHandshakes.remove(token) }
+                ?.also { readyHandshake = null }
                 ?.let { ready -> check(handshake.complete(ready)) }
         }
         return handshake
     }
 
     fun deliverReady(
-        token: String?,
         serverBinder: IBinder?,
         serverInfo: PrivilegeServerInfo,
         origin: PrivilegeServerHandshakeOrigin,
-        initialLaunchId: String?,
+        launchCorrelationId: String?,
     ): Boolean {
-        if (token.isNullOrBlank() || serverBinder == null) {
+        if (serverBinder == null) {
             return false
         }
         val ticket = PrivilegeRuntimeStartCoordinator.tryAcceptHandshake(
             origin = origin,
-            initialLaunchId = initialLaunchId,
+            launchCorrelationId = launchCorrelationId,
         )
             ?: return false
         val result = PrivilegeServerHandshakeResult(
             serverInfo = serverInfo,
             serverBinder = serverBinder,
             origin = origin,
-            initialLaunchId = initialLaunchId,
+            launchCorrelationId = launchCorrelationId,
             clientStartOperationId = ticket.clientStartOperationId,
             deliverySerial = ticket.serial,
         )
@@ -69,21 +64,19 @@ internal object PrivilegeServerHandshakeRegistry {
             var listeners: List<(PrivilegeServerHandshakeResult) -> Boolean> = emptyList()
             synchronized(lock) {
                 if (origin == PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH) {
-                    pendingHandshake = initialLaunchId
-                        ?.let(pendingHandshakesByLaunchId::get)
-                        ?.takeIf { it.token == token }
-                        ?.handshake
+                    pendingHandshake = launchCorrelationId
+                        ?.let(pendingHandshakesByCorrelationId::get)
                 }
                 if (pendingHandshake != null) {
                     duplicatePendingHandshake = pendingHandshake.complete(result) == false
                 } else {
-                    listeners = readyListeners[token]?.toList().orEmpty()
+                    listeners = readyListeners.toList()
                 }
             }
             if (duplicatePendingHandshake) return false
             val pending = pendingHandshake
             if (pending == null) {
-                deliverToListenersOrCache(token, result, listeners)
+                deliverToListenersOrCache(result, listeners)
             }
             PrivilegeRuntimeStartCoordinator.notifyServerHandshakeAccepted(ticket)
             return true
@@ -92,56 +85,45 @@ internal object PrivilegeServerHandshakeRegistry {
         }
     }
 
-    fun claimReady(token: String): PrivilegeServerHandshakeResult? {
-        require(token.isNotBlank()) { "token must not be blank" }
-        return synchronized(lock) {
-            readyHandshakes.remove(token)
+    fun claimReady(): PrivilegeServerHandshakeResult? =
+        synchronized(lock) {
+            readyHandshake.also { readyHandshake = null }
         }
-    }
 
     fun addReadyListener(
-        token: String,
         listener: (PrivilegeServerHandshakeResult) -> Boolean,
     ): Closeable {
-        require(token.isNotBlank()) { "token must not be blank" }
         val ready = synchronized(lock) {
-            readyListeners.getOrPut(token) { linkedSetOf() } += listener
-            readyHandshakes.remove(token)
+            readyListeners += listener
+            readyHandshake.also { readyHandshake = null }
         }
         ready?.let { result ->
-            deliverToListenersOrCache(token, result, listOf(listener))
+            deliverToListenersOrCache(result, listOf(listener))
         }
         return Closeable {
             synchronized(lock) {
-                val listeners = readyListeners[token] ?: return@synchronized
-                listeners -= listener
-                if (listeners.isEmpty()) {
-                    readyListeners.remove(token)
-                }
+                readyListeners -= listener
             }
         }
     }
 
-    fun acknowledge(initialLaunchId: String) {
+    fun acknowledge(launchCorrelationId: String) {
         synchronized(lock) {
-            pendingHandshakesByLaunchId.remove(initialLaunchId)
+            pendingHandshakesByCorrelationId.remove(launchCorrelationId)
         }
     }
 
     /** Returns whether a delivered, unacknowledged server was preserved for ready handoff. */
-    fun cancel(initialLaunchId: String): Boolean {
+    fun cancel(launchCorrelationId: String): Boolean {
         var result: PrivilegeServerHandshakeResult? = null
-        var token: String? = null
         var listeners: List<(PrivilegeServerHandshakeResult) -> Boolean> = emptyList()
         synchronized(lock) {
-            val pending = pendingHandshakesByLaunchId.remove(initialLaunchId) ?: return false
-            result = pending.handshake.completedResultOrNull() ?: return false
-            token = pending.token
-            listeners = readyListeners[pending.token]?.toList().orEmpty()
+            val pending = pendingHandshakesByCorrelationId.remove(launchCorrelationId) ?: return false
+            result = pending.completedResultOrNull() ?: return false
+            listeners = readyListeners.toList()
         }
         val ready = requireNotNull(result)
         deliverToListenersOrCache(
-            token = requireNotNull(token),
             result = ready,
             listeners = listeners,
         )
@@ -149,17 +131,16 @@ internal object PrivilegeServerHandshakeRegistry {
     }
 
     private fun deliverToListenersOrCache(
-        token: String,
         result: PrivilegeServerHandshakeResult,
         listeners: List<(PrivilegeServerHandshakeResult) -> Boolean>,
     ) {
         val isLatestDelivery = synchronized(lock) {
-            val latestSerial = latestReadyDeliverySerials[token]
+            val latestSerial = latestReadyDeliverySerial
             if (latestSerial != null && result.deliverySerial < latestSerial) {
                 false
             } else {
-                latestReadyDeliverySerials[token] = result.deliverySerial
-                readyHandshakes.remove(token)
+                latestReadyDeliverySerial = result.deliverySerial
+                readyHandshake = null
                 true
             }
         }
@@ -172,14 +153,9 @@ internal object PrivilegeServerHandshakeRegistry {
         }
         if (delivered) return
         synchronized(lock) {
-            if (latestReadyDeliverySerials[token] == result.deliverySerial) {
-                readyHandshakes[token] = result
+            if (latestReadyDeliverySerial == result.deliverySerial) {
+                readyHandshake = result
             }
         }
     }
-
-    private data class PendingHandshakeEntry(
-        val token: String,
-        val handshake: PrivilegePendingHandshake,
-    )
 }

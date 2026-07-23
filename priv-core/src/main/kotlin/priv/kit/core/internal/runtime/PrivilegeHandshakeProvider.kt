@@ -19,7 +19,6 @@ import priv.kit.core.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.core.internal.userservice.PrivilegeUserServiceHandshakeRegistry
 import priv.kit.shared.PRIVILEGE_INTERNAL_ROOT_UID
 import priv.kit.shared.PRIVILEGE_INTERNAL_SHELL_UID
-import java.util.concurrent.ConcurrentHashMap
 
 internal class PrivilegeHandshakeProvider : ContentProvider() {
     override fun onCreate(): Boolean {
@@ -43,20 +42,23 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
             return super.call(method, arg, extras)
         }
 
-        return handleServerReady(arg, extras)
+        return handleServerReady(extras)
     }
 
-    private fun handleServerReady(arg: String?, extras: Bundle?): Bundle {
+    private fun handleServerReady(extras: Bundle?): Bundle {
         val callingUid = Binder.getCallingUid()
         val callingPid = Binder.getCallingPid()
-        val token = extras?.getString(PrivilegeHandshakeContract.EXTRA_TOKEN)?.takeIf { it.isNotBlank() }
-        val initialLaunchId = extras
-            ?.getString(PrivilegeHandshakeContract.EXTRA_INITIAL_LAUNCH_ID)
-            ?.takeIf { token == null && it.isNotBlank() }
+        val ownerReconnect = extras?.getBoolean(
+            PrivilegeHandshakeContract.EXTRA_OWNER_RECONNECT,
+            false,
+        ) == true
+        val launchCorrelationId = extras
+            ?.getString(PrivilegeHandshakeContract.EXTRA_LAUNCH_CORRELATION_ID)
+            ?.takeIf { !ownerReconnect && it.isNotBlank() }
         val serverBinder = extras?.getBinder(PrivilegeHandshakeContract.EXTRA_SERVER_BINDER)
         Log.i(
             TAG,
-            "Handshake call received initial=${token == null}, tokenMatches=${token == arg}, " +
+            "Handshake call received initial=${!ownerReconnect}, " +
                 "callingUid=$callingUid, callingPid=$callingPid, hasExtras=${extras != null}, " +
                 "hasBinder=${serverBinder != null}",
         )
@@ -68,16 +70,10 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
         val classpathIdentityMatches = extras?.classpathIdentityMatches() == true
         val matchesCurrentRuntime = protocolMatches && classpathIdentityMatches
         val trustedCaller = isTrustedServerStarterCaller(callingUid)
-        val acceptedToken = acceptedToken(
-            token = token,
-            arg = arg,
-            trustedCaller = trustedCaller,
-            matchesCurrentRuntime = matchesCurrentRuntime,
-        )
-        val origin = if (token == null) {
-            PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH
-        } else {
+        val origin = if (ownerReconnect) {
             PrivilegeServerHandshakeOrigin.OWNER_RECONNECT
+        } else {
+            PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH
         }
         if (serverInfo != null && trustedCaller && !matchesCurrentRuntime) {
             Log.w(
@@ -86,24 +82,21 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
                     "classpathIdentityMatches=$classpathIdentityMatches",
             )
         }
-        val accepted = if (acceptedToken != null && matchesCurrentRuntime) {
+        val accepted = if (trustedCaller && matchesCurrentRuntime) {
             PrivilegeServerHandshakeRegistry.deliverReady(
-                token = acceptedToken,
                 serverBinder = serverBinder,
                 serverInfo = serverInfo,
                 origin = origin,
-                initialLaunchId = initialLaunchId,
+                launchCorrelationId = launchCorrelationId,
             )
         } else {
             false
         }
         val replacementCommand = replacementCommandFor(
-            token = token,
-            acceptedToken = acceptedToken,
             trustedCaller = trustedCaller,
             serverInfo = serverInfo,
             matchesCurrentRuntime = matchesCurrentRuntime,
-            initialLaunchId = initialLaunchId,
+            launchCorrelationId = launchCorrelationId,
         )
         Log.i(TAG, "Handshake call accepted=$accepted")
 
@@ -112,11 +105,10 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
             if (accepted) {
                 putBinder(
                     PrivilegeHandshakeContract.RESULT_OWNER_BINDER,
-                    ownerBinders.getOrPut(acceptedToken) { Binder() },
+                    ownerBinder,
                 )
-                if (token == null) {
+                if (!ownerReconnect) {
                     val runtimeConfig = Privilege.runtimeConfig()
-                    putString(PrivilegeHandshakeContract.RESULT_TOKEN, acceptedToken)
                     putLong(
                         PrivilegeHandshakeContract.EXTRA_FOLLOW_DEATH_DELAY_MILLIS,
                         runtimeConfig.followDeathDelayMillis,
@@ -189,64 +181,25 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
     ): Int = 0
 
-    private fun ownerToken(): String? =
-        runCatching {
-            PrivilegeOwnerTokenStore.readIfExists()
-        }.getOrElse { throwable ->
-            Log.e(TAG, "Failed to read owner token for handshake validation", throwable)
-            null
-        }
-
-    private fun ownerTokenOrCreate(): String? =
-        runCatching {
-            PrivilegeOwnerTokenStore.readOrCreate()
-        }.getOrElse { throwable ->
-            Log.e(TAG, "Failed to create owner token for initial server handshake", throwable)
-            null
-        }
-
-    private fun acceptedToken(
-        token: String?,
-        arg: String?,
-        trustedCaller: Boolean,
-        matchesCurrentRuntime: Boolean,
-    ): String? {
-        if (token != null) {
-            return if (token == arg && token == ownerToken()) token else null
-        }
-        return if (trustedCaller && matchesCurrentRuntime) {
-            ownerTokenOrCreate()
-        } else {
-            null
-        }
-    }
-
     private fun PrivilegeServerInfo.matchesCurrentProtocol(): Boolean =
         protocolVersion == PrivilegeProtocol.VERSION
 
     private fun replacementCommandFor(
-        token: String?,
-        acceptedToken: String?,
         trustedCaller: Boolean,
         serverInfo: PrivilegeServerInfo?,
         matchesCurrentRuntime: Boolean,
-        initialLaunchId: String?,
+        launchCorrelationId: String?,
     ): String? {
         if (serverInfo == null || matchesCurrentRuntime) {
             return null
         }
-        val trustedExistingServer = if (token == null) {
-            trustedCaller
-        } else {
-            acceptedToken != null
-        }
-        if (!trustedExistingServer) {
+        if (!trustedCaller) {
             return null
         }
         Log.i(TAG, "Returning replacement starter command for stale Privileged Server")
         return PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
-            initialLaunchId = initialLaunchId,
-            clearInheritedLaunchId = initialLaunchId == null,
+            launchCorrelationId = launchCorrelationId,
+            clearInheritedLaunchCorrelationId = launchCorrelationId == null,
         )
     }
 
@@ -282,6 +235,6 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
 
     private companion object {
         private const val TAG = "PrivKit"
-        private val ownerBinders = ConcurrentHashMap<String, IBinder>()
+        private val ownerBinder: IBinder = Binder()
     }
 }

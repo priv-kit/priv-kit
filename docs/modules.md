@@ -106,7 +106,7 @@ implementation("io.github.priv-kit:priv-core:1.0.0")
 - ADB pairing/connect、ADB 启动配置、ADB 启动诊断和 TCP 复用；
 - ADB 启动内部可选的 Wireless Debugging 临时开关管理；
 - Privileged Server 连接后为 owner package 补授启动自举所需的有限权限；
-- Shell Start Command、owner token store、运行时内存配置和 handshake provider；
+- Shell Start Command、启动关联、运行时内存配置和 handshake provider；
 - 通用 native starter 可执行文件；
 - Privileged Server `app_process` 入口；
 - 服务端 Binder 端点和 raw Binder transaction 转发；
@@ -175,7 +175,7 @@ package 分区：
 - 记录 UI 管理的最近一次成功启动方式，并在无 `Activity` 场景精确静默重放该 runtime 启动原语；
 - 保存用户是否期望启用特权功能，并据此约束自动恢复入口。
 
-允许 Compose 状态展示、运行时生命周期控件、围绕 `:priv-core` 状态模型的 UI 包装，以及在应用私有 `.priv-kit` 目录保存一个原始启动 methodId 和一个严格单字节期望状态。只有前台已提交的精确方法收到同时匹配当前 operation 与当前 `launchId` 的 `INITIAL_LAUNCH` 连接且未先取消时才写入 methodId；静默启动、`OWNER_RECONNECT`、已有连接和其他被动连接不得改写 methodId。非导出初始化 Provider 在 core runtime 初始化之后、应用 Provider 对外发布之前安装监听；每个被 runtime 接受的 `INITIAL_LAUNCH` 都将期望状态写为 `1`，包括复制外置 shell 命令启动的 server；`OWNER_RECONNECT`、断连、server 死亡和恢复失败保持原值。只有内置 UI 中已确认的停止动作或断连提示卡片的“关闭自动恢复”动作可以写入 `0`。期望状态为 `1` 且 runtime 断开或失败时显示提示卡片，不提供常驻开关。受期望状态约束的静默重放必须由调用方显式传入 `PrivilegeUiConfig`，不得执行跨方式 fallback、权限请求、外部 Provider 授权请求或用户提示。前台与静默启动共用同一个互斥启动门并采用先获得者执行、无排队和无抢占；已受理的前台启动副作用必须持有绑定同一 ViewModel 所有者的可嵌套租约直至其工作完成，权限事务还必须绑定实际 Scaffold host，并在最后一个 host 离开时清理。静默启动持有期间内置 UI 必须拒绝新的副作用入口，并在释放后完成 runtime 状态对账才重新启用。owner 自动重连由 runtime arbiter 协调：启动提交前 reconnect 优先，提交后当前前台或静默启动优先。两层协调都只覆盖当前进程；多进程应用必须只在一个指定进程初始化并触发 Priv Kit 启动。
+允许 Compose 状态展示、运行时生命周期控件、围绕 `:priv-core` 状态模型的 UI 包装，以及在应用私有 `.priv-kit` 目录保存一个原始启动 methodId 和一个严格单字节期望状态。只有前台已提交的精确方法收到同时匹配当前 operation 与当前 `launchCorrelationId` 的 `INITIAL_LAUNCH` 连接且未先取消时才写入 methodId；静默启动、`OWNER_RECONNECT`、已有连接和其他被动连接不得改写 methodId。非导出初始化 Provider 在 core runtime 初始化之后、应用 Provider 对外发布之前安装监听；每个被 runtime 接受的 `INITIAL_LAUNCH` 都将期望状态写为 `1`，包括复制外置 shell 命令启动的 server；`OWNER_RECONNECT`、断连、server 死亡和恢复失败保持原值。只有内置 UI 中已确认的停止动作或断连提示卡片的“关闭自动恢复”动作可以写入 `0`。期望状态为 `1` 且 runtime 断开或失败时显示提示卡片，不提供常驻开关。受期望状态约束的静默重放必须由调用方显式传入 `PrivilegeUiConfig`，不得执行跨方式 fallback、权限请求、外部 Provider 授权请求或用户提示。前台与静默启动共用同一个互斥启动门并采用先获得者执行、无排队和无抢占；已受理的前台启动副作用必须持有绑定同一 ViewModel 所有者的可嵌套租约直至其工作完成，权限事务还必须绑定实际 Scaffold host，并在最后一个 host 离开时清理。静默启动持有期间内置 UI 必须拒绝新的副作用入口，并在释放后完成 runtime 状态对账才重新启用。owner 自动重连由 runtime arbiter 协调：启动提交前 reconnect 优先，提交后当前前台或静默启动优先。两层协调都只覆盖当前进程；多进程应用必须只在一个指定进程初始化并触发 Priv Kit 启动。
 
 弹窗、权限和外部授权作为 ViewModel 所有协程中的可取消挂起点衔接，Compose/第三方回调只负责提交结果。外部 Provider 统一使用 suspend 契约，不保留前台状态对账；挂起的权限事务仍须绑定实际 Scaffold host，并在最后一个 host 真正离开时清理，配置变更由同一 ViewModel 的新 host 接管。
 

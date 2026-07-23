@@ -17,7 +17,6 @@ import priv.kit.core.internal.core.PrivilegeAndroidUsers
 import priv.kit.core.internal.core.PrivilegeProtocol
 import priv.kit.core.internal.core.PrivilegeServerHandshakeRegistry
 import priv.kit.core.internal.core.PrivilegeServerHandshakeResult
-import priv.kit.core.internal.runtime.PrivilegeOwnerTokenStore
 import priv.kit.core.internal.runtime.PrivilegeRootProcess
 import priv.kit.core.internal.runtime.PrivilegeRootStarter
 import priv.kit.core.internal.runtime.PrivilegeContext
@@ -66,19 +65,18 @@ public object Privilege {
     public suspend fun startRoot(
         timeoutMillis: Long = PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS,
         startupLogListener: PrivilegeStartupLogListener? = null,
-    ): PrivilegeServerInfo = startRootWithLaunchId(
-        initialLaunchId = PrivilegeRuntimeStartCoordinator.newInitialLaunchId(),
+    ): PrivilegeServerInfo = startRootWithLaunchCorrelationId(
+        launchCorrelationId = PrivilegeRuntimeStartCoordinator.newLaunchCorrelationId(),
         timeoutMillis = timeoutMillis,
         startupLogListener = startupLogListener,
     )
 
-    internal suspend fun startRootWithLaunchId(
-        initialLaunchId: String,
+    internal suspend fun startRootWithLaunchCorrelationId(
+        launchCorrelationId: String,
         timeoutMillis: Long,
         startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeServerInfo {
-        val token = ownerTokenStore().readOrCreate()
-        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token, initialLaunchId)
+        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(launchCorrelationId)
         var rootProcess: PrivilegeRootProcess? = null
         var startupCompleted = false
 
@@ -86,7 +84,7 @@ public object Privilege {
             startupLogListener.emitStartupLog("runtime", "Starting with root")
             rootProcess = runInterruptible {
                 PrivilegeRootStarter.start(
-                    buildShortNativeStarterCommand(initialLaunchId = initialLaunchId),
+                    buildShortNativeStarterCommand(launchCorrelationId = launchCorrelationId),
                     startupLogListener = startupLogListener,
                 )
             }
@@ -94,7 +92,7 @@ public object Privilege {
             val handshakeResult = pendingHandshake.await(timeoutMillis)
             startupLogListener.emitStartupLog("runtime", "Privileged Server handshake received")
             val serverInfo = connectHandshake(handshakeResult, startupLogListener)
-            PrivilegeServerHandshakeRegistry.acknowledge(initialLaunchId)
+            PrivilegeServerHandshakeRegistry.acknowledge(launchCorrelationId)
             startupCompleted = true
             return serverInfo
         } catch (e: InterruptedException) {
@@ -122,7 +120,7 @@ public object Privilege {
             throw e
         } finally {
             val deliveredServerPreserved =
-                PrivilegeServerHandshakeRegistry.cancel(initialLaunchId)
+                PrivilegeServerHandshakeRegistry.cancel(launchCorrelationId)
             cleanupRootProcessAfterStart(
                 process = rootProcess,
                 startupCompleted = startupCompleted || deliveredServerPreserved,
@@ -131,13 +129,11 @@ public object Privilege {
     }
 
     @Throws(PrivilegeStartupException::class)
-    public fun createShellStartCommand(): String {
-        ownerTokenStore().readOrCreate()
-        return buildShortNativeStarterCommand()
-    }
+    public fun createShellStartCommand(): String =
+        buildShortNativeStarterCommand()
 
-    internal fun createShellStartCommandWithLaunchId(initialLaunchId: String): String =
-        buildShortNativeStarterCommand(initialLaunchId = initialLaunchId)
+    internal fun createShellStartCommandWithLaunchCorrelationId(launchCorrelationId: String): String =
+        buildShortNativeStarterCommand(launchCorrelationId = launchCorrelationId)
 
     @Throws(PrivilegeStartupException::class)
     public fun createAdbManager(
@@ -147,8 +143,7 @@ public object Privilege {
 
     @Throws(PrivilegeStartupException::class)
     public fun connectReadyServer(): PrivilegeServerInfo? {
-        val token = ownerTokenStore().readOrCreate()
-        val handshakeResult = PrivilegeServerHandshakeRegistry.claimReady(token) ?: return null
+        val handshakeResult = PrivilegeServerHandshakeRegistry.claimReady() ?: return null
         return connectHandshake(handshakeResult)
     }
 
@@ -164,33 +159,32 @@ public object Privilege {
         timeoutMillis: Long = PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS,
         adbDeviceName: String? = null,
         startupLogListener: PrivilegeStartupLogListener? = null,
-    ): PrivilegeServerInfo = startAdbWithLaunchId(
-        initialLaunchId = PrivilegeRuntimeStartCoordinator.newInitialLaunchId(),
+    ): PrivilegeServerInfo = startAdbWithLaunchCorrelationId(
+        launchCorrelationId = PrivilegeRuntimeStartCoordinator.newLaunchCorrelationId(),
         options = options,
         timeoutMillis = timeoutMillis,
         adbDeviceName = adbDeviceName,
         startupLogListener = startupLogListener,
     )
 
-    internal suspend fun startAdbWithLaunchId(
-        initialLaunchId: String,
+    internal suspend fun startAdbWithLaunchCorrelationId(
+        launchCorrelationId: String,
         options: PrivilegeAdbStartOptions,
         timeoutMillis: Long,
         adbDeviceName: String?,
         startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeServerInfo {
-        val token = ownerTokenStore().readOrCreate()
         val adbManager = buildAdbManager(
             adbDeviceName = adbDeviceName,
         )
-        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(token, initialLaunchId)
+        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(launchCorrelationId)
         var startResult: PrivilegeAdbStartResult? = null
 
         try {
             Log.i(TAG, "Starting through ADB keySignature=<redacted>")
             startupLogListener.emitStartupLog("runtime", "Starting through ADB")
             val adbStartResult = adbManager.start(
-                PrivilegeServerLaunchCommandBuilder.build(initialLaunchId),
+                PrivilegeServerLaunchCommandBuilder.build(launchCorrelationId),
                 options,
                 startupLogListener = startupLogListener,
             )
@@ -204,7 +198,7 @@ public object Privilege {
             Log.i(TAG, "ADB Binder handshake received")
             startupLogListener.emitStartupLog("runtime", "Privileged Server handshake received")
             val serverInfo = connectHandshake(handshakeResult, startupLogListener)
-            PrivilegeServerHandshakeRegistry.acknowledge(initialLaunchId)
+            PrivilegeServerHandshakeRegistry.acknowledge(launchCorrelationId)
             return serverInfo
         } catch (e: PrivilegeStartupException) {
             Log.e(TAG, "ADB startup failed", e)
@@ -224,7 +218,7 @@ public object Privilege {
             }
             throw e
         } finally {
-            PrivilegeServerHandshakeRegistry.cancel(initialLaunchId)
+            PrivilegeServerHandshakeRegistry.cancel(launchCorrelationId)
         }
     }
 
@@ -324,9 +318,7 @@ public object Privilege {
     internal fun initializeRuntimeConnection() {
         synchronized(runtimeConnectionListenerLock) {
             if (runtimeConnectionListener != null) return
-            val token = ownerTokenStore().readOrCreate()
             runtimeConnectionListener = PrivilegeServerHandshakeRegistry.addReadyListener(
-                token = token,
                 listener = ::connectReadyHandshake,
             )
         }
@@ -347,7 +339,7 @@ public object Privilege {
                         PrivilegeRuntimeConnectionOrigin.OWNER_RECONNECT
                 },
                 clientStartOperationId = handshakeResult.clientStartOperationId,
-                initialLaunchId = handshakeResult.initialLaunchId,
+                launchCorrelationId = handshakeResult.launchCorrelationId,
             )
             mutableServerConnectionEvents.tryEmit(event)
             true
@@ -536,13 +528,13 @@ public object Privilege {
     }
 
     internal fun buildShortNativeStarterCommand(
-        initialLaunchId: String? = null,
+        launchCorrelationId: String? = null,
         starterPath: String = PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath(),
     ): String =
         PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
             starterPath = starterPath,
-            initialLaunchId = initialLaunchId,
-            clearInheritedLaunchId = false,
+            launchCorrelationId = launchCorrelationId,
+            clearInheritedLaunchCorrelationId = false,
         )
 
     private fun buildAdbManager(
@@ -608,9 +600,6 @@ public object Privilege {
             ),
         )
     }
-
-    private fun ownerTokenStore(): PrivilegeOwnerTokenStore =
-        PrivilegeOwnerTokenStore
 
     private val OWNER_STARTUP_PERMISSIONS: Set<String> = setOf(
         Manifest.permission.WRITE_SECURE_SETTINGS,

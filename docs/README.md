@@ -6,7 +6,7 @@
 
 ## 项目状态
 
-当前仓库已进入源码实现阶段。Phase 1 已提供 Root、ADB、Shell Start Command 的 Privileged Server 启动、provider-permission + token-gated Binder handoff、全局 server-binder 状态和 owner-death follow 闭环。
+当前仓库已进入源码实现阶段。Phase 1 已提供 Root、ADB、Shell Start Command 的 Privileged Server 启动、provider-permission-gated Binder handoff、全局 server-binder 状态和 owner-death follow 闭环。
 
 当前 Binder 阶段提供显式目标 Binder 的 remote transact 原语、显式系统服务名的 raw Binder transact 桥和统一 server 不可用失败语义。公开 Binder 原语位于 `:priv-core` 的 `priv.kit.core.binder` package 分区；内部 AIDL 和 server transaction 实现位于 `priv.kit.core.internal.*`。server 通道不可用暴露为 `PrivilegeServerUnavailableException`；目标 Binder 调用失败按 raw Binder 语义透传给调用方处理。它不提供 Binder endpoint 注册槽位，不提供 Android 系统服务类型化代理，也不扩展成高级系统能力封装。
 
