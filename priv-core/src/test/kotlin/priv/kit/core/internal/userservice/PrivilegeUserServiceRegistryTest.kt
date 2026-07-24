@@ -218,9 +218,10 @@ class PrivilegeUserServiceRegistryTest {
         val instance = PrivilegeUserServiceLoader.instantiate(
             serviceClassName = BothConstructorsService::class.java.name,
             contextConfig = PrivilegeUserServiceLoader.ContextConfig(
-                packageName = "",
+                packageName = "priv.kit.test",
                 userId = 0,
                 mode = PrivilegeUserServiceLoader.ContextMode.PACKAGE_CONTEXT_ONLY,
+                contextRuntimeProvider = { error("Context unavailable") },
             ),
         ) as BothConstructorsService
 
@@ -233,9 +234,10 @@ class PrivilegeUserServiceRegistryTest {
             PrivilegeUserServiceLoader.instantiate(
                 serviceClassName = BothConstructorsService::class.java.name,
                 contextConfig = PrivilegeUserServiceLoader.ContextConfig(
-                    packageName = "",
+                    packageName = "priv.kit.test",
                     userId = 0,
                     mode = PrivilegeUserServiceLoader.ContextMode.APPLICATION_WITH_PACKAGE_FALLBACK,
+                    contextRuntimeProvider = { error("Context unavailable") },
                 ),
             )
         }

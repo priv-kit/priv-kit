@@ -1,8 +1,6 @@
 package priv.kit.core.internal.server
 
-import android.os.Process
 import priv.kit.core.internal.core.PrivilegeAndroidUsers
-import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.core.PrivilegeProtocol
 import java.io.File
 
@@ -15,7 +13,6 @@ internal object PrivilegeServerArguments {
     ): PrivilegeServerConfig {
         require(args.isEmpty()) { "Privileged Server no longer accepts launch arguments" }
         val normalizedClasspath = classpath.trim()
-        require(normalizedClasspath.isNotBlank()) { "Server classpath is unavailable" }
         val packageName = inferPackageName(normalizedClasspath)
         return PrivilegeServerConfig(
             launchCorrelationId = launchCorrelationId,

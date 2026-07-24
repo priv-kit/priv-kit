@@ -135,7 +135,9 @@ class MyPrivilegeService private constructor(
     }
 
     override fun destroy() {
-        exitProcess(0)
+        if (!PrivilegeUserServiceEnvironment.isEmbedded) {
+            exitProcess(0)
+        }
     }
 }
 ```
@@ -165,7 +167,7 @@ val spec = PrivilegeUserServiceSpec(
 )
 ```
 
-注意：停止嵌入式 UserService 时，`destroy` 方法仍然会调用，但内部不应该调用 `exitProcess(0)` ，否则整个 server 进程会因此销毁
+`PrivilegeUserServiceEnvironment.isEmbedded` 用于判断代码是否运行在 Privileged Server 进程内。该值延迟计算一次，并在整个进程生命周期内保持不变。停止嵌入式 UserService 时，`destroy` 方法仍然会调用，但内部不能调用 `exitProcess(0)`，否则整个 server 进程会因此销毁。
 
 ## 更多文档
 

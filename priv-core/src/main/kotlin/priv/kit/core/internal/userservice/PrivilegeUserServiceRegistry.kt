@@ -11,6 +11,20 @@ import java.util.UUID
 internal class PrivilegeUserServiceRegistry internal constructor(
     private val host: PrivilegeUserServiceHost,
     private val dedicatedStartTimeoutMillis: Long = DEFAULT_DEDICATED_START_TIMEOUT_MILLIS,
+    private val embeddedContextRuntimeProvider: () -> PrivilegeUserServiceLoader.ContextRuntime = run {
+        val contextRuntime by lazy {
+            val context = PrivilegeUserServiceLoader.createPackageContext(
+                packageName = host.packageName,
+                userId = host.userId,
+            )
+            PrivilegeUserServiceLoader.ContextRuntime(
+                context = context,
+                classLoader = context.classLoader,
+            )
+        }
+        val provider: () -> PrivilegeUserServiceLoader.ContextRuntime = { contextRuntime }
+        provider
+    },
 ) {
     init {
         PrivilegeUserServiceLoader.prepareContextRuntime()
@@ -153,6 +167,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
                 packageName = host.packageName,
                 userId = host.userId,
                 mode = PrivilegeUserServiceLoader.ContextMode.PACKAGE_CONTEXT_ONLY,
+                contextRuntimeProvider = embeddedContextRuntimeProvider,
             ),
         )
         val binder = binderFrom(instance, spec.serviceClassName)

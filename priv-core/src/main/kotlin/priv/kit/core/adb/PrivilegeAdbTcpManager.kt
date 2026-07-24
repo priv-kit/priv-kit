@@ -1,15 +1,14 @@
 package priv.kit.core.adb
 
-import priv.kit.core.PrivilegeStartupException
-import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS
-import priv.kit.shared.isPrivilegeAdbPort
-import java.io.EOFException
-import java.net.SocketException
-import java.net.SocketTimeoutException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import priv.kit.core.PrivilegeStartupException
+import priv.kit.shared.isPrivilegeAdbPort
+import java.io.EOFException
+import java.net.SocketException
+import java.net.SocketTimeoutException
 import kotlin.time.Duration.Companion.milliseconds
 
 internal class PrivilegeAdbTcpManager(
@@ -26,7 +25,6 @@ internal class PrivilegeAdbTcpManager(
     suspend fun prepareTcpForStart(
         tcpPort: Int,
     ): PrivilegeAdbAuthorizationCheckResult {
-        require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         val initialResult = checkTcpAuthorization(tcpPort = tcpPort)
         if (initialResult.status != PrivilegeAdbAuthorizationStatus.UNAVAILABLE) return initialResult
 

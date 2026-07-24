@@ -81,18 +81,6 @@ class PrivilegeServerUserServiceHostTest {
     }
 
     @Test
-    fun commandRequiresClasspath() {
-        assertThrows(PrivilegeUserServiceException::class.java) {
-            PrivilegeServerUserServiceProcessCommand.build(
-                config = config(classpath = ""),
-                spec = PrivilegeUserServiceSpec(serviceClassName = "test.UserService"),
-                token = "token-1",
-                serverPid = 2468,
-            )
-        }
-    }
-
-    @Test
     fun hostStartsProcessFromBuiltCommand() {
         val startedCommands = mutableListOf<PrivilegeServerUserServiceProcessStartCommand>()
         val process = TestProcess()

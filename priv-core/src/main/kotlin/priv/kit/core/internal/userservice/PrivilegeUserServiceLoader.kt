@@ -63,7 +63,7 @@ internal object PrivilegeUserServiceLoader {
             "UserService declares a Context constructor, but no Context config is available: $serviceClassName",
         )
 
-        val context = try {
+        val contextRuntime = try {
             createUserServiceContext(config)
         } catch (throwable: Throwable) {
             return fallbackToNoArgForEmbeddedContextFailure(
@@ -73,15 +73,17 @@ internal object PrivilegeUserServiceLoader {
                 throwable = throwable,
             )
         }
+        val context = contextRuntime.context
+        val classLoader = contextRuntime.classLoader
         val clazz = loadClass(
             serviceClassName = serviceClassName,
-            preferredClassLoaders = listOf(context.classLoader),
+            preferredClassLoaders = listOf(classLoader),
         )
         val constructor = contextConstructor(clazz) ?: throw PrivilegeUserServiceException(
             "UserService must have an accessible Context constructor: $serviceClassName",
         )
 
-        return withContextClassLoader(context.classLoader) {
+        return withContextClassLoader(classLoader) {
             try {
                 constructor.newInstance(context)
             } catch (throwable: Throwable) {
@@ -142,9 +144,9 @@ internal object PrivilegeUserServiceLoader {
         )
     }
 
-    private fun createUserServiceContext(config: ContextConfig): Context {
-        require(config.packageName.isNotBlank()) {
-            "UserService Context creation requires a package name"
+    private fun createUserServiceContext(config: ContextConfig): ContextRuntime {
+        config.contextRuntimeProvider?.let { provider ->
+            return provider()
         }
         val activityThread = activityThread()
         val packageContext = createPackageContext(
@@ -152,21 +154,25 @@ internal object PrivilegeUserServiceLoader {
             packageName = config.packageName,
             userId = config.userId,
         )
-        if (config.mode == ContextMode.PACKAGE_CONTEXT_ONLY) {
-            return packageContext
-        }
-
-        // Some vendor builds throw from makeApplication in app_process UserService children.
-        return try {
-            makeApplication(activityThread, packageContext)
-        } catch (throwable: Throwable) {
-            logBestEffortFallback(
-                "makeApplication unavailable for UserService package=${config.packageName}; " +
-                    "using package Context fallback",
-                throwable,
-            )
+        val context = if (config.mode == ContextMode.PACKAGE_CONTEXT_ONLY) {
             packageContext
+        } else {
+            // Some vendor builds throw from makeApplication in app_process UserService children.
+            try {
+                makeApplication(activityThread, packageContext)
+            } catch (throwable: Throwable) {
+                logBestEffortFallback(
+                    "makeApplication unavailable for UserService package=${config.packageName}; " +
+                        "using package Context fallback",
+                    throwable,
+                )
+                packageContext
+            }
         }
+        return ContextRuntime(
+            context = context,
+            classLoader = context.classLoader,
+        )
     }
 
     private fun activityThread(): ActivityThread {
@@ -325,6 +331,12 @@ internal object PrivilegeUserServiceLoader {
         val packageName: String,
         val userId: Int,
         val mode: ContextMode,
+        val contextRuntimeProvider: (() -> ContextRuntime)? = null,
+    )
+
+    internal data class ContextRuntime(
+        val context: Context,
+        val classLoader: ClassLoader,
     )
 
     internal enum class ContextMode {

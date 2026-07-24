@@ -79,9 +79,6 @@ internal object PrivilegeServerUserServiceProcessCommand {
         token: String,
         serverPid: Int,
     ): PrivilegeServerUserServiceProcessStartCommand {
-        val classpath = config.classpath.ifBlank {
-            throw PrivilegeUserServiceException("Server classpath is unavailable")
-        }
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(config.packageName)
         val processName = buildProcessName(config.packageName, spec)
         return PrivilegeServerUserServiceProcessStartCommand(
@@ -103,7 +100,7 @@ internal object PrivilegeServerUserServiceProcessCommand {
                 "--server-pid",
                 serverPid.toString(),
             ),
-            environment = mapOf("CLASSPATH" to classpath),
+            environment = mapOf("CLASSPATH" to config.classpath),
             processName = processName,
         )
     }

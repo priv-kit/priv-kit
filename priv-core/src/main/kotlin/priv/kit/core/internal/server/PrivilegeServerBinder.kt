@@ -17,21 +17,26 @@ internal class PrivilegeServerBinder(
     config: PrivilegeServerConfig,
     private val onShutdown: () -> Unit = {},
 ) : IPrivilegeServer.Stub() {
+    private val packageContextRuntime by lazy {
+        val context = PrivilegeUserServiceLoader.createPackageContext(
+            packageName = config.packageName,
+            userId = config.userId,
+        )
+        PrivilegeUserServiceLoader.ContextRuntime(
+            context = context,
+            classLoader = context.classLoader,
+        )
+    }
     private val userServiceManager = PrivilegeUserServiceManagerBinder(
         PrivilegeUserServiceRegistry(
             host = PrivilegeServerUserServiceHost(config),
+            embeddedContextRuntimeProvider = { packageContextRuntime },
         ),
     )
     private val packageManager by lazy {
         IPackageManager.Stub.asInterface(getSystemService("package"))
     }
     private val systemServiceCache = HashMap<String, IBinder>()
-    private val packageContext by lazy {
-        PrivilegeUserServiceLoader.createPackageContext(
-            packageName = config.packageName,
-            userId = config.userId,
-        )
-    }
 
     override fun getUserServiceManager(): IBinder =
         userServiceManager.asBinder()
@@ -55,7 +60,7 @@ internal class PrivilegeServerBinder(
     }
 
     override fun checkServerPermission(permission: String): Int {
-        return packageContext.checkPermission(
+        return packageContextRuntime.context.checkPermission(
             permission,
             AndroidProcess.myPid(),
             AndroidProcess.myUid(),

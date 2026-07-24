@@ -213,6 +213,8 @@ UserService 是应用自定义特权逻辑的扩展机制。
 - `PrivilegeUserServiceSpec.embedded` 控制服务是否嵌入 Privileged Server 进程运行，默认 `false` 会为每个实例启动独立 `app_process` 子进程；
 - `embedded = true` 只作为显式 opt-in，用于低风险、短耗时、可接受污染 server 进程的服务；
 - `PrivilegeUserServiceSpec.daemon` 控制服务是否以守护模式运行，默认 `false`；非守护模式下，仅 bind 的服务会在最后一个连接关闭后销毁，已 start 的服务会在 owner app 进程死亡时销毁；守护模式会保留服务直到显式 stop 或 server 退出；
+- `PrivilegeUserServiceEnvironment.isEmbedded` 在 UserService 内报告当前实例是否嵌入 Privileged Server 进程；server 入口通过进程级 Java System Property 写入角色标记，属性在首次读取后缓存，因此不依赖 UserService 与 server 是否使用同一个 ClassLoader；
+- Privileged Server 为 Embedded UserService 延迟创建并缓存同一组 package `Context` 与 `ClassLoader`，所有需要 `Context` 构造器的嵌入式实例复用这两个引用；只有无参构造器的服务不会触发该缓存初始化；
 - UserService 类本身必须实现 `IBinder` 或 `IInterface`，常见形式是直接继承应用自己的 AIDL `Stub`；
 - UserService 类可以声明无参构造器、单个 `android.content.Context` 构造器，或两个都声明；如果检测到 `Context` 构造器，会优先使用该构造器；
 - 应用自己的 AIDL Binder 由 UserService 暴露，项目只做 Binder handoff，不理解业务接口；

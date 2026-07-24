@@ -10,6 +10,7 @@ import android.util.Log
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
 import priv.kit.core.internal.core.preparePrivilegeMainLooper
+import priv.kit.core.userservice.PrivilegeUserServiceEnvironment
 import java.io.File
 import kotlin.system.exitProcess
 
@@ -52,6 +53,7 @@ public object PrivilegeServerMain {
     @JvmStatic
     public fun main(args: Array<String>) {
         try {
+            PrivilegeUserServiceEnvironment.markServerProcess()
             Log.i(TAG, "Privileged Server main entered args=${args.toDiagnosticString()}")
             preparePrivilegeMainLooper()
             val config = PrivilegeServerArguments.parse(
