@@ -1,7 +1,6 @@
 package priv.kit.core.internal.userservice
 
 import android.app.ActivityThread
-import android.app.Application
 import android.content.Context
 import android.content.res.CompatibilityInfo
 import android.os.Looper
@@ -159,7 +158,10 @@ internal object PrivilegeUserServiceLoader {
         } else {
             // Some vendor builds throw from makeApplication in app_process UserService children.
             try {
-                makeApplication(activityThread, packageContext)
+                activityThread.getPackageInfoNoCheck(
+                    packageContext.applicationInfo,
+                    CompatibilityInfo.DEFAULT_COMPATIBILITY_INFO,
+                ).makeApplication(true, null)
             } catch (throwable: Throwable) {
                 logBestEffortFallback(
                     "makeApplication unavailable for UserService package=${config.packageName}; " +
@@ -184,7 +186,6 @@ internal object PrivilegeUserServiceLoader {
             "ActivityThread is not initialized and current thread has no Looper"
         }
         return ActivityThread.systemMain()
-            ?: throw IllegalStateException("ActivityThread.systemMain returned null")
     }
 
     private fun createPackageContext(
@@ -199,38 +200,6 @@ internal object PrivilegeUserServiceLoader {
             Context.CONTEXT_INCLUDE_CODE or Context.CONTEXT_IGNORE_SECURITY,
             userHandle,
         )
-    }
-
-    private fun makeApplication(
-        activityThread: ActivityThread,
-        packageContext: Context,
-    ): Application {
-        val loadedApk = activityThread.getPackageInfoNoCheck(
-            packageContext.applicationInfo,
-            CompatibilityInfo.DEFAULT_COMPATIBILITY_INFO,
-        )
-        makeApplicationPreflightFailure(
-            packageName = loadedApk.packageName,
-            hasApplicationInfo = loadedApk.applicationInfo != null,
-        )?.let { reason ->
-            throw IllegalStateException(reason)
-        }
-        return loadedApk.makeApplication(true, null)
-    }
-
-    internal fun makeApplicationPreflightFailure(
-        packageName: String?,
-        hasApplicationInfo: Boolean,
-    ): String? {
-        if (packageName.isNullOrBlank()) {
-            return "LoadedApk.mPackageName is unavailable"
-        }
-
-        if (!hasApplicationInfo) {
-            return "LoadedApk.mApplicationInfo is unavailable"
-        }
-
-        return null
     }
 
     private fun contextConstructor(clazz: Class<*>) =

@@ -14,16 +14,12 @@ public object PrivilegeUserServiceEnvironment {
      * read because a process cannot change between embedded and dedicated UserService roles.
      */
     public val isEmbedded: Boolean by lazy {
-        isServerProcessProperty(System.getProperty(SERVER_PROCESS_PROPERTY))
+        System.getProperty(SERVER_PROCESS_PROPERTY) != null
     }
 
     internal fun markServerProcess() {
-        System.setProperty(SERVER_PROCESS_PROPERTY, SERVER_PROCESS_PROPERTY_VALUE)
+        System.setProperty(SERVER_PROCESS_PROPERTY, "")
     }
 
-    internal fun isServerProcessProperty(value: String?): Boolean =
-        value == SERVER_PROCESS_PROPERTY_VALUE
-
-    internal const val SERVER_PROCESS_PROPERTY: String = "priv.kit.server_process"
-    internal const val SERVER_PROCESS_PROPERTY_VALUE: String = "true"
+    private const val SERVER_PROCESS_PROPERTY: String = "priv.kit.server_process"
 }

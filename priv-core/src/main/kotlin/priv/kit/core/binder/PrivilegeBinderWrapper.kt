@@ -75,7 +75,7 @@ public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
                     ServiceManager.getService(serviceName)?.let(::fromBinder)
 
                 PrivilegeSystemServiceSource.SERVER_PROCESS ->
-                    if (hasSystemService(
+                    if (hasSystemServiceUnchecked(
                             serviceName = serviceName,
                             source = PrivilegeSystemServiceSource.SERVER_PROCESS,
                         )
@@ -92,19 +92,24 @@ public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
             source: PrivilegeSystemServiceSource = PrivilegeSystemServiceSource.CURRENT_PROCESS,
         ): Boolean {
             require(serviceName.isNotBlank()) { "serviceName must not be blank" }
-            return when (source) {
-                PrivilegeSystemServiceSource.CURRENT_PROCESS ->
-                    ServiceManager.getService(serviceName) != null
-
-                PrivilegeSystemServiceSource.SERVER_PROCESS -> {
-                    serverControlCall {
-                        Privilege.requireServerInterface().hasSystemService(serviceName)
-                    }
-                }
-            }
+            return hasSystemServiceUnchecked(serviceName, source)
         }
     }
 }
+
+private fun hasSystemServiceUnchecked(
+    serviceName: String,
+    source: PrivilegeSystemServiceSource,
+): Boolean =
+    when (source) {
+        PrivilegeSystemServiceSource.CURRENT_PROCESS ->
+            ServiceManager.getService(serviceName) != null
+
+        PrivilegeSystemServiceSource.SERVER_PROCESS ->
+            serverControlCall {
+                Privilege.requireServerInterface().hasSystemService(serviceName)
+            }
+    }
 
 private class TargetBinderWrapper(
     private val binder: IBinder,
@@ -158,7 +163,7 @@ private class ServerProcessSystemServiceWrapper(
 
     override fun pingBinder(): Boolean =
         runCatching {
-            hasSystemService(
+            hasSystemServiceUnchecked(
                 serviceName = serviceName,
                 source = PrivilegeSystemServiceSource.SERVER_PROCESS,
             )

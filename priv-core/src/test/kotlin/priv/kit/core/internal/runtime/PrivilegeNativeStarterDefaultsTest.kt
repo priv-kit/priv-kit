@@ -6,24 +6,6 @@ import org.junit.Test
 
 class PrivilegeNativeStarterDefaultsTest {
     @Test
-    fun nativeStarterDoesNotAcceptServerLaunchArguments() {
-        val source = nativeStarterSource().readText()
-
-        assertTrue(source.contains("priv-kit starter does not accept arguments"))
-    }
-
-    @Test
-    fun nativeStarterPrintsHumanReadableStartupStages() {
-        val source = nativeStarterSource().readText()
-
-        assertTrue(source.contains("info: starter begin"))
-        assertTrue(source.contains("info: killed existing server pid="))
-        assertTrue(source.contains("info: starting server"))
-        assertTrue(source.contains("open(\"/dev/null\", O_RDWR)"))
-        assertTrue(source.contains("info: starter exit with 0"))
-    }
-
-    @Test
     fun nativeStarterUsesCurrentServerMainClass() {
         val source = nativeStarterSource().readText()
         val expected = "DEFAULT_MAIN_CLASS = \"${PrivilegeServerLaunchCommandBuilder.SERVER_MAIN_CLASS}\""

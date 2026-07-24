@@ -31,7 +31,7 @@ internal object PrivilegeServerHandshakeRegistry {
                         it.launchCorrelationId == launchCorrelationId
                 }
                 ?.also { readyHandshake = null }
-                ?.let { ready -> check(handshake.complete(ready)) }
+                ?.let(handshake::complete)
         }
         return handshake
     }
@@ -115,14 +115,13 @@ internal object PrivilegeServerHandshakeRegistry {
 
     /** Returns whether a delivered, unacknowledged server was preserved for ready handoff. */
     fun cancel(launchCorrelationId: String): Boolean {
-        var result: PrivilegeServerHandshakeResult? = null
         var listeners: List<(PrivilegeServerHandshakeResult) -> Boolean> = emptyList()
-        synchronized(lock) {
+        val ready = synchronized(lock) {
             val pending = pendingHandshakesByCorrelationId.remove(launchCorrelationId) ?: return false
-            result = pending.completedResultOrNull() ?: return false
+            val result = pending.completedResultOrNull() ?: return false
             listeners = readyListeners.toList()
+            result
         }
-        val ready = requireNotNull(result)
         deliverToListenersOrCache(
             result = ready,
             listeners = listeners,

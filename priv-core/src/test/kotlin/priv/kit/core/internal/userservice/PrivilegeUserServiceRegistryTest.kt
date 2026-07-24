@@ -3,7 +3,6 @@ package priv.kit.core.internal.userservice
 import android.content.Context
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import priv.kit.core.testing.TestBinder
@@ -241,38 +240,6 @@ class PrivilegeUserServiceRegistryTest {
                 ),
             )
         }
-    }
-
-    @Test
-    fun makeApplicationPreflightDetectsUnavailablePackageName() {
-        assertEquals(
-            "LoadedApk.mPackageName is unavailable",
-            PrivilegeUserServiceLoader.makeApplicationPreflightFailure(
-                packageName = null,
-                hasApplicationInfo = true,
-            ),
-        )
-    }
-
-    @Test
-    fun makeApplicationPreflightAllowsAvailableLoadedApkState() {
-        assertNull(
-            PrivilegeUserServiceLoader.makeApplicationPreflightFailure(
-                packageName = "priv.kit.sample.debug",
-                hasApplicationInfo = true,
-            ),
-        )
-    }
-
-    @Test
-    fun makeApplicationPreflightDetectsUnavailableApplicationInfo() {
-        assertEquals(
-            "LoadedApk.mApplicationInfo is unavailable",
-            PrivilegeUserServiceLoader.makeApplicationPreflightFailure(
-                packageName = "priv.kit.sample.debug",
-                hasApplicationInfo = false,
-            ),
-        )
     }
 
     private fun embeddedSpec(

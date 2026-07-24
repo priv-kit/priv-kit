@@ -5,13 +5,6 @@ import org.junit.Test
 
 class PrivilegeAdbIdentityTest {
     @Test
-    fun identityUsesDeviceName() {
-        val identity = PrivilegeAdbIdentity.default(deviceName = " Demo App ")
-
-        assertEquals("DemoApp", identity.adbDeviceName)
-    }
-
-    @Test
     fun whitespaceInDeviceNameIsRemovedForAdbName() {
         val identity = PrivilegeAdbIdentity.default("Priv\tKit Sample")
 

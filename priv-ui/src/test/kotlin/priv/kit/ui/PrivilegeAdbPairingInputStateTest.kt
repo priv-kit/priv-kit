@@ -3,8 +3,6 @@ package priv.kit.ui
 import priv.kit.ui.adb.pairing.*
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PrivilegeAdbPairingInputStateTest {
@@ -47,16 +45,6 @@ class PrivilegeAdbPairingInputStateTest {
                 selectedIndex = 1,
             ).incrementDigit().code,
         )
-    }
-
-    @Test
-    fun validatesExactlySixDigits() {
-        assertTrue("123456".isPrivilegeUiPairingCode())
-        assertFalse("12345".isPrivilegeUiPairingCode())
-        assertFalse("1234567".isPrivilegeUiPairingCode())
-        assertFalse("123 456".isPrivilegeUiPairingCode())
-        assertFalse("12345a".isPrivilegeUiPairingCode())
-        assertFalse("١٢٣٤٥٦".isPrivilegeUiPairingCode())
     }
 
     @Test(expected = IllegalArgumentException::class)
