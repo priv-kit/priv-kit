@@ -1,6 +1,5 @@
 package priv.kit.sample.startup
 
-import android.content.Context
 import android.os.ParcelFileDescriptor
 import android.os.ResultReceiver
 import androidx.annotation.Keep
@@ -10,9 +9,6 @@ import kotlin.system.exitProcess
 internal class PrivilegeSampleShizukuStartService @Keep constructor() :
     IPrivilegeSampleShizukuStartService.Stub() {
     private val host = PrivilegeExternalStartupHost()
-
-    @Keep
-    constructor(context: Context) : this()
 
     override fun start(
         commandLine: String,
