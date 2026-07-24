@@ -84,9 +84,9 @@ public object Privilege {
             startupLogListener.emitStartupLog("runtime", "Starting with root")
             rootProcess = runInterruptible {
                 PrivilegeRootStarter.start(
-                    buildShortNativeStarterCommand(
+                    PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
                         launchCorrelationId = launchCorrelationId,
-                        starterPath = PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath(),
+                        clearInheritedLaunchCorrelationId = false,
                     ),
                     startupLogListener = startupLogListener,
                 )
@@ -131,17 +131,24 @@ public object Privilege {
         }
     }
 
-    @Throws(PrivilegeStartupException::class)
-    public fun createShellStartCommand(): String =
-        buildShortNativeStarterCommand(
-            launchCorrelationId = null,
-            starterPath = PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath(),
-        )
+    /**
+     * The device-side path of the installed native starter SO.
+     *
+     * The path is resolved on first access and cached for the lifetime of this process.
+     * Host UI can prefix it with `adb shell ` when presenting a command for a development
+     * machine.
+     */
+    @get:Throws(PrivilegeStartupException::class)
+    public val nativeStarterPath: String by lazy {
+        PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath()
+    }
 
-    internal fun createShellStartCommandWithLaunchCorrelationId(launchCorrelationId: String): String =
-        buildShortNativeStarterCommand(
+    internal fun createNativeStarterCommandWithLaunchCorrelationId(
+        launchCorrelationId: String,
+    ): String =
+        PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
             launchCorrelationId = launchCorrelationId,
-            starterPath = PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath(),
+            clearInheritedLaunchCorrelationId = false,
         )
 
     @Throws(PrivilegeStartupException::class)
@@ -560,16 +567,6 @@ public object Privilege {
         }
         previous?.unlink()
     }
-
-    internal fun buildShortNativeStarterCommand(
-        launchCorrelationId: String?,
-        starterPath: String,
-    ): String =
-        PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
-            starterPath = starterPath,
-            launchCorrelationId = launchCorrelationId,
-            clearInheritedLaunchCorrelationId = false,
-        )
 
     private fun buildAdbManager(
         adbDeviceName: String?,

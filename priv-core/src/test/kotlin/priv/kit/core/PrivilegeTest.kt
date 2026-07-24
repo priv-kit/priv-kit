@@ -78,21 +78,6 @@ class PrivilegeTest {
     }
 
     @Test
-    fun shortNativeStarterCommandUsesStarterPathOnly() {
-        val commandLine = Privilege.buildShortNativeStarterCommand(
-            launchCorrelationId = null,
-            starterPath = "/data/app/example/lib/arm64/libprivkitstarter.so",
-        )
-
-        assertEquals(
-            "/data/app/example/lib/arm64/libprivkitstarter.so",
-            commandLine,
-        )
-        assertFalse(commandLine.contains("token-value"))
-        assertFalse(commandLine.contains("--user-id"))
-    }
-
-    @Test
     fun rootFallbackStopsWhenDetachedServerMayExist() {
         assertTrue(rootServerLaunchMayHaveCompleted(processIsAlive = true, exitCode = null))
         assertTrue(rootServerLaunchMayHaveCompleted(processIsAlive = false, exitCode = null))

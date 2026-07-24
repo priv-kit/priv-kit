@@ -4,6 +4,10 @@
 .kotlin/
 build/
 local.properties
+node_modules/
 
 **/build/
 **/.cxx/
+
+website/.vitepress/cache/
+website/.vitepress/dist/

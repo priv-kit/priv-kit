@@ -14,6 +14,7 @@ import java.io.Closeable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration.Companion.milliseconds
 
 internal class PrivilegeSampleShizukuExternalStarter(
     context: Context,
@@ -104,7 +105,7 @@ internal class PrivilegeSampleShizukuExternalStarter(
         }
 
         val boundService = try {
-            withTimeoutOrNull(SHIZUKU_BIND_TIMEOUT_MILLIS) { binding.await() }
+            withTimeoutOrNull(SHIZUKU_BIND_TIMEOUT_MILLIS.milliseconds) { binding.await() }
                 ?: throw PrivilegeStartupException("Timed out binding Shizuku UserService")
         } catch (throwable: Throwable) {
             removeUserService(connection)

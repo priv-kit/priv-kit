@@ -34,7 +34,7 @@ internal class PrivilegeSampleDebugViewModel : ViewModel() {
     val notificationPairingOwnerId: String = UUID.randomUUID().toString()
     var startShizukuExternalAfterPermission = false
     val manualShellCommandLine: String by lazy(LazyThreadSafetyMode.NONE) {
-        Privilege.createShellStartCommand().toSampleHostAdbShellCommand()
+        Privilege.nativeStarterPath.toSampleManualShellCommand()
     }
 
     fun selectDebugDestination(destination: PrivilegeSampleDebugDestination) {
@@ -89,13 +89,7 @@ internal class PrivilegeSampleDebugViewModel : ViewModel() {
     }
 }
 
-private fun String.toSampleHostAdbShellCommand(): String {
-    val command = trim()
-    return if (command.startsWith(ADB_SHELL_PREFIX)) {
-        command
-    } else {
-        ADB_SHELL_PREFIX + command
-    }
-}
+private fun String.toSampleManualShellCommand(): String =
+    ADB_SHELL_PREFIX + trim()
 
 private const val ADB_SHELL_PREFIX = "adb shell "

@@ -12,25 +12,33 @@ import priv.kit.core.internal.runtime.PrivilegeContext
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
-class PrivilegeShellStartCommandTest {
+class PrivilegeNativeStarterPathTest {
     @Test
-    fun publicShellStartCommandRemainsPlainStarterPath() {
+    fun publicNativeStarterPathCachesInstalledLibrary() {
         installRuntimeContext()
 
-        val commandLine = Privilege.createShellStartCommand()
+        val nativeStarterPath = Privilege.nativeStarterPath
 
         assertEquals(
             "/data/app/priv.kit.sample/lib/arm64/libprivkitstarter.so",
-            commandLine,
+            nativeStarterPath,
         )
-        assertFalse(commandLine.contains(PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID))
+        assertFalse(
+            nativeStarterPath.contains(PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID),
+        )
+
+        RuntimeEnvironment.getApplication().applicationInfo.nativeLibraryDir =
+            "/data/app/reinstalled/lib/arm64"
+
+        assertEquals(nativeStarterPath, Privilege.nativeStarterPath)
     }
 
     @Test
-    fun coordinatedShellStartCommandIncludesLaunchCorrelationEnvironment() {
+    fun coordinatedNativeStarterCommandIncludesLaunchCorrelationEnvironment() {
         installRuntimeContext()
 
-        val commandLine = Privilege.createShellStartCommandWithLaunchCorrelationId("launch-1")
+        val commandLine =
+            Privilege.createNativeStarterCommandWithLaunchCorrelationId("launch-1")
 
         assertEquals(
             "${PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID}=launch-1 " +

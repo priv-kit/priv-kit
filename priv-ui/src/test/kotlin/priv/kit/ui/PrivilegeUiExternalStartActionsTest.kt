@@ -158,7 +158,7 @@ class PrivilegeUiExternalStartActionsTest {
         val actions = PrivilegeUiExternalStartActions(
             store = store,
             runtimeActions = runtimeActions,
-            createShellStartCommand = { _ -> "external command" },
+            createNativeStarterCommand = { _ -> "external command" },
         )
         try {
             store.config = config
@@ -198,7 +198,7 @@ class PrivilegeUiExternalStartActionsTest {
         val actions = PrivilegeUiExternalStartActions(
             store = store,
             runtimeActions = runtimeActions,
-            createShellStartCommand = { _ -> "external command" },
+            createNativeStarterCommand = { _ -> "external command" },
         )
         try {
             store.config = config

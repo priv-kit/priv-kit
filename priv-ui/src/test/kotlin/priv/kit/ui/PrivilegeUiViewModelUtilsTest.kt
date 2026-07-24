@@ -10,15 +10,15 @@ class PrivilegeUiViewModelUtilsTest {
     fun hostShellCommandAddsAdbShellPrefix() {
         assertEquals(
             "adb shell /data/app/libprivkitstarter.so",
-            "/data/app/libprivkitstarter.so".toPrivilegeUiHostAdbShellCommand(),
+            privilegeUiManualShellCommand("/data/app/libprivkitstarter.so"),
         )
     }
 
     @Test
-    fun hostShellCommandDoesNotDuplicateAdbShellPrefix() {
+    fun hostShellCommandTrimsNativeStarterPath() {
         assertEquals(
             "adb shell /data/app/libprivkitstarter.so",
-            "adb shell /data/app/libprivkitstarter.so".toPrivilegeUiHostAdbShellCommand(),
+            privilegeUiManualShellCommand(" /data/app/libprivkitstarter.so "),
         )
     }
 

@@ -18,8 +18,8 @@ import kotlin.time.Duration.Companion.milliseconds
 internal class PrivilegeUiExternalStartActions(
     private val store: PrivilegeUiViewModelStore,
     private val runtimeActions: PrivilegeUiRuntimeActions,
-    private val createShellStartCommand: (PrivilegeRuntimeClientLaunch) -> String =
-        PrivilegeRuntimeStartCoordinator::createShellStartCommand,
+    private val createNativeStarterCommand: (PrivilegeRuntimeClientLaunch) -> String =
+        PrivilegeRuntimeStartCoordinator::createNativeStarterCommand,
     private val acquireInteractivePermit: () -> AutoCloseable? =
         PrivilegeUiStartGate.newInteractivePermitAcquirer(),
 ) {
@@ -116,7 +116,7 @@ internal class PrivilegeUiExternalStartActions(
             runtimeStartSource = PrivilegeUiRuntimeStartSource.EXTERNAL,
             runtimeStartProviderId = provider.id,
         ) {
-            val commandLine = createShellStartCommand(requireRuntimeClientLaunch())
+            val commandLine = createNativeStarterCommand(requireRuntimeClientLaunch())
             if (provider is PrivilegeUiStreamingExternalStartProvider) {
                 provider.start(
                     context = context,

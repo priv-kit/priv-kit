@@ -299,9 +299,9 @@ internal fun PrivilegeSampleDebugHost.startShizukuExternal() {
         startedMessage = "Shizuku command sent. Waiting for server handshake...",
         startupSource = "Shizuku",
     ) {
-        val commandLine = Privilege.createShellStartCommand()
+        val nativeStarterPath = Privilege.nativeStarterPath
         try {
-            externalStarter.start(commandLine)
+            externalStarter.start(nativeStarterPath)
         } finally {
             externalStarter.close()
             if (sampleViewModel.shizukuExternalStarter === externalStarter) {

@@ -135,9 +135,10 @@ public object PrivilegeRuntimeStartCoordinator {
         startupLogListener = startupLogListener,
     )
 
-    public fun createShellStartCommand(
+    public fun createNativeStarterCommand(
         launch: PrivilegeRuntimeClientLaunch,
-    ): String = Privilege.createShellStartCommandWithLaunchCorrelationId(launch.launchCorrelationId)
+    ): String =
+        Privilege.createNativeStarterCommandWithLaunchCorrelationId(launch.launchCorrelationId)
 
     internal fun markOwnerProcessStarted() {
         arbiter.markOwnerProcessStarted(RECONNECT_GRACE_MILLIS)

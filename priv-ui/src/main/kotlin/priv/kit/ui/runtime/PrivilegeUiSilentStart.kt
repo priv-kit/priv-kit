@@ -164,7 +164,8 @@ private object PrivilegeUiPlatformSilentStartBackend : PrivilegeUiSilentStartBac
         timeoutMillis: Long,
     ): PrivilegeServerInfo? {
         return withTimeoutOrNull(timeoutMillis.milliseconds) {
-            val commandLine = PrivilegeRuntimeStartCoordinator.createShellStartCommand(launch)
+            val commandLine =
+                PrivilegeRuntimeStartCoordinator.createNativeStarterCommand(launch)
             provider.start(context, commandLine)
             Privilege.serverState.filterNotNull().first()
         }

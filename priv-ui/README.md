@@ -51,10 +51,9 @@ The UI covers ordinary user-facing authorization only:
 - Service started/not-started status.
 - A connected-server warning above the authorization method tabs when the privileged service is subject to permission restrictions. The status is checked after each connection and whenever the host returns to the foreground; Root servers skip the permission check.
 
-For manual shell startup, the UI always shows the direct
-`adb shell <native-starter-path>` command. It does not materialize startup commands in external
-storage because app-specific external files cannot be treated as executable content from a
-trusted boundary on every Android version.
+For manual shell startup, the UI reads `Privilege.nativeStarterPath` and shows the direct
+`adb shell <native-starter-path>` command. The native starter remains inside the installed
+application, and the UI only prepares display and clipboard text.
 
 Battery-optimization guidance directly opens Android's exemption confirmation for the
 host package and rechecks the result when the page returns to the foreground. `priv-ui`
@@ -113,7 +112,7 @@ There is no general-purpose switch for this latch. A confirmed stop action in th
 
 After obtaining the process-local start gate, `PrivilegeUi.startSilently(context, config)` first returns an already-connected or ready server, if present. During the runtime's app-start reconciliation window it then gives a retained server time to complete owner reconnect before reading the saved method and committing a new launch. If no connection wins, it attempts only that exact method. It does not initialize Compose, create a ViewModel, require an `Activity`, fall back to another method, show a snackbar, invoke Android permission launchers, or update the saved method. Without an existing connection, missing history, an unknown or disabled method, missing authorization, startup failure, and timeout all return `null`.
 
-Foreground and silent startup are mutually exclusive through one process-local gate. Accepted foreground startup effects—including runtime start/stop, TCP changes, pairing, permission requests, and external authorization calls—retain nestable leases scoped to one foreground ViewModel owner until their owned work completes. A different ViewModel cannot join that owner's nesting, and `startSilently(...)` returns `null` while any foreground lease remains. The two UI entry points use first-acquired ownership without queuing or preemption.
+Foreground and silent startup are mutually exclusive through one process-local gate. Accepted foreground startup effects, including runtime start/stop, TCP changes, pairing, permission requests, and external authorization calls, retain nestable leases scoped to one foreground ViewModel owner until their owned work completes. A different ViewModel cannot join that owner's nesting, and `startSilently(...)` returns `null` while any foreground lease remains. The two UI entry points use first-acquired ownership without queuing or preemption.
 
 Owner reconnect participates through the runtime arbiter rather than the UI gate. An already-connected/ready server wins first; a retained server whose reconnect arrives during preflight wins before Root, ADB, or external launch side effects are committed. After a foreground or silent start commits its runtime lease, a late `OWNER_RECONNECT` is rejected and the new launch continues. Permission requests are additionally scoped to their active `PrivilegeScaffold` host and are discarded when the last host leaves, so a detached launcher cannot keep the gate occupied or replay a stale prompt. While silent startup owns the gate, the built-in UI disables new side-effecting entries. After silent startup releases the gate, each existing ViewModel re-reads runtime state before enabling those entries again, so a just-connected server cannot race with another foreground start. A multi-process app must initialize and invoke Priv Kit startup from only one designated app process; calling `startSilently(...)` during every process's `Application` initialization can start duplicate attempts.
 

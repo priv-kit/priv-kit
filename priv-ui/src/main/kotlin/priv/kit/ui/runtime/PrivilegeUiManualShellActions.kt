@@ -10,8 +10,8 @@ import priv.kit.core.Privilege
 
 internal suspend fun PrivilegeUiViewModelStore.loadManualShellCommand() {
     val commandLine = withContext(Dispatchers.IO) {
-        runCatching(Privilege::createShellStartCommand)
-            .map(String::toPrivilegeUiHostAdbShellCommand)
+        runCatching { Privilege.nativeStarterPath }
+            .map(::privilegeUiManualShellCommand)
     }.getOrElse { throwable ->
         appendLog(throwable.toPrivilegeUiDiagnosticString())
         updateState { it.copy(manualShellCommandLine = null) }
