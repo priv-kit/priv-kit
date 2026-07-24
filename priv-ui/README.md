@@ -51,16 +51,10 @@ The UI covers ordinary user-facing authorization only:
 - Service started/not-started status.
 - A connected-server warning above the authorization method tabs when the privileged service is subject to permission restrictions. The status is checked after each connection and whenever the host returns to the foreground; Root servers skip the permission check.
 
-For manual shell startup on Android 11 and newer, the UI atomically materializes a small
-`priv-kit.sh` bootstrap in `getExternalFilesDir(null)` and shows
-`adb shell sh /sdcard/Android/data/<applicationId>/files/priv-kit.sh`. The bootstrap directly
-executes the current native starter command and is refreshed whenever the manual panel prepares
-the command, so it does not start the owner app process before the native starter. Reopen the
-manual panel after an app update before reusing a previously copied command. If
-`getExternalFilesDir(null)` returns `null`, or writing the bootstrap fails, the UI shows the
-existing direct `adb shell <native-starter-path>` command instead. Android 10 and older always
-use the direct command because storage-authorized apps could otherwise replace the external
-bootstrap before the user executes it as the shell UID.
+For manual shell startup, the UI always shows the direct
+`adb shell <native-starter-path>` command. It does not materialize startup commands in external
+storage because app-specific external files cannot be treated as executable content from a
+trusted boundary on every Android version.
 
 Battery-optimization guidance directly opens Android's exemption confirmation for the
 host package and rechecks the result when the page returns to the foreground. `priv-ui`

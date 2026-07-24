@@ -69,16 +69,10 @@ val commandLine = Privilege.createShellStartCommand()
 YourApp.showCommandToUser(commandLine)
 ```
 
-The built-in `priv-ui` manual panel keeps this core API unchanged, but on Android 11 and
-newer presents a shorter host-side command when app-specific external files are available. It atomically writes
-`priv-kit.sh` under `getExternalFilesDir(null)` and displays
-`adb shell sh /sdcard/Android/data/<applicationId>/files/priv-kit.sh`. The script directly
-executes the current native starter command and is refreshed whenever the manual panel prepares
-the command, avoiding an app-process startup before the native starter runs. Reopen the manual
-panel after updating the app before reusing a previously copied command. If the external files
-directory is unavailable or the script cannot be written, the UI falls back to the direct
-`adb shell <native-starter-path>` command. Android 10 and older always use the direct command
-because another storage-authorized app could modify app-specific external files there.
+The built-in `priv-ui` manual panel keeps this core API unchanged and displays the direct
+`adb shell <native-starter-path>` command. It does not materialize startup commands in external
+storage because app-specific external files cannot be treated as executable content from a
+trusted boundary on every Android version.
 
 Pass the startup command to Shizuku UserService or another external startup entry point that can execute code under a compatible privileged identity.
 

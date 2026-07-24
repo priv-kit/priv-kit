@@ -69,13 +69,9 @@ val commandLine = Privilege.createShellStartCommand()
 YourApp.showCommandToUser(commandLine)
 ```
 
-内置 `priv-ui` 的手动面板不会改变这个 core API；在 Android 11 及以上且应用专属外部文件目录可用时，它会原子写入
-`getExternalFilesDir(null)/priv-kit.sh`，并展示较短的宿主命令
-`adb shell sh /sdcard/Android/data/<applicationId>/files/priv-kit.sh`。该脚本直接执行当前
-native starter 命令，并在手动面板准备命令时刷新，避免在 native starter 运行前先拉起应用进程。
-应用更新后，应重新打开手动面板再复用此前复制的命令。如果外部文件目录不可用或脚本写入失败，UI 会回退到直接执行
-`adb shell <native-starter-path>`。Android 10 及以下始终使用直接命令，避免其他拥有存储权限的
-应用篡改应用专属外部文件后借手动启动获得 shell UID。
+内置 `priv-ui` 的手动面板不会改变这个 core API，并始终展示直接执行 native starter 的
+`adb shell <native-starter-path>` 命令。它不会把启动命令写入外部存储，因为不能假定所有
+Android 版本上的应用专属外部文件都处于可安全执行的信任边界内。
 
 把启动命令交给 Shizuku UserService 或其他能够在兼容特权身份中执行代码的外部启动入口。
 

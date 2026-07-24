@@ -23,24 +23,6 @@ class PrivilegeUiViewModelUtilsTest {
     }
 
     @Test
-    fun hostShellScriptCommandUsesShAndQuotesUnsafePaths() {
-        assertEquals(
-            "adb shell sh '/storage/emulated/0/Android/data/app id/files/priv-kit.sh'",
-            "/storage/emulated/0/Android/data/app id/files/priv-kit.sh"
-                .toPrivilegeUiHostAdbShellScriptCommand(),
-        )
-    }
-
-    @Test
-    fun primaryExternalStoragePathUsesShortSdcardAlias() {
-        assertEquals(
-            "/sdcard/Android/data/priv.kit.sample/files/priv-kit.sh",
-            "/storage/emulated/0/Android/data/priv.kit.sample/files/priv-kit.sh"
-                .toPrivilegeUiAdbVisibleExternalPath(),
-        )
-    }
-
-    @Test
     fun staticTcpOpenCommandUsesConfiguredPort() {
         assertEquals(
             "adb tcpip 5555",
