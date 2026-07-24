@@ -61,6 +61,7 @@ class PrivilegeUiRuntimeActionsTest {
                     message = "blocked",
                     failureKind = PrivilegeUiFailureKind.TCP_ENABLE_FAILED,
                     action = actionCalls::incrementAndGet,
+                    onFailure = null,
                     onSuccess = { "unexpected" },
                 )
 
@@ -95,6 +96,7 @@ class PrivilegeUiRuntimeActionsTest {
                     message = "queued",
                     failureKind = PrivilegeUiFailureKind.TCP_ENABLE_FAILED,
                     action = actionCompleted::countDown,
+                    onFailure = null,
                     onSuccess = { "done" },
                 )
 
@@ -134,7 +136,7 @@ class PrivilegeUiRuntimeActionsTest {
                 beforeClose = releaseBlocker::countDown,
             ).use { (store, actions) ->
                 actions.connectForTest(shellServerInfo())
-                actions.stopServer()
+                actions.stopServer(beforeShutdown = {})
 
                 assertTrue(store.state.value.busy)
                 assertNull(PrivilegeUiStartGate.tryAcquireSilent())
@@ -372,8 +374,8 @@ class PrivilegeUiRuntimeActionsTest {
             try {
                 actions.connectForTest(shellServerInfo())
 
-                actions.stopServer()
-                actions.stopServer()
+                actions.stopServer(beforeShutdown = {})
+                actions.stopServer(beforeShutdown = {})
 
                 assertTrue(shutdownStarted.await(2, TimeUnit.SECONDS))
                 assertEquals(1, shutdownCount.get())
@@ -413,7 +415,7 @@ class PrivilegeUiRuntimeActionsTest {
             actions.connectForTest(shellServerInfo())
             val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }
 
-            actions.stopServer()
+            actions.stopServer(beforeShutdown = {})
 
             assertTrue(waitUntilIdle(store))
             assertEquals("停止特权服务失败，请重试", snackbar.await())
@@ -434,6 +436,7 @@ class PrivilegeUiRuntimeActionsTest {
                 message = store.text(R.string.priv_ui_tcp_enabling),
                 failureKind = PrivilegeUiFailureKind.TCP_ENABLE_FAILED,
                 action = { error("Failed to switch ADB to TCP mode: injected transcript") },
+                onFailure = null,
                 onSuccess = { store.text(R.string.priv_ui_tcp_enabled) },
             )
 
@@ -461,7 +464,7 @@ class PrivilegeUiRuntimeActionsTest {
         ).use { (store, actions) ->
             try {
                 actions.connectForTest(shellServerInfo())
-                actions.stopServer()
+                actions.stopServer(beforeShutdown = {})
                 assertTrue(shutdownStarted.await(2, TimeUnit.SECONDS))
 
                 actions.connectForTest(

@@ -70,6 +70,7 @@ class PrivilegeTest {
     @Test
     fun shortNativeStarterCommandUsesStarterPathOnly() {
         val commandLine = Privilege.buildShortNativeStarterCommand(
+            launchCorrelationId = null,
             starterPath = "/data/app/example/lib/arm64/libprivkitstarter.so",
         )
 
@@ -98,10 +99,11 @@ class PrivilegeTest {
             protocolVersion = PrivilegeProtocol.VERSION,
         )
         Privilege.connectHandshake(
-            PrivilegeServerHandshakeResult(
+            handshakeResult = PrivilegeServerHandshakeResult(
                 serverInfo = serverInfo,
                 serverBinder = server.asBinder(),
             ),
+            startupLogListener = null,
         )
         server.killBinder()
 
@@ -118,7 +120,7 @@ class PrivilegeTest {
             permissionResult = PackageManager.PERMISSION_GRANTED,
         )
         Privilege.connectHandshake(
-            PrivilegeServerHandshakeResult(
+            handshakeResult = PrivilegeServerHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -126,6 +128,7 @@ class PrivilegeTest {
                 ),
                 serverBinder = server.asBinder(),
             ),
+            startupLogListener = null,
         )
 
         assertEquals(
@@ -140,7 +143,7 @@ class PrivilegeTest {
             permissionResult = PackageManager.PERMISSION_DENIED,
         )
         Privilege.connectHandshake(
-            PrivilegeServerHandshakeResult(
+            handshakeResult = PrivilegeServerHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 0,
                     pid = 1234,
@@ -148,6 +151,7 @@ class PrivilegeTest {
                 ),
                 serverBinder = server.asBinder(),
             ),
+            startupLogListener = null,
         )
 
         assertFalse(Privilege.isPermissionRestricted())
@@ -160,7 +164,7 @@ class PrivilegeTest {
             permissionResult = PackageManager.PERMISSION_GRANTED,
         )
         Privilege.connectHandshake(
-            PrivilegeServerHandshakeResult(
+            handshakeResult = PrivilegeServerHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 1000,
                     pid = 1234,
@@ -168,6 +172,7 @@ class PrivilegeTest {
                 ),
                 serverBinder = grantedServer.asBinder(),
             ),
+            startupLogListener = null,
         )
 
         assertFalse(Privilege.isPermissionRestricted())
@@ -181,7 +186,7 @@ class PrivilegeTest {
             permissionResult = PackageManager.PERMISSION_DENIED,
         )
         Privilege.connectHandshake(
-            PrivilegeServerHandshakeResult(
+            handshakeResult = PrivilegeServerHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 5678,
@@ -189,6 +194,7 @@ class PrivilegeTest {
                 ),
                 serverBinder = deniedServer.asBinder(),
             ),
+            startupLogListener = null,
         )
 
         assertTrue(Privilege.isPermissionRestricted())
@@ -211,7 +217,7 @@ class PrivilegeTest {
             permissionResult = PackageManager.PERMISSION_GRANTED,
         )
         Privilege.connectHandshake(
-            PrivilegeServerHandshakeResult(
+            handshakeResult = PrivilegeServerHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -219,6 +225,7 @@ class PrivilegeTest {
                 ),
                 serverBinder = server.asBinder(),
             ),
+            startupLogListener = null,
         )
 
         assertEquals(
@@ -247,7 +254,7 @@ class PrivilegeTest {
             permissionResult = PackageManager.PERMISSION_DENIED,
         )
         Privilege.connectHandshake(
-            PrivilegeServerHandshakeResult(
+            handshakeResult = PrivilegeServerHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -255,6 +262,7 @@ class PrivilegeTest {
                 ),
                 serverBinder = server.asBinder(),
             ),
+            startupLogListener = null,
         )
 
         Privilege.grantRuntimePermission(

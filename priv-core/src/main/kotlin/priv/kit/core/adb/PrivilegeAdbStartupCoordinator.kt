@@ -15,8 +15,8 @@ internal class PrivilegeAdbStartupCoordinator(
     @Throws(PrivilegeStartupException::class)
     suspend fun start(
         command: PrivilegeServerLaunchCommand,
-        options: PrivilegeAdbStartOptions = PrivilegeAdbStartOptions(),
-        startupLogListener: PrivilegeStartupLogListener? = null,
+        options: PrivilegeAdbStartOptions,
+        startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeAdbStartResult = withContext(Dispatchers.IO) {
         val output = PrivilegeAdbOutput(startupLogListener)
         var connectEndpointLease: PrivilegeAdbConnectEndpointLease? = null

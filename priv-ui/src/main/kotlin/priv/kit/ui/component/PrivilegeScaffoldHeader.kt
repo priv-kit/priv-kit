@@ -32,7 +32,10 @@ internal fun PrivilegeTopBar(viewModel: PrivilegeUiViewModel) {
     TopAppBar(
         navigationIcon = {
             val backDescription = stringResource(R.string.priv_ui_nav_back)
-            PrivilegeIconTooltip(text = backDescription) {
+            PrivilegeIconTooltip(
+                text = backDescription,
+                modifier = Modifier,
+            ) {
                 IconButton(
                     onClick = {
                         if (!viewModel.dispatchBackClick()) {
@@ -122,7 +125,7 @@ internal fun privilegeUiAuthorizationModeItems(
     modes: List<PrivilegeUiStartupMode>,
     selectedMode: PrivilegeUiStartupMode,
     busy: Boolean,
-    interactionEnabled: Boolean = true,
+    interactionEnabled: Boolean,
 ): List<PrivilegeUiAuthorizationModeItem> {
     val resolvedMode = selectedMode.takeIf { it in modes } ?: modes.firstOrNull()
     return modes.map { mode ->

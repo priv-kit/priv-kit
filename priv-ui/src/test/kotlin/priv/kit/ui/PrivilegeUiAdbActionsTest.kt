@@ -237,6 +237,9 @@ class PrivilegeUiAdbActionsTest {
         val options = privilegeUiWirelessAdbStartOptions(
             tcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
             tcpPort = 4567,
+            activeTcpPort = null,
+            managedWirelessAdbEnabled = true,
+            managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
         )
 
         assertEquals(false, options.tcpMode)
@@ -251,6 +254,8 @@ class PrivilegeUiAdbActionsTest {
             tcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
             tcpPort = 4567,
             activeTcpPort = 5555,
+            managedWirelessAdbEnabled = true,
+            managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
         )
 
         assertEquals(5555, options.port)
@@ -265,6 +270,9 @@ class PrivilegeUiAdbActionsTest {
         val options = privilegeUiWirelessAdbStartOptions(
             tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
             tcpPort = 4567,
+            activeTcpPort = null,
+            managedWirelessAdbEnabled = true,
+            managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
         )
 
         assertEquals(false, options.tcpMode)
@@ -279,7 +287,9 @@ class PrivilegeUiAdbActionsTest {
         val options = privilegeUiWirelessAdbStartOptions(
             tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
             tcpPort = 4567,
+            activeTcpPort = null,
             managedWirelessAdbEnabled = false,
+            managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
         )
 
         assertEquals(
@@ -293,6 +303,7 @@ class PrivilegeUiAdbActionsTest {
         val options = privilegeUiWirelessAdbStartOptions(
             tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
             tcpPort = 4567,
+            activeTcpPort = null,
             managedWirelessAdbEnabled = true,
             managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNDECLARED,
         )

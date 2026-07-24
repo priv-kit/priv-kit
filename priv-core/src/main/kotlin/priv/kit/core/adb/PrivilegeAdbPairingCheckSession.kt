@@ -229,7 +229,7 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
     }
 
     private fun successResult(
-        port: Int?,
+        port: Int,
         output: PrivilegeAdbOutput,
     ): PrivilegeAdbPairingCheckResult =
         PrivilegeAdbPairingCheckResult(

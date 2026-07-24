@@ -69,9 +69,9 @@ internal fun PrivilegeAdbWirelessDebuggingControlStatus.toUiManagedWirelessAdbSt
     }
 
 internal fun PrivilegeUiState.withWirelessAdbOffline(
-    wifiConnected: Boolean = this.wifiConnected,
-    managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus = this.managedWirelessAdbStatus,
-    notificationPairingRunning: Boolean = this.notificationPairingRunning,
+    wifiConnected: Boolean,
+    managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus,
+    notificationPairingRunning: Boolean,
 ): PrivilegeUiState =
     copy(
         wifiConnected = wifiConnected,

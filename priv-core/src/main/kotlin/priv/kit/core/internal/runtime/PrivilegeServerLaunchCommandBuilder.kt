@@ -9,7 +9,10 @@ internal object PrivilegeServerLaunchCommandBuilder {
         val packageName = context.packageName
         val classpath = buildClasspath()
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(packageName)
-        val starterCommandLine = buildNativeStarterCommand(launchCorrelationId)
+        val starterCommandLine = buildNativeStarterCommand(
+            launchCorrelationId = launchCorrelationId,
+            clearInheritedLaunchCorrelationId = false,
+        )
 
         return PrivilegeServerLaunchCommand(
             commandLine = starterCommandLine,
@@ -20,8 +23,8 @@ internal object PrivilegeServerLaunchCommandBuilder {
     }
 
     internal fun buildNativeStarterCommand(
-        launchCorrelationId: String? = null,
-        clearInheritedLaunchCorrelationId: Boolean = false,
+        launchCorrelationId: String?,
+        clearInheritedLaunchCorrelationId: Boolean,
     ): String = buildNativeStarterCommand(
         starterPath = buildNativeStarterPath(),
         launchCorrelationId = launchCorrelationId,

@@ -60,7 +60,7 @@ internal class PrivilegeUiRuntimeActions(
             )
         }
 
-    fun stopServer(beforeShutdown: () -> Unit = {}) {
+    fun stopServer(beforeShutdown: () -> Unit) {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
         val operationPermit = acquireStartPermit() ?: return
         var operationId = 0L
@@ -232,7 +232,7 @@ internal class PrivilegeUiRuntimeActions(
         message: String,
         failureKind: PrivilegeUiFailureKind,
         action: suspend () -> T,
-        onFailure: ((Throwable) -> Unit)? = null,
+        onFailure: ((Throwable) -> Unit)?,
         onSuccess: (T) -> String,
     ) {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return

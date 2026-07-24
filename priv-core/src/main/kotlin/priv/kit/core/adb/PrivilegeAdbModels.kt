@@ -28,7 +28,7 @@ public class PrivilegeAdbIdentity private constructor(
         internal const val MAX_DEVICE_NAME_LENGTH: Int =
             PRIVILEGE_INTERNAL_MAX_ADB_DEVICE_NAME_LENGTH
 
-        internal fun default(deviceName: String = DEFAULT_DEVICE_NAME): PrivilegeAdbIdentity =
+        internal fun default(deviceName: String): PrivilegeAdbIdentity =
             PrivilegeAdbIdentity(deviceName = deviceName)
     }
 }

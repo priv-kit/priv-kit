@@ -12,7 +12,7 @@ internal object PrivilegeServerHandshakeSender {
     fun send(
         config: PrivilegeServerConfig,
         serverBinder: PrivilegeServerBinder,
-        origin: PrivilegeServerHandshakeOrigin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
+        origin: PrivilegeServerHandshakeOrigin,
     ): Result =
         send(
             config = config,
@@ -25,7 +25,7 @@ internal object PrivilegeServerHandshakeSender {
     internal fun send(
         config: PrivilegeServerConfig,
         serverBinder: PrivilegeServerBinder,
-        origin: PrivilegeServerHandshakeOrigin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
+        origin: PrivilegeServerHandshakeOrigin,
         providerCall: (
             authority: String,
             method: String,

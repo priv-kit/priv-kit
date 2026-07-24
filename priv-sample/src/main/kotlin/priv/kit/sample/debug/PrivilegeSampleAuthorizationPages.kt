@@ -176,6 +176,7 @@ private fun RootPage(
             },
             enabled = !state.busy,
             tone = SampleActionTone.Primary,
+            modifier = Modifier,
             onClick = onStartRootRuntime,
         )
     }
@@ -195,6 +196,7 @@ private fun ManualPage(
                 label = "Manual Shell Command Unavailable",
                 enabled = false,
                 tone = SampleActionTone.Neutral,
+                modifier = Modifier,
                 onClick = {},
             )
         }
@@ -236,6 +238,7 @@ private fun ShizukuPage(
             label = state.shizukuExternalActionLabel(),
             enabled = !state.busy,
             tone = SampleActionTone.Primary,
+            modifier = Modifier,
             onClick = onStartShizukuExternal,
         )
         if (state.shizukuLastException.isNotBlank()) {
@@ -353,7 +356,12 @@ private fun WirelessAdbPage(
             fingerprint = state.adbKeyFingerprint,
             fingerprintLoading = state.adbKeyFingerprintLoading,
         )
-        SampleField("ADB device name (blank = app name)", state.adbDeviceNameText, onAdbDeviceNameChanged)
+        SampleField(
+            label = "ADB device name (blank = app name)",
+            value = state.adbDeviceNameText,
+            onValueChange = onAdbDeviceNameChanged,
+            keyboardOptions = KeyboardOptions.Default,
+        )
         RuntimeInfoRow(label = "adb name", value = state.adbDeviceName)
         RuntimeInfoRow(label = "key source", value = "persisted ADB key")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -376,6 +384,7 @@ private fun WirelessAdbPage(
             label = "Copy Wireless Log",
             enabled = true,
             tone = SampleActionTone.Neutral,
+            modifier = Modifier,
             onClick = onCopyLog,
         )
         SampleField(
@@ -389,6 +398,7 @@ private fun WirelessAdbPage(
             label = "Pair by Code",
             enabled = !state.busy,
             tone = SampleActionTone.Primary,
+            modifier = Modifier,
             onClick = onPairWirelessAdb,
         )
         SampleAction(
@@ -403,12 +413,14 @@ private fun WirelessAdbPage(
             } else {
                 SampleActionTone.Primary
             },
+            modifier = Modifier,
             onClick = if (notificationPairingRunning) onStopNotificationPairing else onStartNotificationPairing,
         )
         SampleAction(
             label = "Start Wireless ADB",
             enabled = !state.busy,
             tone = SampleActionTone.Primary,
+            modifier = Modifier,
             onClick = onStartWirelessAdb,
         )
     }
@@ -424,23 +436,31 @@ private fun TcpPage(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         RuntimeInfoRow(label = "last connect port", value = state.connectPortText.ifBlank { "auto" })
-        SampleField("TCP port", state.tcpPortText, onTcpPortChanged)
+        SampleField(
+            label = "TCP port",
+            value = state.tcpPortText,
+            onValueChange = onTcpPortChanged,
+            keyboardOptions = KeyboardOptions.Default,
+        )
         SampleAction(
             label = "Switch to TCP Mode",
             enabled = !state.busy,
             tone = SampleActionTone.Secondary,
+            modifier = Modifier,
             onClick = onSwitchToTcp,
         )
         SampleAction(
             label = "Restart From TCP Port",
             enabled = !state.busy,
             tone = SampleActionTone.Primary,
+            modifier = Modifier,
             onClick = onRestartTcp,
         )
         SampleAction(
             label = "Stop TCP Mode",
             enabled = !state.busy,
             tone = SampleActionTone.Neutral,
+            modifier = Modifier,
             onClick = onStopTcp,
         )
     }
@@ -529,6 +549,7 @@ private fun CommandBlock(
             label = "Copy Command",
             enabled = true,
             tone = SampleActionTone.Primary,
+            modifier = Modifier,
             onClick = onCopy,
         )
     }

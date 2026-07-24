@@ -100,7 +100,7 @@ internal class PrivilegeUiAdbPairingActions(
     }
 
     suspend fun startNotificationPairing(
-        requestNotificationPermission: suspend () -> PrivilegeUiPermissionState? = { null },
+        requestNotificationPermission: suspend () -> PrivilegeUiPermissionState?,
     ) {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
         if (store.state.value.pairingNotificationPermissionWarningVisible) {
@@ -144,7 +144,7 @@ internal class PrivilegeUiAdbPairingActions(
     }
 
     fun cancelPairingWithoutInteractionHost(
-        notificationLost: Boolean = false,
+        notificationLost: Boolean,
     ) {
         if (!notificationLost && PrivilegeAdbPairingService.isRequested(notificationOwnerId)) return
         stopPairingSession(
@@ -259,6 +259,7 @@ internal class PrivilegeUiAdbPairingActions(
         launchPairingDiscovery(
             session = session,
             adbDeviceName = adbDeviceName,
+            initialPort = null,
         )
     }
 
@@ -279,7 +280,7 @@ internal class PrivilegeUiAdbPairingActions(
     private fun launchPairingDiscovery(
         session: Int,
         adbDeviceName: String?,
-        initialPort: Int? = null,
+        initialPort: Int?,
     ) {
         if (!isPrivilegeUiWirelessAdbSupported()) return
         val job = createPairingJob("priv-ui-pairing-session") discovery@{
@@ -301,6 +302,7 @@ internal class PrivilegeUiAdbPairingActions(
                         updatePairingStatus(
                             status = PrivilegeUiAdbPairingStatus.SEARCHING,
                             text = retryText,
+                            fingerprint = null,
                         )
                         delay(PAIRING_DISCOVERY_RETRY_DELAY_MILLIS.milliseconds)
                         continue
@@ -340,6 +342,7 @@ internal class PrivilegeUiAdbPairingActions(
                     updatePairingStatus(
                         status = transition,
                         text = store.resourceText(R.string.priv_ui_pairing_search_text),
+                        fingerprint = null,
                     )
                 }
                 delay(PAIRING_DISCOVERY_RETRY_DELAY_MILLIS.milliseconds)
@@ -359,6 +362,7 @@ internal class PrivilegeUiAdbPairingActions(
             updatePairingStatus(
                 status = PrivilegeUiAdbPairingStatus.FAILED,
                 text = text,
+                fingerprint = null,
             )
             store.showFailure(PrivilegeUiFailureKind.PAIRING_CODE_REQUIRED)
             return
@@ -369,6 +373,7 @@ internal class PrivilegeUiAdbPairingActions(
             updatePairingStatus(
                 status = PrivilegeUiAdbPairingStatus.SEARCHING,
                 text = text,
+                fingerprint = null,
             )
             store.showFailure(PrivilegeUiFailureKind.PAIRING_PORT_UNAVAILABLE)
             return
@@ -380,6 +385,7 @@ internal class PrivilegeUiAdbPairingActions(
         updatePairingStatus(
             status = PrivilegeUiAdbPairingStatus.PAIRING,
             text = pairingText,
+            fingerprint = null,
         )
         store.appendLog(store.resolveText(pairingText))
         val job = createPairingJob("priv-ui-pairing-submit") submit@{
@@ -425,6 +431,7 @@ internal class PrivilegeUiAdbPairingActions(
                 updatePairingStatus(
                     status = PrivilegeUiAdbPairingStatus.FAILED,
                     text = text,
+                    fingerprint = null,
                 )
                 store.appendLog(throwable.toPrivilegeUiDiagnosticString())
                 store.showFailure(failureKind)
@@ -521,7 +528,7 @@ internal class PrivilegeUiAdbPairingActions(
     private fun updatePairingStatus(
         status: PrivilegeUiAdbPairingStatus,
         text: PrivilegeUiText,
-        fingerprint: String? = null,
+        fingerprint: String?,
     ) {
         store.updateState {
             it.copy(

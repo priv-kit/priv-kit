@@ -11,7 +11,9 @@ class PrivilegeAdbIdentityProviderTest {
     fun identityInfoWrapsKeyLoadingFailureInPublicStartupException() {
         val keyFailure = IllegalStateException("key storage is unavailable")
         val provider = PrivilegeAdbIdentityProvider(
-            identity = PrivilegeAdbIdentity.default(),
+            identity = PrivilegeAdbIdentity.default(
+                deviceName = PrivilegeAdbIdentity.DEFAULT_DEVICE_NAME,
+            ),
             loadKeyBytes = { throw keyFailure },
         )
 

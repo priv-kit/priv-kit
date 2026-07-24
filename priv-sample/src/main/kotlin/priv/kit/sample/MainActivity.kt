@@ -3,6 +3,7 @@ package priv.kit.sample
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.ViewModelProvider
@@ -22,7 +23,10 @@ class MainActivity : ComponentActivity() {
         debugController = PrivilegeSampleDebugController(this, debugViewModel)
         setContent {
             val serverRunning by viewModel.serverRunning.collectAsState()
-            PrivilegeSampleTheme {
+            PrivilegeSampleTheme(
+                darkTheme = isSystemInDarkTheme(),
+                dynamicColor = true,
+            ) {
                 PrivilegeSampleScreen(
                     serverRunning = serverRunning,
                     state = debugViewModel.screenState,

@@ -59,7 +59,7 @@ class PrivilegeServerHandshakeRegistryTest {
     fun readyHandshakeCanBePreparedAfterDelivery() = runBlocking {
         val launchCorrelationId = newCorrelationId()
         val binder = fakeBinder()
-        val serverInfo = serverInfo()
+        val serverInfo = serverInfo(pid = 1234)
 
         assertTrue(
             PrivilegeServerHandshakeRegistry.deliverReady(
@@ -94,7 +94,7 @@ class PrivilegeServerHandshakeRegistryTest {
             assertTrue(
                 PrivilegeServerHandshakeRegistry.deliverReady(
                     serverBinder = fakeBinder(),
-                    serverInfo = serverInfo(),
+                    serverInfo = serverInfo(pid = 1234),
                     origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
                     launchCorrelationId = null,
                 ),
@@ -118,7 +118,7 @@ class PrivilegeServerHandshakeRegistryTest {
             assertTrue(
                 PrivilegeServerHandshakeRegistry.deliverReady(
                     serverBinder = binder,
-                    serverInfo = serverInfo(),
+                    serverInfo = serverInfo(pid = 1234),
                     origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
                     launchCorrelationId = null,
                 ),
@@ -323,7 +323,7 @@ class PrivilegeServerHandshakeRegistryTest {
             assertTrue(
                 PrivilegeServerHandshakeRegistry.deliverReady(
                     serverBinder = binder,
-                    serverInfo = serverInfo(),
+                    serverInfo = serverInfo(pid = 1234),
                     origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
                     launchCorrelationId = launchCorrelationId,
                 ),
@@ -356,7 +356,7 @@ class PrivilegeServerHandshakeRegistryTest {
             assertTrue(
                 PrivilegeServerHandshakeRegistry.deliverReady(
                     serverBinder = fakeBinder(),
-                    serverInfo = serverInfo(),
+                    serverInfo = serverInfo(pid = 1234),
                     origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
                     launchCorrelationId = launchCorrelationId,
                 ),
@@ -392,7 +392,7 @@ class PrivilegeServerHandshakeRegistryTest {
             assertTrue(
                 PrivilegeServerHandshakeRegistry.deliverReady(
                     serverBinder = binder,
-                    serverInfo = serverInfo(),
+                    serverInfo = serverInfo(pid = 1234),
                     origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
                     launchCorrelationId = launchCorrelationId,
                 ),
@@ -408,7 +408,7 @@ class PrivilegeServerHandshakeRegistryTest {
     private fun newCorrelationId(): String =
         "launch-${System.nanoTime()}"
 
-    private fun serverInfo(pid: Int = 1234): PrivilegeServerInfo =
+    private fun serverInfo(pid: Int): PrivilegeServerInfo =
         PrivilegeServerInfo(
             uid = 2000,
             pid = pid,

@@ -115,7 +115,9 @@ class PrivilegeAdbTcpAuthorizationCheckSessionTest {
         clientFactory: () -> PrivilegeAdbAuthorizationConnection,
     ): PrivilegeAdbTcpAuthorizationCheckSession =
         PrivilegeAdbTcpAuthorizationCheckSession(
-            identity = PrivilegeAdbIdentity.default(),
+            identity = PrivilegeAdbIdentity.default(
+                deviceName = PrivilegeAdbIdentity.DEFAULT_DEVICE_NAME,
+            ),
             publicKeyFingerprint = "AA:BB",
             tcpPort = 5555,
             clientFactory = clientFactory,

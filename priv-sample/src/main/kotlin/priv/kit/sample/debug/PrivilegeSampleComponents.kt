@@ -49,7 +49,7 @@ internal fun SamplePageScaffold(
     busy: Boolean,
     onDestinationSelected: (PrivilegeSampleDebugDestination) -> Unit,
     onBackToHome: () -> Unit,
-    actions: @Composable () -> Unit = {},
+    actions: @Composable () -> Unit,
     content: @Composable () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -244,6 +244,7 @@ internal fun StatusPanel(
             label = "Stop Server",
             enabled = !state.busy && state.status == PrivilegeSampleStatus.CONNECTED,
             tone = SampleActionTone.Destructive,
+            modifier = Modifier,
             onClick = onStopServer,
         )
     }
@@ -254,7 +255,7 @@ internal fun SampleField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
-    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardOptions: KeyboardOptions,
 ) {
     val colors = MaterialTheme.colorScheme
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -301,7 +302,7 @@ internal fun SampleAction(
     label: String,
     enabled: Boolean,
     tone: SampleActionTone,
-    modifier: Modifier = Modifier,
+    modifier: Modifier,
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme

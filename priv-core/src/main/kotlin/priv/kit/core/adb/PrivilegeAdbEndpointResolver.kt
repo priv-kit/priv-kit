@@ -26,7 +26,7 @@ internal class PrivilegeAdbEndpointResolver(
     }
 
     suspend fun discoverConnectEndpoint(
-        timeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
+        timeoutMillis: Long,
     ): PrivilegeAdbEndpoint {
         return try {
             PrivilegeAdbMdns(nsdManagerProvider(), PrivilegeAdbMdns.TLS_CONNECT)

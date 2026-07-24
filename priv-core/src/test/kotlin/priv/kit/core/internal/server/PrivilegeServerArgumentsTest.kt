@@ -37,6 +37,7 @@ class PrivilegeServerArgumentsTest {
         val config = PrivilegeServerArguments.parse(
             args = emptyArray(),
             classpath = testApk("example.user-hash").path,
+            launchCorrelationId = null,
             uid = 1_012_345,
         )
 
@@ -61,6 +62,7 @@ class PrivilegeServerArgumentsTest {
             PrivilegeServerArguments.parse(
                 args = arrayOf("--token", "token"),
                 classpath = testApk("example.args-hash").path,
+                launchCorrelationId = null,
                 uid = PRIVILEGE_INTERNAL_SHELL_UID,
             )
         }
@@ -72,6 +74,7 @@ class PrivilegeServerArgumentsTest {
             PrivilegeServerArguments.parse(
                 args = emptyArray(),
                 classpath = " ",
+                launchCorrelationId = null,
                 uid = PRIVILEGE_INTERNAL_SHELL_UID,
             )
         }

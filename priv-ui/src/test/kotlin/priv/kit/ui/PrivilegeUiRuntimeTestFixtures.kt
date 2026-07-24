@@ -6,8 +6,8 @@ import priv.kit.ui.runtime.PrivilegeUiRuntimeStartAttempt
 
 internal fun PrivilegeUiRuntimeActions.runServerStart(
     message: String,
-    startupSource: String? = null,
-    runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
+    startupSource: String?,
+    runtimeStartSource: PrivilegeUiRuntimeStartSource?,
     start: () -> PrivilegeServerInfo,
 ) {
     runServerStart(
@@ -24,8 +24,8 @@ internal fun PrivilegeUiRuntimeActions.runServerStart(
 internal fun PrivilegeUiRuntimeActions.runServerStartRequest(
     message: String,
     startedMessage: String,
-    startupSource: String? = null,
-    runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
+    startupSource: String?,
+    runtimeStartSource: PrivilegeUiRuntimeStartSource?,
     start: () -> Unit,
 ) {
     runServerStartRequest(

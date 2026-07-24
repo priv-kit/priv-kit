@@ -84,7 +84,10 @@ public object Privilege {
             startupLogListener.emitStartupLog("runtime", "Starting with root")
             rootProcess = runInterruptible {
                 PrivilegeRootStarter.start(
-                    buildShortNativeStarterCommand(launchCorrelationId = launchCorrelationId),
+                    buildShortNativeStarterCommand(
+                        launchCorrelationId = launchCorrelationId,
+                        starterPath = PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath(),
+                    ),
                     startupLogListener = startupLogListener,
                 )
             }
@@ -130,10 +133,16 @@ public object Privilege {
 
     @Throws(PrivilegeStartupException::class)
     public fun createShellStartCommand(): String =
-        buildShortNativeStarterCommand()
+        buildShortNativeStarterCommand(
+            launchCorrelationId = null,
+            starterPath = PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath(),
+        )
 
     internal fun createShellStartCommandWithLaunchCorrelationId(launchCorrelationId: String): String =
-        buildShortNativeStarterCommand(launchCorrelationId = launchCorrelationId)
+        buildShortNativeStarterCommand(
+            launchCorrelationId = launchCorrelationId,
+            starterPath = PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath(),
+        )
 
     @Throws(PrivilegeStartupException::class)
     public fun createAdbManager(
@@ -144,7 +153,10 @@ public object Privilege {
     @Throws(PrivilegeStartupException::class)
     public fun connectReadyServer(): PrivilegeServerInfo? {
         val handshakeResult = PrivilegeServerHandshakeRegistry.claimReady() ?: return null
-        return connectHandshake(handshakeResult)
+        return connectHandshake(
+            handshakeResult = handshakeResult,
+            startupLogListener = null,
+        )
     }
 
     public val serverState: StateFlow<PrivilegeServerInfo?>
@@ -307,7 +319,7 @@ public object Privilege {
 
     internal fun connectHandshake(
         handshakeResult: PrivilegeServerHandshakeResult,
-        startupLogListener: PrivilegeStartupLogListener? = null,
+        startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeServerInfo =
         connectServer(
             serverBinder = handshakeResult.serverBinder,
@@ -329,7 +341,10 @@ public object Privilege {
 
     private fun connectReadyHandshake(handshakeResult: PrivilegeServerHandshakeResult): Boolean =
         try {
-            val serverInfo = connectHandshake(handshakeResult)
+            val serverInfo = connectHandshake(
+                handshakeResult = handshakeResult,
+                startupLogListener = null,
+            )
             val event = PrivilegeRuntimeConnectionEvent(
                 serverInfo = serverInfo,
                 origin = when (handshakeResult.origin) {
@@ -447,7 +462,7 @@ public object Privilege {
                     return@synchronized current
                 }
                 currentServer = null
-                serverUnavailable()
+                serverUnavailable(cause = null)
             }
 
             var next: ServerConnection? = null
@@ -467,7 +482,7 @@ public object Privilege {
             )
             if (!binder.pingBinder()) {
                 newConnection.unlink()
-                serverUnavailable()
+                serverUnavailable(cause = null)
             }
             next = newConnection
             previous = current
@@ -483,7 +498,7 @@ public object Privilege {
     private fun requireServerConnection(): ServerConnection {
         return synchronized(serverLock) {
             currentServer
-        } ?: serverUnavailable()
+        } ?: serverUnavailable(cause = null)
     }
 
     @JvmSynthetic
@@ -493,7 +508,7 @@ public object Privilege {
     private fun getUserServiceManagerBinder(): IBinder =
         serverControlCall {
             requireServerInterface().getUserServiceManager()
-        } ?: serverUnavailable()
+        } ?: serverUnavailable(cause = null)
 
     internal fun runtimeConfig(): PrivilegeConfigSnapshot =
         PrivilegeConfig.snapshot()
@@ -528,8 +543,8 @@ public object Privilege {
     }
 
     internal fun buildShortNativeStarterCommand(
-        launchCorrelationId: String? = null,
-        starterPath: String = PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath(),
+        launchCorrelationId: String?,
+        starterPath: String,
     ): String =
         PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
             starterPath = starterPath,

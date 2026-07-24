@@ -12,7 +12,7 @@ internal sealed interface PrivilegeUiDirectStartTarget {
 
 internal fun PrivilegeUiState.directStartTargets(
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
-    wirelessAdbSupported: Boolean = true,
+    wirelessAdbSupported: Boolean,
 ): List<PrivilegeUiDirectStartTarget> =
     buildList {
         directStartModeOrder().forEach { mode ->

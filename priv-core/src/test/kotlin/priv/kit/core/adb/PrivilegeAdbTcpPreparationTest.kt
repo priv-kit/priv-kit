@@ -9,7 +9,7 @@ import kotlinx.coroutines.runBlocking
 class PrivilegeAdbTcpPreparationTest {
     @Test
     fun availableEndpointIsReturnedWithoutPreparingAdb() = runBlocking {
-        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.AUTHORIZED)
+        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.AUTHORIZED, null)
         var enableCalls = 0
 
         val result = recoverTcpAuthorizationForStart(
@@ -20,6 +20,8 @@ class PrivilegeAdbTcpPreparationTest {
             enableAdb = { enableCalls += 1 },
             checkAuthorization = { error("authorization should not be checked again") },
             sleep = { error("recovery should not wait") },
+            retryCount = TEST_RETRY_COUNT,
+            retryDelayMillis = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
         )
 
         assertSame(initial, result)
@@ -28,7 +30,7 @@ class PrivilegeAdbTcpPreparationTest {
 
     @Test
     fun unavailableEndpointWithoutPermissionReturnsImmediately() = runBlocking {
-        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE)
+        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE, null)
         var enableCalls = 0
 
         val result = recoverTcpAuthorizationForStart(
@@ -39,6 +41,8 @@ class PrivilegeAdbTcpPreparationTest {
             enableAdb = { enableCalls += 1 },
             checkAuthorization = { error("authorization should not be checked again") },
             sleep = { error("recovery should not wait") },
+            retryCount = TEST_RETRY_COUNT,
+            retryDelayMillis = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
         )
 
         assertSame(initial, result)
@@ -47,7 +51,7 @@ class PrivilegeAdbTcpPreparationTest {
 
     @Test
     fun unavailableUnconfiguredEndpointDoesNotEnableAdb() = runBlocking {
-        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE)
+        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE, null)
         var enableCalls = 0
 
         val result = recoverTcpAuthorizationForStart(
@@ -58,6 +62,8 @@ class PrivilegeAdbTcpPreparationTest {
             enableAdb = { enableCalls += 1 },
             checkAuthorization = { error("authorization should not be checked again") },
             sleep = { error("recovery should not wait") },
+            retryCount = TEST_RETRY_COUNT,
+            retryDelayMillis = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
         )
 
         assertSame(initial, result)
@@ -66,7 +72,7 @@ class PrivilegeAdbTcpPreparationTest {
 
     @Test
     fun unavailableDifferentConfiguredEndpointDoesNotEnableAdb() = runBlocking {
-        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE)
+        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE, null)
         var enableCalls = 0
 
         val result = recoverTcpAuthorizationForStart(
@@ -77,6 +83,8 @@ class PrivilegeAdbTcpPreparationTest {
             enableAdb = { enableCalls += 1 },
             checkAuthorization = { error("authorization should not be checked again") },
             sleep = { error("recovery should not wait") },
+            retryCount = TEST_RETRY_COUNT,
+            retryDelayMillis = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
         )
 
         assertSame(initial, result)
@@ -85,11 +93,11 @@ class PrivilegeAdbTcpPreparationTest {
 
     @Test
     fun manageableEndpointRetriesUntilAdbStartsListening() = runBlocking {
-        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE)
+        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE, null)
         val checks = ArrayDeque(
             listOf(
-                authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE),
-                authorizationResult(PrivilegeAdbAuthorizationStatus.AUTHORIZED),
+                authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE, null),
+                authorizationResult(PrivilegeAdbAuthorizationStatus.AUTHORIZED, null),
             ),
         )
         var enableCalls = 0
@@ -117,7 +125,7 @@ class PrivilegeAdbTcpPreparationTest {
 
     @Test
     fun unauthorizedEndpointStopsRecoveryForExistingAuthorizationFlow() = runBlocking {
-        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE)
+        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE, null)
         var checkCalls = 0
 
         val result = recoverTcpAuthorizationForStart(
@@ -130,7 +138,7 @@ class PrivilegeAdbTcpPreparationTest {
             enableAdb = {},
             checkAuthorization = {
                 checkCalls += 1
-                authorizationResult(PrivilegeAdbAuthorizationStatus.UNAUTHORIZED)
+                authorizationResult(PrivilegeAdbAuthorizationStatus.UNAUTHORIZED, null)
             },
             sleep = { error("zero-delay recovery should not sleep") },
         )
@@ -141,7 +149,7 @@ class PrivilegeAdbTcpPreparationTest {
 
     @Test
     fun exhaustedRecoveryReturnsLastUnavailableResult() = runBlocking {
-        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE)
+        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE, null)
         var checkCalls = 0
 
         val result = recoverTcpAuthorizationForStart(
@@ -169,7 +177,7 @@ class PrivilegeAdbTcpPreparationTest {
 
     @Test
     fun preparationFailureStaysUnavailableAndAddsDiagnostic() = runBlocking {
-        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE)
+        val initial = authorizationResult(PrivilegeAdbAuthorizationStatus.UNAVAILABLE, null)
 
         val result = recoverTcpAuthorizationForStart(
             initialResult = initial,
@@ -179,6 +187,8 @@ class PrivilegeAdbTcpPreparationTest {
             enableAdb = { error("denied") },
             checkAuthorization = { error("authorization should not be checked after preparation failure") },
             sleep = { error("recovery should not wait after preparation failure") },
+            retryCount = TEST_RETRY_COUNT,
+            retryDelayMillis = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
         )
 
         assertEquals(PrivilegeAdbAuthorizationStatus.UNAVAILABLE, result.status)
@@ -188,16 +198,19 @@ class PrivilegeAdbTcpPreparationTest {
 
     private fun authorizationResult(
         status: PrivilegeAdbAuthorizationStatus,
-        failureMessage: String? = null,
+        failureMessage: String?,
     ): PrivilegeAdbAuthorizationCheckResult =
         PrivilegeAdbAuthorizationCheckResult(
             status = status,
             outputText = "[diag] test",
-            identity = PrivilegeAdbIdentity.default(),
+            identity = PrivilegeAdbIdentity.default(
+                deviceName = PrivilegeAdbIdentity.DEFAULT_DEVICE_NAME,
+            ),
             failureMessage = failureMessage,
         )
 
     private companion object {
         private const val TEST_TCP_PORT = 5555
+        private const val TEST_RETRY_COUNT = 5
     }
 }

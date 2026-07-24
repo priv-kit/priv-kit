@@ -49,7 +49,7 @@ internal object PrivilegeSampleMqsNative {
             ?: throw IllegalStateException("Server process system service not found: $SERVICE_NAME")
 
     fun probeDescriptor(
-        remoteBinder: IBinder = createRemoteBinder(),
+        remoteBinder: IBinder,
     ): PrivilegeSampleMqsNativeProbeResult {
         val localResult = runCatching {
             PrivilegeBinderWrapper.fromSystemService(SERVICE_NAME)?.interfaceDescriptor

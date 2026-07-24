@@ -15,7 +15,10 @@ import priv.kit.ui.R
 @Composable
 internal fun PrivilegeUiScreenScope.RootPanel() {
     Panel {
-        val action = state.startActionFor(PrivilegeUiRuntimeStartSource.ROOT)
+        val action = state.startActionFor(
+            source = PrivilegeUiRuntimeStartSource.ROOT,
+            providerId = null,
+        )
         Button(
             modifier = Modifier.fillMaxWidth(),
             enabled = state.startActionEnabled(

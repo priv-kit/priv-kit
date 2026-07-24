@@ -53,7 +53,14 @@ public object PrivilegeServerMain {
         try {
             Log.i(TAG, "Privileged Server main entered args=${args.toDiagnosticString()}")
             prepareMainLooper()
-            val config = PrivilegeServerArguments.parse(args)
+            val config = PrivilegeServerArguments.parse(
+                args = args,
+                classpath = System.getenv("CLASSPATH").orEmpty(),
+                launchCorrelationId =
+                    System.getenv(PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID)
+                        ?.takeIf { it.isNotBlank() },
+                uid = android.os.Process.myUid(),
+            )
             val providerAuthority = PrivilegeHandshakeContract.providerAuthority(config.packageName)
             Log.i(
                 TAG,
@@ -66,7 +73,11 @@ public object PrivilegeServerMain {
                 onShutdown = ::closeOwnerProcessObserver,
             )
             Log.i(TAG, "Sending handshake uid=${android.os.Process.myUid()}, pid=${android.os.Process.myPid()}")
-            val handshakeResult = PrivilegeServerHandshakeSender.send(config, binder)
+            val handshakeResult = PrivilegeServerHandshakeSender.send(
+                config = config,
+                serverBinder = binder,
+                origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
+            )
             Log.i(TAG, "Handshake result accepted=${handshakeResult.accepted}")
             if (!handshakeResult.accepted) {
                 if (handshakeResult.replacementStarted) {

@@ -13,12 +13,12 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
 
 internal interface PrivilegeAdbConnection : Closeable {
-    fun connect(output: PrivilegeAdbOutput? = null)
+    fun connect(output: PrivilegeAdbOutput?)
     fun keepAlive(output: PrivilegeAdbOutput)
 }
 
 internal interface PrivilegeAdbAuthorizationConnection : PrivilegeAdbConnection {
-    fun checkAuthorization(output: PrivilegeAdbOutput? = null): PrivilegeAdbAuthorizationStatus
+    fun checkAuthorization(output: PrivilegeAdbOutput?): PrivilegeAdbAuthorizationStatus
 }
 
 internal class PrivilegeAdbClient private constructor(
@@ -106,7 +106,7 @@ internal class PrivilegeAdbClient private constructor(
         )
     }
 
-    fun requestAuthorization(output: PrivilegeAdbOutput? = null): PrivilegeAdbAuthorizationStatus {
+    fun requestAuthorization(output: PrivilegeAdbOutput?): PrivilegeAdbAuthorizationStatus {
         connectSocket(output)
         return authenticate(
             output = output,
@@ -142,7 +142,12 @@ internal class PrivilegeAdbClient private constructor(
                 }
                 try {
                     output.diagnostic("ADB requested TLS upgrade")
-                    write(PrivilegeAdbProtocol.A_STLS, PrivilegeAdbProtocol.A_STLS_VERSION, 0)
+                    write(
+                        command = PrivilegeAdbProtocol.A_STLS,
+                        arg0 = PrivilegeAdbProtocol.A_STLS_VERSION,
+                        arg1 = 0,
+                        data = null,
+                    )
                     tlsSocket = sslContextProvider()
                         .socketFactory
                         .createSocket(socket, endpoint.host, endpoint.port, true) as SSLSocket
@@ -241,11 +246,21 @@ internal class PrivilegeAdbClient private constructor(
                             if (message.dataLength > 0 && data != null) {
                                 output.append("adb", String(data))
                             }
-                            write(PrivilegeAdbProtocol.A_OKAY, localId, remoteId)
+                            write(
+                                command = PrivilegeAdbProtocol.A_OKAY,
+                                arg0 = localId,
+                                arg1 = remoteId,
+                                data = null,
+                            )
                         }
                         PrivilegeAdbProtocol.A_CLSE -> {
                             output.diagnostic("ADB stream closed by remote")
-                            write(PrivilegeAdbProtocol.A_CLSE, localId, remoteId)
+                            write(
+                                command = PrivilegeAdbProtocol.A_CLSE,
+                                arg0 = localId,
+                                arg1 = remoteId,
+                                data = null,
+                            )
                             break
                         }
                         else -> privilegeAdbError("ADB stream returned an unexpected message")
@@ -254,7 +269,12 @@ internal class PrivilegeAdbClient private constructor(
             }
             PrivilegeAdbProtocol.A_CLSE -> {
                 output.diagnostic("ADB service closed immediately")
-                write(PrivilegeAdbProtocol.A_CLSE, localId, message.arg0)
+                write(
+                    command = PrivilegeAdbProtocol.A_CLSE,
+                    arg0 = localId,
+                    arg1 = message.arg0,
+                    data = null,
+                )
             }
             else -> privilegeAdbError("ADB command did not return OKAY or CLSE")
         }
@@ -266,7 +286,7 @@ internal class PrivilegeAdbClient private constructor(
         return localId
     }
 
-    private fun write(command: Int, arg0: Int, arg1: Int, data: ByteArray? = null) {
+    private fun write(command: Int, arg0: Int, arg1: Int, data: ByteArray?) {
         write(PrivilegeAdbMessage(command, arg0, arg1, data))
     }
 

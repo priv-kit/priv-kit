@@ -31,6 +31,7 @@ class PrivilegeServerHandshakeSenderTest {
         val result = PrivilegeServerHandshakeSender.send(
             config = config,
             serverBinder = PrivilegeServerBinder(config),
+            origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
             providerCall = { _, _, arg, extras, _ ->
                 providerArg = arg
                 sentCorrelationId = extras.getString(

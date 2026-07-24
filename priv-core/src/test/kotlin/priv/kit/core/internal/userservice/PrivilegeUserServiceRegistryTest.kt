@@ -26,10 +26,14 @@ class PrivilegeUserServiceRegistryTest {
         EmbeddedService.reset()
         val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
         val owner = TestBinder()
-        val spec = embeddedSpec()
+        val spec = embeddedSpec(
+            tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
+            version = 1,
+            daemon = false,
+        )
 
         registry.start(spec, owner)
-        owner.killBinder()
+        owner.killBinder(notifyDeathRecipients = true)
         val result = registry.bind(spec, TestBinder())
 
         assertEquals(2, EmbeddedService.created)
@@ -41,10 +45,14 @@ class PrivilegeUserServiceRegistryTest {
         EmbeddedService.reset()
         val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
         val owner = TestBinder()
-        val spec = embeddedSpec(daemon = true)
+        val spec = embeddedSpec(
+            tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
+            version = 1,
+            daemon = true,
+        )
 
         registry.start(spec, owner)
-        owner.killBinder()
+        owner.killBinder(notifyDeathRecipients = true)
         val result = registry.bind(spec, TestBinder())
 
         assertEquals(1, EmbeddedService.created)
@@ -56,7 +64,11 @@ class PrivilegeUserServiceRegistryTest {
     fun daemonBindKeepsServiceAfterUnbindUntilStop() {
         EmbeddedService.reset()
         val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
-        val spec = embeddedSpec(daemon = true)
+        val spec = embeddedSpec(
+            tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
+            version = 1,
+            daemon = true,
+        )
 
         val first = registry.bind(spec, TestBinder())
         registry.unbind(first.connectionId)
@@ -102,8 +114,14 @@ class PrivilegeUserServiceRegistryTest {
         val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
         val client = TestBinder()
 
-        val first = registry.bind(embeddedSpec(tag = "first"), client)
-        val second = registry.bind(embeddedSpec(tag = "second"), client)
+        val first = registry.bind(
+            embeddedSpec(tag = "first", version = 1, daemon = false),
+            client,
+        )
+        val second = registry.bind(
+            embeddedSpec(tag = "second", version = 1, daemon = false),
+            client,
+        )
 
         assertEquals(2, EmbeddedService.created)
         assertNotSame(first.binder, second.binder)
@@ -118,8 +136,22 @@ class PrivilegeUserServiceRegistryTest {
         val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
         val client = TestBinder()
 
-        val first = registry.bind(embeddedSpec(version = 1), client)
-        val second = registry.bind(embeddedSpec(version = 2), client)
+        val first = registry.bind(
+            embeddedSpec(
+                tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
+                version = 1,
+                daemon = false,
+            ),
+            client,
+        )
+        val second = registry.bind(
+            embeddedSpec(
+                tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
+                version = 2,
+                daemon = false,
+            ),
+            client,
+        )
 
         assertEquals(2, EmbeddedService.created)
         assertNotSame(first.binder, second.binder)
@@ -140,7 +172,14 @@ class PrivilegeUserServiceRegistryTest {
             val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
             val client = TestBinder()
 
-            val result = registry.bind(embeddedSpec(), client)
+            val result = registry.bind(
+                embeddedSpec(
+                    tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
+                    version = 1,
+                    daemon = false,
+                ),
+                client,
+            )
 
             assertEquals(1, EmbeddedService.created)
             assertEquals(true, result.connectionId.isNotBlank())
@@ -167,7 +206,10 @@ class PrivilegeUserServiceRegistryTest {
     @Test
     fun contextConstructorRequiresContextConfig() {
         assertThrows(PrivilegeUserServiceException::class.java) {
-            PrivilegeUserServiceLoader.instantiate(ContextOnlyService::class.java.name)
+            PrivilegeUserServiceLoader.instantiate(
+                serviceClassName = ContextOnlyService::class.java.name,
+                contextConfig = null,
+            )
         }
     }
 
@@ -232,9 +274,9 @@ class PrivilegeUserServiceRegistryTest {
     }
 
     private fun embeddedSpec(
-        tag: String = PrivilegeUserServiceSpec.DEFAULT_TAG,
-        version: Int = 1,
-        daemon: Boolean = false,
+        tag: String,
+        version: Int,
+        daemon: Boolean,
     ): PrivilegeUserServiceSpec =
         PrivilegeUserServiceSpec(
             serviceClassName = EmbeddedService::class.java.name,

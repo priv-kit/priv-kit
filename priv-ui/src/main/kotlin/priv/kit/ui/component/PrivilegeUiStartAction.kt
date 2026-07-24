@@ -32,7 +32,7 @@ internal fun privilegeUiStartAction(
 
 internal fun PrivilegeUiState.startActionFor(
     source: PrivilegeUiRuntimeStartSource,
-    providerId: String? = null,
+    providerId: String?,
 ): PrivilegeUiStartAction {
     val providerMatches = source != PrivilegeUiRuntimeStartSource.EXTERNAL ||
         (providerId != null && runtimeStartProviderId == providerId)
@@ -54,7 +54,7 @@ internal fun privilegeUiStartActionEnabled(
 
 internal fun PrivilegeUiState.startActionEnabled(
     action: PrivilegeUiStartAction,
-    startAvailable: Boolean = true,
+    startAvailable: Boolean,
 ): Boolean =
     privilegeUiStartActionEnabled(
         action = action,

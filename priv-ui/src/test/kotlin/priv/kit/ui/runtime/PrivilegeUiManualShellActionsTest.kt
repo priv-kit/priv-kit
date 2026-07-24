@@ -52,6 +52,7 @@ class PrivilegeUiManualShellActionsTest {
                 directShellCommand = "/data/app/example/lib/arm64/libprivkitstarter.so",
                 externalBootstrapSupported = true,
                 externalFilesDirectory = directory,
+                scriptWriter = priv.kit.shared.PrivilegeBinaryFileStore::writeAtomically,
             )
 
             val scriptFile = directory.resolve("priv-kit.sh")
@@ -76,6 +77,7 @@ class PrivilegeUiManualShellActionsTest {
                 directShellCommand = "'/data/app/example path/libprivkitstarter.so'",
                 externalBootstrapSupported = true,
                 externalFilesDirectory = directory,
+                scriptWriter = priv.kit.shared.PrivilegeBinaryFileStore::writeAtomically,
             )
 
             assertEquals(

@@ -121,6 +121,7 @@ internal class PrivilegeUiRuntimeStartCoordinator(
         name: String,
     ): Boolean = launchRuntimeStart(
         initialAttempt = attempt,
+        showAttemptFeedback = true,
         name = name,
         beforeStart = {
             store.clearStartupLog()
@@ -131,7 +132,7 @@ internal class PrivilegeUiRuntimeStartCoordinator(
 
     private fun launchRuntimeStart(
         initialAttempt: PrivilegeUiRuntimeStartAttempt,
-        showAttemptFeedback: Boolean = true,
+        showAttemptFeedback: Boolean,
         name: String,
         beforeStart: (PrivilegeUiRuntimeStartSession) -> Unit,
         block: suspend (PrivilegeUiRuntimeStartSession) -> RuntimeStartCompletion,
@@ -367,7 +368,7 @@ internal class PrivilegeUiRuntimeStartCoordinator(
         if (!session.tryBeginCompletion()) return
         if (activeSession !== session) {
             try {
-                session.close()
+                session.close(onFailure = {})
             } finally {
                 session.releaseStartPermit()
             }
@@ -488,17 +489,17 @@ internal class PrivilegeUiRuntimeStartCoordinator(
     }
 
     private fun appendSessionStartupLog(
-        session: PrivilegeUiRuntimeStartSession?,
+        session: PrivilegeUiRuntimeStartSession,
         line: String,
     ) {
-        if (session != null && isCurrent(session)) store.appendStartupLog(line)
+        if (isCurrent(session)) store.appendStartupLog(line)
     }
 
     private fun appendSessionStartupLog(
-        session: PrivilegeUiRuntimeStartSession?,
+        session: PrivilegeUiRuntimeStartSession,
         line: PrivilegeStartupLogLine,
     ) {
-        if (session != null && isCurrent(session)) store.appendStartupLog(line)
+        if (isCurrent(session)) store.appendStartupLog(line)
     }
 
     private fun recordSuccessfulStartMethod(method: PrivilegeUiStartMethod) {

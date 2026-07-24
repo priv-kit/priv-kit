@@ -24,7 +24,7 @@ internal class PrivilegeAdbTcpManager(
         PrivilegeAdbEnvironment.getConfiguredAdbTcpPort().takeIf { it > 0 }
 
     suspend fun prepareTcpForStart(
-        tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
+        tcpPort: Int,
     ): PrivilegeAdbAuthorizationCheckResult {
         require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         val initialResult = checkTcpAuthorization(tcpPort = tcpPort)
@@ -43,6 +43,8 @@ internal class PrivilegeAdbTcpManager(
             enableAdb = controller::enableAdb,
             checkAuthorization = { checkTcpAuthorization(tcpPort = tcpPort) },
             sleep = { delayMillis -> delay(delayMillis.milliseconds) },
+            retryCount = PRIVILEGE_ADB_TCP_PREPARATION_RETRY_COUNT,
+            retryDelayMillis = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
         )
     }
 
@@ -51,15 +53,15 @@ internal class PrivilegeAdbTcpManager(
 
     @Throws(PrivilegeStartupException::class)
     suspend fun discoverConnectPort(
-        timeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
+        timeoutMillis: Long,
     ): Int =
         endpointResolver.discoverConnectEndpoint(timeoutMillis).port
 
     @Throws(PrivilegeStartupException::class)
     suspend fun switchToTcp(
-        currentPort: Int? = null,
-        tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
-        options: PrivilegeAdbStartOptions? = null,
+        currentPort: Int?,
+        tcpPort: Int,
+        options: PrivilegeAdbStartOptions?,
     ): PrivilegeAdbTcpResult {
         require(currentPort == null || currentPort.isPrivilegeAdbPort()) {
             "currentPort must be between 1 and 65535"
@@ -87,7 +89,9 @@ internal class PrivilegeAdbTcpManager(
                 ?: options?.port?.let(PrivilegeAdbEndpoint::local)
                 ?: if (options == null) {
                     requireWirelessAdbSupported()
-                    endpointResolver.discoverConnectEndpoint()
+                    endpointResolver.discoverConnectEndpoint(
+                        timeoutMillis = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
+                    )
                 } else if (options.discoverPort) {
                     endpointResolver.acquireConnectEndpointForStart(
                         options = options,
@@ -138,7 +142,7 @@ internal class PrivilegeAdbTcpManager(
 
     @Throws(PrivilegeStartupException::class)
     suspend fun stopTcp(
-        tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
+        tcpPort: Int,
     ): PrivilegeAdbTcpResult {
         require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         val output = PrivilegeAdbOutput()
@@ -166,7 +170,7 @@ internal class PrivilegeAdbTcpManager(
     }
 
     suspend fun checkTcpAuthorization(
-        tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
+        tcpPort: Int,
     ): PrivilegeAdbAuthorizationCheckResult {
         require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         return try {
@@ -181,7 +185,7 @@ internal class PrivilegeAdbTcpManager(
 
     @Throws(PrivilegeStartupException::class)
     fun openTcpAuthorizationCheckSession(
-        tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
+        tcpPort: Int,
     ): PrivilegeAdbTcpAuthorizationCheckSession {
         require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         val key = try {
@@ -203,8 +207,8 @@ internal class PrivilegeAdbTcpManager(
     }
 
     suspend fun requestTcpAuthorization(
-        tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
-        timeoutMillis: Long = PRIVILEGE_INTERNAL_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS,
+        tcpPort: Int,
+        timeoutMillis: Long,
     ): PrivilegeAdbAuthorizationRequestResult = withContext(Dispatchers.IO) {
         require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         require(timeoutMillis > 0L) { "timeoutMillis must be positive" }
@@ -284,8 +288,8 @@ internal suspend fun recoverTcpAuthorizationForStart(
     requestedTcpPort: Int,
     configuredTcpPort: Int?,
     canManageAdb: Boolean,
-    retryCount: Int = PRIVILEGE_ADB_TCP_PREPARATION_RETRY_COUNT,
-    retryDelayMillis: Long = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
+    retryCount: Int,
+    retryDelayMillis: Long,
     enableAdb: () -> Unit,
     checkAuthorization: suspend () -> PrivilegeAdbAuthorizationCheckResult,
     sleep: suspend (Long) -> Unit,

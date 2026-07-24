@@ -9,9 +9,9 @@ internal class PrivilegeAdbPairingManager(
 ) {
     @Throws(PrivilegeStartupException::class)
     suspend fun checkPairing(
-        port: Int? = null,
-        discoverPort: Boolean = true,
-        portDiscoveryTimeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
+        port: Int?,
+        discoverPort: Boolean,
+        portDiscoveryTimeoutMillis: Long,
     ): PrivilegeAdbPairingCheckResult =
         openPairingCheckSession(
             port = port,
@@ -23,9 +23,9 @@ internal class PrivilegeAdbPairingManager(
 
     @Throws(PrivilegeStartupException::class)
     fun openPairingCheckSession(
-        port: Int? = null,
-        discoverPort: Boolean = true,
-        portDiscoveryTimeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
+        port: Int?,
+        discoverPort: Boolean,
+        portDiscoveryTimeoutMillis: Long,
     ): PrivilegeAdbPairingCheckSession {
         require(port == null || port.isPrivilegeAdbPort()) { "port must be between 1 and 65535" }
         require(portDiscoveryTimeoutMillis > 0L) { "portDiscoveryTimeoutMillis must be positive" }
@@ -51,9 +51,9 @@ internal class PrivilegeAdbPairingManager(
     @Throws(PrivilegeStartupException::class)
     suspend fun pair(
         pairingCode: String,
-        port: Int? = null,
-        discoverPort: Boolean = true,
-        portDiscoveryTimeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
+        port: Int?,
+        discoverPort: Boolean,
+        portDiscoveryTimeoutMillis: Long,
     ): PrivilegeAdbPairingResult {
         val normalizedPairingCode = pairingCode.toPrivilegeAdbPairingCode()
         require(port == null || port.isPrivilegeAdbPort()) { "port must be between 1 and 65535" }
@@ -86,7 +86,7 @@ internal class PrivilegeAdbPairingManager(
 
     @Throws(PrivilegeStartupException::class)
     suspend fun discoverPairingPort(
-        timeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
+        timeoutMillis: Long,
     ): Int =
         endpointResolver.discoverPairingEndpoint(timeoutMillis).port
 }

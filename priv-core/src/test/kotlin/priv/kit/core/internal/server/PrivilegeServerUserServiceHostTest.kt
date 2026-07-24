@@ -25,7 +25,7 @@ class PrivilegeServerUserServiceHostTest {
         )
 
         val command = PrivilegeServerUserServiceProcessCommand.build(
-            config = config(),
+            config = config(classpath = "/data/app/base.apk"),
             spec = spec,
             token = "token-1",
             serverPid = 2468,
@@ -67,7 +67,7 @@ class PrivilegeServerUserServiceHostTest {
         )
 
         val command = PrivilegeServerUserServiceProcessCommand.build(
-            config = config(),
+            config = config(classpath = "/data/app/base.apk"),
             spec = spec,
             token = "token-1",
             serverPid = 2468,
@@ -97,7 +97,7 @@ class PrivilegeServerUserServiceHostTest {
         val startedCommands = mutableListOf<PrivilegeServerUserServiceProcessStartCommand>()
         val process = TestProcess()
         val host = PrivilegeServerUserServiceHost(
-            config = config(),
+            config = config(classpath = "/data/app/base.apk"),
             processStarter = { command ->
                 startedCommands += command
                 process
@@ -128,7 +128,7 @@ class PrivilegeServerUserServiceHostTest {
         )
 
         val claimed = claimer.await(
-            config = config(),
+            config = config(classpath = "/data/app/base.apk"),
             token = "token-1",
             timeoutMillis = 1_000L,
         )
@@ -148,7 +148,7 @@ class PrivilegeServerUserServiceHostTest {
 
         val throwable = assertThrows(PrivilegeUserServiceException::class.java) {
             claimer.await(
-                config = config(),
+                config = config(classpath = "/data/app/base.apk"),
                 token = "token-1",
                 timeoutMillis = 50L,
             )
@@ -183,7 +183,7 @@ class PrivilegeServerUserServiceHostTest {
     }
 
     private companion object {
-        fun config(classpath: String = "/data/app/base.apk"): PrivilegeServerConfig =
+        fun config(classpath: String): PrivilegeServerConfig =
             PrivilegeServerConfig(
                 packageName = "priv.kit.sample",
                 userId = 10,

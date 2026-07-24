@@ -17,6 +17,7 @@ class PrivilegeUiDirectStartTest {
         assertNull(
             state.directStartTarget(
                 tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+                wirelessAdbSupported = true,
             ),
         )
     }
@@ -37,6 +38,7 @@ class PrivilegeUiDirectStartTest {
             PrivilegeUiDirectStartTarget.Adb,
             state.directStartTarget(
                 tcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
+                wirelessAdbSupported = true,
             ),
         )
     }
@@ -73,6 +75,7 @@ class PrivilegeUiDirectStartTest {
             PrivilegeUiDirectStartTarget.Adb,
             state.directStartTarget(
                 tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+                wirelessAdbSupported = true,
             ),
         )
     }
@@ -92,6 +95,7 @@ class PrivilegeUiDirectStartTest {
             PrivilegeUiDirectStartTarget.Adb,
             state.directStartTarget(
                 tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+                wirelessAdbSupported = true,
             ),
         )
     }
@@ -117,6 +121,7 @@ class PrivilegeUiDirectStartTest {
             PrivilegeUiDirectStartTarget.External("provider"),
             state.directStartTarget(
                 tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+                wirelessAdbSupported = true,
             ),
         )
     }
@@ -139,6 +144,7 @@ class PrivilegeUiDirectStartTest {
             ),
             state.directStartTargets(
                 tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+                wirelessAdbSupported = true,
             ),
         )
     }
@@ -162,6 +168,7 @@ class PrivilegeUiDirectStartTest {
             ),
             state.directStartTargets(
                 tcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
+                wirelessAdbSupported = true,
             ),
         )
     }
@@ -180,6 +187,7 @@ class PrivilegeUiDirectStartTest {
             PrivilegeUiDirectStartTarget.Adb,
             state.directStartTarget(
                 tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+                wirelessAdbSupported = true,
             ),
         )
     }
@@ -197,6 +205,7 @@ class PrivilegeUiDirectStartTest {
             PrivilegeUiDirectStartTarget.Adb,
             state.directStartTarget(
                 tcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
+                wirelessAdbSupported = true,
             ),
         )
     }
@@ -204,7 +213,7 @@ class PrivilegeUiDirectStartTest {
 
 private fun PrivilegeUiState.directStartTarget(
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
-    wirelessAdbSupported: Boolean = true,
+    wirelessAdbSupported: Boolean,
 ): PrivilegeUiDirectStartTarget? =
     directStartTargets(
         tcpPolicy = tcpPolicy,

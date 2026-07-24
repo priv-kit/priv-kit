@@ -103,10 +103,11 @@ class PrivilegeBinderWrapperTest {
         try {
             repeat(2) {
                 Privilege.connectHandshake(
-                    PrivilegeServerHandshakeResult(
+                    handshakeResult = PrivilegeServerHandshakeResult(
                         serverInfo = serverInfo,
                         serverBinder = server.asBinder(),
                     ),
+                    startupLogListener = null,
                 )
             }
             assertEquals(serverInfo, Privilege.serverState.value)
@@ -121,7 +122,7 @@ class PrivilegeBinderWrapperTest {
         block: (FakePrivilegeServer) -> Unit,
     ) {
         Privilege.connectHandshake(
-            PrivilegeServerHandshakeResult(
+            handshakeResult = PrivilegeServerHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -129,6 +130,7 @@ class PrivilegeBinderWrapperTest {
                 ),
                 serverBinder = server.asBinder(),
             ),
+            startupLogListener = null,
         )
         try {
             block(server)

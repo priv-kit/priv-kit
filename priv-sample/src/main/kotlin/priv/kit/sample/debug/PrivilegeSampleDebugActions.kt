@@ -518,6 +518,7 @@ internal fun PrivilegeSampleDebugHost.switchToTcp() {
         action = {
             createAdbManager(adbDeviceName).switchToTcp(tcpPort = tcpPort)
         },
+        onFailure = null,
     ) {
         screenState = screenState.copy(connectPortText = tcpPort.toString())
         "ADB TCP mode requested on port $tcpPort"
@@ -550,6 +551,7 @@ internal fun PrivilegeSampleDebugHost.stopTcp() {
         action = {
             createAdbManager(adbDeviceName).stopTcp(tcpPort = tcpPort)
         },
+        onFailure = null,
     ) {
         "ADB TCP mode stop requested"
     }
@@ -592,7 +594,10 @@ internal fun PrivilegeSampleDebugHost.stopServer() {
 }
 
 internal fun PrivilegeSampleDebugHost.getUserManagerBinder() {
-    runBinderAction("Getting IUserManager...") {
+    runBinderAction(
+        message = "Getting IUserManager...",
+        requireConnected = true,
+    ) {
         sampleViewModel.sampleUserManager = PrivilegeSampleUserManager.createFromCurrentProcess()
         BinderActionResult(
             message = "IUserManager cached through current-process Binder + createRemoteBinderWrapper",
@@ -815,7 +820,7 @@ private data class UserServiceActionResult(
 
 private fun PrivilegeSampleDebugHost.runBinderAction(
     message: String,
-    requireConnected: Boolean = true,
+    requireConnected: Boolean,
     action: () -> BinderActionResult,
 ) {
     if (screenState.busy) return
@@ -989,7 +994,7 @@ private fun PrivilegeSampleDebugHost.appendStartupSource(startupSource: String?)
 private fun <T> PrivilegeSampleDebugHost.runBusy(
     message: String,
     action: suspend () -> T,
-    onFailure: ((Throwable) -> Unit)? = null,
+    onFailure: ((Throwable) -> Unit)?,
     onSuccess: (T) -> String,
 ) {
     if (screenState.busy) return

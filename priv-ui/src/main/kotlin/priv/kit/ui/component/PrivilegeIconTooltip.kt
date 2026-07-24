@@ -14,7 +14,7 @@ import androidx.compose.ui.Modifier
 @Composable
 internal fun PrivilegeIconTooltip(
     text: String,
-    modifier: Modifier = Modifier,
+    modifier: Modifier,
     content: @Composable () -> Unit,
 ) {
     TooltipBox(

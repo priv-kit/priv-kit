@@ -30,7 +30,11 @@ class PrivilegeAdbTcpManagerTest {
             nsdManagerProvider = { error("NSD should not be used when TCP port is already active") },
         )
 
-        val result = manager.switchToTcp(tcpPort = 5555)
+        val result = manager.switchToTcp(
+            currentPort = null,
+            tcpPort = 5555,
+            options = null,
+        )
 
         assertEquals(5555, result.port)
         assertTrue(result.outputText.contains("ADB TCP port 5555 is already active"))
@@ -45,7 +49,9 @@ class PrivilegeAdbTcpManagerTest {
         )
 
         val exception = assertThrows(PrivilegeStartupException::class.java) {
-            manager.openTcpAuthorizationCheckSession()
+            manager.openTcpAuthorizationCheckSession(
+                tcpPort = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
+            )
         }
 
         assertEquals(PrivilegeStartupException::class.java, exception.javaClass)
@@ -54,11 +60,13 @@ class PrivilegeAdbTcpManagerTest {
     }
 
     private fun manager(
-        loadKeyBytes: () -> ByteArray = { ByteArray(0) },
+        loadKeyBytes: () -> ByteArray,
         nsdManagerProvider: () -> NsdManager,
     ): PrivilegeAdbTcpManager {
         val identityProvider = PrivilegeAdbIdentityProvider(
-            identity = PrivilegeAdbIdentity.default(),
+            identity = PrivilegeAdbIdentity.default(
+                deviceName = PrivilegeAdbIdentity.DEFAULT_DEVICE_NAME,
+            ),
             loadKeyBytes = loadKeyBytes,
         )
         val wirelessDebuggingControllerProvider = { fakeWirelessDebuggingController() }

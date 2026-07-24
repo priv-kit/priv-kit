@@ -24,7 +24,7 @@ class PrivilegeOwnerProcessObserverTest {
         val observer = PrivilegeOwnerProcessObserver(
             ownerProcessStartedUri = uri,
             registrar = registrar,
-            onOwnerProcessStarted = signal::signal,
+            onOwnerProcessStarted = { signal.signal(ownerIsAlive = false) },
         )
 
         assertTrue(observer.register())
@@ -43,7 +43,7 @@ class PrivilegeOwnerProcessObserverTest {
         val observer = PrivilegeOwnerProcessObserver(
             ownerProcessStartedUri = Uri.parse("content://example.app/owner-started"),
             registrar = registrar,
-            onOwnerProcessStarted = signal::signal,
+            onOwnerProcessStarted = { signal.signal(ownerIsAlive = false) },
         )
 
         assertFalse(observer.register())
@@ -61,7 +61,7 @@ class PrivilegeOwnerProcessObserverTest {
         val observer = PrivilegeOwnerProcessObserver(
             ownerProcessStartedUri = Uri.parse("content://example.app/owner-started"),
             registrar = registrar,
-            onOwnerProcessStarted = signal::signal,
+            onOwnerProcessStarted = { signal.signal(ownerIsAlive = false) },
         )
         assertTrue(observer.register())
         val registeredObserver = registrar.observer!!
@@ -121,7 +121,7 @@ class PrivilegeOwnerProcessObserverTest {
                 signal.awaitNext(afterSequence = 0L, timeoutMillis = 5_000L)
             }
 
-            signal.signal()
+            signal.signal(ownerIsAlive = false)
 
             assertEquals(1L, requireNotNull(nextSequence.get(1L, TimeUnit.SECONDS)))
         } finally {

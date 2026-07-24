@@ -22,6 +22,7 @@ class PrivilegeUiAuthorizationModeTest {
             modes = modes,
             selectedMode = PrivilegeUiStartupMode.ADB,
             busy = false,
+            interactionEnabled = true,
         )
 
         assertEquals(1, items.indexOfFirst { it.selected })
@@ -34,6 +35,7 @@ class PrivilegeUiAuthorizationModeTest {
             modes = modes,
             selectedMode = PrivilegeUiStartupMode.EXTERNAL,
             busy = false,
+            interactionEnabled = true,
         )
 
         assertEquals(0, items.indexOfFirst { it.selected })
@@ -46,6 +48,7 @@ class PrivilegeUiAuthorizationModeTest {
             modes = modes,
             selectedMode = PrivilegeUiStartupMode.ADB,
             busy = true,
+            interactionEnabled = true,
         )
 
         assertTrue(items.single { it.mode == PrivilegeUiStartupMode.ADB }.enabled)

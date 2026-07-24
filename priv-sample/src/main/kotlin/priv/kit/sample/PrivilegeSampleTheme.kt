@@ -31,8 +31,8 @@ private val SampleShapes = Shapes(
 
 @Composable
 internal fun PrivilegeSampleTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    darkTheme: Boolean,
+    dynamicColor: Boolean,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current

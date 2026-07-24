@@ -41,8 +41,8 @@ public class PrivilegeAdbManager private constructor(
     @Throws(PrivilegeStartupException::class)
     internal suspend fun start(
         command: PrivilegeServerLaunchCommand,
-        options: PrivilegeAdbStartOptions = PrivilegeAdbStartOptions(),
-        startupLogListener: PrivilegeStartupLogListener? = null,
+        options: PrivilegeAdbStartOptions,
+        startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeAdbStartResult =
         startupCoordinator.start(
             command = command,
@@ -173,7 +173,7 @@ public class PrivilegeAdbManager private constructor(
 
     internal companion object {
         internal fun create(
-            adbDeviceName: String = PrivilegeAdbIdentity.DEFAULT_DEVICE_NAME,
+            adbDeviceName: String,
         ): PrivilegeAdbManager =
             PrivilegeContext.require().let { applicationContext ->
                 PrivilegeAdbManager(

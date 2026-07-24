@@ -36,9 +36,12 @@ internal object PrivilegeUserServiceLoader {
 
     fun instantiate(
         serviceClassName: String,
-        contextConfig: ContextConfig? = null,
+        contextConfig: ContextConfig?,
     ): Any {
-        val clazz = loadClass(serviceClassName)
+        val clazz = loadClass(
+            serviceClassName = serviceClassName,
+            preferredClassLoaders = emptyList(),
+        )
         val contextConstructor = contextConstructor(clazz)
         return if (contextConstructor != null) {
             instantiateWithContext(
@@ -240,7 +243,7 @@ internal object PrivilegeUserServiceLoader {
 
     private fun loadClass(
         serviceClassName: String,
-        preferredClassLoaders: List<ClassLoader> = emptyList(),
+        preferredClassLoaders: List<ClassLoader>,
     ): Class<*> {
         val classLoaders = (
             preferredClassLoaders +

@@ -68,7 +68,7 @@ internal class PrivilegeUiAdbActions(
     }
 
     fun cancelPairingWithoutInteractionHost() {
-        pairingActions.cancelPairingWithoutInteractionHost()
+        pairingActions.cancelPairingWithoutInteractionHost(notificationLost = false)
     }
 
     fun continuePairingWithoutNotification() {
@@ -235,6 +235,8 @@ internal class PrivilegeUiAdbActions(
         store.updateState {
             it.withWirelessAdbOffline(
                 wifiConnected = false,
+                managedWirelessAdbStatus = it.managedWirelessAdbStatus,
+                notificationPairingRunning = it.notificationPairingRunning,
             )
         }
         if (session.showAttemptFeedback) {

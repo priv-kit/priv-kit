@@ -9,12 +9,20 @@ import android.util.Log
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
 
 internal object PrivilegeOwnerProcessNotifier {
+    fun schedule(context: Context) {
+        schedule(
+            context = context,
+            post = { block ->
+                Handler(Looper.getMainLooper()).post { block() }
+            },
+            notifyChange = ::notifyChange,
+        )
+    }
+
     fun schedule(
         context: Context,
-        post: ((() -> Unit) -> Unit) = { block ->
-            Handler(Looper.getMainLooper()).post { block() }
-        },
-        notifyChange: (Context, Uri, Int) -> Unit = ::notifyChange,
+        post: ((() -> Unit) -> Unit),
+        notifyChange: (Context, Uri, Int) -> Unit,
     ) {
         val applicationContext = context.applicationContext
         val uri = PrivilegeHandshakeContract.ownerProcessStartedUri(applicationContext.packageName)

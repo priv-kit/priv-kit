@@ -14,6 +14,9 @@ class PrivilegeAdbPairingCheckSessionTest {
     fun checkReusesPersistentConnectionUntilClosed() = runBlocking {
         val connections = mutableListOf<FakeAdbConnection>()
         val session = session(
+            explicitPort = 37099,
+            discoverPort = false,
+            discoverConnectEndpoint = { error("discovery should not be used") },
             clientFactory = {
                 FakeAdbConnection().also(connections::add)
             },
@@ -40,6 +43,9 @@ class PrivilegeAdbPairingCheckSessionTest {
     fun checkReconnectsAfterPersistentConnectionFails() = runBlocking {
         val connections = mutableListOf<FakeAdbConnection>()
         val session = session(
+            explicitPort = 37099,
+            discoverPort = false,
+            discoverConnectEndpoint = { error("discovery should not be used") },
             clientFactory = {
                 FakeAdbConnection().also(connections::add)
             },
@@ -63,6 +69,7 @@ class PrivilegeAdbPairingCheckSessionTest {
         val session = session(
             explicitPort = null,
             discoverPort = false,
+            discoverConnectEndpoint = { error("discovery should not be used") },
             clientFactory = {
                 error("client should not be created without an ADB connect port")
             },
@@ -79,6 +86,9 @@ class PrivilegeAdbPairingCheckSessionTest {
     @Test
     fun checkReportsUnpairedOnlyWhenAdbSaysUnauthorized() = runBlocking {
         val session = session(
+            explicitPort = 37099,
+            discoverPort = false,
+            discoverConnectEndpoint = { error("discovery should not be used") },
             clientFactory = {
                 FakeAdbConnection(status = PrivilegeAdbAuthorizationStatus.UNAUTHORIZED)
             },
@@ -94,6 +104,9 @@ class PrivilegeAdbPairingCheckSessionTest {
     @Test
     fun checkReportsErrorWhenPairingProbeFails() = runBlocking {
         val session = session(
+            explicitPort = 37099,
+            discoverPort = false,
+            discoverConnectEndpoint = { error("discovery should not be used") },
             clientFactory = {
                 FakeAdbConnection(failCheckAuthorization = true)
             },
@@ -108,6 +121,9 @@ class PrivilegeAdbPairingCheckSessionTest {
     @Test
     fun checkReportsUnpairedWhenTlsRejectsUnknownCertificate() = runBlocking {
         val session = session(
+            explicitPort = 37099,
+            discoverPort = false,
+            discoverConnectEndpoint = { error("discovery should not be used") },
             clientFactory = {
                 FakeAdbConnection(
                     authorizationFailure = SSLProtocolException("SSLV3_ALERT_CERTIFICATE_UNKNOWN"),
@@ -141,15 +157,15 @@ class PrivilegeAdbPairingCheckSessionTest {
     }
 
     private fun session(
-        explicitPort: Int? = 37099,
-        discoverPort: Boolean = false,
-        discoverConnectEndpoint: (Long) -> PrivilegeAdbEndpoint = {
-            error("discovery should not be used")
-        },
+        explicitPort: Int?,
+        discoverPort: Boolean,
+        discoverConnectEndpoint: (Long) -> PrivilegeAdbEndpoint,
         clientFactory: (PrivilegeAdbEndpoint) -> PrivilegeAdbAuthorizationConnection,
     ): PrivilegeAdbPairingCheckSession =
         PrivilegeAdbPairingCheckSession(
-            identity = PrivilegeAdbIdentity.default(),
+            identity = PrivilegeAdbIdentity.default(
+                deviceName = PrivilegeAdbIdentity.DEFAULT_DEVICE_NAME,
+            ),
             publicKeyFingerprint = "AA:BB",
             explicitPort = explicitPort,
             discoverPort = discoverPort,

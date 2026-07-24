@@ -120,7 +120,7 @@ internal class PrivilegeOwnerProcessSignal {
     private var sequence = 0L
     private var acknowledgedSequence = 0L
 
-    fun signal(ownerIsAlive: Boolean = false): Long = lock.withLock {
+    fun signal(ownerIsAlive: Boolean): Long = lock.withLock {
         sequence += 1
         if (ownerIsAlive) {
             acknowledgedSequence = sequence

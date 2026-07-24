@@ -63,7 +63,7 @@ open class TestBinder(
     ): Boolean =
         deathRecipients.remove(recipient)
 
-    fun killBinder(notifyDeathRecipients: Boolean = true) {
+    fun killBinder(notifyDeathRecipients: Boolean) {
         if (!alive) return
         alive = false
         if (notifyDeathRecipients) {
@@ -101,7 +101,7 @@ open class TestUserServiceProcess : IPrivilegeUserServiceProcess {
     override fun destroy() = Unit
 
     fun killBinder() {
-        binder.killBinder()
+        binder.killBinder(notifyDeathRecipients = true)
     }
 }
 

@@ -16,9 +16,9 @@ internal fun Throwable.isAdbKeyNotAuthorizedFailure(): Boolean =
 internal fun privilegeUiWirelessAdbStartOptions(
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
     tcpPort: Int,
-    activeTcpPort: Int? = null,
-    managedWirelessAdbEnabled: Boolean = true,
-    managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
+    activeTcpPort: Int?,
+    managedWirelessAdbEnabled: Boolean,
+    managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus,
 ): PrivilegeAdbStartOptions =
     when {
         tcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED -> PrivilegeAdbStartOptions(

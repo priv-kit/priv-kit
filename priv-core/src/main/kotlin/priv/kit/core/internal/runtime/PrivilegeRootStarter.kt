@@ -23,7 +23,7 @@ internal object PrivilegeRootStarter {
     @Throws(PrivilegeStartupException::class, InterruptedException::class)
     internal fun start(
         commandLine: String,
-        startupLogListener: PrivilegeStartupLogListener? = null,
+        startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeRootProcess {
         if (!isRootAvailable()) {
             throw PrivilegeStartupException("Root is not available")

@@ -200,6 +200,7 @@ internal class PrivilegeUiAdbStatusActions(
             } catch (throwable: Throwable) {
                 store.updateState {
                     it.withWirelessAdbOffline(
+                        wifiConnected = it.wifiConnected,
                         managedWirelessAdbStatus =
                             it.managedWirelessAdbStatus.failedUnlessManagedWirelessAdbHidden(
                                 enabled = store.config.enableManagedWirelessAdb,

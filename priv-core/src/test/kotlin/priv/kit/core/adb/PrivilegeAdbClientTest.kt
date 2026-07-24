@@ -41,7 +41,13 @@ class PrivilegeAdbClientTest {
                 }
             }
 
-            val status = client(server.localPort).use { it.checkAuthorization() }
+            val status = client(
+                port = server.localPort,
+                socketReadTimeoutMillis = 1_000,
+                signAuthToken = { "signature".toByteArray() },
+            ).use {
+                it.checkAuthorization(output = null)
+            }
 
             assertEquals(PrivilegeAdbAuthorizationStatus.UNAUTHORIZED, status)
             serverThread.join(1_500L)
@@ -79,7 +85,13 @@ class PrivilegeAdbClientTest {
                 }
             }
 
-            val status = client(server.localPort).use { it.requestAuthorization() }
+            val status = client(
+                port = server.localPort,
+                socketReadTimeoutMillis = 1_000,
+                signAuthToken = { "signature".toByteArray() },
+            ).use {
+                it.requestAuthorization(output = null)
+            }
 
             assertEquals(PrivilegeAdbAuthorizationStatus.AUTHORIZED, status)
             assertTrue(publicKeyReceived.await(1, TimeUnit.SECONDS))
@@ -107,7 +119,13 @@ class PrivilegeAdbClientTest {
             }
 
             assertThrows(SocketTimeoutException::class.java) {
-                client(server.localPort, socketReadTimeoutMillis = 200).use { it.requestAuthorization() }
+                client(
+                    port = server.localPort,
+                    socketReadTimeoutMillis = 200,
+                    signAuthToken = { "signature".toByteArray() },
+                ).use {
+                    it.requestAuthorization(output = null)
+                }
             }
             assertTrue(publicKeyReceived.await(1, TimeUnit.SECONDS))
             serverThread.join(1_500L)
@@ -159,7 +177,11 @@ class PrivilegeAdbClientTest {
                 }
             }
 
-            client(server.localPort).use { client ->
+            client(
+                port = server.localPort,
+                socketReadTimeoutMillis = 1_000,
+                signAuthToken = { "signature".toByteArray() },
+            ).use { client ->
                 val output = PrivilegeAdbOutput()
 
                 client.connect(output)
@@ -191,7 +213,11 @@ class PrivilegeAdbClientTest {
             }
 
             val exception = assertThrows(PrivilegeAdbException::class.java) {
-                client(server.localPort).use { it.connect() }
+                client(
+                    port = server.localPort,
+                    socketReadTimeoutMillis = 1_000,
+                    signAuthToken = { "signature".toByteArray() },
+                ).use { it.connect(output = null) }
             }
 
             assertTrue(exception.message.orEmpty().contains("Invalid ADB payload length"))
@@ -223,11 +249,12 @@ class PrivilegeAdbClientTest {
             val exception = assertThrows(PrivilegeAdbException::class.java) {
                 client(
                     port = server.localPort,
+                    socketReadTimeoutMillis = 1_000,
                     signAuthToken = {
                         signingAttempted.set(true)
                         "signature".toByteArray()
                     },
-                ).use { it.connect() }
+                ).use { it.connect(output = null) }
             }
 
             assertFalse(signingAttempted.get())
@@ -238,8 +265,8 @@ class PrivilegeAdbClientTest {
 
     private fun client(
         port: Int,
-        socketReadTimeoutMillis: Int = 1_000,
-        signAuthToken: (ByteArray) -> ByteArray = { "signature".toByteArray() },
+        socketReadTimeoutMillis: Int,
+        signAuthToken: (ByteArray) -> ByteArray,
     ): PrivilegeAdbClient =
         PrivilegeAdbClient(
             port = port,

@@ -117,7 +117,7 @@ internal class PrivilegeUiRuntimeStartSession(
         job.cancel(CancellationException("Runtime start was cancelled"))
     }
 
-    suspend fun close(onFailure: (Throwable) -> Unit = {}) {
+    suspend fun close(onFailure: (Throwable) -> Unit) {
         active = false
         try {
             startCleanup().join()

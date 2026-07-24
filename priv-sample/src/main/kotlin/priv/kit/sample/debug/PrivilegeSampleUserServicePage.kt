@@ -38,6 +38,7 @@ internal fun UserServiceTestPage(
         busy = state.busy,
         onDestinationSelected = onDestinationSelected,
         onBackToHome = onBackToHome,
+        actions = {},
     ) {
         StatusPanel(state, onStopServer)
         UserServicePage(

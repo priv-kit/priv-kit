@@ -22,11 +22,17 @@ class PrivilegeUiStartActionTest {
 
         assertEquals(
             PrivilegeUiStartAction.START,
-            idle.startActionFor(PrivilegeUiRuntimeStartSource.ROOT),
+            idle.startActionFor(
+                source = PrivilegeUiRuntimeStartSource.ROOT,
+                providerId = null,
+            ),
         )
         assertEquals(
             PrivilegeUiStartAction.CANCEL,
-            running.startActionFor(PrivilegeUiRuntimeStartSource.ROOT),
+            running.startActionFor(
+                source = PrivilegeUiRuntimeStartSource.ROOT,
+                providerId = null,
+            ),
         )
         assertTrue(
             privilegeUiStartActionEnabled(
@@ -46,7 +52,10 @@ class PrivilegeUiStartActionTest {
 
         assertEquals(
             PrivilegeUiStartAction.CANCELLING,
-            state.startActionFor(PrivilegeUiRuntimeStartSource.ADB_WIRELESS),
+            state.startActionFor(
+                source = PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
+                providerId = null,
+            ),
         )
         assertFalse(
             privilegeUiStartActionEnabled(
@@ -56,7 +65,10 @@ class PrivilegeUiStartActionTest {
         )
         assertEquals(
             PrivilegeUiStartAction.NONE,
-            state.startActionFor(PrivilegeUiRuntimeStartSource.ADB_STATIC_TCP),
+            state.startActionFor(
+                source = PrivilegeUiRuntimeStartSource.ADB_STATIC_TCP,
+                providerId = null,
+            ),
         )
     }
 
@@ -85,7 +97,10 @@ class PrivilegeUiStartActionTest {
         )
         assertEquals(
             PrivilegeUiStartAction.NONE,
-            state.startActionFor(PrivilegeUiRuntimeStartSource.EXTERNAL),
+            state.startActionFor(
+                source = PrivilegeUiRuntimeStartSource.EXTERNAL,
+                providerId = null,
+            ),
         )
     }
 
@@ -113,9 +128,17 @@ class PrivilegeUiStartActionTest {
             runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
             runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
         )
-        val action = state.startActionFor(PrivilegeUiRuntimeStartSource.ROOT)
+        val action = state.startActionFor(
+            source = PrivilegeUiRuntimeStartSource.ROOT,
+            providerId = null,
+        )
 
         assertEquals(PrivilegeUiStartAction.START, action)
-        assertTrue(state.startActionEnabled(action))
+        assertTrue(
+            state.startActionEnabled(
+                action = action,
+                startAvailable = true,
+            ),
+        )
     }
 }

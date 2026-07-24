@@ -346,7 +346,10 @@ internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
                 )
             }
             Spacer(modifier = Modifier.width(PrivilegeUiSpacing.medium))
-            PrivilegeIconTooltip(text = iconDescription) {
+            PrivilegeIconTooltip(
+                text = iconDescription,
+                modifier = Modifier,
+            ) {
                 FilledTonalIconButton(
                     modifier = Modifier.size(PrivilegeUiSize.minimumTouchTarget),
                     enabled = interactionEnabled &&
@@ -432,7 +435,10 @@ internal fun PrivilegeUiScreenScope.StartupLogPanel() {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            PrivilegeIconTooltip(text = copyLogDescription) {
+            PrivilegeIconTooltip(
+                text = copyLogDescription,
+                modifier = Modifier,
+            ) {
                 IconButton(
                     modifier = Modifier.size(PrivilegeUiSize.minimumTouchTarget),
                     enabled = interactionEnabled && lines.isNotEmpty(),
@@ -450,7 +456,10 @@ internal fun PrivilegeUiScreenScope.StartupLogPanel() {
                     )
                 }
             }
-            PrivilegeIconTooltip(text = closeLogDescription) {
+            PrivilegeIconTooltip(
+                text = closeLogDescription,
+                modifier = Modifier,
+            ) {
                 IconButton(
                     modifier = Modifier.size(PrivilegeUiSize.minimumTouchTarget),
                     enabled = interactionEnabled,

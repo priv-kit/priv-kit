@@ -35,7 +35,7 @@ import priv.kit.ui.state.PrivilegeUiViewModelStore
 class PrivilegeUiAdbPairingActionsTest {
     @Test
     fun pendingPermissionFlowBlocksSilentStartUntilUserCancelsIt() {
-        withPairingActions { store, actions ->
+        withPairingActions(hasInteractionHost = { true }) { store, actions ->
             denyNotificationPermission()
             var permissionRequestCount = 0
             val permissionResult = CompletableDeferred<PrivilegeUiPermissionState?>()
@@ -66,7 +66,7 @@ class PrivilegeUiAdbPairingActionsTest {
 
     @Test
     fun pendingPermissionKeepsPairingStopped() {
-        withPairingActions { store, actions ->
+        withPairingActions(hasInteractionHost = { true }) { store, actions ->
             denyNotificationPermission()
             var permissionRequestCount = 0
             val permissionResult = CompletableDeferred<PrivilegeUiPermissionState?>()
@@ -86,7 +86,7 @@ class PrivilegeUiAdbPairingActionsTest {
 
     @Test
     fun permanentlyDeniedNotificationPermissionShowsWarningWithoutStartingPairingSession() {
-        withPairingActions { store, actions ->
+        withPairingActions(hasInteractionHost = { true }) { store, actions ->
             denyNotificationPermission()
             var permissionRequestCount = 0
             val permissionResult = CompletableDeferred<PrivilegeUiPermissionState?>()
@@ -113,7 +113,7 @@ class PrivilegeUiAdbPairingActionsTest {
 
     @Test
     fun rejectedPermissionDispatchDoesNotLeavePairingRequestStuck() {
-        withPairingActions { store, actions ->
+        withPairingActions(hasInteractionHost = { true }) { store, actions ->
             denyNotificationPermission()
             actions.startNotificationPairing { null }
 
@@ -130,7 +130,7 @@ class PrivilegeUiAdbPairingActionsTest {
 
     @Test
     fun grantedNotificationPermissionStartsPairingSession() {
-        withPairingActions { store, actions ->
+        withPairingActions(hasInteractionHost = { true }) { store, actions ->
             denyNotificationPermission()
             actions.startNotificationPairing { PrivilegeUiPermissionState.Granted }
 
@@ -142,7 +142,7 @@ class PrivilegeUiAdbPairingActionsTest {
 
     @Test
     fun continuingAfterPermanentDenialStartsPairingWithoutNotification() {
-        withPairingActions { store, actions ->
+        withPairingActions(hasInteractionHost = { true }) { store, actions ->
             showPermanentDenialWarning(actions)
 
             actions.continuePairingWithoutNotification()
@@ -157,7 +157,7 @@ class PrivilegeUiAdbPairingActionsTest {
 
     @Test
     fun cancellingPendingPermissionKeepsPairingStoppedWhenAStaleResultArrives() {
-        withPairingActions { store, actions ->
+        withPairingActions(hasInteractionHost = { true }) { store, actions ->
             denyNotificationPermission()
             val permissionResult = CompletableDeferred<PrivilegeUiPermissionState?>()
             val start = async(start = CoroutineStart.UNDISPATCHED) {
@@ -175,7 +175,7 @@ class PrivilegeUiAdbPairingActionsTest {
 
     @Test
     fun permissionGateStopsExistingPairingBeforePermanentDenialCanBeCancelled() {
-        withPairingActions { store, actions ->
+        withPairingActions(hasInteractionHost = { true }) { store, actions ->
             store.updateState {
                 it.copy(
                     pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
@@ -199,7 +199,7 @@ class PrivilegeUiAdbPairingActionsTest {
 
     @Test
     fun ordinaryNotificationDenialStartsPairingWithoutNotification() {
-        withPairingActions { store, actions ->
+        withPairingActions(hasInteractionHost = { true }) { store, actions ->
             denyNotificationPermission()
             actions.startNotificationPairing {
                 PrivilegeUiPermissionState.NotGranted.Denied
@@ -215,7 +215,7 @@ class PrivilegeUiAdbPairingActionsTest {
 
     @Test
     fun stoppingFromNotificationClosesDialogAndPairingSession() {
-        withPairingActions { store, actions ->
+        withPairingActions(hasInteractionHost = { true }) { store, actions ->
             store.updateState {
                 it.copy(
                     pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
@@ -298,7 +298,7 @@ class PrivilegeUiAdbPairingActionsTest {
 
     @Test
     fun notificationEventFromAnotherOwnerIsIgnored() {
-        withPairingActions { store, actions ->
+        withPairingActions(hasInteractionHost = { true }) { store, actions ->
             store.updateState {
                 it.copy(
                     pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
@@ -322,11 +322,11 @@ class PrivilegeUiAdbPairingActionsTest {
         shadowOf(RuntimeEnvironment.getApplication())
             .grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
         withPairingActions(hasInteractionHost = { false }) { store, actions ->
-            actions.startNotificationPairing()
+            actions.startNotificationPairing(requestNotificationPermission = { null })
             store.updateState { it.copy(notificationPairingRunning = true) }
             assertNull(PrivilegeUiStartGate.tryAcquireSilent())
 
-            actions.cancelPairingWithoutInteractionHost()
+            actions.cancelPairingWithoutInteractionHost(notificationLost = false)
             assertNull(PrivilegeUiStartGate.tryAcquireSilent())
 
             actions.handleNotificationEvent(
@@ -341,7 +341,7 @@ class PrivilegeUiAdbPairingActionsTest {
 
     @Test
     fun stalePairingSubmitDoesNotAcquireInteractivePermit() {
-        withPairingActions { store, actions ->
+        withPairingActions(hasInteractionHost = { true }) { store, actions ->
             actions.submitNotificationPairingCode()
             actions.handleNotificationEvent(
                 PrivilegeAdbPairingNotificationEvent.Submit(
@@ -374,7 +374,7 @@ class PrivilegeUiAdbPairingActionsTest {
     }
 
     private fun withPairingActions(
-        hasInteractionHost: () -> Boolean = { true },
+        hasInteractionHost: () -> Boolean,
         block: suspend CoroutineScope.(PrivilegeUiViewModelStore, PrivilegeUiAdbPairingActions) -> Unit,
     ) = runBlocking {
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())

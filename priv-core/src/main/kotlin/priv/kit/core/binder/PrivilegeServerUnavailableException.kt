@@ -5,7 +5,7 @@ public class PrivilegeServerUnavailableException public constructor(
     cause: Throwable? = null,
 ) : RuntimeException(message, cause)
 
-internal fun serverUnavailable(cause: Throwable? = null): Nothing =
+internal fun serverUnavailable(cause: Throwable?): Nothing =
     throw PrivilegeServerUnavailableException(cause = cause)
 
 internal inline fun <T> serverControlCall(block: () -> T): T =

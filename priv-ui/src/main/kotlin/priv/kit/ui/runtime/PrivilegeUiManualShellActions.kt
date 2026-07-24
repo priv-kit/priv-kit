@@ -28,6 +28,7 @@ internal suspend fun PrivilegeUiViewModelStore.loadManualShellCommand() {
                 directShellCommand = directCommand,
                 externalBootstrapSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R,
                 externalFilesDirectory = requireContext().getExternalFilesDir(null),
+                scriptWriter = PrivilegeBinaryFileStore::writeAtomically,
             )
         }
     }.getOrElse { throwable ->
@@ -49,7 +50,7 @@ internal fun createPrivilegeUiManualShellCommand(
     directShellCommand: String,
     externalBootstrapSupported: Boolean,
     externalFilesDirectory: File?,
-    scriptWriter: (File, ByteArray) -> Unit = PrivilegeBinaryFileStore::writeAtomically,
+    scriptWriter: (File, ByteArray) -> Unit,
 ): String {
     val fallbackCommand = directShellCommand.toPrivilegeUiHostAdbShellCommand()
     if (!externalBootstrapSupported) return fallbackCommand

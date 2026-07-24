@@ -9,11 +9,9 @@ import java.io.File
 internal object PrivilegeServerArguments {
     fun parse(
         args: Array<String>,
-        classpath: String = System.getenv("CLASSPATH").orEmpty(),
-        launchCorrelationId: String? =
-            System.getenv(PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID)
-                ?.takeIf { it.isNotBlank() },
-        uid: Int = Process.myUid(),
+        classpath: String,
+        launchCorrelationId: String?,
+        uid: Int,
     ): PrivilegeServerConfig {
         require(args.isEmpty()) { "Privileged Server no longer accepts launch arguments" }
         val normalizedClasspath = classpath.trim()
