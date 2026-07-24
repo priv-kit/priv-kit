@@ -181,7 +181,10 @@ Binder 支持应覆盖：
 - `PrivilegeBinderWrapper.fromBinder(...)` 将调用方已持有的显式目标 `IBinder` 的 `transact` 通过当前 Privileged Server 执行，并通过 `Privilege` 的全局 server-binder getter 在每次 transaction 前统一拦截 server 断连；
 - `PrivilegeBinderWrapper.fromSystemService(...)` 默认在当前进程通过 hidden `ServiceManager.getService(name)` 获取目标 Binder，再复用 `fromBinder(...)` 的 raw transaction 桥；
 - `PrivilegeBinderWrapper.fromSystemService(..., source = PrivilegeSystemServiceSource.SERVER_PROCESS)` 先确认当前 Privileged Server 进程能按显式系统服务名解析目标，再返回按服务名延迟解析和转发 transaction 的 raw Binder 桥，不向 app 暴露 server 进程内的真实 Binder；
-- `PrivilegeServerUnavailableException` 是 Binder 原语对外暴露的统一 server 通道不可用异常；目标 Binder 调用失败按 raw Binder 语义透传给调用方处理。
+- 项目自有 server control 调用在 server Binder 缺失、抛出 `DeadObjectException`，或其他 `RemoteException` 且对应 Binder 已确认死亡时，对外统一暴露 `PrivilegeServerUnavailableException`；UserService 与目标 Binder endpoint 的调用失败保留 raw Binder 语义，不推测死亡来源。
+- `PrivilegeBinderCall.orElse(...)` 只处理 `PrivilegeServerUnavailableException` 与直接 Binder endpoint 的 `DeadObjectException`，并通过 `PrivilegeBinderCallFailure.ServerUnavailable` 或 `PrivilegeBinderCallFailure.BinderDied` 调用宿主提供的 fallback；其他异常原样传播。
+- 每次项目自有 server control 调用捕获完整 `ServerConnection`；调用失败只允许清理仍对应同一连接的全局状态，不持有连接锁执行 IPC，也不能让旧 server 的迟到失败清除替代连接。
+- fallback 只表示调用结果无法确认，不提供自动重试语义；非幂等写操作可能已在远端执行，宿主必须自行处理这种不确定结果。
 
 Binder 支持不应覆盖：
 

@@ -105,10 +105,11 @@ private fun hasSystemServiceUnchecked(
         PrivilegeSystemServiceSource.CURRENT_PROCESS ->
             ServiceManager.getService(serviceName) != null
 
-        PrivilegeSystemServiceSource.SERVER_PROCESS ->
-            serverControlCall {
-                Privilege.requireServerInterface().hasSystemService(serviceName)
+        PrivilegeSystemServiceSource.SERVER_PROCESS -> {
+            Privilege.callServer { server ->
+                server.hasSystemService(serviceName)
             }
+        }
     }
 
 private class TargetBinderWrapper(
@@ -188,8 +189,8 @@ private class ServerProcessSystemServiceWrapper(
         recipient: IBinder.DeathRecipient,
         flags: Int,
     ) {
-        serverControlCall {
-            Privilege.requireServerInterface().asBinder().linkToDeath(recipient, flags)
+        Privilege.callServer { server ->
+            server.asBinder().linkToDeath(recipient, flags)
         }
     }
 

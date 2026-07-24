@@ -4,7 +4,6 @@ import android.os.Binder
 import android.os.Bundle
 import android.os.IBinder
 import priv.kit.core.PrivilegeUserServiceConnection
-import priv.kit.core.binder.serverControlCall
 import priv.kit.core.internal.userservice.IPrivilegeUserServiceManager
 import priv.kit.core.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.core.userservice.PrivilegeUserServiceException
@@ -56,9 +55,7 @@ internal class PrivilegeUserServiceClient(
         block: (IPrivilegeUserServiceManager) -> Bundle,
     ): Bundle {
         val manager = IPrivilegeUserServiceManager.Stub.asInterface(managerProvider())
-        return serverControlCall {
-            block(manager)
-        }
+        return block(manager)
     }
 
     private fun ensureSuccess(response: Bundle) {

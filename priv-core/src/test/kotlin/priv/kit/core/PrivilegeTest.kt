@@ -1,13 +1,19 @@
 package priv.kit.core
 
 import android.content.pm.PackageManager
+import android.os.DeadObjectException
 import android.os.IBinder
+import android.os.RemoteException
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import priv.kit.core.binder.PrivilegeBinderCall
+import priv.kit.core.binder.PrivilegeBinderCallFailure
 import priv.kit.core.internal.binder.IPrivilegeServer
 import priv.kit.core.binder.PrivilegeServerUnavailableException
 import priv.kit.core.internal.core.PrivilegeAndroidUsers
@@ -16,7 +22,11 @@ import priv.kit.core.internal.core.PrivilegeProtocol
 import priv.kit.core.internal.core.PrivilegeServerHandshakeResult
 import priv.kit.core.testing.TestBinder
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.thread
 
 class PrivilegeTest {
     @After
@@ -135,6 +145,150 @@ class PrivilegeTest {
             PackageManager.PERMISSION_GRANTED,
             Privilege.checkServerPermission("android.permission.GRANT_RUNTIME_PERMISSIONS"),
         )
+    }
+
+    @Test
+    fun deadServerCallUsesFallbackAndClearsConnection() {
+        val deadObjectException = DeadObjectException("server died")
+        val server = FakePrivilegeServer(
+            checkServerPermissionCall = { throw deadObjectException },
+        )
+        Privilege.connectHandshake(
+            handshakeResult = PrivilegeServerHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                serverBinder = server.asBinder(),
+            ),
+            startupLogListener = null,
+        )
+        var observedFailure: PrivilegeBinderCallFailure? = null
+
+        val result = PrivilegeBinderCall.orElse(
+            fallback = { failure ->
+                observedFailure = failure
+                PackageManager.PERMISSION_DENIED
+            },
+        ) {
+            Privilege.checkServerPermission("android.permission.GRANT_RUNTIME_PERMISSIONS")
+        }
+
+        assertEquals(PackageManager.PERMISSION_DENIED, result)
+        val failure = observedFailure as PrivilegeBinderCallFailure.ServerUnavailable
+        assertSame(deadObjectException, failure.exception.cause)
+        assertThrows(PrivilegeServerUnavailableException::class.java) {
+            Privilege.getServerInfo()
+        }
+    }
+
+    @Test
+    fun remoteExceptionFromConfirmedDeadServerUsesFallback() {
+        val remoteException = RemoteException("server transport failed")
+        val server = FakePrivilegeServer(
+            checkServerPermissionCall = { throw remoteException },
+        )
+        Privilege.connectHandshake(
+            handshakeResult = PrivilegeServerHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                serverBinder = server.asBinder(),
+            ),
+            startupLogListener = null,
+        )
+        server.killBinder()
+        var observedFailure: PrivilegeBinderCallFailure? = null
+
+        val result = PrivilegeBinderCall.orElse(
+            fallback = { failure ->
+                observedFailure = failure
+                PackageManager.PERMISSION_DENIED
+            },
+        ) {
+            Privilege.checkServerPermission("android.permission.GRANT_RUNTIME_PERMISSIONS")
+        }
+
+        assertEquals(PackageManager.PERMISSION_DENIED, result)
+        val failure = observedFailure as PrivilegeBinderCallFailure.ServerUnavailable
+        assertSame(remoteException, failure.exception.cause)
+        assertThrows(PrivilegeServerUnavailableException::class.java) {
+            Privilege.getServerInfo()
+        }
+    }
+
+    @Test
+    fun staleServerFailureDoesNotDisconnectReplacementServer() {
+        val callEntered = CountDownLatch(1)
+        val releaseCall = CountDownLatch(1)
+        val oldServer = FakePrivilegeServer(
+            checkServerPermissionCall = {
+                callEntered.countDown()
+                check(releaseCall.await(5, TimeUnit.SECONDS)) {
+                    "Timed out waiting to release the old server call"
+                }
+                throw DeadObjectException("old server died")
+            },
+        )
+        Privilege.connectHandshake(
+            handshakeResult = PrivilegeServerHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                serverBinder = oldServer.asBinder(),
+            ),
+            startupLogListener = null,
+        )
+        val result = AtomicReference<Int?>()
+        val failure = AtomicReference<PrivilegeBinderCallFailure?>()
+        val unexpected = AtomicReference<Throwable?>()
+        val worker = thread(name = "stale-server-call") {
+            try {
+                result.set(
+                    PrivilegeBinderCall.orElse(
+                        fallback = {
+                            failure.set(it)
+                            PackageManager.PERMISSION_DENIED
+                        },
+                    ) {
+                        Privilege.checkServerPermission(
+                            "android.permission.GRANT_RUNTIME_PERMISSIONS",
+                        )
+                    },
+                )
+            } catch (throwable: Throwable) {
+                unexpected.set(throwable)
+            }
+        }
+        val replacementInfo = PrivilegeServerInfo(
+            uid = 2000,
+            pid = 5678,
+            protocolVersion = PrivilegeProtocol.VERSION,
+        )
+        try {
+            assertTrue(callEntered.await(5, TimeUnit.SECONDS))
+            Privilege.connectHandshake(
+                handshakeResult = PrivilegeServerHandshakeResult(
+                    serverInfo = replacementInfo,
+                    serverBinder = FakePrivilegeServer().asBinder(),
+                ),
+                startupLogListener = null,
+            )
+        } finally {
+            releaseCall.countDown()
+            worker.join(5_000)
+        }
+
+        assertFalse(worker.isAlive)
+        assertNull(unexpected.get())
+        assertEquals(PackageManager.PERMISSION_DENIED, result.get())
+        assertTrue(failure.get() is PrivilegeBinderCallFailure.ServerUnavailable)
+        assertEquals(replacementInfo, Privilege.getServerInfo())
     }
 
     @Test
@@ -346,6 +500,7 @@ class PrivilegeTest {
 
     private class FakePrivilegeServer(
         private val permissionResult: Int = PackageManager.PERMISSION_DENIED,
+        private val checkServerPermissionCall: ((String) -> Int)? = null,
     ) : IPrivilegeServer {
         private val binder = TestBinder(localInterface = this)
         val serverPermissionChecks = mutableListOf<String>()
@@ -366,7 +521,7 @@ class PrivilegeTest {
 
         override fun checkServerPermission(permission: String): Int {
             serverPermissionChecks += permission
-            return permissionResult
+            return checkServerPermissionCall?.invoke(permission) ?: permissionResult
         }
 
         override fun checkPermission(

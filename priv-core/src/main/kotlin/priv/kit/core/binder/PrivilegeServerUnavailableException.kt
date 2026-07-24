@@ -1,5 +1,8 @@
 package priv.kit.core.binder
 
+/**
+ * Thrown when the Privileged Server Binder is missing or has died.
+ */
 public class PrivilegeServerUnavailableException public constructor(
     message: String = "Privilege server is unavailable",
     cause: Throwable? = null,
@@ -7,10 +10,3 @@ public class PrivilegeServerUnavailableException public constructor(
 
 internal fun serverUnavailable(cause: Throwable?): Nothing =
     throw PrivilegeServerUnavailableException(cause = cause)
-
-internal inline fun <T> serverControlCall(block: () -> T): T =
-    try {
-        block()
-    } catch (exception: android.os.RemoteException) {
-        serverUnavailable(exception)
-    }

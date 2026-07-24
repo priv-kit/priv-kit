@@ -1,6 +1,7 @@
 package priv.kit.core.internal.runtime
 
 import android.os.Bundle
+import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.RemoteException
 import org.junit.Assert.assertEquals
@@ -86,7 +87,23 @@ class PrivilegeUserServiceClientTest {
     }
 
     @Test
-    fun managerRemoteExceptionSurfacesServerUnavailable() {
+    fun managerDeadObjectExceptionPropagatesAsEndpointDeath() {
+        val manager = RecordingManager(spec())
+        val deadObjectException = DeadObjectException("server died")
+        manager.startResult = {
+            throw deadObjectException
+        }
+        val client = PrivilegeUserServiceClient { manager.binder }
+
+        val throwable = assertThrows(DeadObjectException::class.java) {
+            client.start(spec())
+        }
+
+        assertSame(deadObjectException, throwable)
+    }
+
+    @Test
+    fun managerRemoteExceptionPropagatesWithoutMisclassifyingServerState() {
         val manager = RecordingManager(spec())
         val remoteException = RemoteException("remote exploded")
         manager.startResult = {
@@ -94,11 +111,11 @@ class PrivilegeUserServiceClientTest {
         }
         val client = PrivilegeUserServiceClient { manager.binder }
 
-        val throwable = assertThrows(PrivilegeServerUnavailableException::class.java) {
+        val throwable = assertThrows(RemoteException::class.java) {
             client.start(spec())
         }
 
-        assertSame(remoteException, throwable.cause)
+        assertSame(remoteException, throwable)
     }
 
     @Test

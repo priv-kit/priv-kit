@@ -43,7 +43,9 @@ The latest owner-death configuration is held in the runtime process and returned
 
 Like shizuku-api, the runtime treats the Privileged Server Binder as a single process-wide handle. A repeated handshake for the same Binder keeps the current global server state; a handshake for a replacement Binder installs the new server state.
 
-`Privilege.getServerInfo()` and `PrivilegeBinderWrapper` both resolve the server Binder through the same global getter. If the server was killed after a caller cached a framework service proxy backed by `PrivilegeBinderWrapper`, the next transaction is normalized to `PrivilegeServerUnavailableException` instead of leaking raw Binder state.
+`Privilege.getServerInfo()`, project-owned server control calls, and `PrivilegeBinderWrapper` resolve the server Binder through the same global connection. A missing or dead server on a project-owned control call is normalized to `PrivilegeServerUnavailableException`. `PrivilegeBinderWrapper` keeps raw transaction failures unchanged because a forwarded failure cannot reliably identify whether the target Binder or the Privileged Server died.
+
+Hosts can wrap a server-related or UserService Binder invocation with `PrivilegeBinderCall.orElse(...)`. Its fallback receives `PrivilegeBinderCallFailure.ServerUnavailable` for the normalized Privileged Server failure or `PrivilegeBinderCallFailure.BinderDied` for a directly called dead endpoint. Other exceptions propagate unchanged. A fallback means that the result is unknown; mutating calls are not retried automatically because the remote side may have completed the operation before dying.
 
 If a server reports a different protocol or APK classpath identity than the current app runtime, the runtime rejects that Binder handoff. When the caller is a trusted existing server, the app returns the current native starter command so the stale server can replace itself from the current install.
 

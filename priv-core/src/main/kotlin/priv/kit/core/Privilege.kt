@@ -2,6 +2,7 @@ package priv.kit.core
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.Process
 import android.os.RemoteException
@@ -10,7 +11,6 @@ import priv.kit.core.adb.PrivilegeAdbIdentity
 import priv.kit.core.adb.PrivilegeAdbStartOptions
 import priv.kit.core.adb.PrivilegeAdbStartResult
 import priv.kit.core.adb.PrivilegeAdbManager
-import priv.kit.core.binder.serverControlCall
 import priv.kit.core.binder.serverUnavailable
 import priv.kit.core.internal.binder.IPrivilegeServer
 import priv.kit.core.internal.core.PrivilegeAndroidUsers
@@ -245,15 +245,15 @@ public object Privilege {
     public fun isPermissionRestricted(): Boolean {
         val connection = requireServerConnection()
         if (connection.serverInfo.uid == PRIVILEGE_INTERNAL_ROOT_UID) return false
-        return serverControlCall {
-            !connection.server.canGrantRuntimePermissions()
+        return callServer(connection) { server ->
+            !server.canGrantRuntimePermissions()
         }
     }
 
     public fun checkServerPermission(permission: String): Int {
         require(permission.isNotBlank()) { "permission must not be blank" }
-        return serverControlCall {
-            requireServerInterface().checkServerPermission(permission)
+        return callServer { server ->
+            server.checkServerPermission(permission)
         }
     }
 
@@ -262,8 +262,8 @@ public object Privilege {
         pkgName: String,
         userId: Int = currentUserId,
     ): Int {
-        return serverControlCall {
-            requireServerInterface().checkPermission(
+        return callServer { server ->
+            server.checkPermission(
                 permName,
                 pkgName,
                 userId,
@@ -276,8 +276,8 @@ public object Privilege {
         permissionName: String,
         userId: Int = currentUserId,
     ) {
-        serverControlCall {
-            requireServerInterface().grantRuntimePermission(
+        callServer { server ->
+            server.grantRuntimePermission(
                 packageName,
                 permissionName,
                 userId,
@@ -298,8 +298,8 @@ public object Privilege {
 
     public fun shutdownServer() {
         try {
-            serverControlCall {
-                requireServerInterface().shutdown()
+            callServer { server ->
+                server.shutdown()
             }
         } finally {
             clearCurrentServer()
@@ -505,9 +505,28 @@ public object Privilege {
     internal fun requireServerInterface(): IPrivilegeServer =
         requireServerConnection().server
 
+    @JvmSynthetic
+    internal fun <T> callServer(block: (IPrivilegeServer) -> T): T =
+        callServer(requireServerConnection(), block)
+
+    private fun <T> callServer(
+        connection: ServerConnection,
+        block: (IPrivilegeServer) -> T,
+    ): T =
+        try {
+            block(connection.server)
+        } catch (exception: RemoteException) {
+            val unavailable =
+                exception is DeadObjectException ||
+                    !connection.server.asBinder().isBinderAlive
+            if (!unavailable) throw exception
+            markServerDisconnected(connection)
+            serverUnavailable(exception)
+        }
+
     private fun getUserServiceManagerBinder(): IBinder =
-        serverControlCall {
-            requireServerInterface().getUserServiceManager()
+        callServer { server ->
+            server.getUserServiceManager()
         } ?: serverUnavailable(cause = null)
 
     internal fun runtimeConfig(): PrivilegeConfigSnapshot =

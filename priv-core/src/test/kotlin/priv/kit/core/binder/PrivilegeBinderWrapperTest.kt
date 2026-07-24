@@ -1,11 +1,13 @@
 package priv.kit.core.binder
 
+import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.Parcel
 import android.os.RemoteException
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -77,6 +79,53 @@ class PrivilegeBinderWrapperTest {
             }
 
             assertEquals(remoteException, thrown)
+        }
+    }
+
+    @Test
+    fun rawTransactPropagatesTargetDeadObjectWhileServerIsAlive() {
+        val deadObjectException = DeadObjectException("target died")
+        withServer(FakePrivilegeServer(transactException = deadObjectException)) {
+            val wrapper = PrivilegeBinderWrapper.fromBinder(FakeBinder())
+            val data = Parcel.obtain()
+
+            val thrown = try {
+                assertThrows(DeadObjectException::class.java) {
+                    wrapper.transact(1, data, null, 0)
+                }
+            } finally {
+                data.recycle()
+            }
+
+            assertSame(deadObjectException, thrown)
+        }
+    }
+
+    @Test
+    fun rawTransactServerDeathUsesBinderDiedFallbackWithoutGuessingOrigin() {
+        val deadObjectException = DeadObjectException("server died")
+        withServer(FakePrivilegeServer(transactException = deadObjectException)) { server ->
+            val wrapper = PrivilegeBinderWrapper.fromBinder(FakeBinder())
+            val data = Parcel.obtain()
+            server.binder.kill()
+            var observedFailure: PrivilegeBinderCallFailure? = null
+
+            val result = try {
+                PrivilegeBinderCall.orElse(
+                    fallback = { failure ->
+                        observedFailure = failure
+                        false
+                    },
+                ) {
+                    wrapper.transact(1, data, null, 0)
+                }
+            } finally {
+                data.recycle()
+            }
+
+            assertFalse(result)
+            val failure = observedFailure as PrivilegeBinderCallFailure.BinderDied
+            assertSame(deadObjectException, failure.exception)
         }
     }
 

@@ -1,9 +1,9 @@
 package priv.kit.core.testing
 
+import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.IInterface
 import android.os.Parcel
-import android.os.RemoteException
 import priv.kit.core.internal.userservice.IPrivilegeUserServiceProcess
 import priv.kit.core.internal.userservice.PrivilegeUserServiceHost
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
@@ -52,7 +52,7 @@ open class TestBinder(
         flags: Int,
     ) {
         if (!alive) {
-            throw RemoteException("Binder is dead")
+            throw DeadObjectException("Binder is dead")
         }
         deathRecipients += recipient
     }
