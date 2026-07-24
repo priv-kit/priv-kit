@@ -7,6 +7,7 @@ import android.os.Build
 import androidx.annotation.ChecksSdkIntAtLeast
 import priv.kit.shared.toPrivilegeAdbDeviceNameText
 import priv.kit.shared.toPrivilegeDiagnosticString
+import priv.kit.shared.toPrivilegeShellArgument
 
 internal fun Context.copyToClipboard(label: String, text: String) {
     val clipboard = getSystemService(ClipboardManager::class.java) ?: return
@@ -26,7 +27,7 @@ internal fun String.toPrivilegeUiHostAdbShellCommand(): String {
 }
 
 internal fun String.toPrivilegeUiHostAdbShellScriptCommand(): String =
-    ADB_SHELL_PREFIX + "sh " + toPrivilegeUiShellArg()
+    ADB_SHELL_PREFIX + "sh " + toPrivilegeShellArgument()
 
 internal fun String.toPrivilegeUiAdbVisibleExternalPath(): String =
     if (startsWith(PRIMARY_EXTERNAL_STORAGE_PREFIX)) {
@@ -47,29 +48,6 @@ internal fun Throwable.failureMessage(): String =
 
 internal fun Throwable.toPrivilegeUiDiagnosticString(): String =
     toPrivilegeDiagnosticString()
-
-private fun String.toPrivilegeUiShellArg(): String =
-    if (isNotEmpty() && all(::isPrivilegeUiShellBareChar)) {
-        this
-    } else {
-        "'" + replace("'", "'\"'\"'") + "'"
-    }
-
-private fun isPrivilegeUiShellBareChar(char: Char): Boolean =
-    char in 'A'..'Z' ||
-        char in 'a'..'z' ||
-        char in '0'..'9' ||
-        char == '/' ||
-        char == '.' ||
-        char == '_' ||
-        char == '-' ||
-        char == ':' ||
-        char == '=' ||
-        char == '@' ||
-        char == '%' ||
-        char == '+' ||
-        char == ',' ||
-        char == '~'
 
 private const val ADB_SHELL_PREFIX = "adb shell "
 private const val PRIMARY_EXTERNAL_STORAGE_PREFIX = "/storage/emulated/0/"

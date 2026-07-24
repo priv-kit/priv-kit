@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.annotation.Keep
 import androidx.annotation.RestrictTo
 import priv.kit.core.internal.core.PrivilegeContentProviderCall
+import priv.kit.core.internal.core.preparePrivilegeMainLooper
 import java.io.File
 import kotlin.system.exitProcess
 
@@ -15,7 +16,7 @@ public object PrivilegeUserServiceMain {
     @JvmStatic
     public fun main(args: Array<String>) {
         try {
-            prepareMainLooper()
+            preparePrivilegeMainLooper()
             val config = Arguments.parse(args)
             val instance = PrivilegeUserServiceLoader.instantiate(
                 serviceClassName = config.serviceClassName,
@@ -75,13 +76,6 @@ public object PrivilegeUserServiceMain {
             name = "priv-kit-user-service-server-watch"
             isDaemon = true
             start()
-        }
-    }
-
-    @Suppress("DEPRECATION")
-    private fun prepareMainLooper() {
-        if (Looper.myLooper() == null) {
-            Looper.prepareMainLooper()
         }
     }
 

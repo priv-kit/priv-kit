@@ -2,6 +2,7 @@ package priv.kit.core.internal.runtime
 
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.core.PrivilegeServerLaunchCommand
+import priv.kit.shared.toPrivilegeShellArgument
 
 internal object PrivilegeServerLaunchCommandBuilder {
     fun build(launchCorrelationId: String): PrivilegeServerLaunchCommand {
@@ -36,10 +37,10 @@ internal object PrivilegeServerLaunchCommandBuilder {
         launchCorrelationId: String?,
         clearInheritedLaunchCorrelationId: Boolean,
     ): String {
-        val starter = shellArg(starterPath)
+        val starter = starterPath.toPrivilegeShellArgument()
         if (launchCorrelationId == null && !clearInheritedLaunchCorrelationId) return starter
         return "${PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID}=" +
-            shellArg(launchCorrelationId.orEmpty()) +
+            launchCorrelationId.orEmpty().toPrivilegeShellArgument() +
             " " +
             starter
     }
@@ -48,13 +49,6 @@ internal object PrivilegeServerLaunchCommandBuilder {
         val nativeLibraryDir = PrivilegeContext.require().applicationInfo.nativeLibraryDir.trimEnd('/')
         return "$nativeLibraryDir/$NATIVE_STARTER_LIBRARY_NAME"
     }
-
-    fun shellArg(value: String): String =
-        if (value.isNotEmpty() && value.all(::isShellBareChar)) {
-            value
-        } else {
-            "'" + value.replace("'", "'\"'\"'") + "'"
-        }
 
     internal fun buildClasspath(): String {
         val context = PrivilegeContext.require()
@@ -65,22 +59,6 @@ internal object PrivilegeServerLaunchCommandBuilder {
         }
         return apkPaths.joinToString(":")
     }
-
-    private fun isShellBareChar(char: Char): Boolean =
-        char in 'A'..'Z' ||
-            char in 'a'..'z' ||
-            char in '0'..'9' ||
-            char == '/' ||
-            char == '.' ||
-            char == '_' ||
-            char == '-' ||
-            char == ':' ||
-            char == '=' ||
-            char == '@' ||
-            char == '%' ||
-            char == '+' ||
-            char == ',' ||
-            char == '~'
 
     internal const val SERVER_MAIN_CLASS = "priv.kit.core.internal.server.PrivilegeServerMain"
     private const val NATIVE_STARTER_LIBRARY_NAME = "libprivkitstarter.so"

@@ -9,7 +9,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -107,18 +106,4 @@ class PrivilegeUiAdbTcpActionsTest {
             store.close()
         }
     }
-
-    private suspend fun waitUntilIdle(store: PrivilegeUiViewModelStore): Boolean =
-        withTimeoutOrNull(TimeUnit.SECONDS.toMillis(2)) {
-            store.state.first {
-                !it.busy && it.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.IDLE
-            }
-            true
-        } ?: false
-
-    private suspend fun waitUntil(condition: () -> Boolean): Boolean =
-        withTimeoutOrNull(TimeUnit.SECONDS.toMillis(2)) {
-            while (!condition()) delay(10L)
-            true
-        } ?: false
 }

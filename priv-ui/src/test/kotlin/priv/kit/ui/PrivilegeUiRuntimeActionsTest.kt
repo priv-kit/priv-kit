@@ -1535,20 +1535,6 @@ class PrivilegeUiRuntimeActionsTest {
             true
         } ?: false
 
-    private suspend fun waitUntilIdle(store: PrivilegeUiViewModelStore): Boolean =
-        withTimeoutOrNull(TimeUnit.SECONDS.toMillis(2)) {
-            store.state.first {
-                !it.busy && it.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.IDLE
-            }
-            true
-        } ?: false
-
-    private suspend fun waitUntil(condition: () -> Boolean): Boolean =
-        withTimeoutOrNull(TimeUnit.SECONDS.toMillis(2)) {
-            while (!condition()) delay(10L)
-            true
-        } ?: false
-
     private suspend fun waitUntilRuntimeCoordinatorIdle() {
         withTimeout(2_000L) {
             while (true) {

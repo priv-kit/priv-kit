@@ -171,7 +171,7 @@ private class ExternalStartupBridgeHostOutput(
     private val stderrWriter = stderr.toWriter()
 
     fun write(line: PrivilegeStartupLogLine) {
-        (if (line.source == STDOUT_SOURCE) stdoutWriter else stderrWriter)
+        (if (line.source == EXTERNAL_STARTUP_STDOUT) stdoutWriter else stderrWriter)
             .writeLine(line.message)
     }
 
@@ -210,5 +210,4 @@ private fun Throwable.toResultData(): Bundle = Bundle().apply {
     )
 }
 
-private const val STDOUT_SOURCE = "stdout"
 private const val MAX_RESULT_MESSAGE_CHARS = 512

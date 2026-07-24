@@ -9,6 +9,7 @@ import android.os.SystemClock
 import android.util.Log
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
+import priv.kit.core.internal.core.preparePrivilegeMainLooper
 import java.io.File
 import kotlin.system.exitProcess
 
@@ -52,7 +53,7 @@ public object PrivilegeServerMain {
     public fun main(args: Array<String>) {
         try {
             Log.i(TAG, "Privileged Server main entered args=${args.toDiagnosticString()}")
-            prepareMainLooper()
+            preparePrivilegeMainLooper()
             val config = PrivilegeServerArguments.parse(
                 args = args,
                 classpath = System.getenv("CLASSPATH").orEmpty(),
@@ -472,13 +473,6 @@ public object PrivilegeServerMain {
     private fun exitServer(status: Int): Nothing {
         closeOwnerProcessObserver()
         exitProcess(status)
-    }
-
-    @Suppress("DEPRECATION")
-    private fun prepareMainLooper() {
-        if (Looper.myLooper() == null) {
-            Looper.prepareMainLooper()
-        }
     }
 
     private fun keepAlive() {

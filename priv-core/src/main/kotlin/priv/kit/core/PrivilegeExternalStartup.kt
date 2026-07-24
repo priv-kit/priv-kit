@@ -1,6 +1,9 @@
 package priv.kit.core
 
 import priv.kit.core.internal.external.PrivilegeExternalStartupBridgeRunner
+import priv.kit.core.internal.external.EXTERNAL_STARTUP_READER_JOIN_TIMEOUT_MILLIS
+import priv.kit.core.internal.external.EXTERNAL_STARTUP_STDERR
+import priv.kit.core.internal.external.EXTERNAL_STARTUP_STDOUT
 import java.io.InputStream
 import java.util.Collections
 import java.util.concurrent.TimeUnit
@@ -160,10 +163,10 @@ internal class PrivilegeExternalStartupProcessRunner(
         supervisorScope {
             val readers = listOf(
                 async(CoroutineName("priv-kit-external-start-stdout")) {
-                    runInterruptible { consume(streams[0], "stdout", transcript) }
+                    runInterruptible { consume(streams[0], EXTERNAL_STARTUP_STDOUT, transcript) }
                 },
                 async(CoroutineName("priv-kit-external-start-stderr")) {
-                    runInterruptible { consume(streams[1], "stderr", transcript) }
+                    runInterruptible { consume(streams[1], EXTERNAL_STARTUP_STDERR, transcript) }
                 },
             )
 
@@ -228,7 +231,12 @@ internal class PrivilegeExternalStartupProcessRunner(
         streams: List<InputStream>,
         readers: List<Deferred<Unit>>,
     ) {
-        if (withTimeoutOrNull(READER_JOIN_TIMEOUT_MILLIS.milliseconds) { readers.awaitAll() } == null) {
+        val completed = withTimeoutOrNull(
+            EXTERNAL_STARTUP_READER_JOIN_TIMEOUT_MILLIS.milliseconds,
+        ) {
+            readers.awaitAll()
+        }
+        if (completed == null) {
             streams.forEach { runCatching(it::close) }
             readers.forEach { it.cancel() }
             readers.joinAll()
@@ -241,10 +249,6 @@ internal class PrivilegeExternalStartupProcessRunner(
     ) {
         process.destroy()
         streams.forEach { runCatching(it::close) }
-    }
-
-    private companion object {
-        const val READER_JOIN_TIMEOUT_MILLIS = 500L
     }
 }
 

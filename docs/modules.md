@@ -83,6 +83,7 @@ implementation("io.github.priv-kit:priv-core:1.0.0")
 - 为 `:priv-core` 与 `:priv-ui` 保存一致的 `.priv-kit` 私有目录路径规则；
 - 提供宿主 merged manifest 权限声明查询和 `Context` 到 app-private storage 的适配；
 - 提供原子二进制文件读写、受限深度的异常诊断文本、ADB 设备名清理和精确的 ADB 授权失败消息匹配；
+- 为 runtime 与 UI 提供一致的 POSIX shell 参数转义；
 - 保存两侧有意共享的 ADB loopback、默认 TCP 端口、端口范围、配对码规则、启动超时、ADB 授权超时和设备名长度默认值。
 
 约束：

@@ -41,9 +41,9 @@ internal class PrivilegeExternalStartupBridgeRunner {
             maxCapturedLines = options.maxCapturedLines,
             startupLogListener = forwardedListener,
         )
-        val stdoutPipe = createPipe("stdout")
+        val stdoutPipe = createPipe(EXTERNAL_STARTUP_STDOUT)
         val stderrPipe = try {
-            createPipe("stderr")
+            createPipe(EXTERNAL_STARTUP_STDERR)
         } catch (throwable: Throwable) {
             stdoutPipe.closeAll()
             throw throwable
@@ -63,14 +63,14 @@ internal class PrivilegeExternalStartupBridgeRunner {
             async {
                 consumePipe(
                     descriptor = stdoutPipe.readEnd,
-                    source = STDOUT_SOURCE,
+                    source = EXTERNAL_STARTUP_STDOUT,
                     transcript = transcript,
                 )
             },
             async {
                 consumePipe(
                     descriptor = stderrPipe.readEnd,
-                    source = STDERR_SOURCE,
+                    source = EXTERNAL_STARTUP_STDERR,
                     transcript = transcript,
                 )
             },
@@ -117,7 +117,9 @@ internal class PrivilegeExternalStartupBridgeRunner {
             stderrPipe.closeAll()
             readers.forEach { it.cancel() }
             withContext(NonCancellable) {
-                withTimeoutOrNull(READER_JOIN_TIMEOUT_MILLIS.milliseconds) {
+                withTimeoutOrNull(
+                    EXTERNAL_STARTUP_READER_JOIN_TIMEOUT_MILLIS.milliseconds,
+                ) {
                     readers.joinAll()
                 }
             }
@@ -147,12 +149,6 @@ internal class PrivilegeExternalStartupBridgeRunner {
             null
         } catch (throwable: Throwable) {
             throwable
-        }
-
-    private companion object {
-        const val READER_JOIN_TIMEOUT_MILLIS = 500L
-        const val STDOUT_SOURCE = "stdout"
-        const val STDERR_SOURCE = "stderr"
     }
 }
 
