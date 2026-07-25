@@ -5,7 +5,7 @@
   "scripts": {
     "type-check": "tsc",
     "dev": "vitepress dev .",
-    "check": "pnpm type-check && node scripts/check-docs.ts",
+    "check": "pnpm type-check && node --test .vitepress/theme/language-preference.test.ts && node scripts/check-docs.ts",
     "build": "pnpm check && vitepress build .",
     "preview": "vitepress preview ."
   },
