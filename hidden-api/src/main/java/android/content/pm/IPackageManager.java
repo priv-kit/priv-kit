@@ -1,8 +1,11 @@
 package android.content.pm;
 
 import android.os.Binder;
+import android.os.Build;
 import android.os.IBinder;
 import android.os.IInterface;
+
+import androidx.annotation.DeprecatedSinceApi;
 
 /**
  * @noinspection unused
@@ -17,4 +20,7 @@ public interface IPackageManager extends IInterface {
     int checkPermission(String permName, String pkgName, int userId);
 
     void grantRuntimePermission(String packageName, String permissionName, int userId);
+
+    @DeprecatedSinceApi(api = Build.VERSION_CODES.R)
+    void revokeRuntimePermission(String packageName, String permissionName, int userId);
 }

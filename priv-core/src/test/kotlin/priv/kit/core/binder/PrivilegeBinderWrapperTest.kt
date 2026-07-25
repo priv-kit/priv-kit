@@ -226,6 +226,12 @@ class PrivilegeBinderWrapperTest {
             permissionName: String,
             userId: Int,
         ) = Unit
+
+        override fun revokeRuntimePermission(
+            packageName: String,
+            permissionName: String,
+            userId: Int,
+        ) = Unit
     }
 
     private class FakeBinder(

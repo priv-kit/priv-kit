@@ -45,7 +45,7 @@
 
 | Gradle 模块 | 发布名称 | 所有权 |
 | --- | --- | --- |
-| `:priv-shared` | `priv-shared` | Core 与 UI 已共同使用的窄 Android/JDK 底层机制和不变量 |
+| `:priv-shared` | `priv-shared` | 窄 Android/JDK 底层机制、不变量和内部 hidden API 兼容扩展 |
 | `:priv-core` | `priv-core` | Runtime、启动入口、server、Binder、UserService 和内部协议 |
 | `:priv-adb-crypto` | `priv-adb-crypto` | ADB 证书与 Wireless Debugging pairing 所需的最小 Kotlin/JVM 加密实现 |
 | `:priv-ui` | `priv-ui` | 可选 Compose 生命周期 UI 和精确静默恢复 |
@@ -64,6 +64,9 @@
     -> api(:priv-core)
     -> implementation(:priv-shared)
 
+:priv-shared
+    -> compileOnly(:hidden-api)
+
 :priv-sample
     -> implementation(:priv-core)
     -> implementation(:priv-ui)
@@ -71,7 +74,7 @@
 
 所有权规则：
 
-- `:priv-shared` 只能保存 Core 与 UI 已有实际调用点的无领域状态机制，不得依赖 AndroidX、Compose、协程、Core 或 UI，不得包含资源、manifest、长期可变状态、启动策略、权限流程或业务编排。
+- `:priv-shared` 只能保存产品模块使用的无领域状态机制、窄 Android/JDK 原语和 hidden API 兼容逻辑。跨 Android 小版本的 hidden API 分派必须位于该模块，并且只能通过 `compileOnly(:hidden-api)` 获取声明。隐藏 interface 在部分受支持 API 上不存在时，使用接收 `IBinder` 的窄 compat wrapper 隔离类型；其他情况将兼容逻辑保留在对应隐藏类型上。该模块不得依赖 AndroidX、Compose、协程、Core 或 UI，不得包含资源、manifest、长期可变状态、启动策略、权限流程或业务编排。
 - `:priv-core` 拥有运行时生命周期、Root、ADB、手动命令、外部启动、native starter、server entry、Binder、UserService、内部 AIDL、wire contract 和 handshake。
 - `:priv-adb-crypto` 只包含 ADB 所需的证书与 pairing 加密，不依赖 Android API，不扩展为通用加密、证书、PKI、SSL 或 TLS 库。
 - `:priv-ui` 只编排 Core 已有原语，不拥有 transport 和底层权限请求能力，Core 不得反向依赖 UI。
@@ -120,6 +123,8 @@ Binder 支持只负责底层连接和 transaction：
 - 运行时内部所需的项目自有类型化契约
 
 项目不得为 package、input、settings、app-ops、activity 等系统服务提供类型化 facade，也不得提供系统服务领域枚举或策略 API。
+
+唯一保留的 package permission 例外是 `Privilege.checkPermission(...)`、`Privilege.grantRuntimePermission(...)` 和 `Privilege.revokeRuntimePermission(...)` 三个无策略的 framework pass-through。它们不得扩展为权限组、批处理、app-ops、安装流程、设备选择、撤销原因或授权策略抽象。
 
 如果 transaction 需要 fallback，必须保留原始结果的不确定性。连接中断后不能在无法判断服务端是否已经执行时自动重试具有副作用的调用。
 

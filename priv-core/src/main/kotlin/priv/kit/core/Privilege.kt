@@ -292,6 +292,20 @@ public object Privilege {
         }
     }
 
+    public fun revokeRuntimePermission(
+        packageName: String,
+        permissionName: String,
+        userId: Int = currentUserId,
+    ) {
+        callServer { server ->
+            server.revokeRuntimePermission(
+                packageName,
+                permissionName,
+                userId,
+            )
+        }
+    }
+
     public fun pingServer(): Boolean {
         val connection = synchronized(serverLock) {
             currentServer

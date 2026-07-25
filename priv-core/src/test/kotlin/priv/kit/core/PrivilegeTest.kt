@@ -424,6 +424,42 @@ class PrivilegeTest {
     }
 
     @Test
+    fun revokeRuntimePermissionPassesThroughWithoutServerPermissionCheck() {
+        val server = FakePrivilegeServer(
+            permissionResult = PackageManager.PERMISSION_DENIED,
+        )
+        Privilege.connectHandshake(
+            handshakeResult = PrivilegeServerHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                serverBinder = server.asBinder(),
+            ),
+            startupLogListener = null,
+        )
+
+        Privilege.revokeRuntimePermission(
+            packageName = "test.package",
+            permissionName = "android.permission.WRITE_SECURE_SETTINGS",
+            userId = 10,
+        )
+
+        assertEquals(
+            listOf(
+                RuntimePermissionRevoke(
+                    packageName = "test.package",
+                    permissionName = "android.permission.WRITE_SECURE_SETTINGS",
+                    userId = 10,
+                ),
+            ),
+            server.runtimePermissionRevokes,
+        )
+        assertTrue(server.serverPermissionChecks.isEmpty())
+    }
+
+    @Test
     fun runtimeGrantRequiresGrantPermissionForNonRootServer() {
         val server = FakePrivilegeServer(
             permissionResult = PackageManager.PERMISSION_DENIED,
@@ -491,6 +527,7 @@ class PrivilegeTest {
         val serverPermissionChecks = mutableListOf<String>()
         val packagePermissionChecks = mutableListOf<PackagePermissionCheck>()
         val runtimePermissionGrants = mutableListOf<RuntimePermissionGrant>()
+        val runtimePermissionRevokes = mutableListOf<RuntimePermissionRevoke>()
 
         fun killBinder() {
             binder.killBinder(notifyDeathRecipients = false)
@@ -533,6 +570,18 @@ class PrivilegeTest {
                 userId = userId,
             )
         }
+
+        override fun revokeRuntimePermission(
+            packageName: String,
+            permissionName: String,
+            userId: Int,
+        ) {
+            runtimePermissionRevokes += RuntimePermissionRevoke(
+                packageName = packageName,
+                permissionName = permissionName,
+                userId = userId,
+            )
+        }
     }
 
     private data class PackagePermissionCheck(
@@ -542,6 +591,12 @@ class PrivilegeTest {
     )
 
     private data class RuntimePermissionGrant(
+        val packageName: String,
+        val permissionName: String,
+        val userId: Int,
+    )
+
+    private data class RuntimePermissionRevoke(
         val packageName: String,
         val permissionName: String,
         val userId: Int,

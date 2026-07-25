@@ -5,7 +5,7 @@ import android.content.pm.ApplicationInfo;
 /**
  * @noinspection unused
  */
-public final class LoadedApk {
+public class LoadedApk {
     public String getPackageName() {
         throw new RuntimeException();
     }

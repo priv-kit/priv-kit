@@ -6,7 +6,7 @@ import android.content.res.CompatibilityInfo;
 /**
  * @noinspection unused
  */
-public final class ActivityThread {
+public class ActivityThread {
     public static ActivityThread currentActivityThread() {
         throw new RuntimeException();
     }

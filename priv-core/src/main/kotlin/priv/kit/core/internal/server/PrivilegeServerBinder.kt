@@ -11,6 +11,7 @@ import priv.kit.core.internal.binder.IPrivilegeServer
 import priv.kit.core.internal.userservice.PrivilegeUserServiceLoader
 import priv.kit.core.internal.userservice.PrivilegeUserServiceManagerBinder
 import priv.kit.core.internal.userservice.PrivilegeUserServiceRegistry
+import priv.kit.shared.CompatPermissionManager
 import kotlin.system.exitProcess
 
 internal class PrivilegeServerBinder(
@@ -35,6 +36,9 @@ internal class PrivilegeServerBinder(
     )
     private val packageManager by lazy {
         IPackageManager.Stub.asInterface(getSystemService("package"))
+    }
+    private val permissionManager by lazy {
+        getSystemService("permissionmgr")?.let(::CompatPermissionManager)
     }
     private val systemServiceCache = HashMap<String, IBinder>()
 
@@ -79,6 +83,18 @@ internal class PrivilegeServerBinder(
         userId: Int,
     ) {
         packageManager.grantRuntimePermission(packageName, permissionName, userId)
+    }
+
+    override fun revokeRuntimePermission(
+        packageName: String,
+        permissionName: String,
+        userId: Int,
+    ) {
+        permissionManager?.revokeRuntimePermission(
+            packageName,
+            permissionName,
+            userId,
+        ) ?: packageManager.revokeRuntimePermission(packageName, permissionName, userId)
     }
 
     override fun shutdown() {
