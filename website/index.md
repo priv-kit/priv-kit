@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Priv Kit
   text: An app-owned privileged Android runtime
-  tagline: Start with the supplied Compose UI through Root, wireless ADB, Manual, or an external authorization bridge. Use priv-core directly only when the application needs a custom interface.
+  tagline: Priv Kit supports startup through Root, ADB, Manual, and external authorization bridges, with a Compose UI for quick authorization.
   image:
     src: /priv-kit-mark.svg
     alt: Android

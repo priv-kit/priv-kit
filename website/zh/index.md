@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Priv Kit
   text: Android 应用自有特权运行时
-  tagline: 优先使用自带 Compose 界面，通过 Root、无线 ADB、手动或外部授权器启动。只有需要自定义界面时，才直接使用 priv-core。
+  tagline: 支持通过 Root、ADB、手动命令和外部授权器启动，并提供 Compose 快捷授权界面。
   image:
     src: /priv-kit-mark.svg
     alt: Android
