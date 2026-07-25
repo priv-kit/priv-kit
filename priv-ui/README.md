@@ -13,8 +13,8 @@ Public entry points:
 - `PrivilegeUiConfig`, used to enable startup modes, polling intervals, and external start providers.
 - `PrivilegeUiExternalStartProvider`, whose suspend authorization and startup methods keep the
   requesting ViewModel coroutine continuous across third-party prompts and callbacks.
-- `PrivilegeUi.startSilentlyIfEnabled(...)`, the desired-state-gated headless recovery entry point.
-- `PrivilegeUi.startSilently(...)`, the lower-level exact replay entry point that ignores the desired-state gate.
+- `PrivilegeUi.startSilently(...)`, the headless recovery entry point. It respects the automatic
+  recovery setting by default and can explicitly ignore that setting when required.
 
 Process-wide owner-death behavior remains a runtime concern. Configure it through
 `PrivilegeConfig` before starting a server; `PrivilegeUiConfig` does not mirror or
@@ -108,9 +108,9 @@ An accepted launch outside a matching UI-owned foreground operation enables this
 
 There is no general-purpose switch for this latch. A confirmed stop action in the built-in UI writes `0` before asking the server to shut down. When the latch is `1` but runtime state is disconnected or failed, the top of `PrivilegeScaffold` shows a warning card whose "Disable automatic recovery" action also writes `0`. This keeps the value about user intent instead of current server liveness.
 
-`PrivilegeUi.startSilentlyIfEnabled(context, config)` returns `null` immediately when the desired-state latch is disabled. When enabled, it delegates to the same exact replay behavior as `startSilently(context, config)`. The lower-level entry point remains available for callers that intentionally want to replay regardless of the latch.
+`PrivilegeUi.startSilently(config)` returns `null` immediately when the desired-state latch is disabled. Callers that intentionally need to replay regardless of the latch can pass `ignoreAutomaticRecoverySetting = true`.
 
-After obtaining the process-local start gate, `PrivilegeUi.startSilently(context, config)` first returns an already-connected or ready server, if present. During the runtime's app-start reconciliation window it then gives a retained server time to complete owner reconnect before reading the saved method and committing a new launch. If no connection wins, it attempts only that exact method. It does not initialize Compose, create a ViewModel, require an `Activity`, fall back to another method, show a snackbar, invoke Android permission launchers, or update the saved method. Without an existing connection, missing history, an unknown or disabled method, missing authorization, startup failure, and timeout all return `null`.
+After obtaining the process-local start gate, `PrivilegeUi.startSilently(config)` first returns an already-connected or ready server, if present. During the runtime's app-start reconciliation window it then gives a retained server time to complete owner reconnect before reading the saved method and committing a new launch. If no connection wins, it attempts only that exact method. It does not initialize Compose, create a ViewModel, require an `Activity`, fall back to another method, show a snackbar, invoke Android permission launchers, or update the saved method. Without an existing connection, missing history, an unknown or disabled method, missing authorization, startup failure, and timeout all return `null`.
 
 Foreground and silent startup are mutually exclusive through one process-local gate. Accepted foreground startup effects, including runtime start/stop, TCP changes, pairing, permission requests, and external authorization calls, retain nestable leases scoped to one foreground ViewModel owner until their owned work completes. A different ViewModel cannot join that owner's nesting, and `startSilently(...)` returns `null` while any foreground lease remains. The two UI entry points use first-acquired ownership without queuing or preemption.
 
@@ -123,25 +123,22 @@ Silent method behavior is deliberately narrow:
 - External startup resolves the exact saved provider ID from the supplied config, requires its current `snapshot()` to report `canStart`, and never calls `requestAuthorization()`. Provider IDs are persistent keys and should remain stable across app upgrades. The suspend snapshot and start calls share `startTimeoutMillis` and should cooperate with coroutine cancellation.
 - Root startup reuses the existing Root path. `priv-ui` does not request Android permissions, but a root manager may still display its own authorization UI if its previous grant is no longer valid.
 
-Construct external providers and `PrivilegeUiConfig` once at application scope, then pass the same config instance to both entry points. An `Application` property is one straightforward option:
+Construct external providers and `PrivilegeUiConfig` once at process scope, then pass the same config instance to both entry points:
 
 ```kotlin
-class App : Application() {
-    val privilegeUiConfig by lazy {
-        PrivilegeUiConfig(
-            externalStartProviders = listOf(myShizukuProvider),
-        )
-    }
+val privilegeUiConfig by lazy {
+    PrivilegeUiConfig(
+        externalStartProviders = listOf(shizukuProvider),
+    )
 }
 
 // Safe to call from a background coroutine before any Activity or UI is created.
-val serverInfo = PrivilegeUi.startSilentlyIfEnabled(
-    context = app,
-    config = app.privilegeUiConfig,
+val serverInfo = PrivilegeUi.startSilently(
+    config = privilegeUiConfig,
 )
 ```
 
-An `object` or top-level lazy property is also suitable when it obtains only application-scoped dependencies. External providers must not retain an `Activity`, and `snapshot()` should remain a read-only suspend status check. `requestAuthorization(...)` may present the third-party prompt and returns the final post-authorization snapshot; callback APIs can bridge with `suspendCancellableCoroutine` and must unregister listeners on cancellation. The UI then continues startup directly in the same ViewModel coroutine, without a foreground-resume reconciliation path.
+The top-level property and its external providers must not retain an `Activity`. `snapshot()` should remain a read-only suspend status check. `requestAuthorization(...)` may present the third-party prompt and returns the final post-authorization snapshot; callback APIs can bridge with `suspendCancellableCoroutine` and must unregister listeners on cancellation. The UI then continues startup directly in the same ViewModel coroutine, without a foreground-resume reconciliation path.
 
 Basic usage:
 
@@ -150,15 +147,11 @@ class MyPrivilegeUiViewModel(
     application: Application,
 ) : PrivilegeUiViewModel(
     application,
-    (application as App).privilegeUiConfig,
+    privilegeUiConfig,
 ) {
     override fun onBackClick(): Boolean {
         // Update app navigation state or emit a host event.
         return true
-    }
-
-    override fun onConnected(serverInfo: PrivilegeServerInfo) {
-        // Update the app after a new privileged-server connection.
     }
 }
 
@@ -180,14 +173,19 @@ operation stays suspended until that result arrives: notification pairing contin
 permission branch, while an ADB start granted local-network access retries once in the same
 startup workflow. Removing the final Scaffold host or clearing the ViewModel cancels the pending
 request and releases its interaction lease. Host subclasses may
-override `onBackClick()`, `onConnected(...)`, and
-`onNotificationPermissionSettingsRequested(...)`. These hooks should update host state,
-emit host events, or customize notification-settings navigation; a ViewModel must not retain
-the settings hook's `Context`, an `Activity`, `NavController`, Compose state holder, or
-Activity Result launcher. Returning `false` from `onBackClick()` delegates to the system back
-dispatcher. While the notification-permission warning is pending, each host foreground refresh
-checks `POST_NOTIFICATIONS` and continues notification pairing automatically once it is granted.
-This check is independent of notification-settings navigation; the settings hook only opens the
-destination. Hosts that need custom top-bar actions should supply their own `topBar`.
+override `onBackClick()` and `onNotificationPermissionSettingsRequested(...)`. These hooks
+should update host navigation state or customize notification-settings navigation; a ViewModel
+must not retain the settings hook's `Context`, an `Activity`, `NavController`, Compose state
+holder, or Activity Result launcher. Returning `false` from `onBackClick()` delegates to the
+system back dispatcher. While the notification-permission warning is pending, each host
+foreground refresh checks `POST_NOTIFICATIONS` and continues notification pairing automatically
+once it is granted. This check is independent of notification-settings navigation; the settings
+hook only opens the destination. Hosts that need custom top-bar actions should supply their own
+`topBar`.
+
+`PrivilegeScaffold` observes runtime status internally. Hosts that need the process-wide
+connection state outside the scaffold should collect `Privilege.serverState` from a scope owned
+by the intended consumer: an application-owned scope for process-lifetime work, or a
+lifecycle-aware UI collector for screen rendering.
 
 All static UI and notification text lives in `src/main/res/values/strings.xml` with the `priv_ui_` prefix so apps can override or localize it. Internally, live state and one-shot UI feedback keep resource references and formatting arguments until the text reaches Compose, a notification, or another presentation boundary. This lets retained ViewModels immediately render a newly selected application locale instead of holding strings resolved under the previous configuration. External provider messages, diagnostics, and existing startup log lines remain materialized text and are not retroactively translated.

@@ -177,7 +177,6 @@ internal class PrivilegeUiAdbTcpActions(
             launch = session.requireRuntimeClientLaunch(),
             options = PrivilegeAdbStartOptions(
                 port = tcpPort,
-                discoverPort = false,
             ),
             timeoutMillis = store.config.startTimeoutMillis,
             adbDeviceName = store.currentAdbDeviceNameOverride(),

@@ -15,40 +15,38 @@ internal fun Throwable.isAdbKeyNotAuthorizedFailure(): Boolean =
 
 internal fun privilegeUiWirelessAdbStartOptions(
     tcpPolicy: PrivilegeUiAdbTcpPolicy,
-    tcpPort: Int,
     activeTcpPort: Int?,
     managedWirelessAdbEnabled: Boolean,
     managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus,
 ): PrivilegeAdbStartOptions =
-    when {
-        tcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED -> PrivilegeAdbStartOptions(
-            wirelessDebuggingControl = managedWirelessAdbEnabled
-                .withDeclaredManagedWirelessAdbStatus(managedWirelessAdbStatus)
-                .toWirelessDebuggingControl(),
-        )
-        activeTcpPort != null -> PrivilegeAdbStartOptions(
+    if (
+        tcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED &&
+        activeTcpPort != null
+    ) {
+        PrivilegeAdbStartOptions(
             port = activeTcpPort,
-            discoverPort = false,
-            tcpPort = tcpPort,
-            wirelessDebuggingControl = PrivilegeAdbWirelessDebuggingControl.NEVER,
         )
-        else -> PrivilegeAdbStartOptions(
-            tcpPort = tcpPort,
-            discoverPort = true,
-            wirelessDebuggingControl = managedWirelessAdbEnabled
-                .withDeclaredManagedWirelessAdbStatus(managedWirelessAdbStatus)
-                .toWirelessDebuggingControl(),
+    } else {
+        privilegeUiManagedWirelessAdbStartOptions(
+            managedWirelessAdbEnabled = managedWirelessAdbEnabled,
+            managedWirelessAdbStatus = managedWirelessAdbStatus,
         )
     }
 
 internal fun privilegeUiStaticTcpSwitchOptions(
-    tcpPort: Int,
+    managedWirelessAdbEnabled: Boolean,
+    managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus,
+): PrivilegeAdbStartOptions =
+    privilegeUiManagedWirelessAdbStartOptions(
+        managedWirelessAdbEnabled = managedWirelessAdbEnabled,
+        managedWirelessAdbStatus = managedWirelessAdbStatus,
+    )
+
+private fun privilegeUiManagedWirelessAdbStartOptions(
     managedWirelessAdbEnabled: Boolean,
     managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus,
 ): PrivilegeAdbStartOptions =
     PrivilegeAdbStartOptions(
-        tcpPort = tcpPort,
-        discoverPort = true,
         wirelessDebuggingControl = managedWirelessAdbEnabled
             .withDeclaredManagedWirelessAdbStatus(managedWirelessAdbStatus)
             .toWirelessDebuggingControl(),

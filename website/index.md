@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Priv Kit
   text: An app-owned privileged Android runtime
-  tagline: Start through Root, wireless ADB, a manual shell command, or an external authorization bridge. Then use Binder or your own UserService while keeping runtime and domain logic under the application's control.
+  tagline: Start with the supplied Compose UI through Root, wireless ADB, Manual, or an external authorization bridge. Use priv-core directly only when the application needs a custom interface.
   image:
     src: /priv-kit-mark.svg
     alt: Android
@@ -12,10 +12,19 @@ hero:
     - theme: brand
       text: Get started
       link: /guide/getting-started
+    - theme: alt
+      text: What is Priv Kit?
+      link: /guide/what-is-priv-kit
+    - theme: alt
+      text: GitHub
+      link: https://github.com/priv-kit/priv-kit
 
 features:
-  - title: Activation paths
-    details: Start through Root, wireless ADB, static TCP, a copied shell command, or an app-provided external bridge.
+  - title: Privilege UI
+    details: Embed the Compose authorization page for startup status, pairing, permissions, and exact silent replay.
+    link: /guide/priv-ui
+  - title: Startup methods
+    details: Start through Root, wireless ADB, static TCP, Manual, or an app-provided external bridge.
     link: /guide/activation
   - title: Binder access
     details: Connect to explicit system services while preserving raw Binder contracts and failure semantics.

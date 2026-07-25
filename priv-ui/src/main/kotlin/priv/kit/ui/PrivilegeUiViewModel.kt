@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import priv.kit.core.PrivilegeServerInfo
 import priv.kit.ui.adb.PrivilegeUiAdbActions
 import priv.kit.ui.adb.PrivilegeUiStaticTcpSwitchAction
 import priv.kit.ui.external.PrivilegeUiExternalStartActions
@@ -76,7 +75,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     private var notificationPairingStartJob: Job? = null
     private var externalAuthorizationJob: Job? = null
     private var batteryOptimizationRefreshJob: Job? = null
-    private var deliveredConnectionSerial = 0L
     private var hostResumeDispatchInProgress = false
     private val batteryOptimizationPromptVisibleState = MutableStateFlow(false)
     internal val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
@@ -128,9 +126,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     /** Return true when the host handled the back action; false uses the system back dispatcher. */
     protected open fun onBackClick(): Boolean = false
 
-    /** Called once for each connection serial while this ViewModel is alive. */
-    protected open fun onConnected(serverInfo: PrivilegeServerInfo): Unit = Unit
-
     /**
      * Called when the built-in UI requests the host application's notification settings.
      * Implementations must not retain [context].
@@ -149,15 +144,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     internal fun dispatchNotificationPermissionSettingsRequest(context: Context) {
         if (!uiInteractionsEnabled) return
         onNotificationPermissionSettingsRequested(context)
-    }
-
-    internal fun dispatchConnected(
-        connectionSerial: Long,
-        serverInfo: PrivilegeServerInfo,
-    ) {
-        if (connectionSerial <= deliveredConnectionSerial) return
-        deliveredConnectionSerial = connectionSerial
-        onConnected(serverInfo)
     }
 
     public open fun updatePairingCode(value: String) {
@@ -223,24 +209,24 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         runtimeActions.stopCurrentStart()
     }
 
-    public open fun copyManualCommand(context: Context) {
+    public open fun copyManualCommand() {
         if (!uiInteractionsEnabled) return
-        store.copyManualShellCommand(context)
+        store.copyManualShellCommand()
     }
 
-    public open fun copyStaticTcpCommand(context: Context) {
+    public open fun copyStaticTcpCommand() {
         if (!uiInteractionsEnabled) return
-        context.copyToClipboard(
+        getApplication<Application>().copyToClipboard(
             label = store.text(R.string.priv_ui_adb_static_command_clip_label),
             text = privilegeUiStaticTcpOpenCommand(store.config.tcpPort),
         )
     }
 
-    public open fun copyStartupLog(context: Context) {
+    public open fun copyStartupLog() {
         if (!uiInteractionsEnabled) return
         val logText = store.state.value.startupLogLines.joinToString("\n")
         if (logText.isBlank()) return
-        context.copyToClipboard(
+        getApplication<Application>().copyToClipboard(
             label = store.text(R.string.priv_ui_startup_log_clip_label),
             text = logText,
         )

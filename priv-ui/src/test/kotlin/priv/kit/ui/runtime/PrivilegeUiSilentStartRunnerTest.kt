@@ -156,8 +156,6 @@ class PrivilegeUiSilentStartRunnerTest {
         assertSame(clientLaunch, backend.lastLaunch)
         val options = backend.lastAdbOptions!!
         assertNull(options.port)
-        assertEquals(true, options.discoverPort)
-        assertEquals(5566, options.tcpPort)
         assertEquals(
             PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
             options.wirelessDebuggingControl,
@@ -212,11 +210,6 @@ class PrivilegeUiSilentStartRunnerTest {
         assertSame(serverInfo, runner.start(PrivilegeUiStartMethod.AdbTcpip, clientLaunch))
         val options = backend.lastAdbOptions!!
         assertEquals(6677, options.port)
-        assertFalse(options.discoverPort)
-        assertEquals(
-            PrivilegeAdbWirelessDebuggingControl.NEVER,
-            options.wirelessDebuggingControl,
-        )
     }
 
     @Test

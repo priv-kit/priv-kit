@@ -11,6 +11,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import priv.kit.core.internal.runtime.PrivilegeContext
 import priv.kit.ui.runtime.PrivilegeUiDesiredEnabledStore
 import priv.kit.ui.runtime.PrivilegeUiStartGate
 import priv.kit.ui.runtime.PrivilegeUiStartMethod
@@ -27,6 +28,7 @@ class PrivilegeUiSilentStartTest {
 
     @Before
     fun setUp() {
+        PrivilegeContext.install(application)
         methodFile.delete()
         temporaryFile.delete()
         desiredFile.delete()
@@ -45,20 +47,19 @@ class PrivilegeUiSilentStartTest {
     fun missingHistoryReturnsNullWithoutInitializingUi() = runBlocking {
         assertNull(
             PrivilegeUi.startSilently(
-                context = application,
                 config = PrivilegeUiConfig(),
+                ignoreAutomaticRecoverySetting = true,
             ),
         )
     }
 
     @Test
-    fun disabledDesiredStateSkipsSilentGate() = runBlocking {
+    fun disabledAutomaticRecoverySkipsSilentGate() = runBlocking {
         PrivilegeUiDesiredEnabledStore(application).write(false)
         val initialCompletionSerial = PrivilegeUiStartGate.state.value.silentCompletionSerial
 
         assertNull(
-            PrivilegeUi.startSilentlyIfEnabled(
-                context = application,
+            PrivilegeUi.startSilently(
                 config = PrivilegeUiConfig(),
             ),
         )
@@ -70,14 +71,31 @@ class PrivilegeUiSilentStartTest {
     }
 
     @Test
-    fun enabledDesiredStateDelegatesToSilentGate() = runBlocking {
+    fun enabledAutomaticRecoveryUsesSilentGate() = runBlocking {
         PrivilegeUiDesiredEnabledStore(application).write(true)
         val initialCompletionSerial = PrivilegeUiStartGate.state.value.silentCompletionSerial
 
         assertNull(
-            PrivilegeUi.startSilentlyIfEnabled(
-                context = application,
+            PrivilegeUi.startSilently(
                 config = PrivilegeUiConfig(),
+            ),
+        )
+
+        assertEquals(
+            initialCompletionSerial + 1L,
+            PrivilegeUiStartGate.state.value.silentCompletionSerial,
+        )
+    }
+
+    @Test
+    fun ignoredAutomaticRecoverySettingUsesSilentGateWhenDisabled() = runBlocking {
+        PrivilegeUiDesiredEnabledStore(application).write(false)
+        val initialCompletionSerial = PrivilegeUiStartGate.state.value.silentCompletionSerial
+
+        assertNull(
+            PrivilegeUi.startSilently(
+                config = PrivilegeUiConfig(),
+                ignoreAutomaticRecoverySetting = true,
             ),
         )
 
@@ -93,8 +111,8 @@ class PrivilegeUiSilentStartTest {
         store.write(PrivilegeUiStartMethod.Root)
 
         val result = PrivilegeUi.startSilently(
-            context = application,
             config = PrivilegeUiConfig(startupModes = setOf(PrivilegeUiStartupMode.ADB)),
+            ignoreAutomaticRecoverySetting = true,
         )
 
         assertNull(result)
@@ -110,8 +128,8 @@ class PrivilegeUiSilentStartTest {
         try {
             assertNull(
                 PrivilegeUi.startSilently(
-                    context = application,
                     config = PrivilegeUiConfig(),
+                    ignoreAutomaticRecoverySetting = true,
                 ),
             )
             assertEquals(PrivilegeUiStartMethod.Root, store.read())

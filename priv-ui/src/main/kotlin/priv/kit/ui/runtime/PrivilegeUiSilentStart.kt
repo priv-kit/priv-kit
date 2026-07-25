@@ -58,9 +58,6 @@ internal class PrivilegeUiSilentStartRunner(
         return backend.startAdb(
             launch = launch,
             options = PrivilegeAdbStartOptions(
-                discoverPort = true,
-                tcpMode = false,
-                tcpPort = config.tcpPort,
                 wirelessDebuggingControl = if (config.enableManagedWirelessAdb) {
                     PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE
                 } else {
@@ -85,10 +82,6 @@ internal class PrivilegeUiSilentStartRunner(
             launch = launch,
             options = PrivilegeAdbStartOptions(
                 port = config.tcpPort,
-                discoverPort = false,
-                tcpMode = false,
-                tcpPort = config.tcpPort,
-                wirelessDebuggingControl = PrivilegeAdbWirelessDebuggingControl.NEVER,
             ),
             timeoutMillis = config.startTimeoutMillis,
             adbDeviceName = config.adbDeviceName.toSilentAdbDeviceName(),

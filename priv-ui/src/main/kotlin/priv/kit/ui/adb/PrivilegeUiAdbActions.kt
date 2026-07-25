@@ -456,7 +456,6 @@ internal class PrivilegeUiAdbActions(
             val activeTcpPort = activeTcpPortForWirelessAdbStart(adbDeviceName)
             val options = privilegeUiWirelessAdbStartOptions(
                 tcpPolicy = store.config.adbTcpPolicy,
-                tcpPort = store.config.tcpPort,
                 activeTcpPort = activeTcpPort,
                 managedWirelessAdbEnabled = store.managedWirelessAdbEnabledForStart(),
                 managedWirelessAdbStatus = store.state.value.managedWirelessAdbStatus,
@@ -489,7 +488,6 @@ internal class PrivilegeUiAdbActions(
             manager.switchToTcp(
                 tcpPort = tcpPort,
                 options = privilegeUiStaticTcpSwitchOptions(
-                    tcpPort = tcpPort,
                     managedWirelessAdbEnabled = store.managedWirelessAdbEnabledForStart(),
                     managedWirelessAdbStatus = store.state.value.managedWirelessAdbStatus,
                 ),

@@ -6,7 +6,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
 import priv.kit.ui.PrivilegeUiScreenScope
@@ -49,7 +48,6 @@ internal fun PrivilegeUiScreenScope.RootPanel() {
 
 @Composable
 internal fun PrivilegeUiScreenScope.ManualShellPanel() {
-    val context = LocalContext.current
     val copiedMessage = stringResource(R.string.priv_ui_manual_command_copied)
     Panel {
         Text(
@@ -71,7 +69,7 @@ internal fun PrivilegeUiScreenScope.ManualShellPanel() {
                 enabled = interactionEnabled && !state.busy,
                 onClick = {
                     if (!viewModel.uiInteractionsEnabled) return@Button
-                    viewModel.copyManualCommand(context)
+                    viewModel.copyManualCommand()
                     showFeedback(copiedMessage)
                 },
             ) {

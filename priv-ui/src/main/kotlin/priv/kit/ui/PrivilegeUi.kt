@@ -1,12 +1,12 @@
 package priv.kit.ui
 
-import android.content.Context
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.internal.runtime.PrivilegeContext
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.ui.runtime.PrivilegeUiDesiredEnabledStore
 import priv.kit.ui.runtime.PrivilegeUiSilentStartRunner
@@ -16,25 +16,12 @@ import kotlin.time.Duration.Companion.milliseconds
 
 public object PrivilegeUi {
     /**
-     * Runs [startSilently] only when a previous accepted server launch has enabled recovery.
-     *
-     * A missing or invalid preference file is treated as disabled. Failures do not clear the
-     * persisted preference, so the built-in UI can explain the disconnected recovery state.
-     */
-    public suspend fun startSilentlyIfEnabled(
-        context: Context,
-        config: PrivilegeUiConfig,
-    ): PrivilegeServerInfo? {
-        val applicationContext = context.applicationContext
-        val desiredEnabled = runCatching {
-            PrivilegeUiDesiredEnabledStore(applicationContext).read()
-        }.getOrDefault(false)
-        if (!desiredEnabled) return null
-        return startSilently(applicationContext, config)
-    }
-
-    /**
      * Replays the last successful foreground startup method with the supplied current config.
+     *
+     * By default, replay runs only when a previous accepted server launch has enabled automatic
+     * recovery. A missing or invalid setting is treated as disabled. Pass
+     * [ignoreAutomaticRecoverySetting] only when the application intentionally needs to replay
+     * regardless of that user setting.
      *
      * This function does not create UI, fall back to another method, invoke Android permission
      * launchers, pair Wireless ADB, submit an ADB public key for authorization, or call an external
@@ -45,12 +32,18 @@ public object PrivilegeUi {
      * built-in UI remains disabled until a silent attempt releases the gate and runtime state has
      * been refreshed. A multi-process app must call this function from only its designated Priv Kit
      * process.
-     */
+    */
     public suspend fun startSilently(
-        context: Context,
         config: PrivilegeUiConfig,
+        ignoreAutomaticRecoverySetting: Boolean = false,
     ): PrivilegeServerInfo? = withContext(Dispatchers.IO) {
-        val applicationContext = context.applicationContext
+        val applicationContext = PrivilegeContext.require()
+        if (!ignoreAutomaticRecoverySetting) {
+            val automaticRecoveryEnabled = runCatching {
+                PrivilegeUiDesiredEnabledStore(applicationContext).read()
+            }.getOrDefault(false)
+            if (!automaticRecoveryEnabled) return@withContext null
+        }
         val permit = PrivilegeUiStartGate.tryAcquireSilent() ?: return@withContext null
         permit.use {
             connectedOrReadyServerOrNull()?.let { return@withContext it }

@@ -73,12 +73,10 @@ public class PrivilegeAdbManager private constructor(
     @Throws(PrivilegeStartupException::class)
     public suspend fun checkPairing(
         port: Int? = null,
-        discoverPort: Boolean = true,
         portDiscoveryTimeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
     ): PrivilegeAdbPairingCheckResult =
         pairingManager.checkPairing(
             port = port,
-            discoverPort = discoverPort,
             portDiscoveryTimeoutMillis = portDiscoveryTimeoutMillis,
         )
 
@@ -86,12 +84,10 @@ public class PrivilegeAdbManager private constructor(
     @Throws(PrivilegeStartupException::class)
     public fun openPairingCheckSession(
         port: Int? = null,
-        discoverPort: Boolean = true,
         portDiscoveryTimeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
     ): PrivilegeAdbPairingCheckSession =
         pairingManager.openPairingCheckSession(
             port = port,
-            discoverPort = discoverPort,
             portDiscoveryTimeoutMillis = portDiscoveryTimeoutMillis,
         )
 
@@ -109,13 +105,11 @@ public class PrivilegeAdbManager private constructor(
     public suspend fun pair(
         pairingCode: String,
         port: Int? = null,
-        discoverPort: Boolean = true,
         portDiscoveryTimeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
     ): PrivilegeAdbPairingResult =
         pairingManager.pair(
             pairingCode = pairingCode,
             port = port,
-            discoverPort = discoverPort,
             portDiscoveryTimeoutMillis = portDiscoveryTimeoutMillis,
         )
 
@@ -135,12 +129,10 @@ public class PrivilegeAdbManager private constructor(
 
     @Throws(PrivilegeStartupException::class)
     public suspend fun switchToTcp(
-        currentPort: Int? = null,
         tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
         options: PrivilegeAdbStartOptions? = null,
     ): PrivilegeAdbTcpResult =
         tcpManager.switchToTcp(
-            currentPort = currentPort,
             tcpPort = tcpPort,
             options = options,
         )

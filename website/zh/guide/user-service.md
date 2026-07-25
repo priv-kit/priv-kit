@@ -2,14 +2,14 @@
 description: 在嵌入式或独立特权进程中运行应用自定义 AIDL 服务。
 ---
 
-# UserService
+# UserService {#user-service}
 
-UserService 在特权运行时中执行应用自有代码，并返回应用自定义 AIDL 接口的
-raw Binder。
+UserService 在特权运行时中执行应用自己的代码，并返回应用自定义 AIDL 接口对应的
+Binder。
 
-## 定义 AIDL 契约
+## 定义 AIDL 接口 {#define-aidl-contract}
 
-使用 transaction code `16777114` 标记销毁方法：
+将销毁方法的 transaction code 设为 `16777114`：
 
 ```java
 interface IMyPrivilegeService {
@@ -18,7 +18,7 @@ interface IMyPrivilegeService {
 }
 ```
 
-## 实现服务
+## 实现服务 {#implement-service}
 
 ```kotlin
 class MyPrivilegeService private constructor(
@@ -43,9 +43,20 @@ class MyPrivilegeService private constructor(
 ```
 
 运行时支持无参构造器或 `Context` 构造器。独立进程优先初始化 Application，
-失败后回退到 package Context；嵌入式服务获得 package Context。
+失败后改用 package Context。嵌入式服务获得 package Context。
 
-## 使用独立进程
+## 判断运行环境 {#execution-environment}
+
+`PrivilegeUserServiceEnvironment.isEmbedded` 用来判断 UserService 是否直接运行在
+Privileged Server 进程中。直接运行时返回 `true`，运行在独立的 `app_process`
+子进程时返回 `false`。该值在进程生命周期内保持不变，并会在首次读取后缓存。
+
+调用 `exitProcess()` 或清理全局状态前，应先检查这个属性。上面的实现允许独立
+子进程在 `destroy()` 中调用 `exitProcess(0)`，但嵌入式服务不能这样做，否则会
+终止整个 Privileged Server 以及其中运行的其他组件。该属性只应由 UserService
+内部代码读取；应用通过 `PrivilegeUserServiceSpec.embedded` 选择进程模式。
+
+## 使用独立进程 {#dedicated-process}
 
 这是默认模式。服务运行在单独的 `app_process` 子进程中：
 
@@ -53,6 +64,7 @@ class MyPrivilegeService private constructor(
 val spec = PrivilegeUserServiceSpec(
     serviceClassName = MyPrivilegeService::class.java.name,
     tag = "main",
+    version = 1,
 )
 
 Privilege.startUserService(spec)
@@ -65,10 +77,10 @@ Privilege.bindUserService(spec).use { connection ->
 Privilege.stopUserService(spec)
 ```
 
-每个实例由 `serviceClassName + tag` 标识。version 值只控制同一实例能否复用，
-或是否必须替换。
+每个实例由 `serviceClassName + tag` 标识。上面示例中的 `version` 只控制同一实例
+能否复用，或是否必须替换。当已有实例与当前服务实现不再兼容时，应修改该值。
 
-## 使用嵌入式服务
+## 使用嵌入式服务 {#embedded-service}
 
 设置 `embedded = true`，让服务直接运行在 Privileged Server 中：
 
@@ -76,14 +88,10 @@ Privilege.stopUserService(spec)
 val spec = PrivilegeUserServiceSpec(
     serviceClassName = MyPrivilegeService::class.java.name,
     tag = "embedded",
+    version = 1,
     embedded = true,
 )
 ```
 
-嵌入式模式省去额外进程，适合小型、低风险工作。它的 `destroy()` 只清理服务
+嵌入式模式省去额外进程，适合简单且风险较低的服务。它的 `destroy()` 只清理服务
 自身资源；调用 `exitProcess(0)` 会终止整个 Privileged Server。
-
-## 所有权边界
-
-Priv Kit 负责加载、生命周期、握手和进程清理，应用完整掌控 AIDL 中定义的
-业务方法。

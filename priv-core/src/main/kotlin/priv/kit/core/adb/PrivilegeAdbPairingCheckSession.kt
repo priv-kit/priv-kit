@@ -6,7 +6,6 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
     private val identity: PrivilegeAdbIdentity,
     private val publicKeyFingerprint: String,
     private val explicitPort: Int?,
-    private val discoverPort: Boolean,
     private val portDiscoveryTimeoutMillis: Long,
     private val discoverConnectEndpoint: suspend (Long) -> PrivilegeAdbEndpoint,
     private val clientFactory: (PrivilegeAdbEndpoint) -> PrivilegeAdbAuthorizationConnection,
@@ -29,7 +28,7 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
         output.append("diag", "ADB public key fingerprint=$publicKeyFingerprint")
         output.append(
             "diag",
-            "Pairing check explicit=$explicitPort, discover=$discoverPort, persistent=true",
+            "Pairing check explicit=$explicitPort, persistent=true",
         )
         if (closed) {
             return failureResult(
@@ -109,13 +108,6 @@ public class PrivilegeAdbPairingCheckSession internal constructor(
 
     private suspend fun resolveEndpoint(output: PrivilegeAdbOutput): EndpointResolution {
         explicitPort?.let { return EndpointResolution(endpoint = PrivilegeAdbEndpoint.local(it)) }
-        if (!discoverPort) {
-            output.append("diag", "ADB pairing check skipped because no connect port is available")
-            return EndpointResolution(
-                endpoint = null,
-                failureMessage = "ADB connect port is not available",
-            )
-        }
         return runCatching {
             discoverConnectEndpoint(portDiscoveryTimeoutMillis)
         }.fold(

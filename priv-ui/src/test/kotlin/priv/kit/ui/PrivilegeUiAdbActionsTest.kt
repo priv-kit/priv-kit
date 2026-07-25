@@ -5,6 +5,7 @@ import priv.kit.ui.adb.*
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -233,18 +234,15 @@ class PrivilegeUiAdbActionsTest {
     }
 
     @Test
-    fun wirelessAdbStartOptionsDoNotEnableConfiguredTcpPortWithoutActiveTcp() {
+    fun wirelessAdbStartOptionsDiscoverWhenNoActiveTcpPortExists() {
         val options = privilegeUiWirelessAdbStartOptions(
             tcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
-            tcpPort = 4567,
             activeTcpPort = null,
             managedWirelessAdbEnabled = true,
             managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
         )
 
-        assertEquals(false, options.tcpMode)
-        assertEquals(4567, options.tcpPort)
-        assertEquals(true, options.discoverPort)
+        assertNull(options.port)
         assertEquals(true, options.disableWirelessDebuggingAfterStart)
     }
 
@@ -252,30 +250,23 @@ class PrivilegeUiAdbActionsTest {
     fun wirelessAdbStartOptionsUseActiveTcpPortWithoutRestartingIt() {
         val options = privilegeUiWirelessAdbStartOptions(
             tcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
-            tcpPort = 4567,
             activeTcpPort = 5555,
             managedWirelessAdbEnabled = true,
             managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
         )
 
         assertEquals(5555, options.port)
-        assertEquals(false, options.tcpMode)
-        assertEquals(false, options.discoverPort)
-        assertEquals(4567, options.tcpPort)
-        assertEquals(priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl.NEVER, options.wirelessDebuggingControl)
     }
 
     @Test
     fun wirelessAdbStartOptionsDoNotEnableTcpWhenPolicyDisablesTcp() {
         val options = privilegeUiWirelessAdbStartOptions(
             tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
-            tcpPort = 4567,
             activeTcpPort = null,
             managedWirelessAdbEnabled = true,
             managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
         )
 
-        assertEquals(false, options.tcpMode)
         assertEquals(
             priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
             options.wirelessDebuggingControl,
@@ -286,7 +277,6 @@ class PrivilegeUiAdbActionsTest {
     fun wirelessAdbStartOptionsCanDisableManagedWirelessDebugging() {
         val options = privilegeUiWirelessAdbStartOptions(
             tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
-            tcpPort = 4567,
             activeTcpPort = null,
             managedWirelessAdbEnabled = false,
             managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
@@ -302,7 +292,6 @@ class PrivilegeUiAdbActionsTest {
     fun wirelessAdbStartOptionsDisableManagedWirelessDebuggingWhenPermissionIsUndeclared() {
         val options = privilegeUiWirelessAdbStartOptions(
             tcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
-            tcpPort = 4567,
             activeTcpPort = null,
             managedWirelessAdbEnabled = true,
             managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNDECLARED,
@@ -317,13 +306,10 @@ class PrivilegeUiAdbActionsTest {
     @Test
     fun staticTcpSwitchOptionsUseManagedWirelessDebuggingWhenAvailable() {
         val options = privilegeUiStaticTcpSwitchOptions(
-            tcpPort = 4567,
             managedWirelessAdbEnabled = true,
             managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.READY,
         )
 
-        assertEquals(4567, options.tcpPort)
-        assertEquals(true, options.discoverPort)
         assertEquals(
             priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
             options.wirelessDebuggingControl,
@@ -333,7 +319,6 @@ class PrivilegeUiAdbActionsTest {
     @Test
     fun staticTcpSwitchOptionsDisableManagedWirelessDebuggingWhenPermissionIsUndeclared() {
         val options = privilegeUiStaticTcpSwitchOptions(
-            tcpPort = 4567,
             managedWirelessAdbEnabled = true,
             managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNDECLARED,
         )

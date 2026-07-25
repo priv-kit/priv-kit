@@ -389,7 +389,6 @@ internal fun privilegeUiPairingInputHint(notificationPairingRunning: Boolean): I
 
 @Composable
 private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
-    val context = LocalContext.current
     val copiedMessage = stringResource(R.string.priv_ui_adb_static_command_copied)
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -485,7 +484,7 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
                     enabled = interactionEnabled && !runtimeStartInProgress && !state.busy,
                     onClick = {
                         if (!viewModel.uiInteractionsEnabled) return@OutlinedButton
-                        viewModel.copyStaticTcpCommand(context)
+                        viewModel.copyStaticTcpCommand()
                         showFeedback(copiedMessage)
                     },
                 ) {

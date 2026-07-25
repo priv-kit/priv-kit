@@ -8,7 +8,6 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.Job
 import priv.kit.core.Privilege
-import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeUserServiceConnection
 import priv.kit.sample.startup.PrivilegeSampleShizukuExternalStarter
 import priv.kit.sample.userservice.IPrivilegeSampleDedicatedUserService
@@ -39,15 +38,6 @@ internal class PrivilegeSampleDebugViewModel : ViewModel() {
 
     fun selectDebugDestination(destination: PrivilegeSampleDebugDestination) {
         selectedDebugDestination = destination
-    }
-
-    fun handlePrivilegeUiConnected(serverInfo: PrivilegeServerInfo) {
-        screenState = screenState.copy(
-            busy = false,
-            status = PrivilegeSampleStatus.CONNECTED,
-            serverInfo = serverInfo,
-            message = "Connected",
-        )
     }
 
     fun selectStartupTab(tab: PrivilegeStartupTab) {

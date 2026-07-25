@@ -393,7 +393,6 @@ internal class PrivilegeUiAdbPairingActions(
                 val result = Privilege.createAdbManager(adbDeviceName = adbDeviceName).pair(
                     pairingCode = code,
                     port = port,
-                    discoverPort = false,
                 )
                 if (!isCurrentPairingSession(session)) return@submit
 

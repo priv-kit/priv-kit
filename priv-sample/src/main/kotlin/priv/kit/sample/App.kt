@@ -8,15 +8,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.lsposed.hiddenapibypass.HiddenApiBypass
-import priv.kit.sample.startup.createPrivilegeSampleUiConfig
+import priv.kit.sample.startup.privilegeUiConfig
 import priv.kit.ui.PrivilegeUi
 
 class App : Application() {
     private val automaticRecoveryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
-    internal val privilegeUiConfig by lazy {
-        createPrivilegeSampleUiConfig(this)
-    }
 
     override fun attachBaseContext(base: Context?) {
         super.attachBaseContext(base)
@@ -28,8 +24,7 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         automaticRecoveryScope.launch {
-            PrivilegeUi.startSilentlyIfEnabled(
-                context = this@App,
+            PrivilegeUi.startSilently(
                 config = privilegeUiConfig,
             )
         }

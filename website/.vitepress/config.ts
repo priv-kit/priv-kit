@@ -9,8 +9,10 @@ const englishSidebar = [
   {
     text: 'Start here',
     items: [
+      { text: 'What is Priv Kit?', link: '/guide/what-is-priv-kit' },
       { text: 'Getting started', link: '/guide/getting-started' },
-      { text: 'Choose an activation path', link: '/guide/activation' },
+      { text: 'Privilege UI', link: '/guide/priv-ui' },
+      { text: 'Startup methods', link: '/guide/activation' },
     ],
   },
   {
@@ -18,25 +20,25 @@ const englishSidebar = [
     items: [
       { text: 'Binder', link: '/guide/binder' },
       { text: 'UserService', link: '/guide/user-service' },
-      { text: 'Privilege UI', link: '/guide/priv-ui' },
     ],
   },
 ];
 
 const chineseSidebar = [
   {
-    text: '开始使用',
+    text: '接入',
     items: [
+      { text: '什么是 Priv Kit？', link: '/zh/guide/what-is-priv-kit' },
       { text: '快速接入', link: '/zh/guide/getting-started' },
-      { text: '选择激活方式', link: '/zh/guide/activation' },
+      { text: 'Privilege UI', link: '/zh/guide/priv-ui' },
+      { text: '启动方式', link: '/zh/guide/activation' },
     ],
   },
   {
-    text: '使用运行时',
+    text: '使用',
     items: [
       { text: 'Binder', link: '/zh/guide/binder' },
       { text: 'UserService', link: '/zh/guide/user-service' },
-      { text: 'Privilege UI', link: '/zh/guide/priv-ui' },
     ],
   },
 ];
@@ -63,12 +65,8 @@ export default defineConfig({
       description:
         'Start and manage an app-owned privileged Android runtime through Root or ADB.',
       themeConfig: {
-        nav: [
-          { text: 'Guide', link: '/guide/getting-started' },
-          { text: 'Activation', link: '/guide/activation' },
-        ],
         sidebar: englishSidebar,
-        outline: { label: 'On this page', level: [2, 3] },
+        outline: { label: 'On this page', level: [2, 4] },
         editLink: {
           pattern: 'https://github.com/priv-kit/priv-kit/edit/main/website/:path',
           text: 'Edit this page on GitHub',
@@ -99,12 +97,8 @@ export default defineConfig({
       title: 'Priv Kit',
       description: '通过 Root 或 ADB 启动并管理应用自有的 Android 特权运行时。',
       themeConfig: {
-        nav: [
-          { text: '指南', link: '/zh/guide/getting-started' },
-          { text: '激活方式', link: '/zh/guide/activation' },
-        ],
         sidebar: chineseSidebar,
-        outline: { label: '本页内容', level: [2, 3] },
+        outline: { label: '本页内容', level: [2, 4] },
         editLink: {
           pattern: 'https://github.com/priv-kit/priv-kit/edit/main/website/:path',
           text: '在 GitHub 上编辑此页',

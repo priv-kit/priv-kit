@@ -1,5 +1,6 @@
 package priv.kit.ui
 
+import priv.kit.core.internal.runtime.PrivilegeContext
 import priv.kit.ui.adb.*
 import priv.kit.ui.runtime.*
 import priv.kit.ui.state.*
@@ -32,7 +33,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
-import priv.kit.core.PrivilegeServerInfo
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -418,18 +418,12 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
-    fun hostEventsAreOverridableAndConnectionsAreDeliveredOncePerSerial() {
+    fun backHostEventIsOverridable() {
         val viewModel = HostEventPrivilegeUiViewModel(application())
-        val first = PrivilegeServerInfo(uid = 2000, pid = 10, protocolVersion = 1)
-        val second = PrivilegeServerInfo(uid = 0, pid = 11, protocolVersion = 1)
 
         assertTrue(viewModel.dispatchBackClick())
-        viewModel.dispatchConnected(connectionSerial = 1L, serverInfo = first)
-        viewModel.dispatchConnected(connectionSerial = 1L, serverInfo = second)
-        viewModel.dispatchConnected(connectionSerial = 2L, serverInfo = second)
 
         assertEquals(1, viewModel.backClickCount)
-        assertEquals(listOf(first, second), viewModel.connectedServers)
     }
 
     @Test
@@ -772,15 +766,10 @@ class PrivilegeUiViewModelTest {
     ) {
         var backClickCount = 0
             private set
-        val connectedServers = mutableListOf<PrivilegeServerInfo>()
 
         override fun onBackClick(): Boolean {
             backClickCount += 1
             return true
-        }
-
-        override fun onConnected(serverInfo: PrivilegeServerInfo) {
-            connectedServers += serverInfo
         }
     }
 
@@ -838,13 +827,7 @@ class PrivilegeUiViewModelTest {
         )
 
     private fun application(): Application =
-        (RuntimeEnvironment.getApplication() as Application).also(::installRuntimeContext)
-
-    private fun installRuntimeContext(context: Context) {
-        val runtimeContext = Class.forName("priv.kit.core.internal.runtime.PrivilegeContext")
-        val instance = runtimeContext.getField("INSTANCE").get(null)
-        runtimeContext.getDeclaredMethod("install", Context::class.java).invoke(instance, context)
-    }
+        (RuntimeEnvironment.getApplication() as Application).also(PrivilegeContext::install)
 
     private fun PrivilegeUiViewModel.storeForTest(): PrivilegeUiViewModelStore {
         val field = PrivilegeUiViewModel::class.java.getDeclaredField("store")

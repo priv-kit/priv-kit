@@ -2,13 +2,13 @@
 description: Use explicit Binder primitives through an app-owned Priv Kit server.
 ---
 
-# Binder
+# Binder {#binder}
 
 Priv Kit connects applications to explicit Binder endpoints and system services
 while preserving raw transaction contracts. The application supplies the
 framework interface and defines the domain behavior built on top of it.
 
-## Access a system service
+## Access a system service {#system-service}
 
 Resolve an explicit service name through the connected Privileged Server:
 
@@ -34,7 +34,7 @@ val binder = PrivilegeBinderWrapper.fromSystemService(
 The integrating app owns the framework interface and the meaning of each
 transaction.
 
-## Understand failures
+## Understand failures {#failure-semantics}
 
 Project-owned control calls normalize a missing or dead server to
 `PrivilegeServerUnavailableException`. Raw wrapper calls keep forwarded Binder
@@ -53,13 +53,3 @@ a server-related or UserService Binder invocation:
 Use fallbacks for recovery paths that remain safe when the remote result is
 uncertain. The remote process may have completed a mutating operation before
 dying.
-
-## Keep domain behavior in the app
-
-The library transports Binder calls. The app remains responsible for:
-
-- choosing and compiling any hidden framework interface;
-- validating arguments and permissions;
-- interpreting results;
-- deciding whether an operation is safe to retry;
-- defining high-level Android operations in the app's own contract.

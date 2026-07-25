@@ -15,7 +15,6 @@ class PrivilegeAdbPairingCheckSessionTest {
         val connections = mutableListOf<FakeAdbConnection>()
         val session = session(
             explicitPort = 37099,
-            discoverPort = false,
             discoverConnectEndpoint = { error("discovery should not be used") },
             clientFactory = {
                 FakeAdbConnection().also(connections::add)
@@ -44,7 +43,6 @@ class PrivilegeAdbPairingCheckSessionTest {
         val connections = mutableListOf<FakeAdbConnection>()
         val session = session(
             explicitPort = 37099,
-            discoverPort = false,
             discoverConnectEndpoint = { error("discovery should not be used") },
             clientFactory = {
                 FakeAdbConnection().also(connections::add)
@@ -65,11 +63,12 @@ class PrivilegeAdbPairingCheckSessionTest {
     }
 
     @Test
-    fun checkReportsUnavailableWhenNoPortCanBeResolved() = runBlocking {
+    fun checkReportsUnavailableWhenDiscoveryFails() = runBlocking {
         val session = session(
             explicitPort = null,
-            discoverPort = false,
-            discoverConnectEndpoint = { error("discovery should not be used") },
+            discoverConnectEndpoint = {
+                throw PrivilegeAdbException("ADB connect port is not available")
+            },
             clientFactory = {
                 error("client should not be created without an ADB connect port")
             },
@@ -80,14 +79,13 @@ class PrivilegeAdbPairingCheckSessionTest {
         assertFalse(result.paired)
         assertEquals(PrivilegeAdbPairingCheckStatus.UNAVAILABLE, result.status)
         assertNull(result.port)
-        assertEquals("ADB connect port is not available", result.failureMessage)
+        assertTrue(result.failureMessage.orEmpty().contains("ADB connect port is not available"))
     }
 
     @Test
     fun checkReportsUnpairedOnlyWhenAdbSaysUnauthorized() = runBlocking {
         val session = session(
             explicitPort = 37099,
-            discoverPort = false,
             discoverConnectEndpoint = { error("discovery should not be used") },
             clientFactory = {
                 FakeAdbConnection(status = PrivilegeAdbAuthorizationStatus.UNAUTHORIZED)
@@ -105,7 +103,6 @@ class PrivilegeAdbPairingCheckSessionTest {
     fun checkReportsErrorWhenPairingProbeFails() = runBlocking {
         val session = session(
             explicitPort = 37099,
-            discoverPort = false,
             discoverConnectEndpoint = { error("discovery should not be used") },
             clientFactory = {
                 FakeAdbConnection(failCheckAuthorization = true)
@@ -122,7 +119,6 @@ class PrivilegeAdbPairingCheckSessionTest {
     fun checkReportsUnpairedWhenTlsRejectsUnknownCertificate() = runBlocking {
         val session = session(
             explicitPort = 37099,
-            discoverPort = false,
             discoverConnectEndpoint = { error("discovery should not be used") },
             clientFactory = {
                 FakeAdbConnection(
@@ -142,7 +138,6 @@ class PrivilegeAdbPairingCheckSessionTest {
     fun checkPropagatesDiscoveryInterruptionAndRestoresInterruptFlag() = runBlocking {
         val session = session(
             explicitPort = null,
-            discoverPort = true,
             discoverConnectEndpoint = { throw InterruptedException("cancelled") },
             clientFactory = { error("client should not be created after interruption") },
         )
@@ -158,7 +153,6 @@ class PrivilegeAdbPairingCheckSessionTest {
 
     private fun session(
         explicitPort: Int?,
-        discoverPort: Boolean,
         discoverConnectEndpoint: (Long) -> PrivilegeAdbEndpoint,
         clientFactory: (PrivilegeAdbEndpoint) -> PrivilegeAdbAuthorizationConnection,
     ): PrivilegeAdbPairingCheckSession =
@@ -168,7 +162,6 @@ class PrivilegeAdbPairingCheckSessionTest {
             ),
             publicKeyFingerprint = "AA:BB",
             explicitPort = explicitPort,
-            discoverPort = discoverPort,
             portDiscoveryTimeoutMillis = 1_000L,
             discoverConnectEndpoint = discoverConnectEndpoint,
             clientFactory = clientFactory,

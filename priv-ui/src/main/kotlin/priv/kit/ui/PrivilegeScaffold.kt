@@ -137,12 +137,6 @@ public fun PrivilegeScaffold(
         interactionEnabled = interactionEnabled,
         showFeedback = ::showFeedback,
     )
-    LaunchedEffect(state.connectionSerial) {
-        val serverInfo = state.serverInfo
-        if (state.connectionSerial > 0L && serverInfo != null) {
-            viewModel.dispatchConnected(state.connectionSerial, serverInfo)
-        }
-    }
     LaunchedEffect(Unit) {
         viewModel.permissionRequests.collect { request ->
             when (request) {

@@ -20,7 +20,6 @@ android {
 dependencies {
     api(project(":priv-core"))
     implementation(project(":priv-shared"))
-    implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.activity.compose)
     api(libs.androidx.compose.foundation)
     api(libs.androidx.compose.material3)

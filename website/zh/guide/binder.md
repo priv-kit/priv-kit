@@ -1,15 +1,15 @@
 ---
-description: 通过应用自有的 Priv Kit 服务端使用显式 Binder 原语。
+description: 通过应用自有的 Priv Kit 服务端访问 Binder 服务。
 ---
 
-# Binder
+# Binder {#binder}
 
-Priv Kit 连接应用与显式 Binder 端点或系统服务，并保留原始 transaction 契约。
-应用提供 framework interface，并定义建立在这些原语之上的领域行为。
+Priv Kit 可以连接 Binder 服务和系统服务。通过它执行 Binder transaction 时，
+原有的调用格式不会改变。应用提供对应的系统接口，并负责实现自己的业务逻辑。
 
-## 访问系统服务
+## 访问系统服务 {#system-service}
 
-通过已连接的 Privileged Server 解析显式服务名：
+通过已连接的 Privileged Server，按服务名获取系统服务：
 
 ```kotlin
 val activityBinder = PrivilegeBinderWrapper.fromSystemService("activity")
@@ -21,7 +21,7 @@ Log.d(
 )
 ```
 
-部分服务必须在 shell 或 Root 服务端进程中解析：
+部分服务只能在 shell 或 Root 服务端进程中获取：
 
 ```kotlin
 val binder = PrivilegeBinderWrapper.fromSystemService(
@@ -30,32 +30,22 @@ val binder = PrivilegeBinderWrapper.fromSystemService(
 )
 ```
 
-接入应用拥有 framework 接口，并负责定义每个 transaction 的含义。
+应用需要提供对应的系统接口，并定义每个 transaction 的调用格式和含义。
 
-## 理解失败语义
+## 处理调用失败 {#failure-semantics}
 
-项目自有控制调用会把服务端缺失或死亡统一成
-`PrivilegeServerUnavailableException`。Raw wrapper 调用会保留转发后的
-Binder 失败，让应用按目标 Binder 或 Privileged Server 状态不确定的语义处理
-恢复。
+Priv Kit 自己的控制调用在服务端未连接或已经死亡时，都会抛出
+`PrivilegeServerUnavailableException`。通过 `PrivilegeBinderWrapper` 转发的
+调用会保留 Binder 原本的异常。调用失败时，应用可能无法确定是目标 Binder
+还是 Privileged Server 已经死亡，需要根据自身情况决定是否改用其他方式。
 
-当应用为服务端或 UserService Binder 调用准备了显式 fallback 时，可以使用
+如果服务端或 UserService 的 Binder 调用失败后可以安全地改用其他方式，可以使用
 `PrivilegeBinderCall.orElse(...)`：
 
 - `PrivilegeBinderCallFailure.ServerUnavailable` 表示 Privileged Server
   不可用。
-- `PrivilegeBinderCallFailure.BinderDied` 表示直接调用的端点死亡。
-- 其他异常保留原始语义。
+- `PrivilegeBinderCallFailure.BinderDied` 表示直接调用的 Binder 已经死亡。
+- 其他异常保持不变。
 
-只为能够接受远端结果不确定性的恢复路径配置 fallback。远端进程可能在死亡前
-已经完成修改操作。
-
-## 把领域行为保留在应用中
-
-库负责传输 Binder 调用，应用继续负责：
-
-- 选择并编译需要的 hidden framework 接口；
-- 校验参数与权限；
-- 解释返回结果；
-- 决定操作能否安全重试；
-- 在应用自己的契约中定义高级 Android 操作。
+只有在改用其他调用仍然安全时，才应使用 `orElse(...)`，因为应用可能无法确定
+原调用是否已经完成。服务进程可能已经完成修改后才死亡。

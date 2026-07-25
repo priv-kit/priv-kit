@@ -57,13 +57,9 @@ internal class PrivilegeAdbTcpManager(
 
     @Throws(PrivilegeStartupException::class)
     suspend fun switchToTcp(
-        currentPort: Int?,
         tcpPort: Int,
         options: PrivilegeAdbStartOptions?,
     ): PrivilegeAdbTcpResult {
-        require(currentPort == null || currentPort.isPrivilegeAdbPort()) {
-            "currentPort must be between 1 and 65535"
-        }
         require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         val output = PrivilegeAdbOutput()
         var connectEndpointLease: PrivilegeAdbConnectEndpointLease? = null
@@ -71,7 +67,7 @@ internal class PrivilegeAdbTcpManager(
             val activeTcpPort = getActiveTcpPort()
             output.append(
                 "diag",
-                "ADB TCP switch currentPort=$currentPort, activeTcp=$activeTcpPort, targetTcp=$tcpPort",
+                "ADB TCP switch sourcePort=${options?.port}, activeTcp=$activeTcpPort, targetTcp=$tcpPort",
             )
             if (activeTcpPort == tcpPort) {
                 output.append("adb", "ADB TCP port $tcpPort is already active")
@@ -82,15 +78,14 @@ internal class PrivilegeAdbTcpManager(
                 )
             }
 
-            val connectEndpoint = currentPort?.let(PrivilegeAdbEndpoint::local)
+            val connectEndpoint = options?.port?.let(PrivilegeAdbEndpoint::local)
                 ?: activeTcpPort?.takeIf { it > 0 }?.let(PrivilegeAdbEndpoint::local)
-                ?: options?.port?.let(PrivilegeAdbEndpoint::local)
                 ?: if (options == null) {
                     requireWirelessAdbSupported()
                     endpointResolver.discoverConnectEndpoint(
                         timeoutMillis = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
                     )
-                } else if (options.discoverPort) {
+                } else {
                     endpointResolver.acquireConnectEndpointForStart(
                         options = options,
                         output = output,
@@ -99,8 +94,6 @@ internal class PrivilegeAdbTcpManager(
                     ).also { lease ->
                         connectEndpointLease = lease
                     }.endpoint
-                } else {
-                    throw PrivilegeAdbException("ADB connect port is not available")
                 }
             val key = identityProvider.loadKey()
             output.append(

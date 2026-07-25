@@ -10,12 +10,10 @@ internal class PrivilegeAdbPairingManager(
     @Throws(PrivilegeStartupException::class)
     suspend fun checkPairing(
         port: Int?,
-        discoverPort: Boolean,
         portDiscoveryTimeoutMillis: Long,
     ): PrivilegeAdbPairingCheckResult =
         openPairingCheckSession(
             port = port,
-            discoverPort = discoverPort,
             portDiscoveryTimeoutMillis = portDiscoveryTimeoutMillis,
         ).use { session ->
             session.check()
@@ -24,7 +22,6 @@ internal class PrivilegeAdbPairingManager(
     @Throws(PrivilegeStartupException::class)
     fun openPairingCheckSession(
         port: Int?,
-        discoverPort: Boolean,
         portDiscoveryTimeoutMillis: Long,
     ): PrivilegeAdbPairingCheckSession {
         require(port == null || port.isPrivilegeAdbPort()) { "port must be between 1 and 65535" }
@@ -41,7 +38,6 @@ internal class PrivilegeAdbPairingManager(
             identity = identityProvider.identity,
             publicKeyFingerprint = key.adbPublicKeyFingerprint,
             explicitPort = port,
-            discoverPort = discoverPort,
             portDiscoveryTimeoutMillis = portDiscoveryTimeoutMillis,
             discoverConnectEndpoint = endpointResolver::discoverConnectEndpoint,
             clientFactory = { activeEndpoint -> PrivilegeAdbClient(activeEndpoint, key) },
@@ -52,7 +48,6 @@ internal class PrivilegeAdbPairingManager(
     suspend fun pair(
         pairingCode: String,
         port: Int?,
-        discoverPort: Boolean,
         portDiscoveryTimeoutMillis: Long,
     ): PrivilegeAdbPairingResult {
         val normalizedPairingCode = pairingCode.toPrivilegeAdbPairingCode()
@@ -62,11 +57,8 @@ internal class PrivilegeAdbPairingManager(
 
         return try {
             val key = identityProvider.loadKey()
-            val activeEndpoint = port?.let(PrivilegeAdbEndpoint::local) ?: if (discoverPort) {
-                endpointResolver.discoverPairingEndpoint(portDiscoveryTimeoutMillis)
-            } else {
-                throw PrivilegeAdbException("ADB pairing port is not available")
-            }
+            val activeEndpoint = port?.let(PrivilegeAdbEndpoint::local)
+                ?: endpointResolver.discoverPairingEndpoint(portDiscoveryTimeoutMillis)
             PrivilegeAdbPairingClient(activeEndpoint, normalizedPairingCode, key).cancellableUse { client ->
                 if (!client.start()) {
                     throw PrivilegeAdbException("ADB pairing failed")

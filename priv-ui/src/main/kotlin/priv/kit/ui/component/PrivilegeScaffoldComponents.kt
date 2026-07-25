@@ -32,7 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -416,7 +415,6 @@ internal fun privilegeUiServiceStatusActionEnabled(
 
 @Composable
 internal fun PrivilegeUiScreenScope.StartupLogPanel() {
-    val context = LocalContext.current
     val lines = state.startupLogLines
     val copiedMessage = stringResource(R.string.priv_ui_startup_log_copied)
     Panel {
@@ -444,7 +442,7 @@ internal fun PrivilegeUiScreenScope.StartupLogPanel() {
                     enabled = interactionEnabled && lines.isNotEmpty(),
                     onClick = {
                         if (!viewModel.uiInteractionsEnabled) return@IconButton
-                        viewModel.copyStartupLog(context)
+                        viewModel.copyStartupLog()
                         showFeedback(copiedMessage)
                     },
                 ) {

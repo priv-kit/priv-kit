@@ -31,7 +31,6 @@ class PrivilegeAdbTcpManagerTest {
         )
 
         val result = manager.switchToTcp(
-            currentPort = null,
             tcpPort = 5555,
             options = null,
         )

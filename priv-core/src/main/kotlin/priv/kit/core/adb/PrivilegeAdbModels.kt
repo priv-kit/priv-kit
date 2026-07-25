@@ -38,11 +38,11 @@ public data class PrivilegeAdbIdentityInfo public constructor(
     public val publicKeyFingerprint: String,
 )
 
+/**
+ * @param port ADB connect port. When `null`, startup discovers the Wireless Debugging connect port.
+ */
 public data class PrivilegeAdbStartOptions public constructor(
     public val port: Int? = null,
-    public val discoverPort: Boolean = true,
-    public val tcpMode: Boolean = false,
-    public val tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     public val wirelessDebuggingControl: PrivilegeAdbWirelessDebuggingControl =
         PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
     public val disableWirelessDebuggingAfterStart: Boolean = true,
@@ -52,7 +52,6 @@ public data class PrivilegeAdbStartOptions public constructor(
 ) {
     init {
         require(port == null || port.isPrivilegeAdbPort()) { "port must be between 1 and 65535" }
-        require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         require(portDiscoveryTimeoutMillis > 0L) { "portDiscoveryTimeoutMillis must be positive" }
         require(connectRetryCount > 0) { "connectRetryCount must be positive" }
         require(connectRetryDelayMillis >= 0L) { "connectRetryDelayMillis must not be negative" }
@@ -150,20 +149,3 @@ public data class PrivilegeAdbAuthorizationRequestResult public constructor(
     public val outputText: String = "",
     public val failureMessage: String? = null,
 )
-
-internal object PrivilegeAdbPortSelector {
-    fun chooseStartEndpoint(
-        explicitPort: Int?,
-        activeTcpPort: Int,
-        tcpMode: Boolean,
-        targetTcpPort: Int,
-        discoveredEndpoint: PrivilegeAdbEndpoint?,
-    ): PrivilegeAdbEndpoint {
-        explicitPort?.let { return PrivilegeAdbEndpoint.local(it) }
-        if (tcpMode && activeTcpPort > 0) return PrivilegeAdbEndpoint.local(activeTcpPort)
-        discoveredEndpoint?.let { return it }
-        if (tcpMode) return PrivilegeAdbEndpoint.local(targetTcpPort)
-        throw PrivilegeAdbException("ADB port is not available")
-    }
-
-}

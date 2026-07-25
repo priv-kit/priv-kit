@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModelProvider
 import priv.kit.sample.debug.PrivilegeSampleDebugController
 import priv.kit.sample.debug.PrivilegeSampleDebugViewModel
 import priv.kit.sample.startup.PrivilegeSamplePrivilegeUiCallbacks
+import priv.kit.sample.startup.privilegeUiConfig
 
 class MainActivity : ComponentActivity() {
     private lateinit var viewModel: PrivilegeSampleViewModel
@@ -42,9 +43,8 @@ class MainActivity : ComponentActivity() {
                         onBackToHome = viewModel::navigateBack,
                     ),
                     privilegeUiCallbacks = PrivilegeSamplePrivilegeUiCallbacks(
-                        config = (application as App).privilegeUiConfig,
+                        config = privilegeUiConfig,
                         back = viewModel::navigateBack,
-                        connected = debugViewModel::handlePrivilegeUiConnected,
                     ),
                 )
             }

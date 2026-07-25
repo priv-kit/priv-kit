@@ -1,18 +1,20 @@
 package priv.kit.core.internal.runtime
 
 import android.content.Context
+import androidx.annotation.RestrictTo
 import priv.kit.core.PrivilegeStartupException
 
-internal object PrivilegeContext {
+@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
+public object PrivilegeContext {
     @Volatile
     private var applicationContext: Context? = null
 
-    fun install(context: Context) {
+    public fun install(context: Context) {
         applicationContext = context.applicationContext
     }
 
     @Throws(PrivilegeStartupException::class)
-    fun require(): Context =
+    public fun require(): Context =
         applicationContext ?: throw PrivilegeStartupException(
             "Privilege runtime context is not initialized; ensure PrivilegeHandshakeProvider is registered",
         )

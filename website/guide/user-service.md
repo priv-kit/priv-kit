@@ -2,12 +2,12 @@
 description: Run app-defined AIDL services in embedded or dedicated privileged processes.
 ---
 
-# UserService
+# UserService {#user-service}
 
 UserService runs application-owned code under the privileged runtime and
 returns the raw Binder for the app's own AIDL interface.
 
-## Define the AIDL contract
+## Define the AIDL contract {#define-aidl-contract}
 
 Use transaction code `16777114` for the destroy method:
 
@@ -18,7 +18,7 @@ interface IMyPrivilegeService {
 }
 ```
 
-## Implement the service
+## Implement the service {#implement-service}
 
 ```kotlin
 class MyPrivilegeService private constructor(
@@ -46,7 +46,23 @@ The runtime supports a no-argument constructor or a `Context` constructor.
 Dedicated processes prefer application initialization and fall back to a
 package context. Embedded services receive a package context.
 
-## Use a dedicated process
+## Detect the execution environment {#execution-environment}
+
+`PrivilegeUserServiceEnvironment.isEmbedded` tells code running inside a
+UserService which process model owns the current instance. It returns `true`
+when the service is embedded in the Privileged Server process and `false` when
+the service runs in its own dedicated `app_process` child. The value is stable
+for the lifetime of the process and is cached after its first read.
+
+Use it before process-wide actions such as terminating the process or cleaning
+up global state. In the implementation above, `destroy()` may call
+`exitProcess(0)` for a dedicated child, but it must not do so for an embedded
+service because that would terminate the Privileged Server and every other
+component hosted in that process. This property is intended for code executing
+inside a UserService; the host selects the mode with
+`PrivilegeUserServiceSpec.embedded`.
+
+## Use a dedicated process {#dedicated-process}
 
 This is the default. The service runs in a separate `app_process` child:
 
@@ -54,6 +70,7 @@ This is the default. The service runs in a separate `app_process` child:
 val spec = PrivilegeUserServiceSpec(
     serviceClassName = MyPrivilegeService::class.java.name,
     tag = "main",
+    version = 1,
 )
 
 Privilege.startUserService(spec)
@@ -66,10 +83,12 @@ Privilege.bindUserService(spec).use { connection ->
 Privilege.stopUserService(spec)
 ```
 
-Each instance is identified by `serviceClassName + tag`. A version value only
-controls whether the same instance can be reused or must be replaced.
+Each instance is identified by `serviceClassName + tag`. The `version` value
+shown above only controls whether the same instance can be reused or must be
+replaced. Change it when an existing instance is no longer compatible with the
+current service implementation.
 
-## Use an embedded service
+## Use an embedded service {#embedded-service}
 
 Set `embedded = true` to run directly inside the Privileged Server:
 
@@ -77,6 +96,7 @@ Set `embedded = true` to run directly inside the Privileged Server:
 val spec = PrivilegeUserServiceSpec(
     serviceClassName = MyPrivilegeService::class.java.name,
     tag = "embedded",
+    version = 1,
     embedded = true,
 )
 ```
@@ -84,8 +104,3 @@ val spec = PrivilegeUserServiceSpec(
 Embedded mode avoids an extra process and suits small, low-risk work. Its
 `destroy()` implementation should clean up only service-owned resources;
 calling `exitProcess(0)` would terminate the complete Privileged Server.
-
-## Ownership boundary
-
-Priv Kit manages loading, lifecycle, handshakes, and process cleanup. The app
-retains complete ownership of the business methods defined by its AIDL.

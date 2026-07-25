@@ -348,7 +348,6 @@ internal class PrivilegeUiAdbStatusActions(
         ?.also { result -> if (!result.paired) closePairingSession() }
         ?: manager.openPairingCheckSession(
             port = port,
-            discoverPort = false,
             portDiscoveryTimeoutMillis = timeoutMillis,
         ).also { pairingSession = it }
             .check()

@@ -3,7 +3,6 @@ package priv.kit.sample.startup
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
-import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.sample.R
 import priv.kit.sample.common.toDiagnosticString
@@ -27,12 +26,9 @@ internal class PrivilegeSamplePrivilegeUiViewModel(
         return true
     }
 
-    override fun onConnected(serverInfo: PrivilegeServerInfo) {
-        host.connected(serverInfo)
-    }
 }
 
-internal fun createPrivilegeSampleUiConfig(context: Context): PrivilegeUiConfig =
+internal val privilegeUiConfig by lazy {
     PrivilegeUiConfig(
         startupModes = setOf(
             PrivilegeUiStartupMode.ADB,
@@ -40,11 +36,10 @@ internal fun createPrivilegeSampleUiConfig(context: Context): PrivilegeUiConfig 
             PrivilegeUiStartupMode.ROOT,
         ),
         externalStartProviders = listOf(
-            PrivilegeSampleShizukuExternalStartProvider(
-                label = context.getString(R.string.sample_privilege_ui_shizuku_label),
-            ),
+            PrivilegeSampleShizukuExternalStartProvider,
         ),
     )
+}
 
 internal fun startPrivilegeSampleNotificationPairing(
     context: Context,
@@ -61,10 +56,10 @@ internal fun stopPrivilegeSampleNotificationPairing(context: Context, ownerId: S
     PrivilegeAdbPairingService.stop(context, ownerId)
 }
 
-private class PrivilegeSampleShizukuExternalStartProvider(
-    override val label: CharSequence,
-) : PrivilegeUiStreamingExternalStartProvider {
+private object PrivilegeSampleShizukuExternalStartProvider :
+    PrivilegeUiStreamingExternalStartProvider {
     override val id: String = "shizuku"
+    override val label: CharSequence = "Shizuku"
 
     override suspend fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot =
         runCatching {

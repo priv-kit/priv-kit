@@ -2,29 +2,35 @@
 description: Add Priv Kit to an Android application and start the first app-owned privileged runtime.
 ---
 
-# Getting started
+# Getting started {#getting-started}
 
 Priv Kit targets Android API 26 and later. It gives one application the
 primitives to start, connect to, and use its own Privileged Server. Applications
 can build their privileged operations directly on Binder or their own
 UserService contracts.
 
-## Add the dependencies
+## Add the dependencies {#add-dependencies}
 
-Use `priv-core` for the runtime. Add `priv-ui` only when the app needs the
-optional Compose authorization surface and silent replay support.
+Start with `priv-ui`. It provides the Compose authorization page and exposes
+`priv-core` transitively, so the application can use the runtime, Binder, and
+UserService APIs without declaring both modules.
+
+```kotlin
+dependencies {
+    implementation("io.github.priv-kit:priv-ui:<version>")
+}
+```
+
+Depend on `priv-core` directly only when the application is building its own
+authorization interface:
 
 ```kotlin
 dependencies {
     implementation("io.github.priv-kit:priv-core:<version>")
-    implementation("io.github.priv-kit:priv-ui:<version>") // Optional
 }
 ```
 
-The compatibility guarantee covers the compile-time APIs visible after
-referencing `priv-core` or `priv-ui`.
-
-## Configure hidden API access
+## Configure hidden API access {#hidden-api-access}
 
 The host app must configure
 [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass):
@@ -40,34 +46,43 @@ class App : Application() {
 }
 ```
 
-This runs during application initialization, before framework interfaces that
-rely on hidden API access are called.
+## Embed Privilege UI {#embed-privilege-ui}
 
-## Start a server
-
-The shortest Root path is a suspend call:
+Place `PrivilegeScaffold` in the app's Compose content:
 
 ```kotlin
-val serverInfo = Privilege.startRoot()
+PrivilegeScaffold()
 ```
 
-ADB startup uses the same runtime and Binder handoff:
+The default configuration presents Root, ADB, and Manual startup. The ADB
+surface handles status polling, Wireless Debugging pairing, foreground
+permission requests, TCP/IP confirmation, and startup. Read the
+[Privilege UI guide](./priv-ui) for configuration and silent replay.
+
+## Build a custom interface with priv-core {#custom-interface}
+
+Use `priv-core` directly when the application needs to replace the supplied
+authorization interface. The host then owns permission prompts, pairing input,
+confirmation surfaces, status polling, and error presentation.
+
+The shortest Root and Wireless Debugging calls are:
 
 ```kotlin
-val serverInfo = Privilege.startAdb()
+val rootServer = Privilege.startRoot()
+val adbServer = Privilege.startAdb()
 ```
 
-Both calls keep blocking transport work off the caller thread. Cancelling the
-owning coroutine closes the active process, socket, or discovery session.
+Both are suspend APIs. Cancelling the owning coroutine closes the active
+process, socket, or discovery session. See [startup methods](./activation) for
+the complete `priv-core` flows.
 
-## Choose a usage mode
+## Choose a usage mode {#usage-mode}
 
 - Use [Binder](./binder) for explicit raw Binder access.
 - Use [UserService](./user-service) for an app-defined AIDL service.
-- Read [activation paths](./activation) before choosing Root, ADB, shell, or an
-  external bridge.
-- Add [Privilege UI](./priv-ui) when the host needs a reusable authorization
-  page.
+- Use [Privilege UI](./priv-ui) for the supplied authorization page.
+- Read [startup methods](./activation) before replacing that page with a custom
+  `priv-core` integration.
 
 ::: warning Active development
 Use the version published for the release you target. The repository currently

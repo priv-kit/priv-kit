@@ -1,9 +1,12 @@
 package priv.kit.core.adb
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import priv.kit.core.PrivilegeStartupException
+import priv.kit.shared.PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST
 
 class PrivilegeAdbEndpointResolverTest {
     @Test
@@ -67,5 +70,49 @@ class PrivilegeAdbEndpointResolverTest {
                 connectRetryCount = 1,
             ),
         )
+    }
+
+    @Test
+    fun resolvedEndpointPrefersLoopbackWhenSamePortListens() {
+        val endpoint = privilegeAdbReachableLocalEndpoint(
+            serviceHost = "192.168.1.12",
+            port = 37100,
+        ) { host, port ->
+            host == PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST && port == 37100
+        }
+
+        assertEquals(PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST, endpoint?.host)
+        assertEquals(37100, endpoint?.port)
+    }
+
+    @Test
+    fun resolvedEndpointFallsBackToServiceHostWhenLoopbackIsUnavailable() {
+        val endpoint = privilegeAdbReachableLocalEndpoint(
+            serviceHost = "192.168.1.12",
+            port = 37100,
+        ) { host, port ->
+            host == "192.168.1.12" && port == 37100
+        }
+
+        assertEquals("192.168.1.12", endpoint?.host)
+        assertEquals(37100, endpoint?.port)
+    }
+
+    @Test
+    fun localNetworkAccessFailureIsDetectedThroughCauseChain() {
+        val throwable = PrivilegeStartupException(
+            message = "failed",
+            cause = PrivilegeAdbLocalNetworkAccessException(
+                endpoint = PrivilegeAdbEndpoint("192.168.1.12", 37100),
+                cause = IllegalStateException("blocked"),
+            ),
+        )
+
+        assertTrue(throwable.isPrivilegeAdbLocalNetworkAccessFailure())
+    }
+
+    @Test
+    fun localNetworkAccessFailureDoesNotMatchPlainFailure() {
+        assertFalse(IllegalStateException("blocked").isPrivilegeAdbLocalNetworkAccessFailure())
     }
 }

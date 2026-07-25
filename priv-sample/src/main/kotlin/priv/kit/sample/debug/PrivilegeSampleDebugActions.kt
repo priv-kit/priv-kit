@@ -534,9 +534,7 @@ internal fun PrivilegeSampleDebugHost.restartTcp() {
     ) {
         Privilege.startAdb(
             options = PrivilegeAdbStartOptions(
-                tcpMode = true,
-                tcpPort = tcpPort,
-                discoverPort = false,
+                port = tcpPort,
             ),
             adbDeviceName = adbDeviceName,
         )

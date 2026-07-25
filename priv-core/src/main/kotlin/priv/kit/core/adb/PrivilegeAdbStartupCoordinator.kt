@@ -32,33 +32,20 @@ internal class PrivilegeAdbStartupCoordinator(
                 "Launch command main=${command.mainClass}, provider=${command.providerAuthority}, " +
                     "classpathEntries=${command.classpath.split(':').size}, commandLength=${command.commandLine.length}",
             )
-            val activeTcpPort = PrivilegeAdbEnvironment.getActiveAdbTcpPort()
             output.append(
                 "diag",
-                "Port selection explicit=${options.port}, discover=${options.discoverPort}, " +
-                    "tcpMode=${options.tcpMode}, activeTcp=$activeTcpPort, targetTcp=${options.tcpPort}, " +
+                "Port selection explicit=${options.port}, " +
                     "wirelessControl=${options.wirelessDebuggingControl}",
             )
-            val shouldDiscoverEndpoint = options.port == null &&
-                !(options.tcpMode && activeTcpPort > 0) &&
-                options.discoverPort
-            val activeEndpoint = PrivilegeAdbPortSelector.chooseStartEndpoint(
-                explicitPort = options.port,
-                activeTcpPort = activeTcpPort,
-                tcpMode = options.tcpMode,
-                targetTcpPort = options.tcpPort,
-                discoveredEndpoint = if (shouldDiscoverEndpoint) {
-                    endpointResolver.acquireConnectEndpointForStart(
-                        options = options,
-                        output = output,
-                        disableWirelessDebuggingAfterUse = options.disableWirelessDebuggingAfterStart,
-                    ).also { lease ->
-                        connectEndpointLease = lease
-                    }.endpoint
-                } else {
-                    null
-                },
-            )
+            val activeEndpoint = options.port
+                ?.let(PrivilegeAdbEndpoint::local)
+                ?: endpointResolver.acquireConnectEndpointForStart(
+                    options = options,
+                    output = output,
+                    disableWirelessDebuggingAfterUse = options.disableWirelessDebuggingAfterStart,
+                ).also { lease ->
+                    connectEndpointLease = lease
+                }.endpoint
             output.append("diag", "Selected ADB command endpoint $activeEndpoint")
 
             PrivilegeAdbClient(activeEndpoint, key).cancellableUse { client ->
