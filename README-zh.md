@@ -1,5 +1,7 @@
 # Priv Kit
 
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.priv-kit/priv-core.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.priv-kit/priv-core)
+
 [English](./README.md)
 
 Priv Kit 是一个轻量 Android 库，应用可以通过 Root、ADB、手动 shell 命令或

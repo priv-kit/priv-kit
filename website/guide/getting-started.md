@@ -4,6 +4,8 @@ description: Add Priv Kit to an Android application and start the first app-owne
 
 # Getting started {#getting-started}
 
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.priv-kit/priv-core.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.priv-kit/priv-core)
+
 Priv Kit targets Android API 26 and later. It gives one application the
 primitives to start, connect to, and use its own Privileged Server. Applications
 can build their privileged operations directly on Binder or their own

@@ -4,6 +4,8 @@ description: 将 Priv Kit 接入 Android 应用，并启动第一个应用自有
 
 # 快速接入 {#getting-started}
 
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.priv-kit/priv-core.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.priv-kit/priv-core)
+
 Priv Kit 支持 Android API 26 及以上版本。它为单个应用提供启动、连接并使用
 自有 Privileged Server 的基础能力。应用可以通过 Binder 或自己的 UserService
 实现特权功能。

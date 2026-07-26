@@ -1,5 +1,7 @@
 # Priv Kit
 
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.priv-kit/priv-core.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.priv-kit/priv-core)
+
 [中文介绍](./README-zh.md)
 
 Priv Kit is a lightweight Android library for an application to start and
