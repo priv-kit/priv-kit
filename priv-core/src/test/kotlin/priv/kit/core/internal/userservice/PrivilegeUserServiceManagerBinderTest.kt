@@ -124,6 +124,9 @@ class PrivilegeUserServiceManagerBinderTest {
         PrivilegeUserServiceManagerBinder(
             PrivilegeUserServiceRegistry(
                 host = host,
+                embeddedContextRuntimeProvider = {
+                    error("Context runtime is not used by this test")
+                },
                 dedicatedStartTimeoutMillis = 1L,
             ),
         )

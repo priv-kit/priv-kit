@@ -23,7 +23,7 @@ class PrivilegeUserServiceRegistryTest {
     @Test
     fun nonDaemonServiceIsDestroyedWhenOwnerDies() {
         EmbeddedService.reset()
-        val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
+        val registry = registry(TestEmbeddedUserServiceHost())
         val owner = TestBinder()
         val spec = embeddedSpec(
             tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
@@ -42,7 +42,7 @@ class PrivilegeUserServiceRegistryTest {
     @Test
     fun daemonServiceSurvivesOwnerDeath() {
         EmbeddedService.reset()
-        val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
+        val registry = registry(TestEmbeddedUserServiceHost())
         val owner = TestBinder()
         val spec = embeddedSpec(
             tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
@@ -62,7 +62,7 @@ class PrivilegeUserServiceRegistryTest {
     @Test
     fun daemonBindKeepsServiceAfterUnbindUntilStop() {
         EmbeddedService.reset()
-        val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
+        val registry = registry(TestEmbeddedUserServiceHost())
         val spec = embeddedSpec(
             tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
             version = 1,
@@ -81,7 +81,7 @@ class PrivilegeUserServiceRegistryTest {
     @Test
     fun dedicatedProcessDeathClearsConnection() {
         val process = TestUserServiceProcess()
-        val registry = PrivilegeUserServiceRegistry(TestDedicatedUserServiceHost(process))
+        val registry = registry(TestDedicatedUserServiceHost(process))
         val spec = dedicatedSpec()
 
         val result = registry.bind(spec, TestBinder())
@@ -96,7 +96,7 @@ class PrivilegeUserServiceRegistryTest {
     fun dedicatedProcessDeathAllowsNextBindToCreateReplacement() {
         val firstProcess = TestUserServiceProcess()
         val host = TestDedicatedUserServiceHost(firstProcess)
-        val registry = PrivilegeUserServiceRegistry(host)
+        val registry = registry(host)
         val spec = dedicatedSpec()
 
         val first = registry.bind(spec, TestBinder())
@@ -110,7 +110,7 @@ class PrivilegeUserServiceRegistryTest {
     @Test
     fun embeddedModeCreatesSeparateInstancesForDifferentTags() {
         EmbeddedService.reset()
-        val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
+        val registry = registry(TestEmbeddedUserServiceHost())
         val client = TestBinder()
 
         val first = registry.bind(
@@ -132,7 +132,7 @@ class PrivilegeUserServiceRegistryTest {
     @Test
     fun embeddedVersionChangeDestroysPreviousInstance() {
         EmbeddedService.reset()
-        val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
+        val registry = registry(TestEmbeddedUserServiceHost())
         val client = TestBinder()
 
         val first = registry.bind(
@@ -168,7 +168,7 @@ class PrivilegeUserServiceRegistryTest {
         val originalClassLoader = Thread.currentThread().contextClassLoader
         Thread.currentThread().contextClassLoader = object : ClassLoader(null) {}
         try {
-            val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
+            val registry = registry(TestEmbeddedUserServiceHost())
             val client = TestBinder()
 
             val result = registry.bind(
@@ -189,7 +189,7 @@ class PrivilegeUserServiceRegistryTest {
 
     @Test
     fun missingEmbeddedClassThrowsDeclarationException() {
-        val registry = PrivilegeUserServiceRegistry(TestEmbeddedUserServiceHost())
+        val registry = registry(TestEmbeddedUserServiceHost())
 
         assertThrows(PrivilegeUserServiceException::class.java) {
             registry.bind(
@@ -258,6 +258,14 @@ class PrivilegeUserServiceRegistryTest {
     private fun dedicatedSpec(): PrivilegeUserServiceSpec =
         PrivilegeUserServiceSpec(
             serviceClassName = EmbeddedService::class.java.name,
+        )
+
+    private fun registry(host: PrivilegeUserServiceHost): PrivilegeUserServiceRegistry =
+        PrivilegeUserServiceRegistry(
+            host = host,
+            embeddedContextRuntimeProvider = {
+                error("Context runtime is not used by this test")
+            },
         )
 
     class EmbeddedService :

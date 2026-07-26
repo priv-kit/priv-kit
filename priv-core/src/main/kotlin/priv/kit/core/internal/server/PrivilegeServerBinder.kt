@@ -28,12 +28,14 @@ internal class PrivilegeServerBinder(
             classLoader = context.classLoader,
         )
     }
-    private val userServiceManager = PrivilegeUserServiceManagerBinder(
-        PrivilegeUserServiceRegistry(
-            host = PrivilegeServerUserServiceHost(config),
-            embeddedContextRuntimeProvider = { packageContextRuntime },
-        ),
-    )
+    private val userServiceManager = lazy {
+        PrivilegeUserServiceManagerBinder(
+            PrivilegeUserServiceRegistry(
+                host = PrivilegeServerUserServiceHost(config),
+                embeddedContextRuntimeProvider = { packageContextRuntime },
+            ),
+        )
+    }
     private val packageManager by lazy {
         IPackageManager.Stub.asInterface(getSystemService("package"))
     }
@@ -42,8 +44,7 @@ internal class PrivilegeServerBinder(
     }
     private val systemServiceCache = HashMap<String, IBinder>()
 
-    override fun getUserServiceManager(): IBinder =
-        userServiceManager.asBinder()
+    override fun getUserServiceManager(): IBinder = userServiceManager.value.asBinder()
 
     override fun onTransact(
         code: Int,
@@ -99,7 +100,9 @@ internal class PrivilegeServerBinder(
 
     override fun shutdown() {
         Log.i(TAG, "Shutdown requested by client")
-        userServiceManager.destroyAll()
+        if (userServiceManager.isInitialized()) {
+            userServiceManager.value.destroyAll()
+        }
         Thread {
             Thread.sleep(SHUTDOWN_DELAY_MILLIS)
             onShutdown()
@@ -108,7 +111,9 @@ internal class PrivilegeServerBinder(
     }
 
     fun destroyUserServicesOnOwnerDeath() {
-        userServiceManager.destroyOnOwnerDeath()
+        if (userServiceManager.isInitialized()) {
+            userServiceManager.value.destroyOnOwnerDeath()
+        }
     }
 
     private fun transactRemote(
