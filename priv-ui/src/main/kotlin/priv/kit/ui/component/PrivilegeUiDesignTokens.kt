@@ -12,5 +12,4 @@ internal object PrivilegeUiSpacing {
 
 internal object PrivilegeUiSize {
     val minimumTouchTarget = 48.dp
-    val segmentedSelectorMinimumWidth = 420.dp
 }

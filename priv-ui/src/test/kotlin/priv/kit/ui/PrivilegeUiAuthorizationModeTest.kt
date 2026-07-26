@@ -1,13 +1,10 @@
 package priv.kit.ui
 
-import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import priv.kit.ui.component.PrivilegeUiAuthorizationModeSelector
 import priv.kit.ui.component.privilegeUiAuthorizationModeItems
-import priv.kit.ui.component.privilegeUiAuthorizationModeSelector
 
 class PrivilegeUiAuthorizationModeTest {
     private val modes = listOf(
@@ -66,25 +63,5 @@ class PrivilegeUiAuthorizationModeTest {
         )
 
         assertTrue(items.none { it.enabled })
-    }
-
-    @Test
-    fun selectorUsesSegmentedControlOnlyWhenContentIsWideEnough() {
-        assertEquals(
-            PrivilegeUiAuthorizationModeSelector.NONE,
-            privilegeUiAuthorizationModeSelector(modeCount = 0, availableWidth = 420.dp),
-        )
-        assertEquals(
-            PrivilegeUiAuthorizationModeSelector.NONE,
-            privilegeUiAuthorizationModeSelector(modeCount = 1, availableWidth = 420.dp),
-        )
-        assertEquals(
-            PrivilegeUiAuthorizationModeSelector.SCROLLABLE_TABS,
-            privilegeUiAuthorizationModeSelector(modeCount = modes.size, availableWidth = 419.dp),
-        )
-        assertEquals(
-            PrivilegeUiAuthorizationModeSelector.SEGMENTED,
-            privilegeUiAuthorizationModeSelector(modeCount = modes.size, availableWidth = 420.dp),
-        )
     }
 }
