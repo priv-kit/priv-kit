@@ -1,37 +1,42 @@
 package priv.kit.shared
 
-import android.annotation.SuppressLint
 import android.companion.virtual.VirtualDeviceManagerHidden
-import android.content.ContextHidden
+import android.content.Context
+import android.os.Build
 import android.os.IBinder
 import android.permission.IPermissionManager
+import androidx.annotation.ChecksSdkIntAtLeast
 
 private const val REVOKE_WITHOUT_DEVICE_ID: Int = 1
+
+@ChecksSdkIntAtLeast(api = Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 private const val REVOKE_WITH_DEVICE_ID: Int = 2
+
+@ChecksSdkIntAtLeast(api = Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 private const val REVOKE_WITH_PERSISTENT_DEVICE_ID: Int = 3
 
 private val revokeRuntimePermissionTypeValue by lazy {
     IPermissionManager::class.java.detectHiddenMethod(
         methodName = "revokeRuntimePermission",
         REVOKE_WITHOUT_DEVICE_ID to listOf(
-            String::class.java,
-            String::class.java,
-            Int::class.java,
-            String::class.java,
+            String::class,
+            String::class,
+            Int::class,
+            String::class,
         ),
         REVOKE_WITH_DEVICE_ID to listOf(
-            String::class.java,
-            String::class.java,
-            Int::class.java,
-            Int::class.java,
-            String::class.java,
+            String::class,
+            String::class,
+            Int::class,
+            Int::class,
+            String::class,
         ),
         REVOKE_WITH_PERSISTENT_DEVICE_ID to listOf(
-            String::class.java,
-            String::class.java,
-            String::class.java,
-            Int::class.java,
-            String::class.java,
+            String::class,
+            String::class,
+            String::class,
+            Int::class,
+            String::class,
         ),
     )
 }
@@ -56,7 +61,7 @@ public class CompatPermissionManager(
         REVOKE_WITH_DEVICE_ID -> permissionManager.revokeRuntimePermission(
             packageName,
             permissionName,
-            @SuppressLint("NewApi") ContextHidden.DEVICE_ID_DEFAULT,
+            Context.DEVICE_ID_DEFAULT,
             userId,
             null,
         )
