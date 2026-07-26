@@ -219,6 +219,8 @@ YourApp.showCommandToUser("adb shell $nativeStarterPath")
 `priv-core` returns the installed native starter SO path. The host adds `adb shell`
 when presenting a command that runs from a development machine. The starter only
 runs as root (UID 0), system (UID 1000), or shell (UID 2000).
+[Configure native library packaging](./getting-started#native-library-packaging)
+before using this path so Android extracts the starter as an installed file.
 
 A rendered command looks like:
 

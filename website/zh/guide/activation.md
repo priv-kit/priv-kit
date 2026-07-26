@@ -202,6 +202,8 @@ YourApp.showCommandToUser("adb shell $nativeStarterPath")
 `priv-core` 返回已安装的 native starter SO 路径。应用向开发机器展示命令时，
 在路径前添加 `adb shell`。Starter 只允许 root（UID 0）、system（UID 1000）
 或 shell（UID 2000）身份运行。
+使用此路径前，先[配置 native 库打包](./getting-started#native-library-packaging)，
+确保 Android 将 starter 解压为安装后的文件。
 
 实际生成的命令示例如下：
 

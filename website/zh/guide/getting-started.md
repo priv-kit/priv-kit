@@ -29,6 +29,28 @@ dependencies {
 }
 ```
 
+## 配置 native 库打包 {#native-library-packaging}
+
+宿主应用必须启用旧式 JNI 库打包：
+
+```kotlin
+android {
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+}
+```
+
+Root、ADB、手动和外部启动都会把 `libprivkitstarter.so` 作为独立程序执行。此配置
+让 Android 将 starter 解压到 `ApplicationInfo.nativeLibraryDir`。如果没有这项
+配置，Android 可能只把 native 库保留在 APK 中，导致
+`Privilege.nativeStarterPath` 没有指向可执行文件。
+
+此配置会作用于宿主应用中的所有 JNI 库，而不只是 Priv Kit starter。解压这些库
+可能增加应用的安装后占用。
+
 ## 配置 hidden API 访问 {#hidden-api-access}
 
 应用必须配置

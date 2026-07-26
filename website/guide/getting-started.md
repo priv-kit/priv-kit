@@ -32,6 +32,29 @@ dependencies {
 }
 ```
 
+## Configure native library packaging {#native-library-packaging}
+
+The host app must enable legacy JNI library packaging:
+
+```kotlin
+android {
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+}
+```
+
+Priv Kit executes `libprivkitstarter.so` as a standalone program for Root, ADB,
+Manual, and external startup. This setting makes Android extract the starter to
+`ApplicationInfo.nativeLibraryDir`. Without it, Android can keep native
+libraries inside the APK, so `Privilege.nativeStarterPath` may not point to an
+executable file.
+
+This setting applies to every JNI library in the host app, not only the Priv Kit
+starter. Extracting those libraries can increase the app's installed size.
+
 ## Configure hidden API access {#hidden-api-access}
 
 The host app must configure
