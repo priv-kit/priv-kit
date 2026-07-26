@@ -217,7 +217,8 @@ YourApp.showCommandToUser("adb shell $nativeStarterPath")
 ```
 
 `priv-core` returns the installed native starter SO path. The host adds `adb shell`
-when presenting a command that runs from a development machine.
+when presenting a command that runs from a development machine. The starter only
+runs as root (UID 0), system (UID 1000), or shell (UID 2000).
 
 A rendered command looks like:
 
@@ -233,8 +234,8 @@ execute the same command inside its privileged process. Both methods enter the
 same Privileged Server startup and Binder handoff path.
 
 The external authorizer can be any app-owned privileged entry capable of
-running that command. The application owns third-party authorization, binding,
-and access control, while `priv-core` supplies the command bridge.
+running that command as root, system, or shell. The application owns third-party
+authorization, binding, and access control, while `priv-core` supplies the command bridge.
 The following example assumes Shizuku is already available and authorized. Its
 key step is a Shizuku UserService that exposes the Priv Kit startup bridge.
 

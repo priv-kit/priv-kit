@@ -13,8 +13,21 @@ namespace {
 
     constexpr size_t MAX_CLASSPATH_LENGTH = 8192;
     constexpr size_t MAX_SPLIT_APK_COUNT = 128;
+    constexpr uid_t ROOT_UID = 0;
+    constexpr uid_t SYSTEM_UID = 1000;
+    constexpr uid_t SHELL_UID = 2000;
+    constexpr int UNSUPPORTED_UID_EXIT_CODE = 8;
     constexpr const char *DEFAULT_MAIN_CLASS = "priv.kit.core.internal.server.PrivilegeServerMain";
     constexpr const char *DEFAULT_PROCESS_SUFFIX = ":priv-kit-server";
+
+    constexpr bool is_supported_starter_uid(uid_t uid) {
+        return uid == ROOT_UID || uid == SYSTEM_UID || uid == SHELL_UID;
+    }
+
+    static_assert(is_supported_starter_uid(ROOT_UID));
+    static_assert(is_supported_starter_uid(SYSTEM_UID));
+    static_assert(is_supported_starter_uid(SHELL_UID));
+    static_assert(!is_supported_starter_uid(1001));
 
     struct StarterConfig {
         char classpath[MAX_CLASSPATH_LENGTH] = {};
@@ -350,6 +363,15 @@ namespace {
 } // namespace
 
 int main(int argc, char **argv) {
+    const uid_t uid = getuid();
+    if (!is_supported_starter_uid(uid)) {
+        fprintf(
+                stderr,
+                "fatal: priv-kit starter requires root (uid 0), system (uid 1000), "
+                "or shell (uid 2000); current uid=%u\n",
+                static_cast<unsigned int>(uid));
+        return UNSUPPORTED_UID_EXIT_CODE;
+    }
     if (argc != 1) {
         fprintf(stderr, "fatal: priv-kit starter does not accept arguments\n");
         return 2;

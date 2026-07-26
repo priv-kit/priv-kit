@@ -200,7 +200,8 @@ YourApp.showCommandToUser("adb shell $nativeStarterPath")
 ```
 
 `priv-core` 返回已安装的 native starter SO 路径。应用向开发机器展示命令时，
-在路径前添加 `adb shell`。
+在路径前添加 `adb shell`。Starter 只允许 root（UID 0）、system（UID 1000）
+或 shell（UID 2000）身份运行。
 
 实际生成的命令示例如下：
 
@@ -214,9 +215,9 @@ adb shell /data/app/~~-YKUdRFBwGAwYBVzJRt7pA==/priv.kit.sample.debug-A-2guZlsvRZ
 授权器，在它提供的特权进程中执行同一条命令。两种方式最终进入同一条
 Privileged Server 启动流程，并与应用建立同样的 Binder 连接。
 
-外部授权器可以是应用提供的任何服务或工具，只要它能在特权进程中执行该命令。
-应用负责接入第三方授权器、绑定服务和控制访问权限，`priv-core` 负责把命令传给
-授权器。下面以 Shizuku UserService 为例。这里假设 Shizuku 已经可用并完成授权，
+外部授权器可以是应用提供的任何服务或工具，只要它能以 root、system 或 shell
+身份执行该命令。应用负责接入第三方授权器、绑定服务和控制访问权限，`priv-core`
+负责把命令传给授权器。下面以 Shizuku UserService 为例。这里假设 Shizuku 已经可用并完成授权，
 只说明启动 Priv Kit 需要用到的 UserService 代码。
 
 #### 定义 UserService {#define-user-service}

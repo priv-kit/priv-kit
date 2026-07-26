@@ -18,6 +18,22 @@ class PrivilegeNativeStarterDefaultsTest {
         assertTrue(sourceFileFor(PrivilegeServerLaunchCommandBuilder.SERVER_MAIN_CLASS).isFile)
     }
 
+    @Test
+    fun nativeStarterAllowsOnlyRootSystemAndShellUids() {
+        val source = nativeStarterSource().readText()
+
+        assertTrue(source.contains("constexpr uid_t ROOT_UID = 0;"))
+        assertTrue(source.contains("constexpr uid_t SYSTEM_UID = 1000;"))
+        assertTrue(source.contains("constexpr uid_t SHELL_UID = 2000;"))
+        assertTrue(
+            source.contains(
+                "return uid == ROOT_UID || uid == SYSTEM_UID || uid == SHELL_UID;",
+            ),
+        )
+        assertTrue(source.contains("if (!is_supported_starter_uid(uid))"))
+        assertTrue(source.contains("static_assert(!is_supported_starter_uid(1001));"))
+    }
+
     private fun nativeStarterSource(): File =
         listOf(
             File("src/main/cpp/priv_kit_starter.cpp"),

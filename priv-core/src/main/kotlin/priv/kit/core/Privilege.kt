@@ -136,7 +136,7 @@ public object Privilege {
      *
      * The path is resolved on first access and cached for the lifetime of this process.
      * Host UI can prefix it with `adb shell ` when presenting a command for a development
-     * machine.
+     * machine. The starter only runs as root (UID 0), system (UID 1000), or shell (UID 2000).
      */
     @get:Throws(PrivilegeStartupException::class)
     public val nativeStarterPath: String by lazy {

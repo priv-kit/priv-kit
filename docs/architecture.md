@@ -108,6 +108,8 @@
 
 Root 和 ADB 的 transport 与诊断留在 `:priv-core` 内部。Core 公开 native starter SO 路径，并在内部为受协调的启动组装命令。手动命令和外部入口复用同一服务端入口与 Binder handoff，不得扩展为公开 shell helper、ADB helper 或特权操作库。
 
+Native starter 必须在解析 APK、终止旧服务端或创建新进程前校验实际 UID，只允许 root（0）、system（1000）和 shell（2000）。Provider 侧保留独立的可信调用方校验作为纵深防御。
+
 外部启动集成的通用 runner、特权端 host、进程执行、日志管道、完成、超时和并发处理可以属于 Core。第三方绑定代码和应用自有 AIDL 必须留在应用侧、可选集成或 sample。
 
 入口进程的身份不等于最终服务端身份。服务端必须基于实际进程身份报告和校验 uid、pid、package、协议版本及启动关联。运行时只可为自身启动闭环授予必要且有限的能力，不得成为通用授权代理。

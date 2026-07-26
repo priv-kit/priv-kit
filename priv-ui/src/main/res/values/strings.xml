@@ -9,7 +9,9 @@
     <string name="priv_ui_service_not_started">Not started</string>
     <string name="priv_ui_service_source">Source: %1$s</string>
     <string name="priv_ui_service_source_root">Root</string>
+    <string name="priv_ui_service_source_system">System</string>
     <string name="priv_ui_service_source_shell">Shell</string>
+    <string name="priv_ui_service_source_uid">uid(%1$d)</string>
     <string name="priv_ui_service_source_unknown">Unknown</string>
     <string name="priv_ui_auto_recovery_disconnected_title">Privileged service is not running</string>
     <string name="priv_ui_auto_recovery_disconnected_message">Automatic recovery is enabled and will try to start the service the next time the app starts.</string>

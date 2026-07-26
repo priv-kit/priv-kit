@@ -40,14 +40,17 @@ import androidx.compose.ui.unit.dp
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.shared.PRIVILEGE_INTERNAL_ROOT_UID
 import priv.kit.shared.PRIVILEGE_INTERNAL_SHELL_UID
+import priv.kit.shared.PRIVILEGE_INTERNAL_SYSTEM_UID
 import priv.kit.ui.PrivilegeUiPermissionRestrictionStatus
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
 import priv.kit.ui.PrivilegeUiRuntimeStatus
 import priv.kit.ui.PrivilegeUiScreenScope
 import priv.kit.ui.PrivilegeUiState
+import priv.kit.ui.PrivilegeUiText
 import priv.kit.ui.R
 import priv.kit.ui.asString
+import priv.kit.ui.privilegeUiText
 
 @Composable
 internal fun Panel(content: @Composable ColumnScope.() -> Unit) {
@@ -233,7 +236,7 @@ internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
             title = stringResource(R.string.priv_ui_service_started),
             detail = stringResource(
                 R.string.priv_ui_service_source,
-                state.serverInfo.runtimeSourceText(),
+                state.serverInfo.runtimeSourceText().asString(),
             ),
             background = MaterialTheme.colorScheme.tertiaryContainer,
             foreground = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -550,10 +553,12 @@ private fun PrivilegeUiState.runtimeStatusDetail(): String =
         }
     }
 
-@Composable
-private fun PrivilegeServerInfo?.runtimeSourceText(): String =
-    when (this?.uid) {
-        PRIVILEGE_INTERNAL_ROOT_UID -> stringResource(R.string.priv_ui_service_source_root)
-        PRIVILEGE_INTERNAL_SHELL_UID -> stringResource(R.string.priv_ui_service_source_shell)
-        else -> stringResource(R.string.priv_ui_service_source_unknown)
+internal fun PrivilegeServerInfo?.runtimeSourceText(): PrivilegeUiText {
+    val uid = this?.uid ?: return privilegeUiText(R.string.priv_ui_service_source_unknown)
+    return when (uid) {
+        PRIVILEGE_INTERNAL_ROOT_UID -> privilegeUiText(R.string.priv_ui_service_source_root)
+        PRIVILEGE_INTERNAL_SYSTEM_UID -> privilegeUiText(R.string.priv_ui_service_source_system)
+        PRIVILEGE_INTERNAL_SHELL_UID -> privilegeUiText(R.string.priv_ui_service_source_shell)
+        else -> privilegeUiText(R.string.priv_ui_service_source_uid, uid)
     }
+}

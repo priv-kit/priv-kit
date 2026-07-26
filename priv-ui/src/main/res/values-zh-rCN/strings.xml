@@ -9,7 +9,9 @@
     <string name="priv_ui_service_not_started">未启动</string>
     <string name="priv_ui_service_source">来源：%1$s</string>
     <string name="priv_ui_service_source_root">Root</string>
+    <string name="priv_ui_service_source_system">System</string>
     <string name="priv_ui_service_source_shell">Shell</string>
+    <string name="priv_ui_service_source_uid">uid(%1$d)</string>
     <string name="priv_ui_service_source_unknown">未知</string>
     <string name="priv_ui_auto_recovery_disconnected_title">特权服务未运行</string>
     <string name="priv_ui_auto_recovery_disconnected_message">自动恢复仍处于开启状态，下次启动应用时会再次尝试启动服务。</string>
