@@ -27,6 +27,7 @@ import org.robolectric.annotation.Config
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
@@ -70,7 +71,6 @@ class PrivilegeUiViewModelTest {
     @Test
     fun fastSilentCompletionIsEventuallyReconciled() = runBlocking {
         val viewModel = RootOnlyPrivilegeUiViewModel(application())
-        assertTrue(viewModel.uiInteractionsEnabled)
 
         val previousCompletionSerial =
             PrivilegeUiStartGate.state.value.silentCompletionSerial
@@ -83,7 +83,7 @@ class PrivilegeUiViewModelTest {
         withTimeout(TimeUnit.SECONDS.toMillis(2)) {
             while (
                 !viewModel.uiInteractionsEnabled ||
-                !viewModel.state.value.runtimeStatusLoaded
+                !viewModel.uiInitialized.value
             ) {
                 shadowOf(Looper.getMainLooper()).idle()
                 delay(1)
@@ -93,76 +93,103 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
-    fun initialRuntimeReconciliationSuppressesAutoRecoveryWarning() {
+    fun autoRecoveryWarningRequiresInteractions() {
         val state = PrivilegeUiState(
             desiredEnabled = true,
             runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
             runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
         )
 
-        assertFalse(
+        assertTrue(
             privilegeUiAutoRecoveryWarningVisible(
                 state = state,
                 interactionEnabled = true,
             ),
         )
-        assertTrue(
-            privilegeUiAutoRecoveryWarningVisible(
-                state = state.copy(runtimeStatusLoaded = true),
-                interactionEnabled = true,
-            ),
-        )
         assertFalse(
             privilegeUiAutoRecoveryWarningVisible(
-                state = state.copy(runtimeStatusLoaded = true),
+                state = state,
                 interactionEnabled = false,
             ),
         )
     }
 
     @Test
-    fun startupModePanelsWaitForTheirOwnInitialStatus() {
-        val state = PrivilegeUiState(
-            startupModes = PrivilegeUiStartupMode.entries,
-            selectedStartupMode = PrivilegeUiStartupMode.ROOT,
+    fun initializationAndInteractionsBecomeVisibleAtomically() = runBlocking {
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
+
+        assertFalse(
+            viewModel.uiInitialized.value &&
+                !viewModel.uiInteractionsEnabled,
         )
 
-        assertTrue(state.selectedStartupModeStatusLoaded())
-        assertFalse(
-            state.copy(selectedStartupMode = PrivilegeUiStartupMode.MANUAL_SHELL)
-                .selectedStartupModeStatusLoaded(),
-        )
-        assertFalse(
-            state.copy(selectedStartupMode = PrivilegeUiStartupMode.ADB)
-                .selectedStartupModeStatusLoaded(),
-        )
-        assertFalse(
-            state.copy(selectedStartupMode = PrivilegeUiStartupMode.EXTERNAL)
-                .selectedStartupModeStatusLoaded(),
-        )
-        assertTrue(
-            state.copy(
-                selectedStartupMode = PrivilegeUiStartupMode.MANUAL_SHELL,
-                manualShellStatusLoaded = true,
-            ).selectedStartupModeStatusLoaded(),
-        )
-        assertTrue(
-            state.copy(
-                selectedStartupMode = PrivilegeUiStartupMode.ADB,
-                adbStatusLoaded = true,
-            ).selectedStartupModeStatusLoaded(),
-        )
-        assertTrue(
-            state.copy(
-                selectedStartupMode = PrivilegeUiStartupMode.EXTERNAL,
-                externalStartStatusLoaded = true,
-            ).selectedStartupModeStatusLoaded(),
-        )
+        withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+            while (!viewModel.uiInitialized.value) {
+                shadowOf(Looper.getMainLooper()).idle()
+                delay(1)
+            }
+        }
+
+        assertTrue(viewModel.uiEffectsEnabled.value)
+        assertTrue(viewModel.uiInteractionsEnabled)
     }
 
     @Test
-    fun clearStartupLogRemovesVisibleLogContent() {
+    fun slowExternalSnapshotDoesNotDelayPageInitialization() = runBlocking {
+        val snapshotStarted = CompletableDeferred<Unit>()
+        val releaseSnapshot = CompletableDeferred<Unit>()
+        val provider = object : PrivilegeUiExternalStartProvider {
+            override val id: String = "slow"
+            override val label: CharSequence = "Slow"
+
+            override suspend fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot {
+                snapshotStarted.complete(Unit)
+                releaseSnapshot.await()
+                return PrivilegeUiExternalStartSnapshot(
+                    available = true,
+                    authorized = true,
+                )
+            }
+
+            override suspend fun start(
+                context: Context,
+                commandLine: String,
+            ) = Unit
+        }
+        val viewModel = configuredViewModel(
+            PrivilegeUiConfig(
+                startupModes = setOf(
+                    PrivilegeUiStartupMode.ROOT,
+                    PrivilegeUiStartupMode.EXTERNAL,
+                ),
+                adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+                externalStartProviders = listOf(provider),
+            ),
+        )
+
+        viewModel.awaitInitialization()
+        withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+            snapshotStarted.await()
+        }
+
+        assertTrue(viewModel.uiInteractionsEnabled)
+        assertFalse(viewModel.state.value.externalStartItems.single().statusLoaded)
+
+        releaseSnapshot.complete(Unit)
+        withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+            while (!viewModel.state.value.externalStartItems.single().statusLoaded) {
+                shadowOf(Looper.getMainLooper()).idle()
+                delay(1)
+            }
+        }
+
+        assertTrue(viewModel.state.value.externalStartItems.single().snapshot.canStart)
+    }
+
+    @Test
+    fun clearStartupLogRemovesVisibleLogContent() = runBlocking {
         val viewModel = RootOnlyPrivilegeUiViewModel(application())
+        viewModel.awaitInitialization()
         viewModel.storeForTest().appendStartupLog("diagnostic")
 
         viewModel.clearStartupLog()
@@ -277,6 +304,7 @@ class PrivilegeUiViewModelTest {
                 startTimeoutMillis = 250L,
             ),
         )
+        viewModel.awaitInitialization()
         val actions = viewModel.runtimeActionsForTest()
         val started = CountDownLatch(1)
         val release = CountDownLatch(1)
@@ -434,9 +462,10 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
-    fun notificationPermissionSettingsRequestKeepsWarningAndOpensCurrentAppSettings() {
+    fun notificationPermissionSettingsRequestKeepsWarningAndOpensCurrentAppSettings() = runBlocking {
         val application = application()
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitInitialization()
         val store = viewModel.storeForTest()
         store.updateState {
             it.copy(pairingNotificationPermissionWarningVisible = true)
@@ -465,9 +494,10 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
-    fun notificationPermissionSettingsRequestIsOverridable() {
+    fun notificationPermissionSettingsRequestIsOverridable() = runBlocking {
         val application = application()
         val viewModel = NotificationSettingsPrivilegeUiViewModel(application)
+        viewModel.awaitInitialization()
         viewModel.storeForTest().updateState {
             it.copy(pairingNotificationPermissionWarningVisible = true)
         }
@@ -485,6 +515,7 @@ class PrivilegeUiViewModelTest {
         val shadowApplication = shadowOf(application)
         shadowApplication.denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitInitialization()
         viewModel.storeForTest().updateState {
             it.copy(pairingNotificationPermissionWarningVisible = true)
         }
@@ -566,6 +597,7 @@ class PrivilegeUiViewModelTest {
         val application = application()
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitInitialization()
         val hostId = "permission-host"
         viewModel.registerPermissionHost(hostId)
         var permissionRequest: PrivilegeUiPermissionRequest? = null
@@ -609,6 +641,7 @@ class PrivilegeUiViewModelTest {
         val application = application()
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitInitialization()
         val hostId = "permission-host"
         viewModel.registerPermissionHost(hostId)
         viewModel.startNotificationPairing()
@@ -639,6 +672,7 @@ class PrivilegeUiViewModelTest {
         val application = application()
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitInitialization()
         val hostId = "permission-host"
         viewModel.registerPermissionHost(hostId)
         var request: PrivilegeUiPermissionRequest? = null
@@ -677,10 +711,11 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
-    fun configurationDetachedHostDoesNotAcceptNewPermissionRequest() {
+    fun configurationDetachedHostDoesNotAcceptNewPermissionRequest() = runBlocking {
         val application = application()
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitInitialization()
         val hostId = "permission-host"
         viewModel.registerPermissionHost(hostId)
         viewModel.unregisterPermissionHost(hostId, changingConfigurations = true)
@@ -699,6 +734,7 @@ class PrivilegeUiViewModelTest {
         val application = application()
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitInitialization()
         val ownerHostId = "owner-host"
         val observerHostId = "observer-host"
         viewModel.registerPermissionHost(ownerHostId)
@@ -722,10 +758,11 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
-    fun permissionRequestIsRejectedAfterLastHostUnbinds() {
+    fun permissionRequestIsRejectedAfterLastHostUnbinds() = runBlocking {
         val application = application()
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitInitialization()
         val hostId = "permission-host"
         viewModel.registerPermissionHost(hostId)
         viewModel.unregisterPermissionHost(hostId, changingConfigurations = false)
@@ -828,6 +865,15 @@ class PrivilegeUiViewModelTest {
 
     private fun application(): Application =
         (RuntimeEnvironment.getApplication() as Application).also(PrivilegeContext::install)
+
+    private suspend fun PrivilegeUiViewModel.awaitInitialization() {
+        withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+            while (!uiInitialized.value) {
+                shadowOf(Looper.getMainLooper()).idle()
+                delay(1)
+            }
+        }
+    }
 
     private fun PrivilegeUiViewModel.storeForTest(): PrivilegeUiViewModelStore {
         val field = PrivilegeUiViewModel::class.java.getDeclaredField("store")

@@ -26,7 +26,7 @@ class PrivilegeAdbTcpManagerTest {
     fun switchToTcpSkipsCommandWhenTargetPortIsAlreadyActive() = runBlocking {
         setSystemProperty(SERVICE_ADB_TCP_PORT, "5555")
         val manager = manager(
-            loadKeyBytes = { error("key should not be loaded when TCP port is already active") },
+            keyProvider = { error("key should not be loaded when TCP port is already active") },
             nsdManagerProvider = { error("NSD should not be used when TCP port is already active") },
         )
 
@@ -43,7 +43,7 @@ class PrivilegeAdbTcpManagerTest {
     fun openTcpAuthorizationCheckSessionWrapsKeyFailureInPublicStartupException() {
         val keyFailure = IllegalStateException("key storage is unavailable")
         val manager = manager(
-            loadKeyBytes = { throw keyFailure },
+            keyProvider = { throw keyFailure },
             nsdManagerProvider = { error("NSD should not be used when loading the ADB key") },
         )
 
@@ -59,14 +59,14 @@ class PrivilegeAdbTcpManagerTest {
     }
 
     private fun manager(
-        loadKeyBytes: () -> ByteArray,
+        keyProvider: () -> PrivilegeAdbKey,
         nsdManagerProvider: () -> NsdManager,
     ): PrivilegeAdbTcpManager {
         val identityProvider = PrivilegeAdbIdentityProvider(
             identity = PrivilegeAdbIdentity.default(
                 deviceName = PrivilegeAdbIdentity.DEFAULT_DEVICE_NAME,
             ),
-            loadKeyBytes = loadKeyBytes,
+            keyProvider = keyProvider,
         )
         val wirelessDebuggingControllerProvider = { fakeWirelessDebuggingController() }
         val endpointResolver = PrivilegeAdbEndpointResolver(

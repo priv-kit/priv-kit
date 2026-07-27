@@ -7,6 +7,7 @@ import android.os.IBinder
 import android.os.Process
 import android.os.RemoteException
 import android.util.Log
+import androidx.annotation.WorkerThread
 import priv.kit.core.adb.PrivilegeAdbIdentity
 import priv.kit.core.adb.PrivilegeAdbStartOptions
 import priv.kit.core.adb.PrivilegeAdbStartResult
@@ -31,6 +32,7 @@ import priv.kit.shared.PrivilegeManifestPermissions
 import priv.kit.shared.toPrivilegeAdbDeviceNameText
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
 import java.io.Closeable
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -82,11 +84,10 @@ public object Privilege {
 
         try {
             startupLogListener.emitStartupLog("runtime", "Starting with root")
-            rootProcess = runInterruptible {
+            rootProcess = runInterruptible(Dispatchers.IO) {
                 PrivilegeRootStarter.start(
-                    PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
+                    createNativeStarterCommand(
                         launchCorrelationId = launchCorrelationId,
-                        clearInheritedLaunchCorrelationId = false,
                     ),
                     startupLogListener = startupLogListener,
                 )
@@ -132,23 +133,29 @@ public object Privilege {
     }
 
     /**
-     * The device-side path of the installed native starter SO.
+     * A device-side shell command that starts the native starter.
      *
-     * The path is resolved on first access and cached for the lifetime of this process.
+     * On Android 10 and later this command runs an uncompressed starter directly from an APK
+     * through the platform linker when no extracted file exists. On Android 8, 8.1, and 9 the
+     * host app must set `packaging.jniLibs.useLegacyPackaging = true`.
+     *
+     * The command is resolved on first access and cached for the lifetime of this process.
+     * First access inspects the installed APKs and must run off the main thread.
      * Host UI can prefix it with `adb shell ` when presenting a command for a development
      * machine. The starter only runs as root (UID 0), system (UID 1000), or shell (UID 2000).
      */
     @get:Throws(PrivilegeStartupException::class)
-    public val nativeStarterPath: String by lazy {
-        PrivilegeServerLaunchCommandBuilder.buildNativeStarterPath()
+    @get:WorkerThread
+    public val nativeStarterCommand: String by lazy {
+        PrivilegeServerLaunchCommandBuilder.resolveNativeStarterCommand()
     }
 
-    internal fun createNativeStarterCommandWithLaunchCorrelationId(
-        launchCorrelationId: String,
+    internal fun createNativeStarterCommand(
+        launchCorrelationId: String?,
     ): String =
         PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
+            baseNativeStarterCommand = nativeStarterCommand,
             launchCorrelationId = launchCorrelationId,
-            clearInheritedLaunchCorrelationId = false,
         )
 
     @Throws(PrivilegeStartupException::class)
@@ -202,8 +209,15 @@ public object Privilege {
         try {
             Log.i(TAG, "Starting through ADB keySignature=<redacted>")
             startupLogListener.emitStartupLog("runtime", "Starting through ADB")
+            val launchCommand = runInterruptible(Dispatchers.IO) {
+                PrivilegeServerLaunchCommandBuilder.build(
+                    starterCommandLine = createNativeStarterCommand(
+                        launchCorrelationId = launchCorrelationId,
+                    ),
+                )
+            }
             val adbStartResult = adbManager.start(
-                PrivilegeServerLaunchCommandBuilder.build(launchCorrelationId),
+                launchCommand,
                 options,
                 startupLogListener = startupLogListener,
             )

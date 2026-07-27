@@ -33,6 +33,7 @@
     <string name="priv_ui_stop_service_confirm">Stop</string>
     <string name="priv_ui_stop_service_cancel">Cancel</string>
     <string name="priv_ui_status_unavailable">Unavailable</string>
+    <string name="priv_ui_status_loading">Loading…</string>
     <string name="priv_ui_ready">Ready</string>
     <string name="priv_ui_connected">Connected</string>
     <string name="priv_ui_binder_died">Binder died</string>
@@ -46,7 +47,7 @@
     <string name="priv_ui_startup_log_copied">Startup log copied</string>
     <string name="priv_ui_startup_log_clip_label">Priv Kit startup log</string>
     <string name="priv_ui_root_authorization_action">Start</string>
-    <string name="priv_ui_manual_authorization_desc">Copy this command and run it from a computer connected to this device, manual startup cannot restart itself after the service is closed, ADB startup is recommended</string>
+    <string name="priv_ui_manual_authorization_desc">Copy this command and run it from a computer connected to this device, manual startup cannot restart itself after the service is closed, another startup method is recommended</string>
     <string name="priv_ui_manual_command_unavailable">Manual command is unavailable</string>
     <string name="priv_ui_manual_copy_command">Copy</string>
     <string name="priv_ui_manual_command_copied">Manual command copied</string>

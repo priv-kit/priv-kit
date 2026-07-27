@@ -1,5 +1,4 @@
 <resources>
-    <string name="app_name">Priv Kit Sample</string>
     <string name="sample_open_privilege_ui">Open UI</string>
     <string name="sample_privilege_ui_shizuku_not_running">Shizuku is not running</string>
     <string name="sample_privilege_ui_shizuku_pre_v11">Shizuku pre-v11 is not supported</string>

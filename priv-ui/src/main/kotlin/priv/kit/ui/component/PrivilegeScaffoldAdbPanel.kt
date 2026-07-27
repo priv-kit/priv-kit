@@ -78,7 +78,9 @@ internal fun PrivilegeUiScreenScope.AdbPanel() {
         Panel {
             val wirelessAdbVisible = isPrivilegeUiWirelessAdbSupported()
             val staticTcpVisible = viewModel.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED
-            AdbFingerprintRow(fingerprint = state.adbKeyFingerprint)
+            AdbFingerprintRow(
+                fingerprint = state.adbKeyFingerprint,
+            )
             if (!wirelessAdbVisible && !staticTcpVisible) {
                 StatusText(stringResource(R.string.priv_ui_adb_unavailable))
             } else {
@@ -154,8 +156,16 @@ private fun PrivilegeUiScreenScope.WirelessAdbSection() {
             (!state.busy || state.pairingStatus.isPrivilegeUiPairingSessionActive())
         AdbStatusRow(
             label = stringResource(R.string.priv_ui_adb_tab_wireless),
-            text = wirelessStatus.displayText(),
-            color = wirelessStatus.displayColor(),
+            text = if (state.wirelessAdbStatusLoaded) {
+                wirelessStatus.displayText()
+            } else {
+                stringResource(R.string.priv_ui_status_loading)
+            },
+            color = if (state.wirelessAdbStatusLoaded) {
+                wirelessStatus.displayColor()
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
         )
         if (state.pairingNotificationPermissionWarningVisible) {
             WirelessAdbPairingNotificationPermissionWarningDialog()
@@ -413,16 +423,17 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
         val prepareActionVisible = !wirelessAdbSupported &&
             tcpPolicy == PrivilegeUiAdbTcpPolicy.AUTO_ENABLE_AFTER_WIRELESS_PAIRED
         val prepareActionEnabled = prepareActionVisible &&
+            state.staticTcpStatusLoaded &&
             interactionEnabled &&
             !runtimeStartInProgress &&
+            !state.busy &&
             paired &&
-            !staticTcpActive &&
-            !state.busy
+            !staticTcpActive
         val startAction = staticTcpStartAction(
             runtimeStartPhase = state.runtimeStartPhase,
             ownsRuntimeStart = staticTcpOwnsRuntimeStart,
         )
-        val tcpStartActionEnabled = staticTcpActionEnabled(
+        val tcpStartActionEnabled = state.staticTcpStatusLoaded && staticTcpActionEnabled(
             action = startAction,
             busy = state.busy,
             wirelessAdbSupported = wirelessAdbSupported,
@@ -433,8 +444,16 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
         )
         AdbStatusRow(
             label = stringResource(R.string.priv_ui_adb_tab_static),
-            text = staticTcpStatus.displayText(),
-            color = staticTcpStatus.displayColor(),
+            text = if (state.staticTcpStatusLoaded) {
+                staticTcpStatus.displayText()
+            } else {
+                stringResource(R.string.priv_ui_status_loading)
+            },
+            color = if (state.staticTcpStatusLoaded) {
+                staticTcpStatus.displayColor()
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
         )
         if (prepareActionVisible) {
             OutlinedButton(
@@ -481,7 +500,9 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
                 CommandBlock(staticTcpCommand)
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = interactionEnabled && !runtimeStartInProgress && !state.busy,
+                    enabled = interactionEnabled &&
+                        !runtimeStartInProgress &&
+                        !state.busy,
                     onClick = {
                         if (!viewModel.uiInteractionsEnabled) return@OutlinedButton
                         viewModel.copyStaticTcpCommand()
@@ -523,7 +544,9 @@ internal fun privilegeUiFingerprintShouldWrap(
 ): Boolean = if (currentlyWrapped) lineCount > 1 else didOverflowWidth || didOverflowHeight
 
 @Composable
-private fun AdbFingerprintRow(fingerprint: String?) {
+private fun AdbFingerprintRow(
+    fingerprint: String?,
+) {
     val typography = MaterialTheme.typography
     val fingerprintTextStyle = typography.bodySmall
     val textPolicy = privilegeUiFingerprintTextPolicy(typography)
@@ -540,7 +563,9 @@ private fun AdbFingerprintRow(fingerprint: String?) {
         SelectionContainer {
             Text(
                 modifier = Modifier.fillMaxWidth(),
-                text = fingerprint ?: stringResource(R.string.priv_ui_adb_key_fingerprint_unavailable),
+                text = fingerprint ?: stringResource(
+                    R.string.priv_ui_adb_key_fingerprint_unavailable,
+                ),
                 style = if (fingerprintWrapped && textPolicy != null) {
                     fingerprintTextStyle.copy(fontSize = textPolicy.minFontSize)
                 } else {

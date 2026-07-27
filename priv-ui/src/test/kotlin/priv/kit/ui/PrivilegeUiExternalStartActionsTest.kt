@@ -34,8 +34,8 @@ class PrivilegeUiExternalStartActionsTest {
     @Test
     fun authorizationCallHoldsInteractivePermitUntilProviderReturns() = runBlocking {
         val provider = BlockingAuthorizationExternalStartProvider()
-        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
         val config = PrivilegeUiConfig(externalStartProviders = listOf(provider))
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication(), config)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val runtimeActions = PrivilegeUiRuntimeActions(store = store, coroutineScope = scope)
         val actions = PrivilegeUiExternalStartActions(
@@ -43,8 +43,6 @@ class PrivilegeUiExternalStartActionsTest {
             runtimeActions = runtimeActions,
         )
         try {
-            store.config = config
-            store.initializeState(config)
             val authorization = async(Dispatchers.Default) {
                 actions.authorizeOrStartExternal(provider.id)
             }
@@ -68,8 +66,8 @@ class PrivilegeUiExternalStartActionsTest {
     @Test
     fun silentOwnerPreventsExternalProviderCalls() = runBlocking {
         val provider = CountingExternalStartProvider()
-        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
         val config = PrivilegeUiConfig(externalStartProviders = listOf(provider))
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication(), config)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val runtimeActions = PrivilegeUiRuntimeActions(store = store, coroutineScope = scope)
         val actions = PrivilegeUiExternalStartActions(
@@ -78,9 +76,6 @@ class PrivilegeUiExternalStartActionsTest {
         )
         val silentPermit = PrivilegeUiStartGate.tryAcquireSilent()!!
         try {
-            store.config = config
-            store.initializeState(config)
-
             actions.refreshExternalStartStatusNow(providerId = null)
             actions.authorizeOrStartExternal(provider.id)
             actions.directStartAttempt(provider.id)
@@ -124,15 +119,12 @@ class PrivilegeUiExternalStartActionsTest {
     @Test
     fun snapshotCancellationIsNotConvertedIntoFailureState() = runBlocking {
         val provider = CancellingExternalStartProvider()
-        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
         val config = PrivilegeUiConfig(externalStartProviders = listOf(provider))
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication(), config)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val runtimeActions = PrivilegeUiRuntimeActions(store = store, coroutineScope = scope)
         val actions = PrivilegeUiExternalStartActions(store = store, runtimeActions = runtimeActions)
         try {
-            store.config = config
-            store.initializeState(config)
-
             val failure = runCatching {
                 actions.refreshExternalStartStatusNow(providerId = provider.id)
             }.exceptionOrNull()
@@ -148,8 +140,8 @@ class PrivilegeUiExternalStartActionsTest {
     @Test
     fun suspendingAuthorizationContinuesDirectlyFromItsCallbackResult() = runBlocking {
         val provider = SuspendingAuthorizationExternalStartProvider()
-        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
         val config = PrivilegeUiConfig(externalStartProviders = listOf(provider))
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication(), config)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val runtimeActions = PrivilegeUiRuntimeActions(
             store = store,
@@ -161,9 +153,6 @@ class PrivilegeUiExternalStartActionsTest {
             createNativeStarterCommand = { _ -> "external command" },
         )
         try {
-            store.config = config
-            store.initializeState(config)
-
             val authorization = async(start = CoroutineStart.UNDISPATCHED) {
                 actions.authorizeOrStartExternal(provider.id)
             }
@@ -188,8 +177,8 @@ class PrivilegeUiExternalStartActionsTest {
     @Config(qualifiers = "zh-rCN")
     fun externalStartFailureUsesLocalizedMessageAndKeepsDiagnosticLog() = runBlocking {
         val provider = ThrowingExternalStartProvider()
-        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
         val config = PrivilegeUiConfig(externalStartProviders = listOf(provider))
+        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication(), config)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val runtimeActions = PrivilegeUiRuntimeActions(
             store = store,
@@ -201,8 +190,6 @@ class PrivilegeUiExternalStartActionsTest {
             createNativeStarterCommand = { _ -> "external command" },
         )
         try {
-            store.config = config
-            store.initializeState(config)
             val snackbar = async(start = CoroutineStart.UNDISPATCHED) {
                 withTimeout(2_000.milliseconds) {
                     store.snackbarTexts.first().asString(store.requireContext())

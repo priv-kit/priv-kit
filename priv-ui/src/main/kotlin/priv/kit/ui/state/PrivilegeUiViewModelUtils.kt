@@ -16,8 +16,8 @@ internal fun Context.copyToClipboard(label: String, text: String) {
 internal fun String.toPrivilegeUiAdbDeviceNameText(): String =
     toPrivilegeAdbDeviceNameText()
 
-internal fun privilegeUiManualShellCommand(nativeStarterPath: String): String =
-    ADB_SHELL_PREFIX + nativeStarterPath.trim()
+internal fun privilegeUiManualShellCommand(nativeStarterCommand: String): String =
+    ADB_SHELL_PREFIX + nativeStarterCommand.trim()
 
 internal fun privilegeUiStaticTcpOpenCommand(tcpPort: Int): String =
     "adb tcpip $tcpPort"

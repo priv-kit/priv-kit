@@ -355,7 +355,10 @@ internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
                 FilledTonalIconButton(
                     modifier = Modifier.size(PrivilegeUiSize.minimumTouchTarget),
                     enabled = interactionEnabled &&
-                        privilegeUiServiceStatusActionEnabled(action, state.busy),
+                        privilegeUiServiceStatusActionEnabled(
+                            action = action,
+                            busy = state.busy,
+                        ),
                     colors = IconButtonDefaults.filledTonalIconButtonColors(
                         containerColor = actionContainer,
                         contentColor = actionForeground,

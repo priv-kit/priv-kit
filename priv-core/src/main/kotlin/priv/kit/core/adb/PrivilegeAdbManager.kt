@@ -12,13 +12,13 @@ import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILL
 
 public class PrivilegeAdbManager private constructor(
     identity: PrivilegeAdbIdentity,
-    loadKeyBytes: () -> ByteArray,
+    keyProvider: () -> PrivilegeAdbKey,
     nsdManagerProvider: () -> NsdManager,
     wirelessDebuggingControllerProvider: () -> PrivilegeAdbWirelessDebuggingController,
 ) {
     private val identityProvider = PrivilegeAdbIdentityProvider(
         identity = identity,
-        loadKeyBytes = loadKeyBytes,
+        keyProvider = keyProvider,
     )
     private val endpointResolver = PrivilegeAdbEndpointResolver(
         nsdManagerProvider = nsdManagerProvider,
@@ -168,9 +168,12 @@ public class PrivilegeAdbManager private constructor(
             adbDeviceName: String,
         ): PrivilegeAdbManager =
             PrivilegeContext.require().let { applicationContext ->
+                val identity = PrivilegeAdbIdentity.default(deviceName = adbDeviceName)
                 PrivilegeAdbManager(
-                    identity = PrivilegeAdbIdentity.default(deviceName = adbDeviceName),
-                    loadKeyBytes = { PrivilegeAdbKeyStore.readOrCreate() },
+                    identity = identity,
+                    keyProvider = {
+                        PrivilegeAdbKeyStore.readOrCreateKey(identity.adbDeviceName)
+                    },
                     nsdManagerProvider = { requireNsdManager(applicationContext) },
                     wirelessDebuggingControllerProvider = {
                         AndroidPrivilegeAdbWirelessDebuggingController(applicationContext)

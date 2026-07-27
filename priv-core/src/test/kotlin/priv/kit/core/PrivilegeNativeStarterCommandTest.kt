@@ -1,5 +1,6 @@
 package priv.kit.core
 
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -12,45 +13,47 @@ import priv.kit.core.internal.runtime.PrivilegeContext
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
-class PrivilegeNativeStarterPathTest {
+class PrivilegeNativeStarterCommandTest {
     @Test
-    fun publicNativeStarterPathCachesInstalledLibrary() {
+    fun publicNativeStarterCommandCachesInstalledLibrary() {
         installRuntimeContext()
 
-        val nativeStarterPath = Privilege.nativeStarterPath
+        val nativeStarterCommand = Privilege.nativeStarterCommand
 
-        assertEquals(
-            "/data/app/priv.kit.sample/lib/arm64/libprivkitstarter.so",
-            nativeStarterPath,
-        )
         assertFalse(
-            nativeStarterPath.contains(PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID),
+            nativeStarterCommand.contains(PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID),
         )
 
         RuntimeEnvironment.getApplication().applicationInfo.nativeLibraryDir =
             "/data/app/reinstalled/lib/arm64"
 
-        assertEquals(nativeStarterPath, Privilege.nativeStarterPath)
+        assertEquals(nativeStarterCommand, Privilege.nativeStarterCommand)
     }
 
     @Test
     fun coordinatedNativeStarterCommandIncludesLaunchCorrelationEnvironment() {
         installRuntimeContext()
+        val nativeStarterCommand = Privilege.nativeStarterCommand
 
         val commandLine =
-            Privilege.createNativeStarterCommandWithLaunchCorrelationId("launch-1")
+            Privilege.createNativeStarterCommand(
+                launchCorrelationId = "launch-1",
+            )
 
         assertEquals(
             "${PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID}=launch-1 " +
-                "/data/app/priv.kit.sample/lib/arm64/libprivkitstarter.so",
+                nativeStarterCommand,
             commandLine,
         )
     }
 
     private fun installRuntimeContext() {
         val application = RuntimeEnvironment.getApplication()
-        application.applicationInfo.nativeLibraryDir =
-            "/data/app/priv.kit.sample/lib/arm64"
+        val nativeLibraryDir = File(application.cacheDir, "native-starter-path-test/arm64")
+            .apply { mkdirs() }
+        File(nativeLibraryDir, "libprivkitstarter.so")
+            .apply { writeBytes(byteArrayOf(1)) }
+        application.applicationInfo.nativeLibraryDir = nativeLibraryDir.path.replace('\\', '/')
         PrivilegeContext.install(application)
     }
 }

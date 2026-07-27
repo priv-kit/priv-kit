@@ -212,17 +212,28 @@ Use `openTcpAuthorizationCheckSession()` for repeated polling. Call
 ### Manual {#manual}
 
 ```kotlin
-val nativeStarterPath = Privilege.nativeStarterPath
-YourApp.showCommandToUser("adb shell $nativeStarterPath")
+val nativeStarterCommand = withContext(Dispatchers.IO) {
+    Privilege.nativeStarterCommand
+}
+YourApp.showCommandToUser("adb shell $nativeStarterCommand")
 ```
 
-`priv-core` returns the installed native starter SO path. The host adds `adb shell`
-when presenting a command that runs from a development machine. The starter only
-runs as root (UID 0), system (UID 1000), or shell (UID 2000).
-[Configure native library packaging](./getting-started#native-library-packaging)
-before using this path so Android extracts the starter as an installed file.
+`priv-core` returns a device-side command. On Android 10 and later it can use the
+platform linker to run the starter directly from an APK, or execute the
+installed SO when legacy packaging extracted it. The host adds `adb shell` when
+presenting the command for a development machine. The starter only runs as root
+(UID 0), system (UID 1000), or shell (UID 2000). See
+[native library packaging](./getting-started#native-library-packaging) for the
+Android-version requirements. Resolve the command off the main thread because
+first access inspects the installed APKs.
 
-A rendered command looks like:
+With modern packaging on Android 10 or later, a rendered command can look like:
+
+```shell
+adb shell /system/bin/linker64 '/data/app/.../base.apk!/lib/arm64-v8a/libprivkitstarter.so'
+```
+
+With legacy packaging it looks like:
 
 ```shell
 adb shell /data/app/~~-YKUdRFBwGAwYBVzJRt7pA==/priv.kit.sample.debug-A-2guZlsvRZ-9e6xF-K0kQ==/lib/arm64/libprivkitstarter.so
@@ -305,8 +316,12 @@ After `ServiceConnection` returns the AIDL interface, pass its `start()` method
 to the Priv Kit bridge:
 
 ```kotlin
+val nativeStarterCommand = withContext(Dispatchers.IO) {
+    Privilege.nativeStarterCommand
+}
+
 PrivilegeExternalStartup.runThroughBridge(
-    commandLine = Privilege.nativeStarterPath,
+    commandLine = nativeStarterCommand,
     bridge = { commandLine, stdout, stderr, resultReceiver ->
         shizukuService.start(commandLine, stdout, stderr, resultReceiver)
     },

@@ -12,13 +12,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FabPosition
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
@@ -73,6 +71,9 @@ public fun PrivilegeScaffold(
     contentColor: Color = contentColorFor(containerColor),
     contentWindowInsets: WindowInsets = ScaffoldDefaults.contentWindowInsets,
 ) {
+    val uiInitialized by viewModel.uiInitialized.collectAsStateWithLifecycle()
+    if (!uiInitialized) return
+
     val activity = LocalActivity.current!!
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -241,31 +242,23 @@ public fun PrivilegeScaffold(
                 ),
             verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.large),
         ) {
-            if (state.runtimeStatusLoaded) {
-                Column {
-                    AnimatedVisibility(
-                        visible = privilegeUiAutoRecoveryWarningVisible(
-                            state = state,
-                            interactionEnabled = interactionEnabled,
-                        ),
-                    ) {
-                        Column {
-                            screenScope.AutoRecoveryWarning()
-                            Spacer(Modifier.height(PrivilegeUiSpacing.large))
-                        }
+            Column {
+                AnimatedVisibility(
+                    visible = privilegeUiAutoRecoveryWarningVisible(
+                        state = state,
+                        interactionEnabled = interactionEnabled,
+                    ),
+                ) {
+                    Column {
+                        screenScope.AutoRecoveryWarning()
+                        Spacer(Modifier.height(PrivilegeUiSpacing.large))
                     }
-                    screenScope.ServiceStatusPanel()
                 }
-                screenScope.PermissionRestrictionWarning()
-            } else {
-                LinearProgressIndicator(Modifier.fillMaxWidth())
+                screenScope.ServiceStatusPanel()
             }
+            screenScope.PermissionRestrictionWarning()
             screenScope.AuthorizationModeTabs()
-            if (state.selectedStartupModeStatusLoaded()) {
-                screenScope.AuthorizationModePanel()
-            } else {
-                LinearProgressIndicator(Modifier.fillMaxWidth())
-            }
+            screenScope.AuthorizationModePanel()
             if (state.startupLogLines.isNotEmpty()) {
                 screenScope.StartupLogPanel()
             }
@@ -276,22 +269,12 @@ public fun PrivilegeScaffold(
 internal fun privilegeUiAutoRecoveryWarningVisible(
     state: PrivilegeUiState,
     interactionEnabled: Boolean,
-): Boolean = state.runtimeStatusLoaded &&
-    interactionEnabled &&
+): Boolean = interactionEnabled &&
     privilegeUiAutoRecoveryWarningVisible(
         desiredEnabled = state.desiredEnabled,
         runtimeStatus = state.runtimeStatus,
         runtimeStartPhase = state.runtimeStartPhase,
     )
-
-internal fun PrivilegeUiState.selectedStartupModeStatusLoaded(): Boolean =
-    when (selectedStartupMode.takeIf { it in startupModes } ?: startupModes.firstOrNull()) {
-        PrivilegeUiStartupMode.ROOT -> true
-        PrivilegeUiStartupMode.MANUAL_SHELL -> manualShellStatusLoaded
-        PrivilegeUiStartupMode.ADB -> adbStatusLoaded
-        PrivilegeUiStartupMode.EXTERNAL -> externalStartStatusLoaded
-        null -> true
-    }
 
 internal class PrivilegeUiScreenScope(
     val state: PrivilegeUiState,

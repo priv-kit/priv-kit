@@ -14,6 +14,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import priv.kit.ui.PrivilegeUiConfig
+import priv.kit.ui.PrivilegeUiStartupMode
+import priv.kit.ui.state.PrivilegeUiViewModelStore
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -114,6 +117,38 @@ class PrivilegeUiStartMethodStoreTest {
 
         assertNull(store.read())
         assertEquals("root\n", file.readText(StandardCharsets.UTF_8))
+    }
+
+    @Test
+    fun persistedMethodSelectsInitialTabDuringStateConstruction() {
+        store.write(PrivilegeUiStartMethod.Root)
+
+        val viewModelStore = PrivilegeUiViewModelStore(
+            context = application,
+            config = PrivilegeUiConfig(),
+        )
+
+        assertEquals(
+            PrivilegeUiStartupMode.ROOT,
+            viewModelStore.state.value.selectedStartupMode,
+        )
+    }
+
+    @Test
+    fun unavailablePersistedMethodFallsBackDuringStateConstruction() {
+        store.write(PrivilegeUiStartMethod.Root)
+
+        val viewModelStore = PrivilegeUiViewModelStore(
+            context = application,
+            config = PrivilegeUiConfig(
+                startupModes = setOf(PrivilegeUiStartupMode.ADB),
+            ),
+        )
+
+        assertEquals(
+            PrivilegeUiStartupMode.ADB,
+            viewModelStore.state.value.selectedStartupMode,
+        )
     }
 
     @Test

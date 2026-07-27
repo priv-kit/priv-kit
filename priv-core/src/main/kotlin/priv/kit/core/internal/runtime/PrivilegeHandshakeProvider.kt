@@ -197,9 +197,8 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
             return null
         }
         Log.i(TAG, "Returning replacement starter command for stale Privileged Server")
-        return PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
+        return Privilege.createNativeStarterCommand(
             launchCorrelationId = launchCorrelationId,
-            clearInheritedLaunchCorrelationId = launchCorrelationId == null,
         )
     }
 

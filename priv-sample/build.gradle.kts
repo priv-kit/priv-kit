@@ -1,3 +1,5 @@
+import com.android.build.api.variant.ResValue
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -10,6 +12,21 @@ android {
         applicationId = "priv.kit.sample"
         versionCode = 1
         versionName = project.version.toString()
+    }
+
+    flavorDimensions += "nativePackaging"
+
+    productFlavors {
+        create("legacy") {
+            dimension = "nativePackaging"
+            isDefault = true
+        }
+
+        create("api29") {
+            dimension = "nativePackaging"
+            applicationIdSuffix = ".api29"
+            minSdk = 29
+        }
     }
 
     buildTypes {
@@ -28,12 +45,26 @@ android {
     buildFeatures {
         aidl = true
         compose = true
+        resValues = true
     }
+}
 
-    packaging {
-        jniLibs {
-            useLegacyPackaging = true
-        }
+androidComponents.onVariants { variant ->
+    val nativePackagingFlavor =
+        variant.productFlavors.single { it.first == "nativePackaging" }.second
+    val baseAppLabel = when (nativePackagingFlavor) {
+        "legacy" -> "Priv"
+        "api29" -> "PrivQ"
+        else -> error("Unknown native packaging flavor: $nativePackagingFlavor")
+    }
+    val appLabel = if (variant.buildType == "debug") "$baseAppLabel-Dev" else baseAppLabel
+    variant.resValues.put(
+        variant.makeResValueKey("string", "app_name"),
+        ResValue(appLabel),
+    )
+    if (nativePackagingFlavor == "legacy") {
+        variant.packaging.jniLibs.useLegacyPackaging.set(true)
+        variant.packaging.jniLibs.useLegacyPackagingFromBundle.set(true)
     }
 }
 

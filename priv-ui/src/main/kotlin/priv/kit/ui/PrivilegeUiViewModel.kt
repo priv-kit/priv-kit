@@ -36,7 +36,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     application: Application,
     public val config: PrivilegeUiConfig = PrivilegeUiConfig(),
 ) : AndroidViewModel(application) {
-    private val store = PrivilegeUiViewModelStore(application)
+    private val store = PrivilegeUiViewModelStore(application, config)
     private val desiredEnabledManager = PrivilegeUiDesiredEnabledManagers.get(application)
     private val interactiveStartOwner = PrivilegeUiStartGate.newInteractiveOwner()
     private val acquireInteractivePermit = interactiveStartOwner::tryAcquire
@@ -80,6 +80,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     internal val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
     internal val startGateState: StateFlow<PrivilegeUiStartGateState> =
         effectsCoordinator.startGateState
+    internal val uiInitialized: StateFlow<Boolean> = effectsCoordinator.initialized
     internal val uiEffectsEnabled: StateFlow<Boolean> = effectsCoordinator.enabled
     internal val uiInteractionsEnabled: Boolean
         get() = effectsCoordinator.interactionsEnabled
@@ -98,14 +99,11 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
     init {
         addCloseable { closeOwner() }
-        configure(config)
+        configure()
     }
 
-    private fun configure(config: PrivilegeUiConfig) {
-        store.config = config
-
+    private fun configure() {
         adbActions.observePairingNotificationEvents()
-        store.initializeState(config)
         store.updateState {
             it.copy(desiredEnabled = desiredEnabledManager.desiredEnabled.value)
         }

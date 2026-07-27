@@ -9,10 +9,12 @@ import priv.kit.core.adb.PrivilegeAdbStartOptions
 import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.withContext
 
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 public data class PrivilegeRuntimeConnectionEvent public constructor(
@@ -135,10 +137,13 @@ public object PrivilegeRuntimeStartCoordinator {
         startupLogListener = startupLogListener,
     )
 
-    public fun createNativeStarterCommand(
+    public suspend fun createNativeStarterCommand(
         launch: PrivilegeRuntimeClientLaunch,
-    ): String =
-        Privilege.createNativeStarterCommandWithLaunchCorrelationId(launch.launchCorrelationId)
+    ): String = withContext(Dispatchers.IO) {
+        Privilege.createNativeStarterCommand(
+            launchCorrelationId = launch.launchCorrelationId,
+        )
+    }
 
     internal fun markOwnerProcessStarted() {
         arbiter.markOwnerProcessStarted(RECONNECT_GRACE_MILLIS)

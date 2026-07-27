@@ -4,8 +4,10 @@ import priv.kit.core.PrivilegeStartupException
 
 internal class PrivilegeAdbIdentityProvider(
     val identity: PrivilegeAdbIdentity,
-    private val loadKeyBytes: () -> ByteArray,
+    private val keyProvider: () -> PrivilegeAdbKey,
 ) {
+    private val key by lazy(keyProvider)
+
     @Throws(PrivilegeStartupException::class)
     fun getIdentityInfo(): PrivilegeAdbIdentityInfo =
         try {
@@ -22,10 +24,7 @@ internal class PrivilegeAdbIdentityProvider(
 
     fun loadKey(): PrivilegeAdbKey =
         try {
-            PrivilegeAdbKey(
-                keyBytes = loadKeyBytes(),
-                name = identity.adbDeviceName,
-            )
+            key
         } catch (throwable: Throwable) {
             throwable.rethrowIfInterrupted()
             throw PrivilegeAdbException("Failed to load ADB key", throwable)

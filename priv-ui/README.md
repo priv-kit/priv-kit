@@ -32,6 +32,17 @@ startup mode, runs only the relevant ADB or external-provider polling coroutine,
 previous mode automatically. Hosts use `PrivilegeScaffold`; they do not consume its render state
 or create and close polling handles.
 
+Before `PrivilegeScaffold` emits page content, the ViewModel loads the runtime state and its
+permission-restriction status, manual command, and ADB identity required by the configured
+startup modes. Wireless ADB discovery, static-TCP probing, and external-provider snapshots then
+load independently without delaying the rest of the page. Their existing rows display a
+loading status until the first result, so the page layout remains stable. Periodic polling
+keeps the last completed snapshot visible until a later refresh finishes.
+
+The initial authorization tab is selected while the render state is constructed. It follows the
+last successfully confirmed foreground start method when that method is still enabled by the
+current config; otherwise it falls back to ADB or the first configured method.
+
 Internal Android components:
 
 - `PrivilegeAdbPairingService` is manifest-merged for the built-in notification pairing flow and is not a public app-call API.
@@ -51,9 +62,9 @@ The UI covers ordinary user-facing authorization only:
 - Service started/not-started status.
 - A connected-server warning above the authorization method tabs when the privileged service is subject to permission restrictions. The status is checked after each connection and whenever the host returns to the foreground; Root servers skip the permission check.
 
-For manual shell startup, the UI reads `Privilege.nativeStarterPath` and shows the direct
-`adb shell <native-starter-path>` command. The native starter remains inside the installed
-application, and the UI only prepares display and clipboard text.
+For manual shell startup, the UI reads `Privilege.nativeStarterCommand` and prefixes it with
+`adb shell`. The command can invoke an uncompressed APK entry through the Android linker or
+execute an extracted starter file; the UI only prepares display and clipboard text.
 
 Battery-optimization guidance directly opens Android's exemption confirmation for the
 host package and rechecks the result when the page returns to the foreground. `priv-ui`

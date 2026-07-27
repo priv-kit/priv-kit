@@ -33,6 +33,7 @@
     <string name="priv_ui_stop_service_confirm">停止</string>
     <string name="priv_ui_stop_service_cancel">取消</string>
     <string name="priv_ui_status_unavailable">不可用</string>
+    <string name="priv_ui_status_loading">加载中…</string>
     <string name="priv_ui_ready">就绪</string>
     <string name="priv_ui_connected">已连接</string>
     <string name="priv_ui_binder_died">Binder 已断开</string>
@@ -46,7 +47,7 @@
     <string name="priv_ui_startup_log_copied">已复制启动日志</string>
     <string name="priv_ui_startup_log_clip_label">Priv Kit 启动日志</string>
     <string name="priv_ui_root_authorization_action">启动</string>
-    <string name="priv_ui_manual_authorization_desc">复制此命令，并在连接到此设备的电脑上运行，服务被关闭后无法自启动，建议使用 ADB 启动</string>
+    <string name="priv_ui_manual_authorization_desc">复制此命令，并在连接到此设备的电脑上运行，服务被关闭后无法自启动，建议使用其它方式启动</string>
     <string name="priv_ui_manual_command_unavailable">手动命令不可用</string>
     <string name="priv_ui_manual_copy_command">复制</string>
     <string name="priv_ui_manual_command_copied">已复制手动命令</string>

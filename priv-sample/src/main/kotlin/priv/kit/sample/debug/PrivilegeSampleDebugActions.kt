@@ -35,21 +35,35 @@ import java.nio.charset.StandardCharsets
 
 internal fun PrivilegeSampleDebugHost.initializePrivilegeSample() {
     val adbDeviceNameOverride = loadAdbDeviceNameOverride()
-    val manualShellCommandResult = runCatching { sampleViewModel.manualShellCommandLine }
     screenState = screenState.copy(
         adbDeviceNameText = adbDeviceNameOverride,
         adbDeviceName = adbDeviceNameOverride.ifBlank { defaultAdbDeviceName() },
-        manualShellCommandLine = manualShellCommandResult.getOrNull(),
     )
-    manualShellCommandResult.exceptionOrNull()?.let { throwable ->
-        val message = throwable.message ?: throwable.javaClass.name
-        screenState = screenState.copy(message = message)
-        appendLog("Manual shell command error: $message")
-        appendLog(throwable.toDiagnosticString())
-    }
+    loadManualShellCommand()
     watchServerState()
     refreshShizukuStatus(append = false)
     refreshAdbFingerprint()
+}
+
+private fun PrivilegeSampleDebugHost.loadManualShellCommand() {
+    sampleViewModel.viewModelScope.launch {
+        val result = withContext(Dispatchers.IO) {
+            runCatching {
+                Privilege.nativeStarterCommand.toSampleManualShellCommand()
+            }
+        }
+        result.fold(
+            onSuccess = { commandLine ->
+                screenState = screenState.copy(manualShellCommandLine = commandLine)
+            },
+            onFailure = { throwable ->
+                val message = throwable.message ?: throwable.javaClass.name
+                screenState = screenState.copy(message = message)
+                appendLog("Manual shell command error: $message")
+                appendLog(throwable.toDiagnosticString())
+            },
+        )
+    }
 }
 
 internal fun PrivilegeSampleDebugHost.updatePairingCode(value: String) {
@@ -299,9 +313,11 @@ internal fun PrivilegeSampleDebugHost.startShizukuExternal() {
         startedMessage = "Shizuku command sent. Waiting for server handshake...",
         startupSource = "Shizuku",
     ) {
-        val nativeStarterPath = Privilege.nativeStarterPath
+        val nativeStarterCommand = withContext(Dispatchers.IO) {
+            Privilege.nativeStarterCommand
+        }
         try {
-            externalStarter.start(nativeStarterPath)
+            externalStarter.start(nativeStarterCommand)
         } finally {
             externalStarter.close()
             if (sampleViewModel.shizukuExternalStarter === externalStarter) {
@@ -1231,4 +1247,8 @@ internal fun String.toPairingCodeDigits(): String =
     filter(Char::isDigit)
         .take(PAIRING_CODE_LENGTH)
 
+private fun String.toSampleManualShellCommand(): String =
+    ADB_SHELL_PREFIX + trim()
+
 private const val PAIRING_CODE_LENGTH = 6
+private const val ADB_SHELL_PREFIX = "adb shell "

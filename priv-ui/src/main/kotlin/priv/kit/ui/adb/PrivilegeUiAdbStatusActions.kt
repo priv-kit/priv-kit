@@ -43,16 +43,16 @@ internal class PrivilegeUiAdbStatusActions(
     fun refreshTcpModeEnabled() {
         coroutineScope.launch(CoroutineName("priv-ui-tcp-mode-refresh")) {
             refreshTcpModeEnabled(markChecking = true)
+            markStaticTcpStatusLoaded()
         }
     }
 
     suspend fun pollTcpModeStatus() {
         try {
-            var firstRefresh = true
             while (currentCoroutineContext().isActive) {
-                refreshTcpModeEnabled(markChecking = firstRefresh)
-                firstRefresh = false
                 delay(store.config.wirelessStatusPollIntervalMillis.milliseconds)
+                refreshTcpModeEnabled(markChecking = false)
+                markStaticTcpStatusLoaded()
             }
         } finally {
             closeTcpSession()
@@ -60,11 +60,11 @@ internal class PrivilegeUiAdbStatusActions(
     }
 
     suspend fun pollWirelessAdbStatus() {
-        markWirelessAdbStatusChecking()
         try {
             while (currentCoroutineContext().isActive) {
-                refreshWirelessAdbStatus(markChecking = false)
                 delay(store.config.wirelessStatusPollIntervalMillis.milliseconds)
+                refreshWirelessAdbStatus(markChecking = false)
+                markWirelessAdbStatusLoaded()
             }
         } finally {
             closePairingSession()
@@ -91,18 +91,24 @@ internal class PrivilegeUiAdbStatusActions(
         store.updateState { it.copy(wifiConnected = store.isWifiConnected()) }
     }
 
-    suspend fun forceWirelessAdbStatusRefreshForAction(): Boolean {
+    suspend fun forceWirelessAdbStatusRefreshForAction(
+        markChecking: Boolean = true,
+    ): Boolean {
         val refreshed = withTimeoutOrNull(actionRefreshTimeoutMillis().milliseconds) {
-            refreshWirelessAdbStatus(markChecking = true)
+            refreshWirelessAdbStatus(markChecking = markChecking)
+            markWirelessAdbStatusLoaded()
             true
         }
         if (refreshed == null) closePairingSession()
         return refreshed ?: false
     }
 
-    suspend fun forceTcpModeStatusRefreshForAction(): Boolean {
+    suspend fun forceTcpModeStatusRefreshForAction(
+        markChecking: Boolean = true,
+    ): Boolean {
         val refreshed = withTimeoutOrNull(actionRefreshTimeoutMillis().milliseconds) {
-            refreshTcpModeEnabled(markChecking = true)
+            refreshTcpModeEnabled(markChecking = markChecking)
+            markStaticTcpStatusLoaded()
             true
         }
         if (refreshed == null) closeTcpSession()
@@ -115,6 +121,14 @@ internal class PrivilegeUiAdbStatusActions(
     }
 
     fun resetWirelessPairingSession() = closePairingSession()
+
+    private fun markWirelessAdbStatusLoaded() {
+        store.updateState { it.copy(wirelessAdbStatusLoaded = true) }
+    }
+
+    private fun markStaticTcpStatusLoaded() {
+        store.updateState { it.copy(staticTcpStatusLoaded = true) }
+    }
 
     private suspend fun refreshTcpModeEnabled(markChecking: Boolean): Unit = tcpRefresh.withLock {
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) {

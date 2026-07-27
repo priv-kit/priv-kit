@@ -7,7 +7,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.Job
-import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeUserServiceConnection
 import priv.kit.sample.startup.PrivilegeSampleShizukuExternalStarter
 import priv.kit.sample.userservice.IPrivilegeSampleDedicatedUserService
@@ -32,9 +31,6 @@ internal class PrivilegeSampleDebugViewModel : ViewModel() {
     var startNotificationPairingAfterPermission = false
     val notificationPairingOwnerId: String = UUID.randomUUID().toString()
     var startShizukuExternalAfterPermission = false
-    val manualShellCommandLine: String by lazy(LazyThreadSafetyMode.NONE) {
-        Privilege.nativeStarterPath.toSampleManualShellCommand()
-    }
 
     fun selectDebugDestination(destination: PrivilegeSampleDebugDestination) {
         selectedDebugDestination = destination
@@ -78,8 +74,3 @@ internal class PrivilegeSampleDebugViewModel : ViewModel() {
         dedicatedUserServiceConnection = null
     }
 }
-
-private fun String.toSampleManualShellCommand(): String =
-    ADB_SHELL_PREFIX + trim()
-
-private const val ADB_SHELL_PREFIX = "adb shell "

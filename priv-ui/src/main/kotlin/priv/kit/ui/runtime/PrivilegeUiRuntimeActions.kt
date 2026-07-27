@@ -179,17 +179,19 @@ internal class PrivilegeUiRuntimeActions(
     }
 
     fun refreshPermissionRestrictionStatus() {
-        synchronized(store) {
-            val current = store.state.value
-            if (
-                closed.get() ||
-                current.runtimeStatus != PrivilegeUiRuntimeStatus.CONNECTED ||
-                current.serverInfo == null
-            ) {
-                return
-            }
-            schedulePermissionRestrictionRefresh(current.connectionSerial)
-        }
+        val current = store.state.value
+        if (!current.canRefreshPermissionRestrictionStatus()) return
+        schedulePermissionRestrictionRefresh(current.connectionSerial)
+    }
+
+    suspend fun refreshPermissionRestrictionStatusNow() {
+        val current = store.state.value
+        if (!current.canRefreshPermissionRestrictionStatus()) return
+        val generation = permissionRestrictionRefreshGeneration.incrementAndGet()
+        refreshPermissionRestrictionStatus(
+            expectedConnectionSerial = current.connectionSerial,
+            generation = generation,
+        )
     }
 
     fun installRuntimeWatchers() {
@@ -346,28 +348,39 @@ internal class PrivilegeUiRuntimeActions(
     private fun schedulePermissionRestrictionRefresh(expectedConnectionSerial: Long) {
         val generation = permissionRestrictionRefreshGeneration.incrementAndGet()
         coroutineScope.launch(
-            Dispatchers.IO + CoroutineName("priv-ui-refresh-permission-restriction"),
+            operationDispatcher + CoroutineName("priv-ui-refresh-permission-restriction"),
         ) {
-            val restrictionStatus = runCatching {
+            refreshPermissionRestrictionStatus(expectedConnectionSerial, generation)
+        }
+    }
+
+    private suspend fun refreshPermissionRestrictionStatus(
+        expectedConnectionSerial: Long,
+        generation: Long,
+    ) {
+        val restrictionStatus = withContext(operationDispatcher) {
+            runCatching {
                 if (isPermissionRestricted()) {
                     PrivilegeUiPermissionRestrictionStatus.RESTRICTED
                 } else {
                     PrivilegeUiPermissionRestrictionStatus.NOT_RESTRICTED
                 }
-            }.getOrNull() ?: return@launch
-            store.updateState { current ->
-                if (
-                    closed.get() ||
-                    permissionRestrictionRefreshGeneration.get() != generation ||
-                    current.connectionSerial != expectedConnectionSerial ||
-                    current.runtimeStatus != PrivilegeUiRuntimeStatus.CONNECTED ||
-                    current.serverInfo == null
-                ) {
-                    current
-                } else {
-                    current.copy(permissionRestrictionStatus = restrictionStatus)
-                }
+            }.getOrNull()
+        } ?: return
+        store.updateState { current ->
+            if (
+                closed.get() ||
+                permissionRestrictionRefreshGeneration.get() != generation ||
+                current.connectionSerial != expectedConnectionSerial ||
+                !current.canRefreshPermissionRestrictionStatus()
+            ) {
+                current
+            } else {
+                current.copy(permissionRestrictionStatus = restrictionStatus)
             }
         }
     }
+
+    private fun PrivilegeUiState.canRefreshPermissionRestrictionStatus(): Boolean =
+        runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED && serverInfo != null
 }

@@ -23,6 +23,17 @@ class PrivilegeUiViewModelUtilsTest {
     }
 
     @Test
+    fun hostShellCommandKeepsAndroidLinkerCommand() {
+        val nativeStarterCommand =
+            "/system/bin/linker64 '/data/app/base.apk!/lib/arm64-v8a/libprivkitstarter.so'"
+
+        assertEquals(
+            "adb shell $nativeStarterCommand",
+            privilegeUiManualShellCommand(nativeStarterCommand),
+        )
+    }
+
+    @Test
     fun staticTcpOpenCommandUsesConfiguredPort() {
         assertEquals(
             "adb tcpip 5555",

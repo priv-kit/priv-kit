@@ -18,7 +18,7 @@ import kotlin.time.Duration.Companion.milliseconds
 internal class PrivilegeUiExternalStartActions(
     private val store: PrivilegeUiViewModelStore,
     private val runtimeActions: PrivilegeUiRuntimeActions,
-    private val createNativeStarterCommand: (PrivilegeRuntimeClientLaunch) -> String =
+    private val createNativeStarterCommand: suspend (PrivilegeRuntimeClientLaunch) -> String =
         PrivilegeRuntimeStartCoordinator::createNativeStarterCommand,
     private val acquireInteractivePermit: () -> AutoCloseable? =
         PrivilegeUiStartGate.newInteractivePermitAcquirer(),
@@ -28,8 +28,8 @@ internal class PrivilegeUiExternalStartActions(
     suspend fun pollExternalStartStatus() {
         if (store.config.externalStartProviders.isEmpty()) return
         while (currentCoroutineContext().isActive) {
-            refreshExternalStartStatusNow(providerId = null)
             delay(store.config.externalStartStatusPollIntervalMillis.milliseconds)
+            refreshExternalStartStatusNow(providerId = null)
         }
     }
 
@@ -49,9 +49,7 @@ internal class PrivilegeUiExternalStartActions(
         val context = store.applicationContext ?: return
         providers.forEach { provider ->
             val snapshot = provider.snapshotOrFailure(context)
-            store.updateExternalStartItem(provider.id) {
-                it.copy(snapshot = snapshot)
-            }
+            store.setExternalStartSnapshot(provider.id, snapshot)
             if (snapshot.exceptionText.isNotBlank()) store.appendLog(snapshot.exceptionText)
         }
     }
@@ -64,6 +62,7 @@ internal class PrivilegeUiExternalStartActions(
             val context = store.requireContext()
             val provider = store.config.externalStartProviders.firstOrNull { it.id == providerId } ?: return
             val snapshot = provider.snapshotOrFailure(context)
+            store.setExternalStartSnapshot(provider.id, snapshot)
             if (!snapshot.canStart) {
                 val requested = try {
                     provider.requestAuthorization(context)
@@ -75,7 +74,7 @@ internal class PrivilegeUiExternalStartActions(
                         exceptionText = throwable.toPrivilegeUiDiagnosticString(),
                     )
                 }
-                store.updateExternalStartItem(provider.id) { it.copy(snapshot = requested) }
+                store.setExternalStartSnapshot(provider.id, requested)
                 if (!requested.canStart) {
                     if (requested.message.isNotBlank()) store.appendLog(requested.message.toString())
                     if (requested.exceptionText.isNotBlank()) store.appendLog(requested.exceptionText)
@@ -94,7 +93,7 @@ internal class PrivilegeUiExternalStartActions(
         val context = store.requireContext()
         val provider = store.config.externalStartProviders.firstOrNull { it.id == providerId } ?: return null
         val snapshot = provider.snapshotOrFailure(context)
-        store.updateExternalStartItem(provider.id) { it.copy(snapshot = snapshot) }
+        store.setExternalStartSnapshot(provider.id, snapshot)
         if (snapshot.exceptionText.isNotBlank()) store.appendLog(snapshot.exceptionText)
         if (!snapshot.canStart) return null
         return externalStartAttempt(provider, context)

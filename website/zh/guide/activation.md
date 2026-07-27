@@ -195,17 +195,26 @@ val serverInfo = Privilege.startAdb(
 ### 手动 {#manual}
 
 ```kotlin
-val nativeStarterPath = Privilege.nativeStarterPath
-YourApp.showCommandToUser("adb shell $nativeStarterPath")
+val nativeStarterCommand = withContext(Dispatchers.IO) {
+    Privilege.nativeStarterCommand
+}
+YourApp.showCommandToUser("adb shell $nativeStarterCommand")
 ```
 
-`priv-core` 返回已安装的 native starter SO 路径。应用向开发机器展示命令时，
-在路径前添加 `adb shell`。Starter 只允许 root（UID 0）、system（UID 1000）
-或 shell（UID 2000）身份运行。
-使用此路径前，先[配置 native 库打包](./getting-started#native-library-packaging)，
-确保 Android 将 starter 解压为安装后的文件。
+`priv-core` 返回设备端命令。在 Android 10 及以上版本，它可以通过系统 linker
+直接执行 APK 中的 starter，也可以执行旧式打包解压出的 SO。应用向开发机器展示
+命令时，在前面添加 `adb shell`。Starter 只允许 root（UID 0）、system
+（UID 1000）或 shell（UID 2000）身份运行。不同 Android 版本的要求见
+[native 库打包](./getting-started#native-library-packaging)。首次读取会检查已安装的
+APK，因此需要在非主线程解析命令。
 
-实际生成的命令示例如下：
+Android 10 及以上版本使用现代打包时，实际命令可能如下：
+
+```shell
+adb shell /system/bin/linker64 '/data/app/.../base.apk!/lib/arm64-v8a/libprivkitstarter.so'
+```
+
+使用旧式打包时，命令如下：
 
 ```shell
 adb shell /data/app/~~-YKUdRFBwGAwYBVzJRt7pA==/priv.kit.sample.debug-A-2guZlsvRZ-9e6xF-K0kQ==/lib/arm64/libprivkitstarter.so
@@ -285,8 +294,12 @@ Shizuku.bindUserService(args, serviceConnection)
 `ServiceConnection` 返回 AIDL 接口后，把它的 `start()` 方法传给 Priv Kit：
 
 ```kotlin
+val nativeStarterCommand = withContext(Dispatchers.IO) {
+    Privilege.nativeStarterCommand
+}
+
 PrivilegeExternalStartup.runThroughBridge(
-    commandLine = Privilege.nativeStarterPath,
+    commandLine = nativeStarterCommand,
     bridge = { commandLine, stdout, stderr, resultReceiver ->
         shizukuService.start(commandLine, stdout, stderr, resultReceiver)
     },

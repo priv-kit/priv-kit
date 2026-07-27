@@ -96,6 +96,28 @@ namespace {
     }
 
     bool infer_install_dir(const char *starter_path, char *output, size_t output_size) {
+        const char *apk_separator = strstr(starter_path, "!/");
+        if (apk_separator != nullptr) {
+            const char *archive_slash = nullptr;
+            for (const char *cursor = starter_path; cursor < apk_separator; ++cursor) {
+                if (*cursor == '/') {
+                    archive_slash = cursor;
+                }
+            }
+            if (archive_slash == nullptr || archive_slash == starter_path) {
+                fprintf(stderr, "fatal: failed to infer APK install dir from %s\n", starter_path);
+                return false;
+            }
+            const auto length = static_cast<size_t>(archive_slash - starter_path);
+            if (length >= output_size) {
+                fprintf(stderr, "fatal: install dir is too long\n");
+                return false;
+            }
+            memcpy(output, starter_path, length);
+            output[length] = '\0';
+            return true;
+        }
+
         const char *lib_segment = nullptr;
         const char *search = starter_path;
         const char *match = nullptr;

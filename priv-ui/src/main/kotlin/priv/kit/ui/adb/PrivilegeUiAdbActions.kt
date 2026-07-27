@@ -199,14 +199,15 @@ internal class PrivilegeUiAdbActions(
         statusActions.refreshTcpModeEnabled()
     }
 
-    suspend fun refreshTcpModeEnabledNow() = statusActions.forceTcpModeStatusRefreshForAction()
+    suspend fun refreshTcpModeEnabledNow(markChecking: Boolean = true) =
+        statusActions.forceTcpModeStatusRefreshForAction(markChecking)
 
     suspend fun pollTcpModeStatus() = statusActions.pollTcpModeStatus()
 
     suspend fun refreshAdbIdentityInfoNow() = statusActions.refreshAdbIdentityInfoNow()
 
-    suspend fun refreshWirelessAdbStatusNow() =
-        statusActions.forceWirelessAdbStatusRefreshForAction()
+    suspend fun refreshWirelessAdbStatusNow(markChecking: Boolean = true) =
+        statusActions.forceWirelessAdbStatusRefreshForAction(markChecking)
 
     suspend fun pollWirelessAdbStatus() = statusActions.pollWirelessAdbStatus()
 

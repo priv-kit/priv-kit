@@ -175,12 +175,12 @@ internal data class PrivilegeUiExternalStartItemState(
     val id: String,
     val label: CharSequence,
     val snapshot: PrivilegeUiExternalStartSnapshot = PrivilegeUiExternalStartSnapshot(),
+    val statusLoaded: Boolean = false,
 )
 
 internal data class PrivilegeUiState(
     val busy: Boolean = false,
     val runtimeStatus: PrivilegeUiRuntimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
-    val runtimeStatusLoaded: Boolean = false,
     val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
     val serverInfo: PrivilegeServerInfo? = null,
     val selectedStartupMode: PrivilegeUiStartupMode = PrivilegeUiStartupMode.ADB,
@@ -191,7 +191,6 @@ internal data class PrivilegeUiState(
     ),
     val runtimeProgressText: PrivilegeUiText? = null,
     val manualShellCommandLine: String? = null,
-    val manualShellStatusLoaded: Boolean = false,
     val pairingCode: String = "",
     val pairingStatus: PrivilegeUiAdbPairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
     val pairingText: PrivilegeUiText? = null,
@@ -200,17 +199,17 @@ internal data class PrivilegeUiState(
     val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     val wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     val wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+    val wirelessAdbStatusLoaded: Boolean = false,
     val managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus =
         PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
     val wifiConnected: Boolean = false,
     val tcpModePort: Int? = null,
     val tcpAuthorizationStatus: PrivilegeUiAdbTcpAuthorizationStatus =
         PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
+    val staticTcpStatusLoaded: Boolean = false,
     val adbKeyFingerprint: String? = null,
-    val adbStatusLoaded: Boolean = false,
     val notificationPairingRunning: Boolean = false,
     val externalStartItems: List<PrivilegeUiExternalStartItemState> = emptyList(),
-    val externalStartStatusLoaded: Boolean = false,
     val startupLogLines: List<String> = emptyList(),
     val connectionSerial: Long = 0L,
     val runtimeStartPhase: PrivilegeUiRuntimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,

@@ -6,6 +6,7 @@ import android.os.Binder
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -18,6 +19,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import priv.kit.core.Privilege
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.core.PrivilegeProtocol
 import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
@@ -115,6 +117,7 @@ class PrivilegeHandshakeProviderTest {
     @Test
     fun staleTrustedServerReceivesReplacementCommand() {
         prepareRuntimeApplication()
+        val nativeStarterCommand = Privilege.nativeStarterCommand
 
         val response = PrivilegeHandshakeProvider().call(
             PrivilegeHandshakeContract.METHOD_SERVER_READY,
@@ -134,7 +137,7 @@ class PrivilegeHandshakeProviderTest {
         assertFalse(response!!.getBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, true))
         assertEquals(
             "${PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID}='' " +
-                "/data/app/priv.kit.sample-current/lib/arm64/libprivkitstarter.so",
+                nativeStarterCommand,
             response.getString(PrivilegeHandshakeContract.RESULT_REPLACEMENT_COMMAND),
         )
     }
@@ -142,8 +145,13 @@ class PrivilegeHandshakeProviderTest {
     private fun prepareRuntimeApplication() =
         RuntimeEnvironment.getApplication().also { application ->
             application.applicationInfo.sourceDir = "/data/app/priv.kit.sample-current/base.apk"
-            application.applicationInfo.nativeLibraryDir =
-                "/data/app/priv.kit.sample-current/lib/arm64"
+            application.applicationInfo.nativeLibraryDir = File(
+                application.cacheDir,
+                "handshake-provider-native/arm64",
+            ).apply {
+                mkdirs()
+                File(this, "libprivkitstarter.so").writeBytes(byteArrayOf(1))
+            }.path.replace('\\', '/')
             application.applicationInfo.splitSourceDirs = null
             PrivilegeContext.install(application)
         }

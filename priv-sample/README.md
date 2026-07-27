@@ -2,7 +2,17 @@
 
 Sample Android app module for Priv Kit.
 
-Namespace and application id: `priv.kit.sample`.
+Namespace: `priv.kit.sample`.
+
+The module builds two product flavors from the same source tree:
+
+| Flavor | Minimum Android version | Native library packaging | Release application id |
+| --- | --- | --- | --- |
+| `legacy` | Android 8.0 (API 26) | `useLegacyPackaging = true` | `priv.kit.sample` |
+| `api29` | Android 10 (API 29) | AGP modern packaging | `priv.kit.sample.api29` |
+
+Use `assembleLegacyDebug` to exercise the extracted native starter path and
+`assembleApi29Debug` to exercise direct linker startup from the APK.
 
 Source packages:
 

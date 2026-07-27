@@ -109,8 +109,24 @@ internal object PrivilegeAdbKeyBytes {
 }
 
 internal class PrivilegeAdbKey(
-    keyBytes: ByteArray,
+    private val material: PrivilegeAdbKeyMaterial,
     private val name: String,
+) {
+    val adbPublicKey: ByteArray
+        get() = material.adbPublicKey(name)
+
+    val adbPublicKeyFingerprint: String
+        get() = material.adbPublicKeyFingerprint
+
+    val sslContext: SSLContext
+        get() = material.sslContext
+
+    fun sign(token: ByteArray): ByteArray =
+        material.sign(token)
+}
+
+internal class PrivilegeAdbKeyMaterial(
+    keyBytes: ByteArray,
 ) {
     private val encryptionKey: Key = PrivilegeAdbKeyBytes.getOrCreateEncryptionKey()
         ?: throw PrivilegeAdbException("Failed to generate ADB encryption key")
@@ -122,19 +138,18 @@ internal class PrivilegeAdbKey(
         ) as RSAPublicKey
     private val certificate: X509Certificate =
         PrivilegeAdbCertificateFactory.createRsaCertificate(privateKey, publicKey)
-    private val adbPublicKeyPayload: ByteArray by lazy(LazyThreadSafetyMode.NONE) {
+    private val adbPublicKeyPayload: ByteArray by lazy {
         publicKey.adbEncodedPayload()
     }
 
-    val adbPublicKey: ByteArray by lazy(LazyThreadSafetyMode.NONE) {
+    fun adbPublicKey(name: String): ByteArray =
         adbPublicKeyPayload.adbPublicKeyWithName(name)
-    }
 
-    val adbPublicKeyFingerprint: String by lazy(LazyThreadSafetyMode.NONE) {
+    val adbPublicKeyFingerprint: String by lazy {
         adbPublicKeyPayload.adbDialogFingerprint()
     }
 
-    val sslContext: SSLContext by lazy(LazyThreadSafetyMode.NONE) {
+    val sslContext: SSLContext by lazy {
         SSLContext.getInstance(TLS_PROTOCOL).apply {
             init(arrayOf(keyManager), arrayOf(trustManager), SecureRandom())
         }

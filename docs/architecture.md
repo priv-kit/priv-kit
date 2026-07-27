@@ -78,7 +78,7 @@
 - `:priv-core` 拥有运行时生命周期、Root、ADB、手动命令、外部启动、native starter、server entry、Binder、UserService、内部 AIDL、wire contract 和 handshake。
 - `:priv-adb-crypto` 只包含 ADB 所需的证书与 pairing 加密，不依赖 Android API，不扩展为通用加密、证书、PKI、SSL 或 TLS 库。
 - `:priv-ui` 只编排 Core 已有原语，不拥有 transport 和底层权限请求能力，Core 不得反向依赖 UI。
-- `:priv-sample` 只演示项目已承诺的能力，不得承载发布模块的实现。
+- `:priv-sample` 只演示项目已承诺的能力，不得承载发布模块的实现。它从同一源码树构建 `legacy` 和 `api29` 两个 product flavor：前者以 API 26 为最低版本并启用旧式 JNI 库打包，后者以 API 29 为最低版本并使用 AGP 现代打包。
 - `:hidden-api` 只提供编译期声明，不得包含运行时代码、公开 API 或发布产物。
 
 ## 运行时闭环
@@ -103,10 +103,10 @@
 
 - Root
 - ADB
-- 用户手动执行基于 native starter SO 路径组装的命令
+- 用户手动执行 native starter 命令
 - 能在 shell、root 或兼容身份中执行应用代码或启动命令的外部入口
 
-Root 和 ADB 的 transport 与诊断留在 `:priv-core` 内部。Core 公开 native starter SO 路径，并在内部为受协调的启动组装命令。手动命令和外部入口复用同一服务端入口与 Binder handoff，不得扩展为公开 shell helper、ADB helper 或特权操作库。
+Root 和 ADB 的 transport 与诊断留在 `:priv-core` 内部。Core 公开 native starter 命令，并在内部为受协调的启动组装同一命令。`minSdk < 29` 的应用只允许执行安装时解压到 `nativeLibraryDir` 的 starter；Android 10 及以上版本在安装元数据声明不解压 native 库时，通过系统 linker 执行 APK 或 ABI split 中未压缩的 starter，否则使用解压文件。手动命令和外部入口复用同一服务端入口与 Binder handoff，不得扩展为公开 shell helper、ADB helper 或特权操作库。
 
 Native starter 必须在解析 APK、终止旧服务端或创建新进程前校验实际 UID，只允许 root（0）、system（1000）和 shell（2000）。Provider 侧保留独立的可信调用方校验作为纵深防御。
 

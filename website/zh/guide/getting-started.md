@@ -31,7 +31,7 @@ dependencies {
 
 ## 配置 native 库打包 {#native-library-packaging}
 
-宿主应用必须启用旧式 JNI 库打包：
+支持 Android 10 以下版本的应用必须将 `useLegacyPackaging` 设置为 `true`：
 
 ```kotlin
 android {
@@ -43,13 +43,22 @@ android {
 }
 ```
 
-Root、ADB、手动和外部启动都会把 `libprivkitstarter.so` 作为独立程序执行。此配置
-让 Android 将 starter 解压到 `ApplicationInfo.nativeLibraryDir`。如果没有这项
-配置，Android 可能只把 native 库保留在 APK 中，导致
-`Privilege.nativeStarterPath` 没有指向可执行文件。
+Android 10 及以上版本没有此限制。Priv Kit 会根据 `useLegacyPackaging` 的值使用
+对应的启动命令。
 
-此配置会作用于宿主应用中的所有 JNI 库，而不只是 Priv Kit starter。解压这些库
-可能增加应用的安装后占用。
+以 arm64 设备为例：
+
+`useLegacyPackaging = true`：
+
+```shell
+adb shell /data/app/.../lib/arm64/libprivkitstarter.so
+```
+
+`useLegacyPackaging = false`：
+
+```shell
+adb shell /system/bin/linker64 '/data/app/.../base.apk!/lib/arm64-v8a/libprivkitstarter.so'
+```
 
 ## 配置 hidden API 访问 {#hidden-api-access}
 

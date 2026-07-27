@@ -14,7 +14,7 @@ class PrivilegeAdbIdentityProviderTest {
             identity = PrivilegeAdbIdentity.default(
                 deviceName = PrivilegeAdbIdentity.DEFAULT_DEVICE_NAME,
             ),
-            loadKeyBytes = { throw keyFailure },
+            keyProvider = { throw keyFailure },
         )
 
         val exception = assertThrows(PrivilegeStartupException::class.java) {
