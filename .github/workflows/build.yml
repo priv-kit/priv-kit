@@ -41,7 +41,14 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: priv-sample-apk
-          path: priv-sample/build/outputs/apk/release/priv-sample-release.apk
+          name: priv-sample-legacy-apk
+          path: priv-sample/build/outputs/apk/legacy/release/priv-sample-legacy-release.apk
+          if-no-files-found: error
+          archive: false
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: priv-sample-api29-apk
+          path: priv-sample/build/outputs/apk/api29/release/priv-sample-api29-release.apk
           if-no-files-found: error
           archive: false
