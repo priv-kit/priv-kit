@@ -1,5 +1,18 @@
 # Priv Kit repository guidance
 
+## Release procedure
+
+When asked to publish a new version:
+
+1. Modify only `CHANGELOG.md` and the version in `build.gradle.kts`.
+2. Commit those two files, create the version tag, then push the commit and tag.
+3. End the operation immediately after the pushes complete.
+
+Do not run builds, tests, lint, Gradle tasks, CI monitoring, release polling,
+registry verification, code review, issue or pull-request checks, artifact
+inspection, or any other release-related operation. Do not modify any other
+file during a release.
+
 Read these files before changing product behavior or public APIs:
 
 1. `docs/architecture.md`
