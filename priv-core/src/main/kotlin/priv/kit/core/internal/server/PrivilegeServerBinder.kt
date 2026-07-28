@@ -18,6 +18,10 @@ internal class PrivilegeServerBinder(
     config: PrivilegeServerConfig,
     private val onShutdown: () -> Unit = {},
 ) : IPrivilegeServer.Stub() {
+    init {
+        PrivilegeUserServiceLoader.prepareContextRuntime()
+    }
+
     private val packageContextRuntime by lazy {
         val context = PrivilegeUserServiceLoader.createPackageContext(
             packageName = config.packageName,

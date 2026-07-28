@@ -13,10 +13,6 @@ internal class PrivilegeUserServiceRegistry internal constructor(
     private val embeddedContextRuntimeProvider: () -> PrivilegeUserServiceLoader.ContextRuntime,
     private val dedicatedStartTimeoutMillis: Long = DEFAULT_DEDICATED_START_TIMEOUT_MILLIS,
 ) {
-    init {
-        PrivilegeUserServiceLoader.prepareContextRuntime()
-    }
-
     private val lock = Any()
     private val records = mutableMapOf<PrivilegeUserServiceId, Record>()
     private val connections = mutableMapOf<String, Connection>()
