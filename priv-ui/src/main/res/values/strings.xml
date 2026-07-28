@@ -14,7 +14,7 @@
     <string name="priv_ui_service_source_uid">uid(%1$d)</string>
     <string name="priv_ui_service_source_unknown">Unknown</string>
     <string name="priv_ui_auto_recovery_disconnected_title">Privileged service is not running</string>
-    <string name="priv_ui_auto_recovery_disconnected_message">Automatic recovery is enabled and will try to start the service the next time the app starts.</string>
+    <string name="priv_ui_auto_recovery_disconnected_message">Automatic recovery is enabled and will try to start the service the next time the app starts. Alternatively, tap the Start button below to start recovery manually.</string>
     <string name="priv_ui_auto_recovery_disable_action">Turn off automatic recovery</string>
     <string name="priv_ui_auto_recovery_disable_failed">Unable to turn off automatic recovery</string>
     <string name="priv_ui_permission_restricted_title">Permissions are restricted</string>

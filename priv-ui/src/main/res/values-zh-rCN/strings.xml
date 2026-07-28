@@ -14,7 +14,7 @@
     <string name="priv_ui_service_source_uid">uid(%1$d)</string>
     <string name="priv_ui_service_source_unknown">未知</string>
     <string name="priv_ui_auto_recovery_disconnected_title">特权服务未运行</string>
-    <string name="priv_ui_auto_recovery_disconnected_message">自动恢复仍处于开启状态，下次启动应用时会再次尝试启动服务。</string>
+    <string name="priv_ui_auto_recovery_disconnected_message">自动恢复仍处于开启状态，下次启动应用时会再次尝试启动服务。或点击下方启动按钮主动执行恢复。</string>
     <string name="priv_ui_auto_recovery_disable_action">关闭自动恢复</string>
     <string name="priv_ui_auto_recovery_disable_failed">无法关闭自动恢复</string>
     <string name="priv_ui_permission_restricted_title">权限受限</string>
