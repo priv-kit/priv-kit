@@ -8,7 +8,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 
@@ -204,63 +203,6 @@ internal object PrivilegeUiIcons {
             return _arrowBack!!
         }
 
-    val GitHub: ImageVector
-        get() {
-            if (_gitHub != null) return _gitHub!!
-            _gitHub = ImageVector.Builder(
-                name = "github",
-                defaultWidth = 24.dp,
-                defaultHeight = 24.dp,
-                viewportWidth = 32f,
-                viewportHeight = 32f,
-            ).apply {
-                addPath(
-                    pathData = PathParser().parsePathString(
-                        """
-                        M16 0
-                        C7.16 0 0 7.16 0 16
-                        C0 23.08 4.58 29.06 10.94 31.18
-                        C11.74 31.32 12.04 30.84 12.04 30.42
-                        C12.04 30.04 12.02 28.78 12.02 27.44
-                        C8 28.18 6.96 26.46 6.64 25.56
-                        C6.46 25.1 5.68 23.68 5 23.3
-                        C4.44 23 3.64 22.26 4.98 22.24
-                        C6.24 22.22 7.14 23.4 7.44 23.88
-                        C8.88 26.3 11.18 25.62 12.1 25.2
-                        C12.24 24.16 12.66 23.46 13.12 23.06
-                        C9.56 22.66 5.84 21.28 5.84 15.16
-                        C5.84 13.42 6.46 11.98 7.48 10.86
-                        C7.32 10.46 6.76 8.82 7.64 6.62
-                        C7.64 6.62 8.98 6.2 12.04 8.26
-                        C13.32 7.9 14.68 7.72 16.04 7.72
-                        C17.4 7.72 18.76 7.9 20.04 8.26
-                        C23.1 6.18 24.44 6.62 24.44 6.62
-                        C25.32 8.82 24.76 10.46 24.6 10.86
-                        C25.62 11.98 26.24 13.4 26.24 15.16
-                        C26.24 21.3 22.5 22.66 18.94 23.06
-                        C19.52 23.56 20.02 24.52 20.02 26.02
-                        C20.02 28.16 20 29.88 20 30.42
-                        C20 30.84 20.3 31.34 21.1 31.18
-                        C27.42 29.06 32 23.06 32 16
-                        C32 7.16 24.84 0 16 0
-                        V0
-                        Z
-                        """.trimIndent(),
-                    ).toNodes(),
-                    pathFillType = PathFillType.EvenOdd,
-                    fill = SolidColor(Color.Black),
-                    fillAlpha = 1f,
-                    stroke = null,
-                    strokeAlpha = 1f,
-                    strokeLineWidth = 1f,
-                    strokeLineCap = StrokeCap.Butt,
-                    strokeLineJoin = StrokeJoin.Bevel,
-                    strokeLineMiter = 1f,
-                )
-            }.build()
-            return _gitHub!!
-        }
-
     val PlayArrow: ImageVector
         get() {
             if (_playArrow != null) return _playArrow!!
@@ -346,6 +288,5 @@ private var _warning: ImageVector? = null
 private var _contentCopy: ImageVector? = null
 private var _close: ImageVector? = null
 private var _arrowBack: ImageVector? = null
-private var _gitHub: ImageVector? = null
 private var _playArrow: ImageVector? = null
 private var _stop: ImageVector? = null
