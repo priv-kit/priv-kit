@@ -344,6 +344,19 @@ class PrivilegeUiAdbPanelStateTest {
         )
     }
 
+    @Test
+    fun staticTcpStartButtonDoesNotWaitForStatusLoad() {
+        val loadingState = PrivilegeUiState(staticTcpStatusLoaded = false)
+
+        assertTrue(
+            loadingState.staticTcpStartActionEnabled(
+                action = PrivilegeUiStartAction.START,
+                wirelessAdbSupported = true,
+                interactionEnabled = true,
+            ),
+        )
+    }
+
     private data class WirelessActionCase(
         val runtimeStartPhase: PrivilegeUiRuntimeStartPhase,
         val ownsRuntimeStart: Boolean,

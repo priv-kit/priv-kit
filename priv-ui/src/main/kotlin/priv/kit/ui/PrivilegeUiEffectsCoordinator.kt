@@ -32,15 +32,12 @@ internal class PrivilegeUiEffectsCoordinator(
     private val coroutineScope: CoroutineScope,
 ) : AutoCloseable {
     private val enabledState = MutableStateFlow(false)
-    private val initializedState = MutableStateFlow(false)
+    private var initialLoadCompleted = false
     private var observerJob: Job? = null
     private var reconciledSilentCompletionSerial = 0L
 
     val startGateState: StateFlow<PrivilegeUiStartGateState> = PrivilegeUiStartGate.state
     val enabled: StateFlow<Boolean> = enabledState.asStateFlow()
-    val initialized: StateFlow<Boolean> = initializedState.asStateFlow()
-    val interactionsEnabled: Boolean
-        get() = enabledState.value && interactiveStartOwner.canInteract(startGateState.value)
 
     fun initialize() {
         val gateState = startGateState.value
@@ -59,8 +56,10 @@ internal class PrivilegeUiEffectsCoordinator(
         }
     }
 
-    fun effectsAllowed(gateState: PrivilegeUiStartGateState): Boolean =
-        enabledState.value && interactiveStartOwner.canInteract(gateState)
+    fun canInteract(
+        gateState: PrivilegeUiStartGateState = startGateState.value,
+    ): Boolean =
+        interactiveStartOwner.canInteract(gateState)
 
     fun refreshHostResumeState() {
         coroutineScope.launch(CoroutineName("priv-ui-host-resume")) {
@@ -98,8 +97,8 @@ internal class PrivilegeUiEffectsCoordinator(
             enabledState.value = false
         }
 
-        val initializing = !initializedState.value
-        if (initializing) {
+        val loadingInitialState = !initialLoadCompleted
+        if (loadingInitialState) {
             loadImmediateInitialState(
                 useCurrentRuntimeState = !silentCompletionChanged,
             )
@@ -111,10 +110,10 @@ internal class PrivilegeUiEffectsCoordinator(
         if (!gate.isCurrent()) return
 
         reconciledSilentCompletionSerial = gate.silentCompletionSerial
-        enabledState.value = true
-        if (initializing) {
-            initializedState.value = true
+        if (loadingInitialState) {
+            initialLoadCompleted = true
         }
+        enabledState.value = true
 
         supervisorScope {
             launch(CoroutineName("priv-ui-deferred-initial-state")) {
@@ -139,9 +138,6 @@ internal class PrivilegeUiEffectsCoordinator(
         }
         if (PrivilegeUiStartupMode.MANUAL_SHELL in startupModes) {
             launch { store.loadManualShellCommand() }
-        }
-        if (PrivilegeUiStartupMode.ADB in startupModes) {
-            launch { adbActions.refreshAdbIdentityInfoNow() }
         }
     }
 

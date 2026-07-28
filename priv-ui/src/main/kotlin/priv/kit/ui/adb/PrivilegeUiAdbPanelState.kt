@@ -2,6 +2,7 @@ package priv.kit.ui.adb
 
 import priv.kit.ui.PrivilegeUiAdbTcpAuthorizationStatus
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
+import priv.kit.ui.PrivilegeUiState
 import priv.kit.ui.PrivilegeUiWirelessAdbStatus
 import priv.kit.ui.R
 import priv.kit.ui.component.PrivilegeUiStartAction
@@ -95,6 +96,19 @@ internal fun staticTcpActionEnabled(
         startEnabled = !busy &&
             (tcpModeConfigured || wirelessAdbSupported),
     )
+
+internal fun PrivilegeUiState.staticTcpStartActionEnabled(
+    action: PrivilegeUiStartAction,
+    wirelessAdbSupported: Boolean,
+    interactionEnabled: Boolean,
+): Boolean =
+    staticTcpActionEnabled(
+        action = action,
+        busy = busy,
+        wirelessAdbSupported = wirelessAdbSupported,
+        tcpModeConfigured = configuredTcpModePort != null,
+    ) &&
+        interactionEnabled
 
 internal fun staticTcpCommandHelpVisible(
     wirelessAdbSupported: Boolean,

@@ -7,6 +7,10 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import priv.kit.core.Privilege
 import priv.kit.sample.debug.PrivilegeSampleDebugController
 import priv.kit.sample.debug.PrivilegeSampleDebugViewModel
 import priv.kit.sample.startup.PrivilegeSamplePrivilegeUiCallbacks
@@ -19,6 +23,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching {
+                Privilege.createAdbManager().getIdentityInfo()
+            }
+        }
         viewModel = ViewModelProvider(this)[PrivilegeSampleViewModel::class.java]
         debugViewModel = ViewModelProvider(this)[PrivilegeSampleDebugViewModel::class.java]
         debugController = PrivilegeSampleDebugController(this, debugViewModel)

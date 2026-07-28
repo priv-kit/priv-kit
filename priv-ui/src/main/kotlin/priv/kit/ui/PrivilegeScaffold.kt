@@ -71,9 +71,6 @@ public fun PrivilegeScaffold(
     contentColor: Color = contentColorFor(containerColor),
     contentWindowInsets: WindowInsets = ScaffoldDefaults.contentWindowInsets,
 ) {
-    val uiInitialized by viewModel.uiInitialized.collectAsStateWithLifecycle()
-    if (!uiInitialized) return
-
     val activity = LocalActivity.current!!
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -81,8 +78,7 @@ public fun PrivilegeScaffold(
     val permissionHostId = rememberSaveable { UUID.randomUUID().toString() }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val startGateState by viewModel.startGateState.collectAsStateWithLifecycle()
-    val uiEffectsEnabled by viewModel.uiEffectsEnabled.collectAsStateWithLifecycle()
-    val interactionEnabled = uiEffectsEnabled && viewModel.uiEffectsAllowed(startGateState)
+    val interactionEnabled = viewModel.canInteract(startGateState)
     val notificationPermission = if (isPrivilegeUiNotificationPermissionSupported()) {
         Manifest.permission.POST_NOTIFICATIONS
     } else {

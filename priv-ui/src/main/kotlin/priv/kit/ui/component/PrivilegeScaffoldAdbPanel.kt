@@ -54,9 +54,9 @@ import priv.kit.ui.adb.PrivilegeUiWirelessAdbPanelStatus
 import priv.kit.ui.adb.privilegeUiWirelessAdbStartAction
 import priv.kit.ui.adb.privilegeUiWirelessAdbStartActionEnabled
 import priv.kit.ui.adb.privilegeUiWirelessAdbStartActionLabel
-import priv.kit.ui.adb.staticTcpActionEnabled
 import priv.kit.ui.adb.staticTcpActionLabel
 import priv.kit.ui.adb.staticTcpStartAction
+import priv.kit.ui.adb.staticTcpStartActionEnabled
 import priv.kit.ui.adb.staticTcpCommandHelpVisible
 import priv.kit.ui.adb.staticTcpPanelStatus
 import priv.kit.ui.adb.wirelessAdbPanelStatus
@@ -438,12 +438,11 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
             runtimeStartPhase = state.runtimeStartPhase,
             ownsRuntimeStart = staticTcpOwnsRuntimeStart,
         )
-        val tcpStartActionEnabled = state.staticTcpStatusLoaded && staticTcpActionEnabled(
+        val tcpStartActionEnabled = state.staticTcpStartActionEnabled(
             action = startAction,
-            busy = state.busy,
             wirelessAdbSupported = wirelessAdbSupported,
-            tcpModeConfigured = staticTcpConfigured,
-        ) && interactionEnabled
+            interactionEnabled = interactionEnabled,
+        )
         val commandHelpVisible = staticTcpCommandHelpVisible(
             wirelessAdbSupported = wirelessAdbSupported,
         )

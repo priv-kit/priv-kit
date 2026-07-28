@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import priv.kit.core.Privilege
 import priv.kit.ui.adb.PrivilegeUiAdbActions
 import priv.kit.ui.adb.PrivilegeUiStaticTcpSwitchAction
 import priv.kit.ui.external.PrivilegeUiExternalStartActions
@@ -36,7 +37,19 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     application: Application,
     public val config: PrivilegeUiConfig = PrivilegeUiConfig(),
 ) : AndroidViewModel(application) {
-    private val store = PrivilegeUiViewModelStore(application, config)
+    private val store = PrivilegeUiViewModelStore(application, config).also { createdStore ->
+        if (PrivilegeUiStartupMode.ADB in createdStore.state.value.startupModes) {
+            runCatching {
+                Privilege.createAdbManager().getIdentityInfo()
+            }.onSuccess { info ->
+                createdStore.updateState {
+                    it.copy(adbKeyFingerprint = info.publicKeyFingerprint)
+                }
+            }.onFailure { throwable ->
+                createdStore.appendLog(throwable.toPrivilegeUiDiagnosticString())
+            }
+        }
+    }
     private val desiredEnabledManager = PrivilegeUiDesiredEnabledManagers.get(application)
     private val interactiveStartOwner = PrivilegeUiStartGate.newInteractiveOwner()
     private val acquireInteractivePermit = interactiveStartOwner::tryAcquire
@@ -80,10 +93,9 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     internal val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
     internal val startGateState: StateFlow<PrivilegeUiStartGateState> =
         effectsCoordinator.startGateState
-    internal val uiInitialized: StateFlow<Boolean> = effectsCoordinator.initialized
     internal val uiEffectsEnabled: StateFlow<Boolean> = effectsCoordinator.enabled
     internal val uiInteractionsEnabled: Boolean
-        get() = effectsCoordinator.interactionsEnabled
+        get() = effectsCoordinator.canInteract()
     internal val snackbarTexts: SharedFlow<PrivilegeUiText> = store.snackbarTexts
     internal val permissionRequests: Flow<PrivilegeUiPermissionRequest> = permissionCoordinator.requests
     internal val batteryOptimizationPromptVisible: StateFlow<Boolean> =
@@ -118,8 +130,8 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         refreshBatteryOptimizationState()
     }
 
-    internal fun uiEffectsAllowed(gateState: PrivilegeUiStartGateState): Boolean =
-        effectsCoordinator.effectsAllowed(gateState)
+    internal fun canInteract(gateState: PrivilegeUiStartGateState): Boolean =
+        effectsCoordinator.canInteract(gateState)
 
     /** Return true when the host handled the back action; false uses the system back dispatcher. */
     protected open fun onBackClick(): Boolean = false

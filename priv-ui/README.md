@@ -32,12 +32,13 @@ startup mode, runs only the relevant ADB or external-provider polling coroutine,
 previous mode automatically. Hosts use `PrivilegeScaffold`; they do not consume its render state
 or create and close polling handles.
 
-Before `PrivilegeScaffold` emits page content, the ViewModel loads the runtime state and its
-permission-restriction status, manual command, and ADB identity required by the configured
-startup modes. Wireless ADB discovery, static-TCP probing, and external-provider snapshots then
-load independently without delaying the rest of the page. Their existing rows display a
-loading status until the first result, so the page layout remains stable. Periodic polling
-keeps the last completed snapshot visible until a later refresh finishes.
+`PrivilegeScaffold` emits its page content immediately from the initial render state. The
+ViewModel then loads the runtime state and its permission-restriction status and manual command
+required by the configured startup modes. ADB identity is read while the ViewModel is created.
+Wireless ADB discovery, static-TCP probing, and external-provider snapshots also load
+independently. Their existing rows display a loading or unavailable status until the first
+result, so the page layout remains stable. Periodic polling keeps the last completed snapshot
+visible until a later refresh finishes.
 
 The initial authorization tab is selected while the render state is constructed. It follows the
 last successfully confirmed foreground start method when that method is still enabled by the
