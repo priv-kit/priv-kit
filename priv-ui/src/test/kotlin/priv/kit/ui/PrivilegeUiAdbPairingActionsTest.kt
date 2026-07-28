@@ -235,7 +235,7 @@ class PrivilegeUiAdbPairingActionsTest {
     }
 
     @Test
-    @Config(qualifiers = "zh-rCN")
+    @Config(qualifiers = "b+zh+Hans")
     fun foregroundFailureEventUsesLocalizedMessageAndKeepsPairingSessionOpen() = runBlocking {
         assertUnavailableNotificationMessage(
             reason = PrivilegeAdbPairingNotificationUnavailableReason.FOREGROUND_SERVICE_FAILED,
@@ -244,7 +244,7 @@ class PrivilegeUiAdbPairingActionsTest {
     }
 
     @Test
-    @Config(qualifiers = "zh-rCN")
+    @Config(qualifiers = "b+zh+Hans")
     fun permissionFailureEventUsesLocalizedPermissionMessage() = runBlocking {
         assertUnavailableNotificationMessage(
             reason = PrivilegeAdbPairingNotificationUnavailableReason.NOTIFICATION_PERMISSION_REQUIRED,

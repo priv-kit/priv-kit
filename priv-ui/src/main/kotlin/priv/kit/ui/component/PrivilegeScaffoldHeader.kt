@@ -10,6 +10,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import priv.kit.ui.PrivilegeUiScreenScope
@@ -21,6 +23,7 @@ import priv.kit.ui.R
 @Composable
 internal fun PrivilegeTopBar(viewModel: PrivilegeUiViewModel) {
     val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    val uriHandler = LocalUriHandler.current
     TopAppBar(
         navigationIcon = {
             val backDescription = stringResource(R.string.priv_ui_nav_back)
@@ -45,8 +48,32 @@ internal fun PrivilegeTopBar(viewModel: PrivilegeUiViewModel) {
         title = {
             Text(text = stringResource(R.string.priv_ui_title))
         },
+        actions = {
+            val githubDescription = stringResource(R.string.priv_ui_github_repository_action)
+            PrivilegeIconTooltip(
+                text = githubDescription,
+                modifier = Modifier,
+            ) {
+                IconButton(
+                    onClick = uriHandler::openPrivilegeUiGitHubRepository,
+                ) {
+                    Icon(
+                        imageVector = PrivilegeUiIcons.GitHub,
+                        contentDescription = githubDescription,
+                    )
+                }
+            }
+        },
     )
 }
+
+internal fun UriHandler.openPrivilegeUiGitHubRepository() {
+    runCatching {
+        openUri(PRIVILEGE_UI_GITHUB_URL)
+    }
+}
+
+private const val PRIVILEGE_UI_GITHUB_URL = "https://github.com/priv-kit/priv-kit"
 
 @Composable
 internal fun PrivilegeUiScreenScope.AuthorizationModeTabs() {

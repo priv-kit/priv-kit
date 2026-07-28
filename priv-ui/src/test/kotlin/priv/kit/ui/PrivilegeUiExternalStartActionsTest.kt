@@ -174,7 +174,7 @@ class PrivilegeUiExternalStartActionsTest {
     }
 
     @Test
-    @Config(qualifiers = "zh-rCN")
+    @Config(qualifiers = "b+zh+Hans")
     fun externalStartFailureUsesLocalizedMessageAndKeepsDiagnosticLog() = runBlocking {
         val provider = ThrowingExternalStartProvider()
         val config = PrivilegeUiConfig(externalStartProviders = listOf(provider))

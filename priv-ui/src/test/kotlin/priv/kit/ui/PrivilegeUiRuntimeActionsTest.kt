@@ -155,7 +155,7 @@ class PrivilegeUiRuntimeActionsTest {
     }
 
     @Test
-    @Config(qualifiers = "zh-rCN")
+    @Config(qualifiers = "b+zh+Hans")
     fun rootUnavailableSnackbarIsLocalizedWithoutRewritingDiagnosticLog() = runBlocking {
         RuntimeActionsFixture().use { (store, actions) ->
             val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }
@@ -183,7 +183,7 @@ class PrivilegeUiRuntimeActionsTest {
     }
 
     @Test
-    @Config(qualifiers = "zh-rCN")
+    @Config(qualifiers = "b+zh+Hans")
     fun unknownRootStartFailureUsesLocalizedFallbackAndKeepsDiagnosticLog() = runBlocking {
         RuntimeActionsFixture().use { (store, actions) ->
             val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }
@@ -208,7 +208,7 @@ class PrivilegeUiRuntimeActionsTest {
     }
 
     @Test
-    @Config(qualifiers = "zh-rCN")
+    @Config(qualifiers = "b+zh+Hans")
     fun adbStartFailureUsesLocalizedFallbackAndKeepsDiagnosticLog() = runBlocking {
         RuntimeActionsFixture().use { (store, actions) ->
             val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }
@@ -407,7 +407,7 @@ class PrivilegeUiRuntimeActionsTest {
     }
 
     @Test
-    @Config(qualifiers = "zh-rCN")
+    @Config(qualifiers = "b+zh+Hans")
     fun stopServerFailureUsesLocalizedMessageAndKeepsDiagnosticLog() = runBlocking {
         RuntimeActionsFixture(
             shutdownServer = { error("Privilege server is unavailable") },
@@ -427,7 +427,7 @@ class PrivilegeUiRuntimeActionsTest {
     }
 
     @Test
-    @Config(qualifiers = "zh-rCN")
+    @Config(qualifiers = "b+zh+Hans")
     fun busyFailureUsesOperationMessageAndKeepsDiagnosticLog() = runBlocking {
         RuntimeActionsFixture().use { (store, actions) ->
             val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }

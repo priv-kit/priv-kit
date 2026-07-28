@@ -28,7 +28,7 @@ import priv.kit.ui.runtime.PrivilegeUiRuntimeStartResult
 import priv.kit.ui.state.PrivilegeUiViewModelStore
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36], qualifiers = "zh-rCN")
+@Config(sdk = [36], qualifiers = "b+zh+Hans")
 class PrivilegeUiAdbTcpActionsTest {
     @Test
     fun automaticTimeoutUsesLocalizedSnackbarAndKeepsDiagnosticLog() = runBlocking {

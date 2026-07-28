@@ -85,7 +85,7 @@ class PrivilegeUiFailurePolicyTest {
     }
 
     @Test
-    @Config(qualifiers = "zh-rCN")
+    @Config(qualifiers = "b+zh+Hans")
     fun chineseFailureResourcesNeverExposeInjectedDiagnostic() {
         val context: android.content.Context = RuntimeEnvironment.getApplication()
         val diagnostic = "Failed to execute injected command"
