@@ -1,9 +1,12 @@
 package priv.kit.ui.component
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.TextAutoSize
@@ -70,10 +73,12 @@ internal fun PrivilegeUiScreenScope.AdbPanel() {
         viewModel.staticTcpSwitchConfirmation.collectAsStateWithLifecycle()
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.large),
     ) {
-        if (batteryOptimizationPromptVisible) {
-            BatteryOptimizationPromptPanel()
+        AnimatedVisibility(visible = batteryOptimizationPromptVisible) {
+            Column {
+                BatteryOptimizationPromptPanel()
+                Spacer(Modifier.height(PrivilegeUiSpacing.large))
+            }
         }
         Panel {
             val wirelessAdbVisible = isPrivilegeUiWirelessAdbSupported()
