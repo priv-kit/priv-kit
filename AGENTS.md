@@ -28,16 +28,12 @@ belongs under `docs`, not `website`. Run `pnpm check` and `pnpm build` from the
 `website` directory after changing public documentation.
 
 Declare every hidden Android API only in the `:hidden-api` module. Do not place
-framework mirrors or stubs in product modules. Before adding or changing a
-hidden API declaration, use the `android-api-diff` MCP to inspect its signatures
-and version ranges. When Java declaration code is needed, call
-`generate_android_api_code` directly; it performs the version query itself.
-Use its returned `code` as the source of truth. Preserve generated declarations,
-version-range comments, and annotations; do not recreate or omit them manually.
-The `:hidden-api` module must not contain Java constant declarations, field
-initializers, or any `final` modifier. Convert generated `public static final`
-fields to uninitialized `public static` fields, and remove `final` from
-generated type and member declarations.
+framework mirrors or stubs in product modules. Before adding or changing hidden
+API declarations, use the project `android-api-diff` skill. The `:hidden-api`
+module must not contain Java constant declarations, field initializers, or any
+`final` modifier. Convert generated `public static final` fields to uninitialized
+`public static` fields, and remove `final` from generated type and member
+declarations.
 
 When a hidden API changes across Android maintenance releases that share the
 same API level, implement runtime signature detection and dispatch in

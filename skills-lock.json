@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "skills": {
+    "android-api-diff": {
+      "source": "android-cs/android-api-diff",
+      "ref": "v0.3.0",
+      "sourceType": "github",
+      "skillPath": "skills/android-api-diff/SKILL.md",
+      "computedHash": "d9e1fe3a5f2259266ee68308754b6b9d61b4e6813e2e6778d5b58cfc043eb4e7"
+    }
+  }
+}
