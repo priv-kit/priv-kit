@@ -30,10 +30,10 @@ internal class PrivilegeSamplePrivilegeUiViewModel(
 
 internal val privilegeUiConfig by lazy {
     PrivilegeUiConfig(
-        startupModes = setOf(
+        startupModes = listOf(
+            PrivilegeUiStartupMode.ROOT,
             PrivilegeUiStartupMode.ADB,
             PrivilegeUiStartupMode.MANUAL_SHELL,
-            PrivilegeUiStartupMode.ROOT,
         ),
         externalStartProviders = listOf(
             PrivilegeSampleShizukuExternalStartProvider,

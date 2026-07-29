@@ -25,6 +25,11 @@ description: 使用推荐的 Compose 授权界面，并配置静默启动。
 ```kotlin
 val privilegeUiConfig by lazy {
     PrivilegeUiConfig(
+        startupModes = listOf(
+            PrivilegeUiStartupMode.ROOT,
+            PrivilegeUiStartupMode.ADB,
+            PrivilegeUiStartupMode.MANUAL_SHELL,
+        ),
         externalStartProviders = listOf(shizukuProvider),
     )
 }
@@ -36,6 +41,10 @@ val serverInfo = PrivilegeUi.startSilently(
 
 顶层属性及其外部 Provider 不应持有 `Activity`。Provider ID 用于保存启动方式，
 应用升级后也应保持不变。
+
+`startupModes` 是控制授权 Tab 顺序的有序列表，传入重复项会直接报错。存在外部
+Provider 时，`EXTERNAL` 会保留列表中的位置；如果列表中没有它，则自动追加到
+末尾。没有外部 Provider 时，即使列表包含 `EXTERNAL` 也不会显示 External Tab。
 
 ## 嵌入 Scaffold {#embed-scaffold}
 

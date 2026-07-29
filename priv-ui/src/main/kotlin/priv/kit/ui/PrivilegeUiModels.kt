@@ -87,7 +87,7 @@ internal enum class PrivilegeUiAdbTcpAuthorizationStatus {
 }
 
 public data class PrivilegeUiConfig public constructor(
-    public val startupModes: Set<PrivilegeUiStartupMode> = setOf(
+    public val startupModes: List<PrivilegeUiStartupMode> = listOf(
         PrivilegeUiStartupMode.ROOT,
         PrivilegeUiStartupMode.ADB,
         PrivilegeUiStartupMode.MANUAL_SHELL,
@@ -105,6 +105,9 @@ public data class PrivilegeUiConfig public constructor(
     public val startTimeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
 ) {
     init {
+        require(startupModes.distinct().size == startupModes.size) {
+            "startup modes must be unique"
+        }
         require(startTimeoutMillis > 0L) { "startTimeoutMillis must be positive" }
         require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         require(adbAuthorizationTimeoutMillis > 0L) { "adbAuthorizationTimeoutMillis must be positive" }

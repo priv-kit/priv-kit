@@ -43,6 +43,10 @@ visible until a later refresh finishes.
 The initial authorization tab is selected while the render state is constructed. It follows the
 last successfully confirmed foreground start method when that method is still enabled by the
 current config; otherwise it falls back to ADB or the first configured method.
+`PrivilegeUiConfig.startupModes` is an ordered list, so its order controls the authorization
+tabs and duplicate modes are rejected. When external providers are configured, `EXTERNAL`
+keeps its explicit list position or is appended when omitted. Without external providers, the
+External tab is hidden even if `EXTERNAL` appears in the list.
 
 Internal Android components:
 

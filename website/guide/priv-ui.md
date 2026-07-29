@@ -28,6 +28,11 @@ pass the same instance to the foreground ViewModel and the headless entry point:
 ```kotlin
 val privilegeUiConfig by lazy {
     PrivilegeUiConfig(
+        startupModes = listOf(
+            PrivilegeUiStartupMode.ROOT,
+            PrivilegeUiStartupMode.ADB,
+            PrivilegeUiStartupMode.MANUAL_SHELL,
+        ),
         externalStartProviders = listOf(shizukuProvider),
     )
 }
@@ -40,6 +45,11 @@ val serverInfo = PrivilegeUi.startSilently(
 The top-level property and its external providers must not retain an `Activity`.
 Provider identifiers are persistent keys and should remain stable across app
 upgrades.
+
+`startupModes` is an ordered list that controls the authorization tab order,
+and duplicate modes are rejected. With configured external providers,
+`EXTERNAL` keeps its listed position or is appended when omitted. With no
+external providers, the External tab is hidden even when `EXTERNAL` is listed.
 
 ## Embed the scaffold {#embed-scaffold}
 

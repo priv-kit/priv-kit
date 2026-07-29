@@ -141,7 +141,7 @@ class PrivilegeUiStartMethodStoreTest {
         val viewModelStore = PrivilegeUiViewModelStore(
             context = application,
             config = PrivilegeUiConfig(
-                startupModes = setOf(PrivilegeUiStartupMode.ADB),
+                startupModes = listOf(PrivilegeUiStartupMode.ADB),
             ),
         )
 

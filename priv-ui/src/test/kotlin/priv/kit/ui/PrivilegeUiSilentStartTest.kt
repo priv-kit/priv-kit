@@ -111,7 +111,7 @@ class PrivilegeUiSilentStartTest {
         store.write(PrivilegeUiStartMethod.Root)
 
         val result = PrivilegeUi.startSilently(
-            config = PrivilegeUiConfig(startupModes = setOf(PrivilegeUiStartupMode.ADB)),
+            config = PrivilegeUiConfig(startupModes = listOf(PrivilegeUiStartupMode.ADB)),
             ignoreAutomaticRecoverySetting = true,
         )
 

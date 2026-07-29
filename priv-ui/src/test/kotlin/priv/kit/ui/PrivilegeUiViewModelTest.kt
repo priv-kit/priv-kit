@@ -156,7 +156,7 @@ class PrivilegeUiViewModelTest {
         }
         val viewModel = configuredViewModel(
             PrivilegeUiConfig(
-                startupModes = setOf(
+                startupModes = listOf(
                     PrivilegeUiStartupMode.ROOT,
                     PrivilegeUiStartupMode.EXTERNAL,
                 ),
@@ -220,7 +220,7 @@ class PrivilegeUiViewModelTest {
     fun adbIdentityLoadFinishesBeforeViewModelConstructionReturns() {
         val viewModel = configuredViewModel(
             PrivilegeUiConfig(
-                startupModes = setOf(PrivilegeUiStartupMode.ADB),
+                startupModes = listOf(PrivilegeUiStartupMode.ADB),
                 adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
             ),
         )
@@ -313,7 +313,7 @@ class PrivilegeUiViewModelTest {
     fun publicStartAndCancelCommandsAreIgnoredWhileCancelling() = runBlocking {
         val viewModel = configuredViewModel(
             PrivilegeUiConfig(
-                startupModes = setOf(PrivilegeUiStartupMode.ROOT),
+                startupModes = listOf(PrivilegeUiStartupMode.ROOT),
                 adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
                 startTimeoutMillis = 250L,
             ),
@@ -793,7 +793,7 @@ class PrivilegeUiViewModelTest {
     ) : PrivilegeUiViewModel(
         application = application,
         config = PrivilegeUiConfig(
-            startupModes = setOf(PrivilegeUiStartupMode.ROOT),
+            startupModes = listOf(PrivilegeUiStartupMode.ROOT),
             adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
         ),
     )
@@ -811,7 +811,7 @@ class PrivilegeUiViewModelTest {
     ) : PrivilegeUiViewModel(
         application = application,
         config = PrivilegeUiConfig(
-            startupModes = setOf(PrivilegeUiStartupMode.ROOT),
+            startupModes = listOf(PrivilegeUiStartupMode.ROOT),
             adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
         ),
     ) {
@@ -829,7 +829,7 @@ class PrivilegeUiViewModelTest {
     ) : PrivilegeUiViewModel(
         application = application,
         config = PrivilegeUiConfig(
-            startupModes = setOf(PrivilegeUiStartupMode.ROOT),
+            startupModes = listOf(PrivilegeUiStartupMode.ROOT),
             adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
         ),
     ) {
@@ -849,7 +849,7 @@ class PrivilegeUiViewModelTest {
     ) : PrivilegeUiViewModel(
         application = application,
         config = PrivilegeUiConfig(
-            startupModes = setOf(PrivilegeUiStartupMode.ROOT),
+            startupModes = listOf(PrivilegeUiStartupMode.ROOT),
             adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
         ),
     ) {

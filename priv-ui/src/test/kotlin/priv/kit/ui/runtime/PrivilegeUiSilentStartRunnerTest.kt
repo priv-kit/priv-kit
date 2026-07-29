@@ -59,7 +59,7 @@ class PrivilegeUiSilentStartRunnerTest {
     fun rootMethodStartsOnlyRootWhenEnabled() = runBlocking {
         val backend = RecordingBackend(serverInfo)
         val runner = runner(
-            config = PrivilegeUiConfig(startupModes = setOf(PrivilegeUiStartupMode.ROOT)),
+            config = PrivilegeUiConfig(startupModes = listOf(PrivilegeUiStartupMode.ROOT)),
             backend = backend,
         )
 
@@ -74,7 +74,7 @@ class PrivilegeUiSilentStartRunnerTest {
     fun disabledRootMethodReturnsNullWithoutFallback() = runBlocking {
         val backend = RecordingBackend(serverInfo)
         val runner = runner(
-            config = PrivilegeUiConfig(startupModes = setOf(PrivilegeUiStartupMode.ADB)),
+            config = PrivilegeUiConfig(startupModes = listOf(PrivilegeUiStartupMode.ADB)),
             backend = backend,
         )
 
@@ -115,7 +115,7 @@ class PrivilegeUiSilentStartRunnerTest {
         }
         val job = launch {
             runner(
-                config = PrivilegeUiConfig(startupModes = setOf(PrivilegeUiStartupMode.ROOT)),
+                config = PrivilegeUiConfig(startupModes = listOf(PrivilegeUiStartupMode.ROOT)),
                 backend = backend,
             ).start(PrivilegeUiStartMethod.Root, clientLaunch)
         }
@@ -129,7 +129,7 @@ class PrivilegeUiSilentStartRunnerTest {
     fun emptyStartupModesUseSameRootFallbackAsForegroundUi() = runBlocking {
         val backend = RecordingBackend(serverInfo)
         val runner = runner(
-            config = PrivilegeUiConfig(startupModes = emptySet()),
+            config = PrivilegeUiConfig(startupModes = emptyList()),
             backend = backend,
         )
 
@@ -142,7 +142,7 @@ class PrivilegeUiSilentStartRunnerTest {
         val backend = RecordingBackend(serverInfo)
         val runner = runner(
             config = PrivilegeUiConfig(
-                startupModes = setOf(PrivilegeUiStartupMode.ADB),
+                startupModes = listOf(PrivilegeUiStartupMode.ADB),
                 tcpPort = 5566,
                 enableManagedWirelessAdb = true,
             ),
@@ -167,7 +167,7 @@ class PrivilegeUiSilentStartRunnerTest {
         val backend = RecordingBackend(serverInfo)
         val runner = PrivilegeUiSilentStartRunner(
             context = context,
-            config = PrivilegeUiConfig(startupModes = setOf(PrivilegeUiStartupMode.ADB)),
+            config = PrivilegeUiConfig(startupModes = listOf(PrivilegeUiStartupMode.ADB)),
             backend = backend,
             requiredLocalNetworkPermission = { "android.permission.ACCESS_LOCAL_NETWORK" },
         )
@@ -181,7 +181,7 @@ class PrivilegeUiSilentStartRunnerTest {
         val backend = RecordingBackend(serverInfo)
         val runner = runner(
             config = PrivilegeUiConfig(
-                startupModes = setOf(PrivilegeUiStartupMode.ADB),
+                startupModes = listOf(PrivilegeUiStartupMode.ADB),
                 enableManagedWirelessAdb = false,
             ),
             backend = backend,
@@ -200,7 +200,7 @@ class PrivilegeUiSilentStartRunnerTest {
         val backend = RecordingBackend(serverInfo)
         val runner = runner(
             config = PrivilegeUiConfig(
-                startupModes = setOf(PrivilegeUiStartupMode.ADB),
+                startupModes = listOf(PrivilegeUiStartupMode.ADB),
                 tcpPort = 6677,
                 adbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
             ),
@@ -217,7 +217,7 @@ class PrivilegeUiSilentStartRunnerTest {
         val backend = RecordingBackend(serverInfo)
         val runner = runner(
             config = PrivilegeUiConfig(
-                startupModes = setOf(PrivilegeUiStartupMode.ADB),
+                startupModes = listOf(PrivilegeUiStartupMode.ADB),
                 adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
             ),
             backend = backend,
