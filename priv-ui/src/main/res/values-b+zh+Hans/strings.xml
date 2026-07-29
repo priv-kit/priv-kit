@@ -28,6 +28,11 @@
     <string name="priv_ui_stopping_service">正在停止特权服务...</string>
     <string name="priv_ui_service_stopped">特权服务已停止</string>
     <string name="priv_ui_stop_service_failed">停止特权服务失败，请重试</string>
+    <string name="priv_ui_restart_service_dialog_title">重新启动特权服务？</string>
+    <string name="priv_ui_restart_service_dialog_message">当前已有特权服务连接。继续后会先结束旧服务，再启动新服务；如果无法结束旧服务，本次重启将取消。</string>
+    <string name="priv_ui_restart_service_confirm">继续</string>
+    <string name="priv_ui_restart_service_cancel">取消</string>
+    <string name="priv_ui_restart_stop_failed">无法结束旧特权服务，已取消重新启动</string>
     <string name="priv_ui_stop_service_dialog_title">停止服务？</string>
     <string name="priv_ui_stop_service_dialog_message">当前授权连接将被关闭</string>
     <string name="priv_ui_stop_service_confirm">停止</string>

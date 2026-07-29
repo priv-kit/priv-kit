@@ -52,14 +52,23 @@ internal class PrivilegeUiRuntimeStartCoordinator(
         session.cancel()
     }
 
-    fun runServerStart(attempt: PrivilegeUiRuntimeStartAttempt.Connect): Boolean =
-        runServerStartAttempt(attempt, "priv-ui-runtime-start")
+    fun runServerStart(
+        attempt: PrivilegeUiRuntimeStartAttempt.Connect,
+        replaceConnectedServer: Boolean = false,
+    ): Boolean =
+        runServerStartAttempt(attempt, "priv-ui-runtime-start", replaceConnectedServer)
 
-    fun runServerStartRequest(attempt: PrivilegeUiRuntimeStartAttempt.Request): Boolean =
-        runServerStartAttempt(attempt, "priv-ui-runtime-start-request")
+    fun runServerStartRequest(
+        attempt: PrivilegeUiRuntimeStartAttempt.Request,
+        replaceConnectedServer: Boolean = false,
+    ): Boolean =
+        runServerStartAttempt(attempt, "priv-ui-runtime-start-request", replaceConnectedServer)
 
-    fun runServerStartWorkflow(attempt: PrivilegeUiRuntimeStartAttempt.Workflow): Boolean =
-        runServerStartAttempt(attempt, "priv-ui-runtime-start-workflow")
+    fun runServerStartWorkflow(
+        attempt: PrivilegeUiRuntimeStartAttempt.Workflow,
+        replaceConnectedServer: Boolean = false,
+    ): Boolean =
+        runServerStartAttempt(attempt, "priv-ui-runtime-start-workflow", replaceConnectedServer)
 
     fun runServerStartFallback(attempts: List<PrivilegeUiRuntimeStartAttempt>): Boolean {
         if (attempts.isEmpty()) {
@@ -119,10 +128,12 @@ internal class PrivilegeUiRuntimeStartCoordinator(
     private fun runServerStartAttempt(
         attempt: PrivilegeUiRuntimeStartAttempt,
         name: String,
+        replaceConnectedServer: Boolean,
     ): Boolean = launchRuntimeStart(
         initialAttempt = attempt,
         showAttemptFeedback = true,
         name = name,
+        replaceConnectedServer = replaceConnectedServer,
         beforeStart = {
             store.clearStartupLog()
             appendStartupSource(it, attempt.startupSource)
@@ -134,6 +145,7 @@ internal class PrivilegeUiRuntimeStartCoordinator(
         initialAttempt: PrivilegeUiRuntimeStartAttempt,
         showAttemptFeedback: Boolean,
         name: String,
+        replaceConnectedServer: Boolean = false,
         beforeStart: (PrivilegeUiRuntimeStartSession) -> Unit,
         block: suspend (PrivilegeUiRuntimeStartSession) -> RuntimeStartCompletion,
     ): Boolean {
@@ -173,7 +185,10 @@ internal class PrivilegeUiRuntimeStartCoordinator(
                     }
                 }
                 session.checkActive()
-                val lease = PrivilegeRuntimeStartCoordinator.tryCommitClientStart(preflight)
+                val lease = PrivilegeRuntimeStartCoordinator.tryCommitClientStart(
+                    preflight = preflight,
+                    replaceConnectedServer = replaceConnectedServer,
+                )
                 if (lease == null) {
                     session.connected?.let {
                         RuntimeStartCompletion.Connected(it.serverInfo, it.successfulMethod)

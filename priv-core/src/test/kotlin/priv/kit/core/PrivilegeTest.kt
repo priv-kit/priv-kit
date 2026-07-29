@@ -277,6 +277,41 @@ class PrivilegeTest {
     }
 
     @Test
+    fun connectingNewHandshakeUnlinksOldConnectionBeforeInstallingNewServer() {
+        val oldServer = FakePrivilegeServer()
+        val newServer = FakePrivilegeServer()
+        Privilege.connectHandshake(
+            handshakeResult = PrivilegeServerHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 0,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                serverBinder = oldServer.asBinder(),
+            ),
+            startupLogListener = null,
+        )
+        assertEquals(1, oldServer.deathRecipientCount)
+
+        val replacementInfo = PrivilegeServerInfo(
+            uid = 2000,
+            pid = 5678,
+            protocolVersion = PrivilegeProtocol.VERSION,
+        )
+        Privilege.connectHandshake(
+            handshakeResult = PrivilegeServerHandshakeResult(
+                serverInfo = replacementInfo,
+                serverBinder = newServer.asBinder(),
+            ),
+            startupLogListener = null,
+        )
+
+        assertEquals(0, oldServer.deathRecipientCount)
+        assertEquals(1, newServer.deathRecipientCount)
+        assertEquals(replacementInfo, Privilege.getServerInfo())
+    }
+
+    @Test
     fun rootServerIsNeverPermissionRestrictedWithoutPermissionCheck() {
         val server = FakePrivilegeServer(
             permissionResult = PackageManager.PERMISSION_DENIED,
@@ -528,6 +563,8 @@ class PrivilegeTest {
         val packagePermissionChecks = mutableListOf<PackagePermissionCheck>()
         val runtimePermissionGrants = mutableListOf<RuntimePermissionGrant>()
         val runtimePermissionRevokes = mutableListOf<RuntimePermissionRevoke>()
+        val deathRecipientCount: Int
+            get() = binder.deathRecipientCount
 
         fun killBinder() {
             binder.killBinder(notifyDeathRecipients = false)

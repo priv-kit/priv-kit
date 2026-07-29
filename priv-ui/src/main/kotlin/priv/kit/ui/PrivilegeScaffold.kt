@@ -49,6 +49,7 @@ import priv.kit.ui.component.ManualShellPanel
 import priv.kit.ui.component.PrivilegeTopBar
 import priv.kit.ui.component.PrivilegeUiSpacing
 import priv.kit.ui.component.RootPanel
+import priv.kit.ui.component.RestartConfirmationDialog
 import priv.kit.ui.component.ServiceStatusPanel
 import priv.kit.ui.component.StartupLogPanel
 import priv.kit.ui.component.privilegeUiAutoRecoveryWarningVisible
@@ -134,6 +135,7 @@ public fun PrivilegeScaffold(
         interactionEnabled = interactionEnabled,
         showFeedback = ::showFeedback,
     )
+    screenScope.RestartConfirmationDialog()
     LaunchedEffect(Unit) {
         viewModel.permissionRequests.collect { request ->
             when (request) {

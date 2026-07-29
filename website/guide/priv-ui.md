@@ -73,6 +73,16 @@ PrivilegeScaffold(
 The scaffold owns its Activity Result launchers and returns permission results
 to the same suspended ViewModel operation.
 
+When a server is already connected, pressing a built-in Root, ADB, or external
+start button opens a restart confirmation. Cancelling leaves the current server
+untouched. Continuing asks the selected starter identity to kill the old
+process before starting its replacement. If that identity lacks permission to
+kill the old process, the attempt stops and the scaffold reports the failure in
+a Snackbar. Custom surfaces collect `serverRestartConfirmation`, render their
+own confirmation UX, then call `confirmServerRestart()` or `cancelServerRestart()`.
+The requesting start operation stays suspended until that decision returns, so
+the selected workflow continues in its original coroutine.
+
 ## Observe the server state {#server-state}
 
 `PrivilegeScaffold` already observes the runtime internally to render its
@@ -113,7 +123,9 @@ selected. Its foreground flow can:
 The notification pairing service is internal to `priv-ui`. Hosts embed
 `PrivilegeScaffold`; they do not start `PrivilegeAdbPairingService` directly.
 When notification input is unavailable, the scaffold keeps the foreground
-pairing dialog available for a split-screen flow with Android Settings.
+pairing dialog available for a split-screen flow with Android Settings. Its
+warning returns continue-without-notifications, granted-in-settings, or cancel
+to the same suspended pairing operation.
 
 Managed Wireless Debugging remains a `priv-core` capability. `priv-ui` reads
 its status and passes the selected policy to `priv-core`; it does not write

@@ -4,6 +4,7 @@ import priv.kit.core.PrivilegeServerLaunchUncertainException
 import priv.kit.core.PrivilegeStartupException
 import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.core.internal.core.PrivilegeServerLaunchCommand
+import priv.kit.core.internal.runtime.PrivilegeStarterContract
 import java.net.SocketTimeoutException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -60,6 +61,7 @@ internal class PrivilegeAdbStartupCoordinator(
                         throwable,
                     )
                 }
+                PrivilegeStarterContract.requireNoStopExistingServerFailure(output.text())
                 output.append("diag", "Privileged Server shell command stream completed on $activeEndpoint")
             }
 

@@ -15,6 +15,7 @@ internal object PrivilegeHandshakeContract {
     const val EXTRA_OWNER_RECONNECT: String = "privilege_owner_reconnect"
 
     const val ENV_LAUNCH_CORRELATION_ID: String = "PRIV_KIT_LAUNCH_CORRELATION_ID"
+    const val ENV_OWNER_USER_ID: String = "PRIV_KIT_OWNER_USER_ID"
 
     const val RESULT_ACCEPTED: String = "privilege_accepted"
     const val RESULT_OWNER_BINDER: String = "privilege_owner_binder"

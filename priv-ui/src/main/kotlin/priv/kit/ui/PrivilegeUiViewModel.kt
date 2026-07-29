@@ -6,13 +6,18 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import priv.kit.core.Privilege
 import priv.kit.ui.adb.PrivilegeUiAdbActions
@@ -88,6 +93,8 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     private var notificationPairingStartJob: Job? = null
     private var externalAuthorizationJob: Job? = null
     private var batteryOptimizationRefreshJob: Job? = null
+    private val serverRestartDecisionLock = Any()
+    private var pendingServerRestartDecision: PendingServerRestartDecision? = null
     private var hostResumeDispatchInProgress = false
     private val batteryOptimizationPromptVisibleState = MutableStateFlow(false)
     internal val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
@@ -108,6 +115,21 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
      */
     public val staticTcpSwitchConfirmation: StateFlow<PrivilegeUiStaticTcpSwitchAction?> =
         adbActions.staticTcpSwitchConfirmation
+    /**
+     * A pending request to replace the currently connected Privileged Server.
+     *
+     * The built-in [PrivilegeScaffold] presents this request as a confirmation dialog. Custom
+     * surfaces should collect it and call [confirmServerRestart] or [cancelServerRestart].
+     * Merely observing the request has no startup or shutdown side effects.
+     */
+    public val serverRestartConfirmation: StateFlow<PrivilegeUiServerRestartRequest?> =
+        store.state
+            .map { current -> current.restartConfirmationTarget }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.Eagerly,
+                initialValue = store.state.value.restartConfirmationTarget,
+            )
 
     init {
         addCloseable { closeOwner() }
@@ -168,8 +190,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     public open fun startRoot() {
-        if (!uiInteractionsEnabled) return
-        runtimeActions.startRoot()
+        requestServerStart(PrivilegeUiServerRestartRequest.Root)
     }
 
     /** Starts the foreground provider sequence used by the service-status action. */
@@ -262,7 +283,9 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
     public open fun cancelPendingPairingStart() {
         if (!uiInteractionsEnabled) return
-        notificationPairingStartJob?.cancel()
+        if (!store.state.value.pairingNotificationPermissionWarningVisible) {
+            notificationPairingStartJob?.cancel()
+        }
         notificationPairingStartJob = null
         adbActions.cancelPendingPairingStart()
     }
@@ -303,13 +326,11 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     ) = permissionCoordinator.completeLocalNetworkPermissionRequest(hostId, permissionState)
 
     public open fun startWirelessAdb() {
-        if (!uiInteractionsEnabled) return
-        adbActions.startWirelessAdb(permissionCoordinator::requestLocalNetworkPermission)
+        requestServerStart(PrivilegeUiServerRestartRequest.WirelessAdb)
     }
 
     public open fun startAdb() {
-        if (!uiInteractionsEnabled) return
-        adbActions.startAdb(permissionCoordinator::requestLocalNetworkPermission)
+        requestServerStart(PrivilegeUiServerRestartRequest.Adb)
     }
 
     public open fun onHostResume() {
@@ -362,8 +383,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     public open fun startStaticTcpAdb() {
-        if (!uiInteractionsEnabled) return
-        adbActions.startStaticTcpAdb(permissionCoordinator::requestLocalNetworkPermission)
+        requestServerStart(PrivilegeUiServerRestartRequest.StaticTcpAdb)
     }
 
     public open fun confirmStaticTcpSwitch() {
@@ -377,10 +397,136 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     public open fun authorizeOrStartExternal(providerId: String) {
+        requestServerStart(PrivilegeUiServerRestartRequest.External(providerId))
+    }
+
+    public open fun confirmServerRestart() {
+        if (!uiInteractionsEnabled) return
+        resolveServerRestartDecision(confirmed = true)
+    }
+
+    public open fun cancelServerRestart() {
+        if (!uiInteractionsEnabled) return
+        resolveServerRestartDecision(confirmed = false)
+    }
+
+    private fun requestServerStart(target: PrivilegeUiServerRestartRequest) {
+        if (!uiInteractionsEnabled) return
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            requestServerStartInContext(target)
+        }
+    }
+
+    private suspend fun requestServerStartInContext(target: PrivilegeUiServerRestartRequest) {
+        val current = store.state.value
+        if (
+            current.busy ||
+            current.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE ||
+            current.restartConfirmationTarget != null
+        ) {
+            return
+        }
+        val replaceConnectedServer =
+            if (current.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
+                if (!awaitServerRestartDecision(target)) return
+                true
+            } else {
+                false
+            }
+        if (!uiInteractionsEnabled) return
+        executeServerStart(target, replaceConnectedServer)
+    }
+
+    private suspend fun awaitServerRestartDecision(
+        target: PrivilegeUiServerRestartRequest,
+    ): Boolean {
+        val response = CompletableDeferred<Boolean>()
+        val pending = PendingServerRestartDecision(target, response)
+        val registered = synchronized(serverRestartDecisionLock) {
+            if (pendingServerRestartDecision != null) {
+                false
+            } else {
+                pendingServerRestartDecision = pending
+                true
+            }
+        }
+        if (!registered) return false
+        store.updateState { it.copy(restartConfirmationTarget = target) }
+        return try {
+            response.await()
+        } finally {
+            val stillPending = synchronized(serverRestartDecisionLock) {
+                if (pendingServerRestartDecision === pending) {
+                    pendingServerRestartDecision = null
+                    true
+                } else {
+                    false
+                }
+            }
+            if (stillPending) {
+                clearServerRestartRequest(target)
+            }
+        }
+    }
+
+    private fun resolveServerRestartDecision(confirmed: Boolean) {
+        val pending = synchronized(serverRestartDecisionLock) {
+            pendingServerRestartDecision.also {
+                pendingServerRestartDecision = null
+            }
+        } ?: return
+        clearServerRestartRequest(pending.target)
+        pending.response.complete(confirmed)
+    }
+
+    private fun clearServerRestartRequest(target: PrivilegeUiServerRestartRequest) {
+        store.updateState { current ->
+            if (current.restartConfirmationTarget == target) {
+                current.copy(restartConfirmationTarget = null)
+            } else {
+                current
+            }
+        }
+    }
+
+    private fun executeServerStart(
+        target: PrivilegeUiServerRestartRequest,
+        replaceConnectedServer: Boolean,
+    ) {
+        when (target) {
+            PrivilegeUiServerRestartRequest.Root ->
+                runtimeActions.startRoot(replaceConnectedServer)
+            PrivilegeUiServerRestartRequest.Adb ->
+                adbActions.startAdb(
+                    permissionCoordinator::requestLocalNetworkPermission,
+                    replaceConnectedServer,
+                )
+            PrivilegeUiServerRestartRequest.WirelessAdb ->
+                adbActions.startWirelessAdb(
+                    permissionCoordinator::requestLocalNetworkPermission,
+                    replaceConnectedServer,
+                )
+            PrivilegeUiServerRestartRequest.StaticTcpAdb ->
+                adbActions.startStaticTcpAdb(
+                    permissionCoordinator::requestLocalNetworkPermission,
+                    replaceConnectedServer,
+                )
+            is PrivilegeUiServerRestartRequest.External ->
+                startExternal(target.providerId, replaceConnectedServer)
+        }
+    }
+
+    private fun startExternal(
+        providerId: String,
+        replaceConnectedServer: Boolean,
+    ) {
         if (!uiInteractionsEnabled) return
         if (externalAuthorizationJob?.isActive == true) return
         externalAuthorizationJob = viewModelScope.launch {
-            externalStartActions.authorizeOrStartExternal(providerId)
+            externalStartActions.authorizeOrStartExternal(
+                providerId = providerId,
+                replaceConnectedServer = replaceConnectedServer,
+            )
         }
     }
 
@@ -401,6 +547,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
     private fun closeOwner() {
         ownerClosed.set(true)
+        resolveServerRestartDecision(confirmed = false)
         batteryOptimizationRefreshJob?.cancel()
         batteryOptimizationRefreshJob = null
         runCatching { effectsCoordinator.close() }
@@ -409,6 +556,11 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         permissionCoordinator.close()
         runCatching { store.close() }
     }
+
+    private data class PendingServerRestartDecision(
+        val target: PrivilegeUiServerRestartRequest,
+        val response: CompletableDeferred<Boolean>,
+    )
 
     private fun disableDesiredEnabled() {
         runCatching {

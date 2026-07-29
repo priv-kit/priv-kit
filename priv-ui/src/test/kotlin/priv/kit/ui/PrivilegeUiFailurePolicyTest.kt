@@ -8,6 +8,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import priv.kit.core.PrivilegeExistingServerStopException
 import priv.kit.core.PrivilegeStartupException
 import priv.kit.core.adb.PrivilegeAdbAuthorizationEndReason
 import priv.kit.ui.state.PrivilegeUiFailureKind
@@ -64,6 +65,19 @@ class PrivilegeUiFailurePolicyTest {
         assertEquals(
             PrivilegeUiFailureKind.START_FAILED,
             privilegeUiRuntimeStartFailureKind(null, failure),
+        )
+    }
+
+    @Test
+    fun nestedExistingServerStopFailureUsesRestartSpecificKind() {
+        val failure = IllegalStateException(
+            "outer failure",
+            PrivilegeExistingServerStopException("kill denied"),
+        )
+
+        assertEquals(
+            PrivilegeUiFailureKind.RESTART_STOP_FAILED,
+            privilegeUiRuntimeStartFailureKind(PrivilegeUiRuntimeStartSource.ADB_WIRELESS, failure),
         )
     }
 

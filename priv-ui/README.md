@@ -66,10 +66,21 @@ The UI covers ordinary user-facing authorization only:
 - Realtime startup transcript for Root, ADB, and streaming external startup providers.
 - Service started/not-started status.
 - A connected-server warning above the authorization method tabs when the privileged service is subject to permission restrictions. The status is checked after each connection and whenever the host returns to the foreground; Root servers skip the permission check.
+- A restart confirmation when a built-in Root, ADB, or external start button is pressed while a server is already connected.
 
 For manual shell startup, the UI reads `Privilege.nativeStarterCommand` and prefixes it with
 `adb shell`. The command can invoke an uncompressed APK entry through the Android linker or
 execute an extracted starter file; the UI only prepares display and clipboard text.
+
+After the user confirms a connected-server restart, the selected start method invokes the
+same native starter replacement path. The old process is killed and confirmed gone before
+the new process is created. If the launching identity cannot kill the existing process, the
+attempt ends and the built-in UI shows a Snackbar that the old privileged service could not
+be stopped. Cancelling the dialog performs no startup action. Custom surfaces collect
+`PrivilegeUiViewModel.serverRestartConfirmation`, render their own confirmation UX, then
+call `confirmServerRestart()` or `cancelServerRestart()`. The requesting start coroutine remains
+suspended while the dialog is visible; those methods only return its decision, and the selected
+workflow continues in its original call context.
 
 Battery-optimization guidance directly opens Android's exemption confirmation for the
 host package and rechecks the result when the page returns to the foreground. `priv-ui`
@@ -196,8 +207,9 @@ holder, or Activity Result launcher. Returning `false` from `onBackClick()` dele
 system back dispatcher. While the notification-permission warning is pending, each host
 foreground refresh checks `POST_NOTIFICATIONS` and continues notification pairing automatically
 once it is granted. This check is independent of notification-settings navigation; the settings
-hook only opens the destination. Hosts that need custom top-bar actions should supply their own
-`topBar`.
+hook only opens the destination. The warning also returns its result to the original pairing
+coroutine: continue without notifications, resume with notifications after settings grants the
+permission, or cancel. Hosts that need custom top-bar actions should supply their own `topBar`.
 
 `PrivilegeScaffold` observes runtime status internally. Hosts that need the process-wide
 connection state outside the scaffold should collect `Privilege.serverState` from a scope owned

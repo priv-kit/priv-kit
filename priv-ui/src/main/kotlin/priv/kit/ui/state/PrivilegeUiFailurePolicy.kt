@@ -1,6 +1,7 @@
 package priv.kit.ui.state
 
 import androidx.annotation.StringRes
+import priv.kit.core.PrivilegeExistingServerStopException
 import priv.kit.core.PrivilegeStartupException
 import priv.kit.core.adb.PrivilegeAdbAuthorizationEndReason
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
@@ -10,6 +11,7 @@ internal enum class PrivilegeUiFailureKind(
     @field:StringRes val messageResId: Int,
 ) {
     START_FAILED(R.string.priv_ui_start_failed),
+    RESTART_STOP_FAILED(R.string.priv_ui_restart_stop_failed),
     ROOT_UNAVAILABLE(R.string.priv_ui_root_unavailable),
     ROOT_START_FAILED(R.string.priv_ui_root_start_failed),
     ADB_START_FAILED(R.string.priv_ui_adb_start_failed),
@@ -29,7 +31,9 @@ internal fun privilegeUiRuntimeStartFailureKind(
     runtimeStartSource: PrivilegeUiRuntimeStartSource?,
     throwable: Throwable,
 ): PrivilegeUiFailureKind =
-    when (runtimeStartSource) {
+    if (throwable.hasExistingServerStopFailure()) {
+        PrivilegeUiFailureKind.RESTART_STOP_FAILED
+    } else when (runtimeStartSource) {
         PrivilegeUiRuntimeStartSource.ROOT if throwable.hasRootUnavailableDiagnostic() -> PrivilegeUiFailureKind.ROOT_UNAVAILABLE
         PrivilegeUiRuntimeStartSource.ROOT ->
             PrivilegeUiFailureKind.ROOT_START_FAILED
@@ -38,6 +42,11 @@ internal fun privilegeUiRuntimeStartFailureKind(
         PrivilegeUiRuntimeStartSource.EXTERNAL ->
             PrivilegeUiFailureKind.EXTERNAL_START_FAILED
         else -> PrivilegeUiFailureKind.START_FAILED
+    }
+
+private fun Throwable.hasExistingServerStopFailure(): Boolean =
+    generateSequence(this) { it.cause }.any {
+        it is PrivilegeExistingServerStopException
     }
 
 internal fun privilegeUiTcpAuthorizationFailureKind(

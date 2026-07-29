@@ -89,6 +89,9 @@ internal class PrivilegeRootProcess internal constructor(
         process.destroy()
     }
 
+    @Throws(InterruptedException::class)
+    internal fun waitForExit(): Int = process.waitFor()
+
     internal fun outputText(): String = output.text()
 
     internal class Output(

@@ -28,6 +28,11 @@
     <string name="priv_ui_stopping_service">Stopping Privileged Server...</string>
     <string name="priv_ui_service_stopped">Privileged Server stopped</string>
     <string name="priv_ui_stop_service_failed">Failed to stop Privileged Server. Try again</string>
+    <string name="priv_ui_restart_service_dialog_title">Restart Privileged Server?</string>
+    <string name="priv_ui_restart_service_dialog_message">A Privileged Server is already connected. Continuing stops it before starting a replacement. If it cannot be stopped, the restart is cancelled.</string>
+    <string name="priv_ui_restart_service_confirm">Continue</string>
+    <string name="priv_ui_restart_service_cancel">Cancel</string>
+    <string name="priv_ui_restart_stop_failed">Could not stop the existing Privileged Server. Restart cancelled</string>
     <string name="priv_ui_stop_service_dialog_title">Stop service?</string>
     <string name="priv_ui_stop_service_dialog_message">The current privileged connection will be closed</string>
     <string name="priv_ui_stop_service_confirm">Stop</string>

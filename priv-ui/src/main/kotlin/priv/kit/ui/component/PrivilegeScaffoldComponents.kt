@@ -215,6 +215,38 @@ internal fun privilegeUiAutoRecoveryWarningVisible(
         )
 
 @Composable
+internal fun PrivilegeUiScreenScope.RestartConfirmationDialog() {
+    if (state.restartConfirmationTarget == null) return
+    AlertDialog(
+        onDismissRequest = {
+            if (interactionEnabled) viewModel.cancelServerRestart()
+        },
+        title = {
+            Text(stringResource(R.string.priv_ui_restart_service_dialog_title))
+        },
+        text = {
+            Text(stringResource(R.string.priv_ui_restart_service_dialog_message))
+        },
+        confirmButton = {
+            TextButton(
+                enabled = interactionEnabled,
+                onClick = viewModel::confirmServerRestart,
+            ) {
+                Text(stringResource(R.string.priv_ui_restart_service_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(
+                enabled = interactionEnabled,
+                onClick = viewModel::cancelServerRestart,
+            ) {
+                Text(stringResource(R.string.priv_ui_restart_service_cancel))
+            }
+        },
+    )
+}
+
+@Composable
 internal fun PrivilegeUiScreenScope.ServiceStatusPanel() {
     var showStopConfirmation by remember { mutableStateOf(false) }
     val action = privilegeUiServiceStatusAction(

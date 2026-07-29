@@ -110,6 +110,25 @@ Root 和 ADB 的 transport 与诊断留在 `:priv-core` 内部。Core 公开 nat
 
 Native starter 必须在解析 APK、终止旧服务端或创建新进程前校验实际 UID，只允许 root（0）、system（1000）和 shell（2000）。Provider 侧保留独立的可信调用方校验作为纵深防御。
 
+Owner Android userId 为 0 时，Core 生成的 starter 命令省略 userId 环境变量，由
+starter 和服务端使用默认值 0；只有非 0 userId 才必须显式携带该参数。服务端进程名
+使用内部 package/user 作用域 token 前缀。可读后缀在 user 0 下为
+`<package>:priv-server`，仅非 0 user 使用
+`<package>:priv-server-u<userId>`。旧进程发现优先精确匹配完整 `cmdline`；无法读取
+时只允许匹配该作用域 token 对应的 `comm`，并验证进程实际 UID 属于受支持特权
+身份；两者都无法检查则启动失败。
+不得因另一 Android user 下存在同包名而终止其服务。
+公开手动启动命令不得携带 launch correlation ID；该 ID 只用于进程内受协调的
+Root、ADB 和外部启动流程，并且仅在非空时写入命令。
+
+重复执行 starter 采用 kill-first 语义：先无副作用地完成 `/proc` 快照、进程身份和
+signal 权限预检，再向所有已验证的旧服务端发送 `SIGKILL`，并在创建新进程前确认其
+进程名已从 `/proc` 消失。同 UID 或 root 可正常完成；如果调用
+身份无权终止旧进程、无法扫描或无法确认退出，本次 starter 必须以稳定错误标识和
+非零退出码终止，不得创建候选服务端、不得要求旧服务端处理自销毁消息。主进程存在
+时通过 Binder death 和后续初始握手观察断开、再连接；主进程不存在时，同一命令仍可
+独立完成 owner userId 作用域内的替换并让新服务端等待后续 owner 重连。
+
 外部启动集成的通用 runner、特权端 host、进程执行、日志管道、完成、超时和并发处理可以属于 Core。第三方绑定代码和应用自有 AIDL 必须留在应用侧、可选集成或 sample。
 
 入口进程的身份不等于最终服务端身份。服务端必须基于实际进程身份报告和校验 uid、pid、package、协议版本及启动关联。运行时只可为自身启动闭环授予必要且有限的能力，不得成为通用授权代理。
@@ -158,6 +177,15 @@ UI 层只呈现和控制 Core 生命周期原语。静默恢复必须满足：
 - 被 runtime 接受的初始启动可记录用户期望开启
 - 断连、server 死亡和恢复失败不得隐式关闭该期望
 - 只有用户确认停止或关闭自动恢复时才能记录关闭
+
+内置启动方式按钮在服务端已连接时必须先询问是否重新启动。取消不产生启动副作用；
+继续才提交一次 replacement start。若 starter 无权终止旧进程，UI 通过 Snackbar
+报告旧服务结束失败并结束本次启动。
+
+需要用户决定后才能继续的前台流程必须让原 ViewModel 协程挂起等待结果。Compose
+只呈现待决请求并返回确认、取消或其它明确结果；结果处理函数不得脱离原调用上下文
+重新构造后续启动或配对流程。ViewModel 关闭时必须取消其待决请求；依赖 Activity
+Result 或通知交互的请求在最后一个实际 host 离开时也必须取消并释放其启动门。
 
 前台和静默启动共用互斥启动门，采用先获得者执行、无排队、无抢占。配置变更可以由同一 ViewModel 的新 host 接管，但最后一个实际 host 离开时必须清理挂起的权限事务。
 

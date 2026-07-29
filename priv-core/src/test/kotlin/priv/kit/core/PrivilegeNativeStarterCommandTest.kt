@@ -2,7 +2,7 @@ package priv.kit.core
 
 import java.io.File
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -10,6 +10,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.runtime.PrivilegeContext
+import priv.kit.core.internal.runtime.PrivilegeServerLaunchCommandBuilder
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -20,9 +21,8 @@ class PrivilegeNativeStarterCommandTest {
 
         val nativeStarterCommand = Privilege.nativeStarterCommand
 
-        assertFalse(
-            nativeStarterCommand.contains(PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID),
-        )
+        assertTrue(PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID !in nativeStarterCommand)
+        assertTrue(PrivilegeHandshakeContract.ENV_OWNER_USER_ID !in nativeStarterCommand)
 
         RuntimeEnvironment.getApplication().applicationInfo.nativeLibraryDir =
             "/data/app/reinstalled/lib/arm64"
@@ -33,7 +33,7 @@ class PrivilegeNativeStarterCommandTest {
     @Test
     fun coordinatedNativeStarterCommandIncludesLaunchCorrelationEnvironment() {
         installRuntimeContext()
-        val nativeStarterCommand = Privilege.nativeStarterCommand
+        val baseNativeStarterCommand = Privilege.nativeStarterCommand
 
         val commandLine =
             Privilege.createNativeStarterCommand(
@@ -42,8 +42,32 @@ class PrivilegeNativeStarterCommandTest {
 
         assertEquals(
             "${PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID}=launch-1 " +
-                nativeStarterCommand,
+                baseNativeStarterCommand,
             commandLine,
+        )
+    }
+
+    @Test
+    fun nativeStarterCommandOmitsPrimaryOwnerUserScope() {
+        assertEquals(
+            "/starter",
+            PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
+                baseNativeStarterCommand = "/starter",
+                launchCorrelationId = null,
+                ownerUserId = 0,
+            ),
+        )
+    }
+
+    @Test
+    fun nativeStarterCommandUsesExplicitNonPrimaryOwnerUserScope() {
+        assertEquals(
+            "${PrivilegeHandshakeContract.ENV_OWNER_USER_ID}=10 /starter",
+            PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
+                baseNativeStarterCommand = "/starter",
+                launchCorrelationId = null,
+                ownerUserId = 10,
+            ),
         )
     }
 

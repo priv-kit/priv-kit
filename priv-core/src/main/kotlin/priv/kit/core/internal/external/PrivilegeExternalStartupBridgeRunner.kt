@@ -9,6 +9,7 @@ import priv.kit.core.PrivilegeExternalStartupBridgeOptions
 import priv.kit.core.PrivilegeStartupException
 import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.core.StartupTranscript
+import priv.kit.core.internal.runtime.PrivilegeStarterContract
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -105,6 +106,7 @@ internal class PrivilegeExternalStartupBridgeRunner {
             }
 
             val bridgeResult = completion.first
+            PrivilegeStarterContract.requireNoStopExistingServerFailure(transcript.text())
             if (bridgeResult.resultCode != ExternalStartupBridgeProtocol.RESULT_SUCCESS) {
                 throw bridgeResult.toException(transcript.text())
             }

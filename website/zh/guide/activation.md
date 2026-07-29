@@ -206,7 +206,17 @@ YourApp.showCommandToUser("adb shell $nativeStarterCommand")
 命令时，在前面添加 `adb shell`。Starter 只允许 root（UID 0）、system
 （UID 1000）或 shell（UID 2000）身份运行。不同 Android 版本的要求见
 [native 库打包](./getting-started#native-library-packaging)。首次读取会检查已安装的
-APK，因此需要在非主线程解析命令。
+APK，因此需要在非主线程解析命令。User 0 使用默认 owner 作用域，不写入 userId
+环境变量；只有非 0 Android user 才显式携带 userId，因此即使应用主进程没有运行，
+从外部执行命令也能保持正确的用户作用域。
+
+再次执行 starter 时，它会先向精确匹配 owner 作用域的服务进程发送 `SIGKILL`，
+确认旧进程退出后才创建新进程。User 0 的可读进程名以
+`<package>:priv-server` 结尾，只有非 0 user 才添加 `-u<ownerUserId>`。内部的
+package/user token 使只能读取 `/proc/<pid>/comm` 时仍能限定发现范围。如果当前
+root、system 或 shell 身份无权结束旧进程，命令会失败，
+不会并行启动第二个 server。另一 Android user 下安装的同包名应用使用不同的
+作用域进程名，不会被选中。
 
 Android 10 及以上版本使用现代打包时，实际命令可能如下：
 

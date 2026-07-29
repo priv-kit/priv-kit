@@ -1,6 +1,5 @@
 package priv.kit.core.internal.server
 
-import priv.kit.core.internal.core.PrivilegeAndroidUsers
 import priv.kit.core.internal.core.PrivilegeProtocol
 import java.io.File
 
@@ -9,15 +8,25 @@ internal object PrivilegeServerArguments {
         args: Array<String>,
         classpath: String,
         launchCorrelationId: String?,
-        uid: Int,
+        ownerUserId: String?,
     ): PrivilegeServerConfig {
         require(args.isEmpty()) { "Privileged Server no longer accepts launch arguments" }
         val normalizedClasspath = classpath.trim()
         val packageName = inferPackageName(normalizedClasspath)
+        val parsedOwnerUserId = if (ownerUserId == null) {
+            0
+        } else {
+            ownerUserId
+                .toIntOrNull()
+                ?.takeIf { it >= 0 }
+                ?: throw IllegalArgumentException(
+                    "Privileged Server owner userId is invalid",
+                )
+        }
         return PrivilegeServerConfig(
             launchCorrelationId = launchCorrelationId,
             packageName = packageName,
-            userId = PrivilegeAndroidUsers.userIdFromUid(uid),
+            userId = parsedOwnerUserId,
             classpath = normalizedClasspath,
             protocolVersion = PrivilegeProtocol.VERSION,
         )

@@ -28,6 +28,8 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
@@ -193,6 +195,72 @@ class PrivilegeUiViewModelTest {
         viewModel.clearStartupLog()
 
         assertTrue(viewModel.state.value.startupLogLines.isEmpty())
+    }
+
+    @Test
+    fun connectedBuiltInStartRequestsConfirmationAndCancelKeepsServerState() {
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
+        viewModel.storeForTest().updateState {
+            it.copy(runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED)
+        }
+
+        viewModel.startRoot()
+
+        assertEquals(
+            PrivilegeUiServerRestartRequest.Root,
+            viewModel.state.value.restartConfirmationTarget,
+        )
+        assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, viewModel.state.value.runtimeStatus)
+        assertEquals(PrivilegeUiRuntimeStartPhase.IDLE, viewModel.state.value.runtimeStartPhase)
+
+        viewModel.cancelServerRestart()
+
+        assertNull(viewModel.state.value.restartConfirmationTarget)
+        assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, viewModel.state.value.runtimeStatus)
+
+        viewModel.startRoot()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(
+            PrivilegeUiServerRestartRequest.Root,
+            viewModel.serverRestartConfirmation.value,
+        )
+    }
+
+    @Test
+    fun connectedStartConfirmationRetainsTheRequestedMethod() {
+        val viewModel = configuredViewModel(
+            PrivilegeUiConfig(
+                startupModes = listOf(
+                    PrivilegeUiStartupMode.ADB,
+                    PrivilegeUiStartupMode.EXTERNAL,
+                ),
+                adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+                externalStartProviders = listOf(TestExternalStartProvider),
+            ),
+        )
+        viewModel.storeForTest().updateState {
+            it.copy(runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED)
+        }
+
+        viewModel.startWirelessAdb()
+        assertEquals(
+            PrivilegeUiServerRestartRequest.WirelessAdb,
+            viewModel.state.value.restartConfirmationTarget,
+        )
+        viewModel.cancelServerRestart()
+
+        viewModel.startStaticTcpAdb()
+        assertEquals(
+            PrivilegeUiServerRestartRequest.StaticTcpAdb,
+            viewModel.state.value.restartConfirmationTarget,
+        )
+        viewModel.cancelServerRestart()
+
+        viewModel.authorizeOrStartExternal(TestExternalStartProvider.id)
+        assertEquals(
+            PrivilegeUiServerRestartRequest.External(TestExternalStartProvider.id),
+            viewModel.state.value.restartConfirmationTarget,
+        )
     }
 
     @Test
@@ -530,13 +598,18 @@ class PrivilegeUiViewModelTest {
         shadowApplication.denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
         viewModel.awaitEffectsEnabled()
-        viewModel.storeForTest().updateState {
-            it.copy(pairingNotificationPermissionWarningVisible = true)
+        val pendingStart = async(start = CoroutineStart.UNDISPATCHED) {
+            viewModel.adbActionsForTest().startNotificationPairing {
+                PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
+            }
         }
+        assertTrue(pendingStart.isActive)
+        assertTrue(viewModel.state.value.pairingNotificationPermissionWarningVisible)
         shadowApplication.grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
 
         try {
             viewModel.dispatchHostResume()
+            pendingStart.await()
 
             val startedMessage = application.getString(R.string.priv_ui_notification_pairing_started)
             assertFalse(viewModel.state.value.pairingNotificationPermissionWarningVisible)
@@ -552,6 +625,7 @@ class PrivilegeUiViewModelTest {
 
             assertEquals(1, viewModel.state.value.startupLogLines.count { it == startedMessage })
         } finally {
+            pendingStart.cancel()
             viewModel.stopNotificationPairing()
         }
         withTimeout(TimeUnit.SECONDS.toMillis(2)) {

@@ -62,7 +62,8 @@ public object PrivilegeServerMain {
                 launchCorrelationId =
                     System.getenv(PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID)
                         ?.takeIf { it.isNotBlank() },
-                uid = android.os.Process.myUid(),
+                ownerUserId =
+                    System.getenv(PrivilegeHandshakeContract.ENV_OWNER_USER_ID),
             )
             val providerAuthority = PrivilegeHandshakeContract.providerAuthority(config.packageName)
             Log.i(

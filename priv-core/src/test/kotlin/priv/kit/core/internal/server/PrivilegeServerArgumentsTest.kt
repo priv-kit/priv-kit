@@ -5,7 +5,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import priv.kit.core.internal.core.PrivilegeProtocol
-import priv.kit.shared.PRIVILEGE_INTERNAL_SHELL_UID
 import java.io.File
 
 class PrivilegeServerArgumentsTest {
@@ -17,7 +16,7 @@ class PrivilegeServerArgumentsTest {
             args = emptyArray(),
             classpath = apk.path,
             launchCorrelationId = null,
-            uid = PRIVILEGE_INTERNAL_SHELL_UID,
+            ownerUserId = null,
         )
 
         assertNull(config.launchCorrelationId)
@@ -33,12 +32,12 @@ class PrivilegeServerArgumentsTest {
     }
 
     @Test
-    fun parseInfersUserIdFromApplicationUid() {
+    fun parseUsesExplicitOwnerUserId() {
         val config = PrivilegeServerArguments.parse(
             args = emptyArray(),
             classpath = testApk("example.user-hash").path,
             launchCorrelationId = null,
-            uid = 1_012_345,
+            ownerUserId = "10",
         )
 
         assertEquals(10, config.userId)
@@ -50,7 +49,7 @@ class PrivilegeServerArgumentsTest {
             args = emptyArray(),
             classpath = testApk("example.launch-hash").path,
             launchCorrelationId = "launch-1",
-            uid = PRIVILEGE_INTERNAL_SHELL_UID,
+            ownerUserId = "0",
         )
 
         assertEquals("launch-1", config.launchCorrelationId)
@@ -63,7 +62,7 @@ class PrivilegeServerArgumentsTest {
                 args = arrayOf("--token", "token"),
                 classpath = testApk("example.args-hash").path,
                 launchCorrelationId = null,
-                uid = PRIVILEGE_INTERNAL_SHELL_UID,
+                ownerUserId = "0",
             )
         }
     }
@@ -75,8 +74,22 @@ class PrivilegeServerArgumentsTest {
                 args = emptyArray(),
                 classpath = " ",
                 launchCorrelationId = null,
-                uid = PRIVILEGE_INTERNAL_SHELL_UID,
+                ownerUserId = "0",
             )
+        }
+    }
+
+    @Test
+    fun parseRejectsInvalidOwnerUserId() {
+        listOf("", "-1", "not-a-number").forEach { ownerUserId ->
+            assertThrows(IllegalArgumentException::class.java) {
+                PrivilegeServerArguments.parse(
+                    args = emptyArray(),
+                    classpath = testApk("example.invalid-user-hash").path,
+                    launchCorrelationId = null,
+                    ownerUserId = ownerUserId,
+                )
+            }
         }
     }
 

@@ -73,6 +73,30 @@ class PrivilegeExternalStartupBridgeTest {
     }
 
     @Test
+    fun bridgeClassifiesExistingServerStopFailure(): Unit = runBlocking {
+        val bridge = PrivilegeExternalStartupBridge { _, _, stderr, resultReceiver ->
+            ParcelFileDescriptor.AutoCloseOutputStream(
+                stderr,
+            ).bufferedWriter().use { writer ->
+                writer.appendLine(
+                    "fatal: PRIV_KIT_STARTER_STOP_EXISTING_SERVER_FAILED: " +
+                        "Operation not permitted",
+                )
+            }
+            resultReceiver.send(0, Bundle.EMPTY)
+        }
+
+        assertThrows(PrivilegeExistingServerStopException::class.java) {
+            runBlocking {
+                PrivilegeExternalStartup.runThroughBridge(
+                    commandLine = "restart-command",
+                    bridge = bridge,
+                )
+            }
+        }
+    }
+
+    @Test
     fun bridgeWaitsForResultAfterOutputEof(): Unit = runBlocking {
         val resultSent = AtomicBoolean(false)
         val resultThreadRef = AtomicReference<Thread?>()

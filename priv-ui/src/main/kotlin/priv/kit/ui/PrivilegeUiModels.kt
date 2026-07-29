@@ -43,6 +43,16 @@ internal enum class PrivilegeUiRuntimeStartSource {
     EXTERNAL,
 }
 
+public sealed interface PrivilegeUiServerRestartRequest {
+    public data object Root : PrivilegeUiServerRestartRequest
+    public data object Adb : PrivilegeUiServerRestartRequest
+    public data object WirelessAdb : PrivilegeUiServerRestartRequest
+    public data object StaticTcpAdb : PrivilegeUiServerRestartRequest
+    public data class External public constructor(
+        public val providerId: String,
+    ) : PrivilegeUiServerRestartRequest
+}
+
 public enum class PrivilegeUiAdbTcpPolicy {
     DISABLED,
     PREFER_EXISTING,
@@ -221,6 +231,7 @@ internal data class PrivilegeUiState(
     val permissionRestrictionStatus: PrivilegeUiPermissionRestrictionStatus =
         PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
     val desiredEnabled: Boolean = false,
+    val restartConfirmationTarget: PrivilegeUiServerRestartRequest? = null,
 )
 
 internal fun String.toPrivilegeUiPairingCodeDigits(): String =

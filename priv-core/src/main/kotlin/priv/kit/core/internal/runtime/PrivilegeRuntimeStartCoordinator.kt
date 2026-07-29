@@ -88,10 +88,26 @@ public object PrivilegeRuntimeStartCoordinator {
 
     public fun tryCommitClientStart(
         preflight: PrivilegeRuntimeStartPreflight,
+    ): PrivilegeRuntimeStartLease? =
+        tryCommitClientStart(
+            preflight = preflight,
+            replaceConnectedServer = false,
+        )
+
+    public fun tryCommitClientStart(
+        preflight: PrivilegeRuntimeStartPreflight,
+        replaceConnectedServer: Boolean,
     ): PrivilegeRuntimeStartLease? {
-        val alreadyConnected = runCatching { Privilege.pingServer() }.getOrDefault(false)
-        if (alreadyConnected) return null
-        return arbiter.tryCommitClientStart(preflight)?.let { operationId ->
+        if (
+            !replaceConnectedServer &&
+            runCatching { Privilege.pingServer() }.getOrDefault(false)
+        ) {
+            return null
+        }
+        return arbiter.tryCommitClientStart(
+            preflight = preflight,
+            replaceConnectedServer = replaceConnectedServer,
+        )?.let { operationId ->
             PrivilegeRuntimeStartLease(
                 operationId = operationId,
                 release = ::finishClientStart,
@@ -162,7 +178,10 @@ public object PrivilegeRuntimeStartCoordinator {
         launchCorrelationId: String?,
     ): PrivilegeRuntimeHandshakeTicket? =
         Privilege.withServerConnectionLock {
-            arbiter.tryAcceptHandshake(origin, launchCorrelationId)
+            arbiter.tryAcceptHandshake(
+                origin = origin,
+                launchCorrelationId = launchCorrelationId,
+            )
         }
 
     internal fun finishHandshake(ticket: PrivilegeRuntimeHandshakeTicket) {
@@ -233,10 +252,13 @@ internal class PrivilegeRuntimeStartArbiter(
             )
         }
 
-    fun tryCommitClientStart(preflight: PrivilegeRuntimeStartPreflight): Long? =
+    fun tryCommitClientStart(
+        preflight: PrivilegeRuntimeStartPreflight,
+        replaceConnectedServer: Boolean = false,
+    ): Long? =
         synchronized(lock) {
             if (
-                serverConnected ||
+                (serverConnected && !replaceConnectedServer) ||
                 activeClientStartOperationId != null ||
                 handshakeInFlightCount != 0 ||
                 elapsedRealtime() < reconnectGraceDeadlineMillis ||
@@ -316,7 +338,10 @@ internal class PrivilegeRuntimeStartArbiter(
             if (
                 origin == PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH &&
                 activeOperationId != null &&
-                launchCorrelationId != activeLaunchCorrelationId
+                (
+                    activeLaunchCorrelationId == null ||
+                        launchCorrelationId != activeLaunchCorrelationId
+                )
             ) {
                 return null
             }

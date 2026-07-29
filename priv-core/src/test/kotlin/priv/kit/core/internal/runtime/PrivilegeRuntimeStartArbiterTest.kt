@@ -154,6 +154,102 @@ class PrivilegeRuntimeStartArbiterTest {
     }
 
     @Test
+    fun replacementStartAcceptsOnlyItsCorrelatedHandshakeAfterServerDisconnects() {
+        val arbiter = PrivilegeRuntimeStartArbiter { 0L }
+        arbiter.markServerConnected()
+        val operationId = requireNotNull(
+            arbiter.tryCommitClientStart(
+                preflight = arbiter.beginPreflight(),
+                replaceConnectedServer = true,
+            ),
+        )
+        assertTrue(arbiter.beginClientLaunch(operationId, "replacement-launch"))
+
+        assertNull(
+            arbiter.tryAcceptHandshake(
+                origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
+                launchCorrelationId = null,
+            ),
+        )
+        assertNull(
+            arbiter.tryAcceptHandshake(
+                origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
+                launchCorrelationId = "different-launch",
+            ),
+        )
+        assertNull(
+            arbiter.tryAcceptHandshake(
+                origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
+                launchCorrelationId = "replacement-launch",
+            ),
+        )
+        arbiter.markServerDisconnected()
+        val replacementTicket = requireNotNull(
+            arbiter.tryAcceptHandshake(
+                origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
+                launchCorrelationId = "replacement-launch",
+            ),
+        )
+        assertEquals(operationId, replacementTicket.clientStartOperationId)
+        arbiter.finishHandshake(replacementTicket)
+        arbiter.finishClientStart(operationId)
+    }
+
+    @Test
+    fun committedStartRejectsInitialHandshakeUntilCorrelationIsAssigned() {
+        val arbiter = PrivilegeRuntimeStartArbiter { 0L }
+        arbiter.markServerConnected()
+        val operationId = requireNotNull(
+            arbiter.tryCommitClientStart(
+                preflight = arbiter.beginPreflight(),
+                replaceConnectedServer = true,
+            ),
+        )
+        arbiter.markServerDisconnected()
+
+        assertNull(
+            arbiter.tryAcceptHandshake(
+                origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
+                launchCorrelationId = null,
+            ),
+        )
+
+        assertTrue(arbiter.beginClientLaunch(operationId, "assigned-launch"))
+        val ticket = requireNotNull(
+            arbiter.tryAcceptHandshake(
+                origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
+                launchCorrelationId = "assigned-launch",
+            ),
+        )
+        arbiter.finishHandshake(ticket)
+        arbiter.finishClientStart(operationId)
+    }
+
+    @Test
+    fun uncoordinatedInitialHandshakeRequiresDisconnectedServerState() {
+        val arbiter = PrivilegeRuntimeStartArbiter { 0L }
+        arbiter.markServerConnected()
+
+        assertNull(
+            arbiter.tryAcceptHandshake(
+                origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
+                launchCorrelationId = null,
+            ),
+        )
+
+        arbiter.markServerDisconnected()
+        val replacementTicket = requireNotNull(
+            arbiter.tryAcceptHandshake(
+                origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
+                launchCorrelationId = null,
+            ),
+        )
+
+        assertNull(replacementTicket.clientStartOperationId)
+        arbiter.finishHandshake(replacementTicket)
+    }
+
+    @Test
     fun deferredOwnerReconnectIsResignalledWhenClientFinishesWithoutServer() {
         val arbiter = PrivilegeRuntimeStartArbiter { 0L }
         val operationId = requireNotNull(

@@ -54,7 +54,10 @@ internal class PrivilegeUiExternalStartActions(
         }
     }
 
-    suspend fun authorizeOrStartExternal(providerId: String) {
+    suspend fun authorizeOrStartExternal(
+        providerId: String,
+        replaceConnectedServer: Boolean = false,
+    ) {
         if (store.state.value.busy) return
         val interactionPermit = acquireInteractivePermit() ?: return
         try {
@@ -82,7 +85,7 @@ internal class PrivilegeUiExternalStartActions(
                 }
             }
 
-            startExternal(provider, context)
+            startExternal(provider, context, replaceConnectedServer)
         } finally {
             interactionPermit.close()
         }
@@ -102,7 +105,11 @@ internal class PrivilegeUiExternalStartActions(
     private fun startExternal(
         provider: PrivilegeUiExternalStartProvider,
         context: Context,
-    ): Boolean = runtimeActions.runServerStartRequest(externalStartAttempt(provider, context))
+        replaceConnectedServer: Boolean,
+    ): Boolean = runtimeActions.runServerStartRequest(
+        externalStartAttempt(provider, context),
+        replaceConnectedServer,
+    )
 
     private fun externalStartAttempt(
         provider: PrivilegeUiExternalStartProvider,

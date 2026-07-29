@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -46,7 +47,10 @@ internal class PrivilegeUiAdbPairingActions(
     private val hasInteractionHost: () -> Boolean = { true },
 ) : AutoCloseable {
     private val pairingPermitLock = Any()
+    private val notificationFallbackDecisionLock = Any()
     private var pairingPermit: AutoCloseable? = null
+    private var pendingNotificationFallbackDecision:
+        CompletableDeferred<NotificationFallbackDecision>? = null
     private var notificationEventsJob: Job? = null
     private var pairingJob: Job? = null
     private var pairingSessionSerial: Int = 0
@@ -124,6 +128,7 @@ internal class PrivilegeUiAdbPairingActions(
     }
 
     fun stopNotificationPairing() {
+        resolveNotificationFallbackDecision(NotificationFallbackDecision.CANCEL)
         stopPairingSession(
             text = store.resourceText(R.string.priv_ui_pairing_stopped),
             stopNotification = true,
@@ -135,11 +140,13 @@ internal class PrivilegeUiAdbPairingActions(
     }
 
     fun cancelNotificationPermissionRequest() {
-        store.updateState {
-            it.copy(pairingNotificationPermissionWarningVisible = false)
-        }
-        if (!store.state.value.pairingStatus.isPrivilegeUiPairingSessionActive()) {
-            releasePairingPermit()
+        if (!resolveNotificationFallbackDecision(NotificationFallbackDecision.CANCEL)) {
+            store.updateState {
+                it.copy(pairingNotificationPermissionWarningVisible = false)
+            }
+            if (!store.state.value.pairingStatus.isPrivilegeUiPairingSessionActive()) {
+                releasePairingPermit()
+            }
         }
     }
 
@@ -147,6 +154,7 @@ internal class PrivilegeUiAdbPairingActions(
         notificationLost: Boolean,
     ) {
         if (!notificationLost && PrivilegeAdbPairingService.isRequested(notificationOwnerId)) return
+        resolveNotificationFallbackDecision(NotificationFallbackDecision.CANCEL)
         stopPairingSession(
             text = store.resourceText(R.string.priv_ui_pairing_stopped),
             stopNotification = true,
@@ -155,18 +163,13 @@ internal class PrivilegeUiAdbPairingActions(
 
     fun continuePairingWithoutNotification() {
         if (!store.state.value.pairingNotificationPermissionWarningVisible) return
-        if (!ensurePairingPermit()) return
-        store.updateState {
-            it.copy(pairingNotificationPermissionWarningVisible = false)
-        }
-        startPairingSession()
+        resolveNotificationFallbackDecision(NotificationFallbackDecision.WITHOUT_NOTIFICATION)
     }
 
     fun continuePendingPairingIfNotificationPermissionGranted() {
         if (!store.state.value.pairingNotificationPermissionWarningVisible) return
         if (!isNotificationPermissionGranted()) return
-        if (!ensurePairingPermit()) return
-        startPairingWithNotification()
+        resolveNotificationFallbackDecision(NotificationFallbackDecision.WITH_NOTIFICATION)
     }
 
     fun closePairingDialog() {
@@ -182,7 +185,9 @@ internal class PrivilegeUiAdbPairingActions(
         submitPairingCode(store.state.value.pairingCode)
     }
 
-    private fun continueAfterNotificationPermission(permissionState: PrivilegeUiPermissionState?) {
+    private suspend fun continueAfterNotificationPermission(
+        permissionState: PrivilegeUiPermissionState?,
+    ) {
         if (permissionState == null) {
             if (!store.state.value.pairingStatus.isPrivilegeUiPairingSessionActive()) {
                 releasePairingPermit()
@@ -190,9 +195,7 @@ internal class PrivilegeUiAdbPairingActions(
             return
         }
         if (!ensurePairingPermit()) {
-            store.updateState {
-                it.copy(pairingNotificationPermissionWarningVisible = true)
-            }
+            continueAfterNotificationFallbackDecision(awaitNotificationFallbackDecision())
             return
         }
 
@@ -205,14 +208,91 @@ internal class PrivilegeUiAdbPairingActions(
                 store.showFailure(PrivilegeUiFailureKind.NOTIFICATION_PERMISSION_REQUIRED)
             }
             PrivilegeUiPermissionState.NotGranted.PermanentlyDenied -> {
+                continueAfterNotificationFallbackDecision(awaitNotificationFallbackDecision())
+            }
+        }
+    }
+
+    private suspend fun awaitNotificationFallbackDecision(): NotificationFallbackDecision {
+        val response = CompletableDeferred<NotificationFallbackDecision>()
+        val registered = synchronized(notificationFallbackDecisionLock) {
+            if (pendingNotificationFallbackDecision != null) {
+                false
+            } else {
+                pendingNotificationFallbackDecision = response
+                true
+            }
+        }
+        if (!registered) return NotificationFallbackDecision.CANCEL
+        store.updateState {
+            it.copy(pairingNotificationPermissionWarningVisible = true)
+        }
+        return try {
+            response.await()
+        } catch (throwable: CancellationException) {
+            if (!store.state.value.pairingStatus.isPrivilegeUiPairingSessionActive()) {
+                releasePairingPermit()
+            }
+            throw throwable
+        } finally {
+            val stillPending = synchronized(notificationFallbackDecisionLock) {
+                if (pendingNotificationFallbackDecision === response) {
+                    pendingNotificationFallbackDecision = null
+                    true
+                } else {
+                    false
+                }
+            }
+            if (stillPending) {
                 store.updateState {
-                    it.copy(pairingNotificationPermissionWarningVisible = true)
+                    it.copy(pairingNotificationPermissionWarningVisible = false)
+                }
+            }
+        }
+    }
+
+    private fun resolveNotificationFallbackDecision(
+        decision: NotificationFallbackDecision,
+    ): Boolean {
+        val response = synchronized(notificationFallbackDecisionLock) {
+            pendingNotificationFallbackDecision.also {
+                pendingNotificationFallbackDecision = null
+            }
+        } ?: return false
+        store.updateState {
+            it.copy(pairingNotificationPermissionWarningVisible = false)
+        }
+        return response.complete(decision)
+    }
+
+    private fun continueAfterNotificationFallbackDecision(
+        decision: NotificationFallbackDecision,
+    ) {
+        when (decision) {
+            NotificationFallbackDecision.WITH_NOTIFICATION -> {
+                if (isNotificationPermissionGranted() && ensurePairingPermit()) {
+                    startPairingWithNotification()
+                } else {
+                    releasePairingPermit()
+                }
+            }
+            NotificationFallbackDecision.WITHOUT_NOTIFICATION -> {
+                if (ensurePairingPermit()) {
+                    startPairingSession()
+                } else {
+                    releasePairingPermit()
+                }
+            }
+            NotificationFallbackDecision.CANCEL -> {
+                if (!store.state.value.pairingStatus.isPrivilegeUiPairingSessionActive()) {
+                    releasePairingPermit()
                 }
             }
         }
     }
 
     override fun close() {
+        resolveNotificationFallbackDecision(NotificationFallbackDecision.CANCEL)
         store.updateState {
             it.copy(pairingNotificationPermissionWarningVisible = false)
         }
@@ -223,6 +303,12 @@ internal class PrivilegeUiAdbPairingActions(
         notificationEventsJob?.cancel()
         notificationEventsJob = null
         releasePairingPermit()
+    }
+
+    private enum class NotificationFallbackDecision {
+        WITH_NOTIFICATION,
+        WITHOUT_NOTIFICATION,
+        CANCEL,
     }
 
     private fun resetPairingSessionForNotificationPermission() {

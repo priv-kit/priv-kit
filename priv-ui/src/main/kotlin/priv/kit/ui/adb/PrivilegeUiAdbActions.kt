@@ -93,14 +93,19 @@ internal class PrivilegeUiAdbActions(
 
     fun startWirelessAdb(
         requestLocalNetworkPermission: suspend (String) -> PrivilegeUiPermissionState?,
+        replaceConnectedServer: Boolean = false,
     ) {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
         refreshAdbStartPrerequisites()
-        runtimeActions.runServerStartWorkflow(wirelessAdbStartWorkflow(requestLocalNetworkPermission))
+        runtimeActions.runServerStartWorkflow(
+            wirelessAdbStartWorkflow(requestLocalNetworkPermission),
+            replaceConnectedServer,
+        )
     }
 
     fun startAdb(
         requestLocalNetworkPermission: suspend (String) -> PrivilegeUiPermissionState?,
+        replaceConnectedServer: Boolean = false,
     ) {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
         val tcpModePort = store.currentTcpModePort()
@@ -108,14 +113,15 @@ internal class PrivilegeUiAdbActions(
             store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED &&
             tcpModePort != null
         ) {
-            startStaticTcpAdb(requestLocalNetworkPermission)
+            startStaticTcpAdb(requestLocalNetworkPermission, replaceConnectedServer)
         } else {
-            startWirelessAdb(requestLocalNetworkPermission)
+            startWirelessAdb(requestLocalNetworkPermission, replaceConnectedServer)
         }
     }
 
     fun startStaticTcpAdb(
         requestLocalNetworkPermission: suspend (String) -> PrivilegeUiPermissionState?,
+        replaceConnectedServer: Boolean = false,
     ) {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
@@ -124,6 +130,7 @@ internal class PrivilegeUiAdbActions(
                 requestLocalNetworkPermission = requestLocalNetworkPermission,
                 confirmTcpSwitch = true,
             ),
+            replaceConnectedServer,
         )
     }
 
@@ -165,7 +172,10 @@ internal class PrivilegeUiAdbActions(
             staticTcpConfirmationController.cancel()
             return
         }
-        if (store.state.value.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
+        if (
+            store.state.value.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED &&
+            store.state.value.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.IDLE
+        ) {
             staticTcpConfirmationController.cancel()
             return
         }

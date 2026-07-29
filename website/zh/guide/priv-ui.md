@@ -68,6 +68,13 @@ PrivilegeScaffold(
 Scaffold 会自己注册 Activity Result launcher，并把权限结果交给正在等待结果的
 ViewModel。
 
+Server 已连接时，点击内置的 Root、ADB 或外部启动按钮会先显示重新启动确认。
+取消不会影响当前 server；继续后，所选启动身份会先结束旧进程，再启动替代进程。
+如果该身份无权结束旧进程，本次启动会停止，Scaffold 通过 Snackbar 提示失败。
+自定义界面需要监听 `serverRestartConfirmation`，展示自己的确认交互，然后调用
+`confirmServerRestart()` 或 `cancelServerRestart()`。发起启动的协程会挂起等待该
+结果，随后在原调用上下文中继续所选流程。
+
 ## 观察服务端状态 {#server-state}
 
 `PrivilegeScaffold` 已经在内部观察运行时并展示状态。应用的其他功能依赖连接时，
@@ -105,7 +112,8 @@ val config = PrivilegeUiConfig(
 
 通知配对服务是 `priv-ui` 的内部组件。应用只需嵌入 `PrivilegeScaffold`，不要直接
 启动 `PrivilegeAdbPairingService`。无法使用通知输入时，Scaffold 会保留前台配对
-对话框，供用户与 Android 设置页配合分屏操作。
+对话框，供用户与 Android 设置页配合分屏操作。权限警告会把“无通知继续”、设置中
+授权后继续或取消返回给同一个挂起的配对协程。
 
 `priv-core` 可以在具备权限时临时打开和关闭无线调试。`priv-ui` 只读取状态并把
 对应配置传给 `priv-core`，不会自行写入 `Settings.Global`。

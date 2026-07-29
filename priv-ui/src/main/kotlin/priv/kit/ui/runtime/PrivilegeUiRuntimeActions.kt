@@ -45,7 +45,8 @@ internal class PrivilegeUiRuntimeActions(
     val isClosed: Boolean
         get() = closed.get()
 
-    fun startRoot(): Boolean = runServerStart(rootStartAttempt())
+    fun startRoot(replaceConnectedServer: Boolean = false): Boolean =
+        runServerStart(rootStartAttempt(), replaceConnectedServer)
 
     fun rootStartAttempt(): PrivilegeUiRuntimeStartAttempt.Connect =
         PrivilegeUiRuntimeStartAttempt.Connect(
@@ -208,14 +209,23 @@ internal class PrivilegeUiRuntimeActions(
         }
     }
 
-    fun runServerStart(attempt: PrivilegeUiRuntimeStartAttempt.Connect): Boolean =
-        runtimeStartCoordinator.runServerStart(attempt)
+    fun runServerStart(
+        attempt: PrivilegeUiRuntimeStartAttempt.Connect,
+        replaceConnectedServer: Boolean = false,
+    ): Boolean =
+        runtimeStartCoordinator.runServerStart(attempt, replaceConnectedServer)
 
-    fun runServerStartRequest(attempt: PrivilegeUiRuntimeStartAttempt.Request): Boolean =
-        runtimeStartCoordinator.runServerStartRequest(attempt)
+    fun runServerStartRequest(
+        attempt: PrivilegeUiRuntimeStartAttempt.Request,
+        replaceConnectedServer: Boolean = false,
+    ): Boolean =
+        runtimeStartCoordinator.runServerStartRequest(attempt, replaceConnectedServer)
 
-    fun runServerStartWorkflow(attempt: PrivilegeUiRuntimeStartAttempt.Workflow): Boolean =
-        runtimeStartCoordinator.runServerStartWorkflow(attempt)
+    fun runServerStartWorkflow(
+        attempt: PrivilegeUiRuntimeStartAttempt.Workflow,
+        replaceConnectedServer: Boolean = false,
+    ): Boolean =
+        runtimeStartCoordinator.runServerStartWorkflow(attempt, replaceConnectedServer)
 
     fun runServerStartFallback(attempts: List<PrivilegeUiRuntimeStartAttempt>): Boolean =
         runtimeStartCoordinator.runServerStartFallback(attempts)

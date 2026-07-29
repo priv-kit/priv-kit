@@ -225,7 +225,20 @@ presenting the command for a development machine. The starter only runs as root
 (UID 0), system (UID 1000), or shell (UID 2000). See
 [native library packaging](./getting-started#native-library-packaging) for the
 Android-version requirements. Resolve the command off the main thread because
-first access inspects the installed APKs.
+first access inspects the installed APKs. User 0 uses the default owner scope
+without an owner-user environment variable. A non-primary Android user is
+embedded explicitly, so the command remains correctly scoped when it is
+executed while the application process is not running.
+
+Running the starter again first sends `SIGKILL` to the exact owner-scoped
+server process and verifies that it exited. Its readable name ends with
+`<package>:priv-server` for user 0 and adds `-u<ownerUserId>` only for a
+non-primary user. An internal package/user token keeps discovery scoped even
+when only `/proc/<pid>/comm` is readable.
+Only then is the replacement process created. If the current root, system, or
+shell identity cannot kill the old process, the command fails and does not
+start a second server. A package installed for another Android user has a
+different scoped process name and is not selected.
 
 With modern packaging on Android 10 or later, a rendered command can look like:
 

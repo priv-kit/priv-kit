@@ -79,10 +79,15 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
             Log.w(
                 TAG,
                 "Rejecting server mismatch protocol=${serverInfo.protocolVersion}, " +
-                    "classpathIdentityMatches=$classpathIdentityMatches",
+                "classpathIdentityMatches=$classpathIdentityMatches",
             )
         }
-        val accepted = if (trustedCaller && matchesCurrentRuntime) {
+        val existingServerAlive =
+            trustedCaller &&
+                matchesCurrentRuntime &&
+                origin == PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH &&
+                Privilege.pingServer()
+        val accepted = if (trustedCaller && matchesCurrentRuntime && !existingServerAlive) {
             PrivilegeServerHandshakeRegistry.deliverReady(
                 serverBinder = serverBinder,
                 serverInfo = serverInfo,

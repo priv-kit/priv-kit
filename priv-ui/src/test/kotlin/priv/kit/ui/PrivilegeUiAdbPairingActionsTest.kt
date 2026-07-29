@@ -13,6 +13,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -51,12 +52,14 @@ class PrivilegeUiAdbPairingActionsTest {
             permissionResult.complete(
                 PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
             )
-            start.await()
+            yield()
 
             assertTrue(store.state.value.pairingNotificationPermissionWarningVisible)
+            assertTrue(start.isActive)
             assertNull(PrivilegeUiStartGate.tryAcquireSilent())
 
             actions.cancelPendingPairingStart()
+            start.await()
 
             val silentPermit = PrivilegeUiStartGate.tryAcquireSilent()
             assertNotNull(silentPermit)
@@ -104,10 +107,14 @@ class PrivilegeUiAdbPairingActionsTest {
             permissionResult.complete(
                 PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
             )
-            start.await()
+            yield()
 
             assertTrue(store.state.value.pairingNotificationPermissionWarningVisible)
+            assertTrue(start.isActive)
             assertPairingNotStarted(store)
+
+            actions.cancelPendingPairingStart()
+            start.await()
         }
     }
 
@@ -143,9 +150,16 @@ class PrivilegeUiAdbPairingActionsTest {
     @Test
     fun continuingAfterPermanentDenialStartsPairingWithoutNotification() {
         withPairingActions(hasInteractionHost = { true }) { store, actions ->
-            showPermanentDenialWarning(actions)
+            denyNotificationPermission()
+            val start = async(start = CoroutineStart.UNDISPATCHED) {
+                actions.startNotificationPairing {
+                    PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
+                }
+            }
+            assertTrue(start.isActive)
 
             actions.continuePairingWithoutNotification()
+            start.await()
 
             assertFalse(store.state.value.pairingNotificationPermissionWarningVisible)
             assertEquals(PrivilegeUiAdbPairingStatus.SEARCHING, store.state.value.pairingStatus)
@@ -174,6 +188,28 @@ class PrivilegeUiAdbPairingActionsTest {
     }
 
     @Test
+    fun cancellingSuspendedFallbackBeforeResolvingItReleasesPairingPermit() {
+        withPairingActions(hasInteractionHost = { true }) { store, actions ->
+            denyNotificationPermission()
+            val start = async(start = CoroutineStart.UNDISPATCHED) {
+                actions.startNotificationPairing {
+                    PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
+                }
+            }
+            assertTrue(store.state.value.pairingNotificationPermissionWarningVisible)
+            assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+
+            start.cancel()
+            actions.cancelPendingPairingStart()
+            start.join()
+
+            assertFalse(store.state.value.pairingNotificationPermissionWarningVisible)
+            assertPairingNotStarted(store)
+            PrivilegeUiStartGate.tryAcquireSilent()!!.close()
+        }
+    }
+
+    @Test
     fun permissionGateStopsExistingPairingBeforePermanentDenialCanBeCancelled() {
         withPairingActions(hasInteractionHost = { true }) { store, actions ->
             store.updateState {
@@ -185,12 +221,16 @@ class PrivilegeUiAdbPairingActionsTest {
             }
             denyNotificationPermission()
 
-            actions.startNotificationPairing {
-                PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
+            val start = async(start = CoroutineStart.UNDISPATCHED) {
+                actions.startNotificationPairing {
+                    PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
+                }
             }
 
             assertPairingNotStarted(store)
+            assertTrue(start.isActive)
             actions.cancelPendingPairingStart()
+            start.await()
 
             assertFalse(store.state.value.pairingNotificationPermissionWarningVisible)
             assertPairingNotStarted(store)
@@ -351,13 +391,6 @@ class PrivilegeUiAdbPairingActionsTest {
             )
 
             PrivilegeUiStartGate.tryAcquireSilent()!!.close()
-        }
-    }
-
-    private suspend fun showPermanentDenialWarning(actions: PrivilegeUiAdbPairingActions) {
-        denyNotificationPermission()
-        actions.startNotificationPairing {
-            PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
         }
     }
 

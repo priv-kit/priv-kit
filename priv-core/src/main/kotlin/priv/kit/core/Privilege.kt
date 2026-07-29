@@ -16,10 +16,12 @@ import priv.kit.core.binder.serverUnavailable
 import priv.kit.core.internal.binder.IPrivilegeServer
 import priv.kit.core.internal.core.PrivilegeAndroidUsers
 import priv.kit.core.internal.core.PrivilegeProtocol
+import priv.kit.core.internal.core.PrivilegePendingHandshake
 import priv.kit.core.internal.core.PrivilegeServerHandshakeRegistry
 import priv.kit.core.internal.core.PrivilegeServerHandshakeResult
 import priv.kit.core.internal.runtime.PrivilegeRootProcess
 import priv.kit.core.internal.runtime.PrivilegeRootStarter
+import priv.kit.core.internal.runtime.PrivilegeStarterContract
 import priv.kit.core.internal.runtime.PrivilegeContext
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionEvent
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
@@ -33,7 +35,9 @@ import priv.kit.shared.toPrivilegeAdbDeviceNameText
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
 import java.io.Closeable
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -41,6 +45,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.selects.select
 
 public object Privilege {
     private const val GRANT_RUNTIME_PERMISSIONS = "android.permission.GRANT_RUNTIME_PERMISSIONS"
@@ -93,7 +98,11 @@ public object Privilege {
                 )
             }
             startupLogListener.emitStartupLog("runtime", "Waiting for Privileged Server handshake")
-            val handshakeResult = pendingHandshake.await(timeoutMillis)
+            val handshakeResult = awaitRootHandshakeOrStarterExit(
+                pendingHandshake = pendingHandshake,
+                rootProcess = checkNotNull(rootProcess),
+                timeoutMillis = timeoutMillis,
+            )
             startupLogListener.emitStartupLog("runtime", "Privileged Server handshake received")
             val serverInfo = connectHandshake(handshakeResult, startupLogListener)
             PrivilegeServerHandshakeRegistry.acknowledge(launchCorrelationId)
@@ -104,6 +113,9 @@ public object Privilege {
             throw e
         } catch (e: PrivilegeStartupException) {
             startupLogListener.emitStartupLog("runtime", "Startup failed: ${e.message.orEmpty()}")
+            if (e is PrivilegeExistingServerStopException) {
+                throw e
+            }
             val process = rootProcess
             if (process != null && rootServerLaunchMayHaveCompleted(
                     processIsAlive = process.isAlive,
@@ -132,6 +144,10 @@ public object Privilege {
         }
     }
 
+    private val baseNativeStarterCommand: String by lazy {
+        PrivilegeServerLaunchCommandBuilder.resolveNativeStarterCommand()
+    }
+
     /**
      * A device-side shell command that starts the native starter.
      *
@@ -141,20 +157,26 @@ public object Privilege {
      *
      * The command is resolved on first access and cached for the lifetime of this process.
      * First access inspects the installed APKs and must run off the main thread.
+     * For a non-primary Android user, it includes the current application's owner user ID so the
+     * starter remains scoped when the command is executed after this process exits. User 0 uses
+     * the starter's default and omits that environment variable.
      * Host UI can prefix it with `adb shell ` when presenting a command for a development
      * machine. The starter only runs as root (UID 0), system (UID 1000), or shell (UID 2000).
      */
     @get:Throws(PrivilegeStartupException::class)
     @get:WorkerThread
     public val nativeStarterCommand: String by lazy {
-        PrivilegeServerLaunchCommandBuilder.resolveNativeStarterCommand()
+        PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
+            baseNativeStarterCommand = baseNativeStarterCommand,
+            launchCorrelationId = null,
+        )
     }
 
     internal fun createNativeStarterCommand(
         launchCorrelationId: String?,
     ): String =
         PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
-            baseNativeStarterCommand = nativeStarterCommand,
+            baseNativeStarterCommand = baseNativeStarterCommand,
             launchCorrelationId = launchCorrelationId,
         )
 
@@ -682,6 +704,41 @@ internal fun rootServerLaunchMayHaveCompleted(
     processIsAlive: Boolean,
     exitCode: Int?,
 ): Boolean = processIsAlive || exitCode == null || exitCode == 0
+
+private suspend fun awaitRootHandshakeOrStarterExit(
+    pendingHandshake: PrivilegePendingHandshake,
+    rootProcess: PrivilegeRootProcess,
+    timeoutMillis: Long,
+): PrivilegeServerHandshakeResult = coroutineScope {
+    val handshake = async { pendingHandshake.await(timeoutMillis) }
+    val starterExit = async {
+        runInterruptible(Dispatchers.IO) {
+            rootProcess.waitForExit()
+        }
+    }
+    try {
+        select {
+            handshake.onAwait { it }
+            starterExit.onAwait { exitCode ->
+                if (exitCode == PrivilegeStarterContract.STOP_EXISTING_SERVER_FAILED_EXIT_CODE) {
+                    throw PrivilegeExistingServerStopException(
+                        "Native starter could not stop the existing Privileged Server: " +
+                            rootProcess.outputText(),
+                    )
+                }
+                if (exitCode != 0) {
+                    throw PrivilegeStartupException(
+                        "Native starter exited with code $exitCode: ${rootProcess.outputText()}",
+                    )
+                }
+                handshake.await()
+            }
+        }
+    } finally {
+        handshake.cancel()
+        starterExit.cancel()
+    }
+}
 
 internal fun cleanupRootProcessAfterStart(
     process: PrivilegeRootProcess?,
