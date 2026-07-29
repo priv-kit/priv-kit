@@ -36,7 +36,7 @@ private val unpublishedModuleNames = setOf(
 
 allprojects {
     group = "io.github.priv-kit"
-    version = "0.0.6" + if (rootProject.file("local.properties").isFile) "-SNAPSHOT" else ""
+    version = "0.0.7" + if (rootProject.file("local.properties").isFile) "-SNAPSHOT" else ""
 }
 
 subprojects {
