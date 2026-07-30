@@ -8,9 +8,6 @@ import android.os.IInterface;
 import androidx.annotation.DeprecatedSinceApi;
 import androidx.annotation.RequiresApi;
 
-/**
- * @noinspection unused
- */
 public interface IActivityManager extends IInterface {
     @DeprecatedSinceApi(api = Build.VERSION_CODES.Q)
     ContentProviderHolder getContentProviderExternal(String name, int userId, IBinder token);

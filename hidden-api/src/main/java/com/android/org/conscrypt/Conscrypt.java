@@ -2,9 +2,6 @@ package com.android.org.conscrypt;
 
 import javax.net.ssl.SSLSocket;
 
-/**
- * @noinspection unused
- */
 public class Conscrypt {
     public static byte[] exportKeyingMaterial(
             SSLSocket socket,

@@ -4,9 +4,6 @@ import android.os.UserHandle;
 
 import li.songe.remap.RemapType;
 
-/**
- * @noinspection unused
- */
 @RemapType(Context.class)
 public abstract class ContextHidden {
 

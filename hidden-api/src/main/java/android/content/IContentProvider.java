@@ -8,9 +8,6 @@ import androidx.annotation.DeprecatedSinceApi;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
-/**
- * @noinspection unused
- */
 public interface IContentProvider extends IInterface {
     @DeprecatedSinceApi(api = Build.VERSION_CODES.Q)
     Bundle call(String callingPackage, String method, @Nullable String argument, @Nullable Bundle extras);

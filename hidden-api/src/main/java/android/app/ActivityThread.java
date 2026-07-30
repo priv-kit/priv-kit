@@ -3,9 +3,6 @@ package android.app;
 import android.content.pm.ApplicationInfo;
 import android.content.res.CompatibilityInfo;
 
-/**
- * @noinspection unused
- */
 public class ActivityThread {
     public static ActivityThread currentActivityThread() {
         throw new RuntimeException();
