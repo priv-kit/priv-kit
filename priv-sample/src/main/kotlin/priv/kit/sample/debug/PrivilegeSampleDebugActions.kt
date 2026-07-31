@@ -17,7 +17,9 @@ import priv.kit.core.PrivilegeUserServiceConnection
 import priv.kit.core.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 import priv.kit.core.adb.PrivilegeAdbStartOptions
 import priv.kit.core.adb.PrivilegeAdbManager
+import priv.kit.core.binder.PrivilegeBinderWrapper
 import priv.kit.core.binder.PrivilegeServerUnavailableException
+import priv.kit.core.binder.PrivilegeSystemServiceSource
 import priv.kit.sample.startup.PrivilegeSampleShizukuExternalStarter
 import priv.kit.sample.startup.SHIZUKU_PERMISSION_REQUEST_CODE
 import priv.kit.sample.startup.startPrivilegeSampleNotificationPairing
@@ -85,6 +87,15 @@ internal fun PrivilegeSampleDebugHost.updatePairingCode(value: String) {
 
 internal fun PrivilegeSampleDebugHost.updateTcpPort(value: String) {
     screenState = screenState.copy(tcpPortText = value)
+}
+
+internal fun PrivilegeSampleDebugHost.updateSystemServiceName(value: String) {
+    if (screenState.busy) return
+    screenState = screenState.copy(
+        systemServiceNameText = value.toSingleLineServiceName(),
+        systemServiceCheckResult = null,
+        binderLastException = "",
+    )
 }
 
 internal fun PrivilegeSampleDebugHost.clearLog() {
@@ -620,6 +631,54 @@ internal fun PrivilegeSampleDebugHost.getUserManagerBinder() {
     }
 }
 
+internal fun PrivilegeSampleDebugHost.checkSystemServiceAvailability() {
+    val serviceName = screenState.systemServiceNameText.trim()
+    if (serviceName.isEmpty()) {
+        screenState = screenState.copy(
+            binderMessage = "Enter a serviceName to check",
+            binderLastException = "",
+            message = "Enter a serviceName to check",
+        )
+        return
+    }
+
+    runBinderAction(
+        message = "Checking system service \"$serviceName\"...",
+        requireConnected = false,
+    ) {
+        val currentProcessResult = checkSystemService(
+            serviceName = serviceName,
+            source = PrivilegeSystemServiceSource.CURRENT_PROCESS,
+        )
+        val serverProcessResult = checkSystemService(
+            serviceName = serviceName,
+            source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+        )
+        BinderActionResult(
+            message = buildString {
+                append("System service \"$serviceName\"")
+                appendLine()
+                append("current process: ${currentProcessResult.statusText}")
+                appendLine()
+                append("privileged process: ${serverProcessResult.statusText}")
+            },
+            systemServiceCheckResult = PrivilegeSampleSystemServiceCheckResult(
+                serviceName = serviceName,
+                currentProcess = currentProcessResult.toPresence(),
+                serverProcess = serverProcessResult.toPresence(),
+            ),
+            exceptionText = listOfNotNull(
+                currentProcessResult.error?.let {
+                    "Current-process check:\n${it.toDiagnosticString()}"
+                },
+                serverProcessResult.error?.let {
+                    "Privileged-process check:\n${it.toDiagnosticString()}"
+                },
+            ).joinToString(separator = "\n\n"),
+        )
+    }
+}
+
 internal fun PrivilegeSampleDebugHost.getUserManagerUsers() {
     val hasCachedUserManager = sampleViewModel.sampleUserManager != null
     runBinderAction(
@@ -864,6 +923,8 @@ private fun PrivilegeSampleDebugHost.runBinderAction(
                 systemServiceBinderCached = result.systemServiceBinderCached
                     ?: screenState.systemServiceBinderCached,
                 userManagerCached = result.userManagerCached ?: screenState.userManagerCached,
+                systemServiceCheckResult = result.systemServiceCheckResult
+                    ?: screenState.systemServiceCheckResult,
                 mqsNativeLocalDescriptor = if (result.mqsNativeProbeUpdated) {
                     result.mqsNativeLocalDescriptor
                 } else {
@@ -889,6 +950,9 @@ private fun PrivilegeSampleDebugHost.runBinderAction(
                 message = screenState.idleServiceMessage(),
             )
             appendLog(result.message)
+            if (result.exceptionText.isNotBlank()) {
+                appendLog(result.exceptionText)
+            }
         } catch (throwable: Throwable) {
             setBinderFailure(throwable)
         }
@@ -916,6 +980,7 @@ private data class BinderActionResult(
     val message: String,
     val systemServiceBinderCached: Boolean? = null,
     val userManagerCached: Boolean? = null,
+    val systemServiceCheckResult: PrivilegeSampleSystemServiceCheckResult? = null,
     val mqsNativeProbeUpdated: Boolean = false,
     val mqsNativeLocalDescriptor: String? = null,
     val mqsNativeLocalError: String? = null,
@@ -923,6 +988,62 @@ private data class BinderActionResult(
     val mqsNativeRemoteError: String? = null,
     val exceptionText: String = "",
 )
+
+private data class SystemServiceCheckResult(
+    val present: Boolean?,
+    val error: Throwable?,
+) {
+    val statusText: String
+        get() = when {
+            error != null -> "error: ${error.toShortErrorText()}"
+            present == true -> "exists"
+            else -> "missing"
+        }
+}
+
+private fun checkSystemService(
+    serviceName: String,
+    source: PrivilegeSystemServiceSource,
+): SystemServiceCheckResult =
+    runCatching {
+        PrivilegeBinderWrapper.hasSystemService(
+            serviceName = serviceName,
+            source = source,
+        )
+    }.fold(
+        onSuccess = {
+            SystemServiceCheckResult(
+                present = it,
+                error = null,
+            )
+        },
+        onFailure = {
+            SystemServiceCheckResult(
+                present = null,
+                error = it,
+            )
+        },
+    )
+
+private fun Throwable.toShortErrorText(): String =
+    message
+        ?.replace('\r', ' ')
+        ?.replace('\n', ' ')
+        ?.trim()
+        ?.take(160)
+        ?.ifBlank { null }
+        ?: javaClass.simpleName
+
+private fun SystemServiceCheckResult.toPresence(): PrivilegeSampleSystemServicePresence =
+    PrivilegeSampleSystemServicePresence(
+        exists = present,
+        error = error?.toShortErrorText(),
+    )
+
+private fun String.toSingleLineServiceName(): String =
+    replace('\r', ' ')
+        .replace('\n', ' ')
+        .take(MAX_SERVICE_NAME_CHARS)
 
 private data class ShizukuReadiness(
     val ready: Boolean = false,
@@ -1237,6 +1358,7 @@ internal fun PrivilegeSampleDebugHost.copySessionLog() {
 }
 
 private const val MAX_LOG_CHARS = 32_000
+private const val MAX_SERVICE_NAME_CHARS = 128
 private const val SAMPLE_CONFIG_DIRECTORY = ".priv-kit"
 private const val ADB_DEVICE_NAME_FILE = "adb-device-name.txt"
 private const val DEFAULT_ADB_DEVICE_NAME = "priv-kit"

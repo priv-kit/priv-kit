@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -15,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -24,6 +27,8 @@ internal fun BinderTestPage(
     selectedDestination: PrivilegeSampleDebugDestination,
     onDestinationSelected: (PrivilegeSampleDebugDestination) -> Unit,
     onBackToHome: () -> Unit,
+    onSystemServiceNameChanged: (String) -> Unit,
+    onCheckSystemService: () -> Unit,
     onGetUserManager: () -> Unit,
     onGetUsers: () -> Unit,
     onRunImqsNative: () -> Unit,
@@ -40,6 +45,8 @@ internal fun BinderTestPage(
         StatusPanel(state, onStopServer)
         BinderPage(
             state = state,
+            onSystemServiceNameChanged = onSystemServiceNameChanged,
+            onCheckSystemService = onCheckSystemService,
             onGetUserManager = onGetUserManager,
             onGetUsers = onGetUsers,
             onRunImqsNative = onRunImqsNative,
@@ -50,11 +57,19 @@ internal fun BinderTestPage(
 @Composable
 private fun BinderPage(
     state: PrivilegeSampleScreenState,
+    onSystemServiceNameChanged: (String) -> Unit,
+    onCheckSystemService: () -> Unit,
     onGetUserManager: () -> Unit,
     onGetUsers: () -> Unit,
     onRunImqsNative: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SystemServiceCheckPanel(
+            state = state,
+            onSystemServiceNameChanged = onSystemServiceNameChanged,
+            onCheckSystemService = onCheckSystemService,
+        )
+        SectionTitle("Binder smoke tests")
         BinderStatusPanel(state)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SampleAction(
@@ -88,6 +103,80 @@ private fun BinderPage(
         }
     }
 }
+
+@Composable
+private fun SystemServiceCheckPanel(
+    state: PrivilegeSampleScreenState,
+    onSystemServiceNameChanged: (String) -> Unit,
+    onCheckSystemService: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(colors.surfaceContainerLow)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        SectionTitle("System service availability")
+        BasicText(
+            text = "Check the same service name from this app process and the Privileged Server.",
+            style = TextStyle(
+                color = colors.onSurfaceVariant,
+                fontFamily = FontFamily.SansSerif,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+            ),
+        )
+        SampleField(
+            label = "serviceName",
+            value = state.systemServiceNameText,
+            onValueChange = onSystemServiceNameChanged,
+            keyboardOptions = KeyboardOptions(
+                autoCorrectEnabled = false,
+                keyboardType = KeyboardType.Ascii,
+                imeAction = ImeAction.Done,
+            ),
+            enabled = !state.busy,
+        )
+        SampleAction(
+            label = "Check Both Processes",
+            enabled = !state.busy && state.systemServiceNameText.isNotBlank(),
+            tone = SampleActionTone.Primary,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onCheckSystemService,
+        )
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            RuntimeInfoRow(
+                label = "Current process",
+                value = systemServiceStatusText(
+                    presence = state.systemServiceCheckResult?.currentProcess,
+                ),
+            )
+            RuntimeInfoRow(
+                label = "Privileged process",
+                value = systemServiceStatusText(
+                    presence = state.systemServiceCheckResult?.serverProcess,
+                ),
+            )
+        }
+    }
+}
+
+private fun systemServiceStatusText(
+    presence: PrivilegeSampleSystemServicePresence?,
+): String =
+    when {
+        presence == null -> "Not checked"
+        presence.error != null -> "Unavailable"
+        presence.exists == true -> "Exists"
+        presence.exists == false -> "Missing"
+        else -> "Not checked"
+    }
 
 @Composable
 private fun BinderStatusPanel(state: PrivilegeSampleScreenState) {

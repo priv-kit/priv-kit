@@ -256,8 +256,10 @@ internal fun SampleField(
     value: String,
     onValueChange: (String) -> Unit,
     keyboardOptions: KeyboardOptions,
+    enabled: Boolean = true,
 ) {
     val colors = MaterialTheme.colorScheme
+    val foreground = if (enabled) colors.onSurface else colors.onSurface.copy(alpha = 0.38f)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         BasicText(
             text = label,
@@ -271,10 +273,11 @@ internal fun SampleField(
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
+            enabled = enabled,
             singleLine = true,
             keyboardOptions = keyboardOptions,
             textStyle = TextStyle(
-                color = colors.onSurface,
+                color = foreground,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 15.sp,
             ),

@@ -68,6 +68,17 @@ internal enum class PrivilegeSampleStatus {
     STARTING,
 }
 
+internal data class PrivilegeSampleSystemServicePresence(
+    val exists: Boolean?,
+    val error: String?,
+)
+
+internal data class PrivilegeSampleSystemServiceCheckResult(
+    val serviceName: String,
+    val currentProcess: PrivilegeSampleSystemServicePresence,
+    val serverProcess: PrivilegeSampleSystemServicePresence,
+)
+
 internal enum class PrivilegeAdbPairingStatus(val label: String) {
     NOT_PAIRED("Not paired"),
     CHECKING("Checking"),
@@ -94,6 +105,8 @@ internal data class PrivilegeSampleScreenState(
     val pairingMessage: String = "Enter the Wireless debugging pairing code, or reply from the pairing notification.",
     val notificationPairingRunning: Boolean = false,
     val tcpPortText: String = PRIVILEGE_ADB_DEFAULT_TCP_PORT.toString(),
+    val systemServiceNameText: String = "",
+    val systemServiceCheckResult: PrivilegeSampleSystemServiceCheckResult? = null,
     val systemServiceBinderCached: Boolean = false,
     val userManagerCached: Boolean = false,
     val mqsNativeLocalDescriptor: String? = null,
@@ -135,6 +148,18 @@ internal fun PrivilegeSampleScreenState.wirelessDebugLogText(): String =
         appendLine("pairingPort=${pairingPortText.ifBlank { "auto" }}")
         appendLine("connectPort=${connectPortText.ifBlank { "auto" }}")
         appendLine("tcpPort=${tcpPortText.ifBlank { "blank" }}")
+        appendLine(
+            "systemServiceName=" +
+                (systemServiceCheckResult?.serviceName ?: systemServiceNameText.ifBlank { "none" }),
+        )
+        appendLine(
+            "systemServiceCurrentProcess=" +
+                systemServiceCheckResult?.currentProcess.toLogText(),
+        )
+        appendLine(
+            "systemServiceServerProcess=" +
+                systemServiceCheckResult?.serverProcess.toLogText(),
+        )
         appendLine("systemServiceBinderCached=$systemServiceBinderCached")
         appendLine("userManagerCached=$userManagerCached")
         appendLine("mqsNativeLocal=${mqsNativeLocalDescriptor ?: mqsNativeLocalError ?: "none"}")
@@ -154,6 +179,15 @@ internal fun PrivilegeSampleScreenState.wirelessDebugLogText(): String =
         appendLine()
         appendLine("Session log:")
         appendLine(logText.ifBlank { "<empty>" })
+    }
+
+private fun PrivilegeSampleSystemServicePresence?.toLogText(): String =
+    when {
+        this == null -> "not checked"
+        error != null -> "error: $error"
+        exists == true -> "present"
+        exists == false -> "missing"
+        else -> "not checked"
     }
 
 internal fun String?.toSampleAdbDeviceName(): String? {

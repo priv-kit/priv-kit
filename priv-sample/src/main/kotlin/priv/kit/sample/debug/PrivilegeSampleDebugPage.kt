@@ -22,6 +22,8 @@ internal fun PrivilegeSampleDebugPage(
             selectedDestination = selectedDestination,
             onDestinationSelected = callbacks.destinationSelected,
             onBackToHome = callbacks.backToHome,
+            onSystemServiceNameChanged = callbacks.binder.systemServiceNameChanged,
+            onCheckSystemService = callbacks.binder.checkSystemService,
             onGetUserManager = callbacks.binder.getUserManager,
             onGetUsers = callbacks.binder.getUsers,
             onRunImqsNative = callbacks.binder.runImqsNative,

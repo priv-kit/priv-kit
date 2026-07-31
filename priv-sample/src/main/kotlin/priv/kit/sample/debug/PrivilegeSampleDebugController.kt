@@ -106,6 +106,8 @@ internal class PrivilegeSampleDebugController(
                 stopServer = { stopServer() },
             ),
             binder = PrivilegeSampleBinderCallbacks(
+                systemServiceNameChanged = { updateSystemServiceName(it) },
+                checkSystemService = { checkSystemServiceAvailability() },
                 getUserManager = { getUserManagerBinder() },
                 getUsers = { getUserManagerUsers() },
                 runImqsNative = { runImqsNative() },

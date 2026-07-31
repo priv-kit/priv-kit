@@ -34,6 +34,7 @@ Phase 1 contents:
 - Each page uses a Material 3 `Scaffold` container with a vertically scrolling `Column` content area.
 - Authorization tests are split into independent Root, manual shell, Shizuku-backed shell start, Wireless ADB, TCP mode, and session-log tabs.
 - Binder tests for getting and caching an `IUserManager` proxy.
+- Paired system service availability checks from the app process and Privileged Server.
 - A Binder remote transact smoke test that calls cached `IUserManager.getUsers()` through a hidden API stub.
 - UserService tests for binding and calling separate app-owned AIDL services with `Context` constructors in the default dedicated-process mode and the explicit embedded-in-server mode.
 - Display of connection state, uid, pid, and protocol version.

@@ -31,6 +31,8 @@ internal data class PrivilegeSampleConnectionCallbacks(
 )
 
 internal data class PrivilegeSampleBinderCallbacks(
+    val systemServiceNameChanged: (String) -> Unit,
+    val checkSystemService: () -> Unit,
     val getUserManager: () -> Unit,
     val getUsers: () -> Unit,
     val runImqsNative: () -> Unit,
