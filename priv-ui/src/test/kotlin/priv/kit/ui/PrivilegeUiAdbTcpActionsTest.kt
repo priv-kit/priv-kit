@@ -58,7 +58,11 @@ class PrivilegeUiAdbTcpActionsTest {
     ) = coroutineScope {
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
         val runtimeScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val runtimeActions = PrivilegeUiRuntimeActions(store, runtimeScope)
+        val runtimeActions = PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = runtimeScope,
+            acquireStartPermit = { AutoCloseable {} },
+        )
         val authorizationResult = CompletableDeferred<PrivilegeAdbAuthorizationRequestResult>()
         val tcpActions = PrivilegeUiAdbTcpActions(
             store = store,

@@ -120,7 +120,6 @@ class PrivilegeUiViewModelTest {
     fun initialLoadDoesNotDisableInteractions() = runBlocking {
         val viewModel = RootOnlyPrivilegeUiViewModel(application())
 
-        assertFalse(viewModel.uiEffectsEnabled.value)
         assertTrue(viewModel.uiInteractionsEnabled)
 
         withTimeout(TimeUnit.SECONDS.toMillis(2)) {

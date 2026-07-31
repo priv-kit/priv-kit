@@ -42,9 +42,8 @@ internal class PrivilegeUiAdbPairingActions(
     private val store: PrivilegeUiViewModelStore,
     private val coroutineScope: CoroutineScope,
     private val enableTcpMode: suspend () -> Unit,
-    private val acquireInteractivePermit: () -> AutoCloseable? =
-        PrivilegeUiStartGate.newInteractivePermitAcquirer(),
-    private val hasInteractionHost: () -> Boolean = { true },
+    private val acquireInteractivePermit: () -> AutoCloseable?,
+    private val hasInteractionHost: () -> Boolean,
 ) : AutoCloseable {
     private val pairingPermitLock = Any()
     private val notificationFallbackDecisionLock = Any()

@@ -302,6 +302,8 @@ class PrivilegeUiAdbPairingActionsTest {
             store = store,
             coroutineScope = scope,
             enableTcpMode = {},
+            acquireInteractivePermit = PrivilegeUiStartGate.newInteractivePermitAcquirer(),
+            hasInteractionHost = { true },
         )
         try {
             store.updateState {
@@ -417,6 +419,7 @@ class PrivilegeUiAdbPairingActionsTest {
             store = store,
             coroutineScope = scope,
             enableTcpMode = {},
+            acquireInteractivePermit = PrivilegeUiStartGate.newInteractivePermitAcquirer(),
             hasInteractionHost = hasInteractionHost,
         )
         try {

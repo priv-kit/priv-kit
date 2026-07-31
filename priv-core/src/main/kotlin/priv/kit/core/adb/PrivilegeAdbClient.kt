@@ -21,7 +21,7 @@ internal interface PrivilegeAdbAuthorizationConnection : PrivilegeAdbConnection 
     fun checkAuthorization(output: PrivilegeAdbOutput?): PrivilegeAdbAuthorizationStatus
 }
 
-internal class PrivilegeAdbClient private constructor(
+internal class PrivilegeAdbClient internal constructor(
     private val endpoint: PrivilegeAdbEndpoint,
     private val signAuthToken: (ByteArray) -> ByteArray,
     private val adbPublicKey: ByteArray,
@@ -47,19 +47,6 @@ internal class PrivilegeAdbClient private constructor(
         signAuthToken = key::sign,
         adbPublicKey = key.adbPublicKey,
         sslContextProvider = { key.sslContext },
-        socketReadTimeoutMillis = socketReadTimeoutMillis,
-    )
-
-    internal constructor(
-        port: Int,
-        signAuthToken: (ByteArray) -> ByteArray,
-        adbPublicKey: ByteArray,
-        socketReadTimeoutMillis: Int,
-    ) : this(
-        endpoint = PrivilegeAdbEndpoint.local(port),
-        signAuthToken = signAuthToken,
-        adbPublicKey = adbPublicKey,
-        sslContextProvider = { SSLContext.getDefault() },
         socketReadTimeoutMillis = socketReadTimeoutMillis,
     )
 

@@ -28,7 +28,6 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -549,7 +548,6 @@ class PrivilegeUiRuntimeActionsTest {
     fun connectedRuntimeRunsConnectStartAndPreservesExistingConnectionOnFailure() = runBlocking {
         val attempted = AtomicBoolean(false)
         val afterCommitCalled = AtomicBoolean(false)
-        val userActionCalled = AtomicBoolean(false)
         RuntimeActionsFixture().use { (store, actions) ->
             store.connectAsShell()
 
@@ -560,7 +558,6 @@ class PrivilegeUiRuntimeActionsTest {
                     onFailure = {
                         PrivilegeUiRuntimeStartFailureDisposition(
                             afterCommit = { afterCommitCalled.set(true) },
-                            onUserActionRequired = { userActionCalled.set(true) },
                         )
                     },
                 ) {
@@ -570,60 +567,11 @@ class PrivilegeUiRuntimeActionsTest {
             )
 
             assertTrue(waitUntilIdle(store))
-            assertTrue(waitUntil { userActionCalled.get() })
             assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, store.state.value.runtimeStatus)
             assertEquals(2000, store.state.value.serverInfo?.uid)
             assertNull(store.state.value.runtimeProgressText)
             assertTrue(attempted.get())
             assertTrue(afterCommitCalled.get())
-        }
-    }
-
-    @Test
-    fun userActionPermitHandoffDoesNotExposeSilentStartGap() = runBlocking {
-        val callbackEntered = CountDownLatch(1)
-        val releaseCallback = CountDownLatch(1)
-        val followUpPermit = AtomicReference<AutoCloseable?>(null)
-        val acquireInteractivePermit = PrivilegeUiStartGate.newInteractivePermitAcquirer()
-        try {
-            RuntimeActionsFixture(
-                acquireStartPermit = acquireInteractivePermit,
-                beforeClose = releaseCallback::countDown,
-            ).use { (store, actions) ->
-                actions.runServerStart(
-                    PrivilegeUiRuntimeStartAttempt.Connect(
-                        progressText = PrivilegeUiText.Literal("adb"),
-                        startupSource = null,
-                        onFailure = {
-                            PrivilegeUiRuntimeStartFailureDisposition(
-                                onUserActionRequired = {
-                                    callbackEntered.countDown()
-                                    releaseCallback.await(30, TimeUnit.SECONDS)
-                                    followUpPermit.set(
-                                        acquireInteractivePermit(),
-                                    )
-                                },
-                            )
-                        },
-                    ) {
-                        error("local network permission required")
-                    },
-                )
-
-                assertTrue(callbackEntered.await(2, TimeUnit.SECONDS))
-                assertNull(PrivilegeUiStartGate.tryAcquireSilent())
-
-                releaseCallback.countDown()
-                assertTrue(waitUntil { followUpPermit.get() != null })
-                assertTrue(waitUntilIdle(store))
-                assertNull(PrivilegeUiStartGate.tryAcquireSilent())
-
-                followUpPermit.getAndSet(null)!!.close()
-                assertTrue(waitUntil { PrivilegeUiStartGate.state.value.owner == null })
-            }
-        } finally {
-            releaseCallback.countDown()
-            followUpPermit.getAndSet(null)?.close()
         }
     }
 
@@ -732,7 +680,6 @@ class PrivilegeUiRuntimeActionsTest {
         val secondAttemptStarted = CountDownLatch(1)
         val firstFailureHandlerCalled = AtomicBoolean(false)
         val fallbackCleanupCalled = AtomicBoolean(false)
-        val userActionCalled = AtomicBoolean(false)
         RuntimeActionsFixture().use { (store, actions) ->
             actions.runServerStartFallback(
                 listOf(
@@ -748,7 +695,6 @@ class PrivilegeUiRuntimeActionsTest {
                                 snackbarText = PrivilegeUiText.Literal("child failure"),
                                 startupLogLines = listOf("child prompt"),
                                 afterCommit = { fallbackCleanupCalled.set(true) },
-                                onUserActionRequired = { userActionCalled.set(true) },
                             )
                         },
                     ) {
@@ -774,7 +720,6 @@ class PrivilegeUiRuntimeActionsTest {
             assertEquals(2000, store.state.value.serverInfo?.uid)
             assertTrue(firstFailureHandlerCalled.get())
             assertTrue(fallbackCleanupCalled.get())
-            assertFalse(userActionCalled.get())
             assertTrue(store.state.value.notificationPairingRunning)
             assertFalse(store.state.value.startupLogLines.contains("child prompt"))
             assertTrue(store.state.value.startupLogLines.any { "root unavailable" in it })

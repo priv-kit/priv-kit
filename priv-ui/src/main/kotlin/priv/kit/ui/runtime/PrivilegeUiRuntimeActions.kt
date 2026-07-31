@@ -23,10 +23,10 @@ import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 internal class PrivilegeUiRuntimeActions(
     private val store: PrivilegeUiViewModelStore,
     private val coroutineScope: CoroutineScope,
+    private val acquireStartPermit: () -> AutoCloseable?,
     private val shutdownServer: () -> Unit = { Privilege.shutdownServer() },
     private val isPermissionRestricted: () -> Boolean =
         Privilege::isPermissionRestricted,
-    private val acquireStartPermit: () -> AutoCloseable? = { AutoCloseable {} },
     private val operationDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : AutoCloseable {
     private val closed = AtomicBoolean(false)

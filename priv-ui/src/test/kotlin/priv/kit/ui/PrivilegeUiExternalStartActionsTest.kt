@@ -37,7 +37,7 @@ class PrivilegeUiExternalStartActionsTest {
         val config = PrivilegeUiConfig(externalStartProviders = listOf(provider))
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication(), config)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val runtimeActions = PrivilegeUiRuntimeActions(store = store, coroutineScope = scope)
+        val runtimeActions = newRuntimeActions(store, scope)
         val actions = PrivilegeUiExternalStartActions(
             store = store,
             runtimeActions = runtimeActions,
@@ -69,7 +69,7 @@ class PrivilegeUiExternalStartActionsTest {
         val config = PrivilegeUiConfig(externalStartProviders = listOf(provider))
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication(), config)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val runtimeActions = PrivilegeUiRuntimeActions(store = store, coroutineScope = scope)
+        val runtimeActions = newRuntimeActions(store, scope)
         val actions = PrivilegeUiExternalStartActions(
             store = store,
             runtimeActions = runtimeActions,
@@ -94,10 +94,7 @@ class PrivilegeUiExternalStartActionsTest {
         val provider = CountingExternalStartProvider()
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val runtimeActions = PrivilegeUiRuntimeActions(
-            store = store,
-            coroutineScope = scope,
-        )
+        val runtimeActions = newRuntimeActions(store, scope)
         val actions = PrivilegeUiExternalStartActions(
             store = store,
             runtimeActions = runtimeActions,
@@ -122,7 +119,7 @@ class PrivilegeUiExternalStartActionsTest {
         val config = PrivilegeUiConfig(externalStartProviders = listOf(provider))
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication(), config)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val runtimeActions = PrivilegeUiRuntimeActions(store = store, coroutineScope = scope)
+        val runtimeActions = newRuntimeActions(store, scope)
         val actions = PrivilegeUiExternalStartActions(store = store, runtimeActions = runtimeActions)
         try {
             val failure = runCatching {
@@ -143,10 +140,7 @@ class PrivilegeUiExternalStartActionsTest {
         val config = PrivilegeUiConfig(externalStartProviders = listOf(provider))
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication(), config)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val runtimeActions = PrivilegeUiRuntimeActions(
-            store = store,
-            coroutineScope = scope,
-        )
+        val runtimeActions = newRuntimeActions(store, scope)
         val actions = PrivilegeUiExternalStartActions(
             store = store,
             runtimeActions = runtimeActions,
@@ -180,10 +174,7 @@ class PrivilegeUiExternalStartActionsTest {
         val config = PrivilegeUiConfig(externalStartProviders = listOf(provider))
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication(), config)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val runtimeActions = PrivilegeUiRuntimeActions(
-            store = store,
-            coroutineScope = scope,
-        )
+        val runtimeActions = newRuntimeActions(store, scope)
         val actions = PrivilegeUiExternalStartActions(
             store = store,
             runtimeActions = runtimeActions,
@@ -211,6 +202,16 @@ class PrivilegeUiExternalStartActionsTest {
             store.close()
         }
     }
+
+    private fun newRuntimeActions(
+        store: PrivilegeUiViewModelStore,
+        scope: CoroutineScope,
+    ): PrivilegeUiRuntimeActions =
+        PrivilegeUiRuntimeActions(
+            store = store,
+            coroutineScope = scope,
+            acquireStartPermit = { AutoCloseable {} },
+        )
 
     private class CountingExternalStartProvider : PrivilegeUiExternalStartProvider {
         val snapshotCalls = AtomicInteger(0)

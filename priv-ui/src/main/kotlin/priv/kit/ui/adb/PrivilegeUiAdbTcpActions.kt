@@ -24,11 +24,17 @@ internal class PrivilegeUiAdbTcpActions(
     private val store: PrivilegeUiViewModelStore,
     private val runtimeActions: PrivilegeUiRuntimeActions,
     private val refreshTcpModeEnabled: () -> Unit,
-    private val tcpAuthorizationRequester: (suspend (
+    private val tcpAuthorizationRequester: suspend (
         tcpPort: Int,
         timeoutMillis: Long,
-    ) -> PrivilegeAdbAuthorizationRequestResult)? = null,
-    private val beforeTcpAuthorizationResultCommit: () -> Unit = {},
+    ) -> PrivilegeAdbAuthorizationRequestResult = { tcpPort, timeoutMillis ->
+        Privilege.createAdbManager(
+            adbDeviceName = store.currentAdbDeviceNameOverride(),
+        ).requestTcpAuthorization(
+            tcpPort = tcpPort,
+            timeoutMillis = timeoutMillis,
+        )
+    },
 ) {
     fun enableTcpMode() {
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
@@ -66,21 +72,15 @@ internal class PrivilegeUiAdbTcpActions(
             it.copy(tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING)
         }
         val result = try {
-            tcpAuthorizationRequester?.invoke(
+            tcpAuthorizationRequester(
                 tcpPort,
                 store.config.adbAuthorizationTimeoutMillis,
-            ) ?: Privilege.createAdbManager(
-                adbDeviceName = store.currentAdbDeviceNameOverride(),
-            ).requestTcpAuthorization(
-                tcpPort = tcpPort,
-                timeoutMillis = store.config.adbAuthorizationTimeoutMillis,
             )
         } catch (exception: CancellationException) {
             markTcpAuthorizationUnauthorizedIfAuthorizing()
             throw exception
         }
         session.checkActive()
-        beforeTcpAuthorizationResultCommit()
         return applyTcpAuthorizationResult(
             session = session,
             result = result,

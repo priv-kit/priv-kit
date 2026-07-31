@@ -269,9 +269,10 @@ class PrivilegeAdbClientTest {
         signAuthToken: (ByteArray) -> ByteArray,
     ): PrivilegeAdbClient =
         PrivilegeAdbClient(
-            port = port,
+            endpoint = PrivilegeAdbEndpoint.local(port),
             signAuthToken = signAuthToken,
             adbPublicKey = "public-key".toByteArray(),
+            sslContextProvider = { javax.net.ssl.SSLContext.getDefault() },
             socketReadTimeoutMillis = socketReadTimeoutMillis,
         )
 

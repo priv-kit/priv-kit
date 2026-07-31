@@ -431,7 +431,6 @@ internal class PrivilegeUiRuntimeStartCoordinator(
                         disposition.stateTransform(it).finishRuntimeStartDisconnected()
                     }
                     disposition.afterCommit?.let { runCatching(it) }
-                    disposition.onUserActionRequired?.let { runCatching(it) }
                 }
             }
         } finally {

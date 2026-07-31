@@ -45,7 +45,6 @@ internal class PrivilegeUiRuntimeStartFailureDisposition(
     val snackbarText: PrivilegeUiText? = null,
     val startupLogLines: List<String> = emptyList(),
     val afterCommit: (() -> Unit)? = null,
-    val onUserActionRequired: (() -> Unit)? = null,
 )
 
 internal sealed interface PrivilegeUiRuntimeStartResult {
