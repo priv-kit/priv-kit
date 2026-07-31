@@ -72,7 +72,7 @@ public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
             require(serviceName.isNotBlank()) { "serviceName must not be blank" }
             return when (source) {
                 PrivilegeSystemServiceSource.CURRENT_PROCESS ->
-                    ServiceManager.getService(serviceName)?.let(::fromBinder)
+                    getCurrentProcessSystemService(serviceName)?.let(::fromBinder)
 
                 PrivilegeSystemServiceSource.SERVER_PROCESS ->
                     if (hasSystemServiceUnchecked(
@@ -103,7 +103,7 @@ private fun hasSystemServiceUnchecked(
 ): Boolean =
     when (source) {
         PrivilegeSystemServiceSource.CURRENT_PROCESS ->
-            ServiceManager.getService(serviceName) != null
+            getCurrentProcessSystemService(serviceName) != null
 
         PrivilegeSystemServiceSource.SERVER_PROCESS -> {
             Privilege.callServer { server ->
@@ -111,6 +111,15 @@ private fun hasSystemServiceUnchecked(
             }
         }
     }
+
+private val currentProcessSystemServiceCache = HashMap<String, IBinder>()
+
+@Synchronized
+private fun getCurrentProcessSystemService(serviceName: String): IBinder? =
+    currentProcessSystemServiceCache[serviceName]
+        ?: ServiceManager.getService(serviceName)?.also { binder ->
+            currentProcessSystemServiceCache[serviceName] = binder
+        }
 
 private class TargetBinderWrapper(
     private val binder: IBinder,

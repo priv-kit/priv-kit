@@ -1,27 +1,31 @@
 package priv.kit.core.binder
 
+import android.os.Binder
 import android.os.DeadObjectException
 import android.os.IBinder
+import android.os.IInterface
 import android.os.Parcel
 import android.os.RemoteException
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowServiceManager
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.internal.binder.IPrivilegeServer
 import priv.kit.core.internal.core.PrivilegeProtocol
 import priv.kit.core.internal.core.PrivilegeServerHandshakeResult
-import priv.kit.core.internal.binder.IPrivilegeServer
 import priv.kit.core.internal.runtime.PrivilegeContext
 import priv.kit.core.testing.TestBinder
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 import java.io.Closeable
 
 @RunWith(RobolectricTestRunner::class)
@@ -30,6 +34,26 @@ class PrivilegeBinderWrapperTest {
     @After
     fun clearServer() {
         runCatching { Privilege.shutdownServer() }
+        ShadowServiceManager.reset()
+    }
+
+    @Test
+    fun currentProcessSystemServiceLookupUsesProcessCache() {
+        val serviceName = "priv.kit.test.wrapper-cache"
+        val service = object : IInterface {
+            override fun asBinder(): IBinder = Binder()
+        }
+        ShadowServiceManager.addBinderService(
+            serviceName,
+            IInterface::class.java,
+            service,
+        )
+
+        assertNotNull(PrivilegeBinderWrapper.fromSystemService(serviceName))
+        ShadowServiceManager.setServiceAvailability(serviceName, false)
+
+        assertTrue(PrivilegeBinderWrapper.hasSystemService(serviceName))
+        assertNotNull(PrivilegeBinderWrapper.fromSystemService(serviceName))
     }
 
     @Test
