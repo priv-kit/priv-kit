@@ -10,6 +10,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.RestrictTo
 import androidx.core.app.NotificationManagerCompat
@@ -30,7 +33,17 @@ import priv.kit.ui.adb.pairing.toPrivilegeUiFailureKind
 public class PrivilegeAdbPairingService public constructor() : LifecycleService() {
     private var pairingInputState = PrivilegeAdbPairingInputState()
     private var notificationOwnerId: String? = null
+    private var lastRemoteInputSubmissionElapsedRealtime: Long = NO_REMOTE_INPUT_SUBMISSION
+    private var pendingStopOwnerId: String? = null
     private lateinit var notificationFactory: PrivilegeAdbPairingNotificationFactory
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val pendingStopRunnable = Runnable {
+        val ownerId = pendingStopOwnerId
+        pendingStopOwnerId = null
+        if (ownerId != null && notificationOwnerId == ownerId) {
+            stopNotificationService()
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -53,13 +66,17 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
                     if (ensureNotificationUiAvailable()) showPairingNotifications() else null
                 }
             }
-            PrivilegeAdbPairingIntentContract.ACTION_REPLY -> submitPairingCode(
-                RemoteInput.getResultsFromIntent(intent)
-                    ?.getCharSequence(PrivilegeAdbPairingIntentContract.REMOTE_INPUT_PAIRING_CODE)
-                    ?.toString()
-                    ?.trim()
-                    .orEmpty(),
-            )
+            PrivilegeAdbPairingIntentContract.ACTION_REPLY -> {
+                submitPairingCode(
+                    code = RemoteInput.getResultsFromIntent(intent)
+                        ?.getCharSequence(PrivilegeAdbPairingIntentContract.REMOTE_INPUT_PAIRING_CODE)
+                        ?.toString()
+                        ?.trim()
+                        .orEmpty(),
+                    submittedViaRemoteInput = true,
+                )
+                null
+            }
             PrivilegeAdbPairingIntentContract.ACTION_INPUT_LEFT -> {
                 updatePairingInput { it.moveLeft() }
                 null
@@ -76,7 +93,13 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
                 updatePairingInput { it.moveRight() }
                 null
             }
-            PrivilegeAdbPairingIntentContract.ACTION_INPUT_SUBMIT -> submitPairingCode(pairingInputState.code)
+            PrivilegeAdbPairingIntentContract.ACTION_INPUT_SUBMIT -> {
+                submitPairingCode(
+                    code = pairingInputState.code,
+                    submittedViaRemoteInput = false,
+                )
+                null
+            }
             PrivilegeAdbPairingIntentContract.ACTION_STOP -> {
                 notificationOwnerId?.let { ownerId ->
                     notificationEventState.tryEmit(PrivilegeAdbPairingNotificationEvent.Stop(ownerId))
@@ -99,6 +122,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
     override fun onDestroy() {
         val detachedOwnerId = notificationOwnerId
         notificationOwnerId = null
+        cancelPendingStop()
         cancelInputNotification()
         cancelStatusNotification()
         clearActiveService(detachedOwnerId)
@@ -109,6 +133,8 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
     }
 
     private fun attachOwner(ownerId: String) {
+        cancelPendingStop()
+        lastRemoteInputSubmissionElapsedRealtime = NO_REMOTE_INPUT_SUBMISSION
         val previousOwnerId = notificationOwnerId
         if (previousOwnerId != null && previousOwnerId != ownerId) {
             notificationEventState.tryEmit(PrivilegeAdbPairingNotificationEvent.Detached(previousOwnerId))
@@ -121,10 +147,13 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
 
     private fun showPairingNotifications(): Notification? {
         if (notificationOwnerId == null || !showInputNotification()) return null
-        return notificationFactory.statusNotification(
-            text = (latestStatusText ?: privilegeUiText(R.string.priv_ui_pairing_search_text))
-                .asString(this),
-        )
+        val text = (latestStatusText ?: privilegeUiText(R.string.priv_ui_pairing_search_text))
+            .asString(this)
+        return if (latestAcceptsPairingCode) {
+            notificationFactory.statusNotification(text)
+        } else {
+            notificationFactory.workingNotification(text)
+        }
     }
 
     private fun updatePairingInput(
@@ -135,16 +164,42 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         showInputNotification()
     }
 
-    private fun submitPairingCode(code: String): Notification? {
-        val ownerId = notificationOwnerId ?: return null
-        if (!ensureNotificationUiAvailable() || !code.isPrivilegeUiPairingCode()) return null
-        notificationEventState.tryEmit(PrivilegeAdbPairingNotificationEvent.Submit(ownerId, code))
-        return notificationFactory.workingNotification()
+    private fun submitPairingCode(
+        code: String,
+        submittedViaRemoteInput: Boolean,
+    ) {
+        val ownerId = notificationOwnerId ?: return
+        if (!ensureNotificationUiAvailable() || !code.isPrivilegeUiPairingCode()) return
+        if (submittedViaRemoteInput) {
+            lastRemoteInputSubmissionElapsedRealtime = SystemClock.elapsedRealtime()
+        }
+        val workingText = privilegeUiText(R.string.priv_ui_pairing_working_text)
+        storeLatestStatus(
+            ownerId = ownerId,
+            text = workingText,
+            acceptsPairingCode = false,
+        )
+        renderStatus(
+            text = workingText,
+            acceptsPairingCode = false,
+        )
+        if (notificationOwnerId == ownerId) {
+            notificationEventState.tryEmit(PrivilegeAdbPairingNotificationEvent.Submit(ownerId, code))
+        }
     }
 
-    private fun renderStatus(text: PrivilegeUiText) {
+    private fun renderStatus(
+        text: PrivilegeUiText,
+        acceptsPairingCode: Boolean,
+    ) {
         if (notificationOwnerId == null || !ensureNotificationUiAvailable()) return
-        startForegroundSafely(notificationFactory.statusNotification(text = text.asString(this)))
+        val resolvedText = text.asString(this)
+        val notification = if (acceptsPairingCode) {
+            notificationFactory.statusNotification(resolvedText)
+        } else {
+            notificationFactory.workingNotification(resolvedText)
+        }
+        startForegroundSafely(notification)
     }
 
     private fun showInputNotification(): Boolean {
@@ -187,15 +242,43 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
     private fun stopNotificationService() {
         val ownerId = notificationOwnerId
         notificationOwnerId = null
+        cancelPendingStop()
+        lastRemoteInputSubmissionElapsedRealtime = NO_REMOTE_INPUT_SUBMISSION
         if (latestOwnerId == ownerId) {
             latestOwnerId = null
             latestStatusText = null
+            latestAcceptsPairingCode = true
         }
         cancelInputNotification()
         clearActiveService(ownerId)
         stopForeground(STOP_FOREGROUND_REMOVE)
         cancelStatusNotification()
         stopSelf()
+    }
+
+    private fun requestStop(ownerId: String) {
+        if (notificationOwnerId != ownerId) return
+        val graceMillis = remainingRemoteInputDismissGraceMillis()
+        if (graceMillis <= 0L) {
+            stopNotificationService()
+            return
+        }
+        cancelInputNotification()
+        pendingStopOwnerId = ownerId
+        mainHandler.removeCallbacks(pendingStopRunnable)
+        mainHandler.postDelayed(pendingStopRunnable, graceMillis)
+    }
+
+    private fun remainingRemoteInputDismissGraceMillis(): Long {
+        val submittedAt = lastRemoteInputSubmissionElapsedRealtime
+        if (submittedAt == NO_REMOTE_INPUT_SUBMISSION) return 0L
+        val elapsed = SystemClock.elapsedRealtime() - submittedAt
+        return (REMOTE_INPUT_DISMISS_GRACE_MILLIS - elapsed).coerceAtLeast(0L)
+    }
+
+    private fun cancelPendingStop() {
+        pendingStopOwnerId = null
+        mainHandler.removeCallbacks(pendingStopRunnable)
     }
 
     private fun cancelInputNotification() {
@@ -230,6 +313,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         if (latestOwnerId == ownerId) {
             latestOwnerId = null
             latestStatusText = null
+            latestAcceptsPairingCode = true
         }
     }
 
@@ -246,6 +330,9 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
 
         @Volatile
         private var latestStatusText: PrivilegeUiText? = null
+
+        @Volatile
+        private var latestAcceptsPairingCode: Boolean = true
 
         private val notificationEventState = MutableSharedFlow<PrivilegeAdbPairingNotificationEvent>(
             extraBufferCapacity = 16,
@@ -279,8 +366,10 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
             }
             val previousOwnerId = latestOwnerId
             val previousStatusText = latestStatusText
+            val previousAcceptsPairingCode = latestAcceptsPairingCode
             latestOwnerId = ownerId
             latestStatusText = statusText
+            latestAcceptsPairingCode = true
             try {
                 context.startForegroundService(
                     Intent(context, PrivilegeAdbPairingService::class.java)
@@ -291,6 +380,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
                 if (latestOwnerId == ownerId) {
                     latestOwnerId = previousOwnerId
                     latestStatusText = previousStatusText
+                    latestAcceptsPairingCode = previousAcceptsPairingCode
                 }
                 throw throwable
             }
@@ -299,21 +389,38 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
 
         public fun stop(context: Context, ownerId: String) {
             if (latestOwnerId != ownerId) return
-            latestOwnerId = null
-            latestStatusText = null
             activeService?.let { service ->
                 if (service.notificationOwnerId == ownerId) {
-                    service.stopNotificationService()
+                    service.requestStop(ownerId)
                     return
                 }
             }
+            latestOwnerId = null
+            latestStatusText = null
+            latestAcceptsPairingCode = true
             context.stopService(Intent(context, PrivilegeAdbPairingService::class.java))
         }
 
-        internal fun updateStatus(ownerId: String, text: PrivilegeUiText) {
-            if (latestOwnerId != ownerId) return
+        internal fun updateStatus(
+            ownerId: String,
+            text: PrivilegeUiText,
+            acceptsPairingCode: Boolean = true,
+        ) {
+            if (!storeLatestStatus(ownerId, text, acceptsPairingCode)) return
+            activeService
+                ?.takeIf { it.notificationOwnerId == ownerId }
+                ?.renderStatus(text, acceptsPairingCode)
+        }
+
+        private fun storeLatestStatus(
+            ownerId: String,
+            text: PrivilegeUiText,
+            acceptsPairingCode: Boolean,
+        ): Boolean {
+            if (latestOwnerId != ownerId) return false
             latestStatusText = text
-            activeService?.takeIf { it.notificationOwnerId == ownerId }?.renderStatus(text)
+            latestAcceptsPairingCode = acceptsPairingCode
+            return true
         }
 
         internal fun isRunning(ownerId: String): Boolean =
@@ -338,5 +445,10 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         }
 
         private const val TAG = "PrivKitPairing"
+        private const val NO_REMOTE_INPUT_SUBMISSION: Long = -1L
+
+        // SystemUI releases a sent RemoteInput's lifetime extension on a 200 ms timer. Keep the
+        // acknowledgement alive beyond that window, with headroom for OEM SystemUI scheduling.
+        private const val REMOTE_INPUT_DISMISS_GRACE_MILLIS: Long = 500L
     }
 }

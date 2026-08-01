@@ -499,7 +499,6 @@ internal class PrivilegeUiAdbPairingActions(
                 }
                 val message = store.resolveText(text)
                 store.appendLog(message)
-                PrivilegeAdbPairingService.updateStatus(notificationOwnerId, text)
                 PrivilegeAdbPairingService.stop(store.requireContext(), notificationOwnerId)
                 releasePairingPermit()
                 enableTcpModeAfterPairing()
@@ -621,7 +620,11 @@ internal class PrivilegeUiAdbPairingActions(
                 adbKeyFingerprint = fingerprint ?: it.adbKeyFingerprint,
             )
         }
-        PrivilegeAdbPairingService.updateStatus(notificationOwnerId, text)
+        PrivilegeAdbPairingService.updateStatus(
+            ownerId = notificationOwnerId,
+            text = text,
+            acceptsPairingCode = status != PrivilegeUiAdbPairingStatus.PAIRING,
+        )
     }
 
     private fun startNewPairingSession(): Int {

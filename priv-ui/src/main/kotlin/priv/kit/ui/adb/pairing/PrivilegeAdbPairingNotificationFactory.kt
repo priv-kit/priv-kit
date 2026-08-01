@@ -60,8 +60,13 @@ internal class PrivilegeAdbPairingNotificationFactory(
             .buildPersistent()
     }
 
-    fun workingNotification(): Notification =
-        statusNotification(text = text(R.string.priv_ui_pairing_working_text))
+    fun workingNotification(text: String): Notification =
+        baseNotification(
+            title = text(R.string.priv_ui_pairing_working_title),
+            text = text,
+        )
+            .addAction(stopAction())
+            .buildPersistent()
 
     private fun baseNotification(
         title: String,
