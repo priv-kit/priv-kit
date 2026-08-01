@@ -171,6 +171,18 @@ internal class PrivilegeUiAdbActions(
         }
     }
 
+    fun disableTcpMode() {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
+        if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
+        tcpActions.disableTcpMode()
+    }
+
+    fun restartTcpMode() {
+        if (PrivilegeUiStartGate.isSilentStartInProgress) return
+        if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
+        tcpActions.restartTcpMode()
+    }
+
     fun confirmStaticTcpSwitch() {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) {

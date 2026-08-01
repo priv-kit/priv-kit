@@ -108,14 +108,7 @@ internal class PrivilegeAdbTcpManager(
                     throwable.rethrowIfInterrupted()
                     throw throwable.toLocalNetworkAccessFailure(connectEndpoint)
                 }
-                runCatching {
-                    client.command("tcpip:$tcpPort", output)
-                }.onFailure { throwable ->
-                    throwable.rethrowIfInterrupted()
-                    if (throwable !is EOFException && throwable !is SocketException) {
-                        throw throwable
-                    }
-                }
+                client.commandAllowingTransportClose("tcpip:$tcpPort", output)
             }
             PrivilegeAdbTcpResult(
                 port = tcpPort,
@@ -134,19 +127,68 @@ internal class PrivilegeAdbTcpManager(
     @Throws(PrivilegeStartupException::class)
     suspend fun stopTcp(
         tcpPort: Int,
+        options: PrivilegeAdbStartOptions? = null,
+    ): PrivilegeAdbTcpResult =
+        runTcpControlCommand(
+            tcpPort = tcpPort,
+            options = options,
+            command = "usb:",
+            failurePrefix = "Failed to stop ADB TCP mode",
+        )
+
+    @Throws(PrivilegeStartupException::class)
+    suspend fun restartTcp(
+        tcpPort: Int,
+        options: PrivilegeAdbStartOptions? = null,
+    ): PrivilegeAdbTcpResult =
+        runTcpControlCommand(
+            tcpPort = tcpPort,
+            options = options,
+            command = "tcpip:$tcpPort",
+            failurePrefix = "Failed to restart ADB TCP mode",
+        )
+
+    private suspend fun runTcpControlCommand(
+        tcpPort: Int,
+        options: PrivilegeAdbStartOptions?,
+        command: String,
+        failurePrefix: String,
     ): PrivilegeAdbTcpResult {
         require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
         val output = PrivilegeAdbOutput()
+        var connectEndpointLease: PrivilegeAdbConnectEndpointLease? = null
         return try {
+            val connectEndpoint = options?.port?.let(PrivilegeAdbEndpoint::local)
+                ?: if (options == null) {
+                    PrivilegeAdbEndpoint.local(tcpPort)
+                } else {
+                    endpointResolver.acquireConnectEndpointForStart(
+                        options = options,
+                        output = output,
+                        disableWirelessDebuggingAfterUse =
+                            options.disableWirelessDebuggingAfterStart,
+                    ).also { lease ->
+                        connectEndpointLease = lease
+                    }.endpoint
+                }
+            output.append(
+                "diag",
+                "ADB TCP control sourcePort=${connectEndpoint.port}, targetTcp=$tcpPort, command=$command",
+            )
             val key = identityProvider.loadKey()
             output.append(
                 "diag",
                 "ADB identity name=${identityProvider.identity.adbDeviceName}, keySignature=<redacted>",
             )
             output.append("diag", "ADB public key fingerprint=${key.adbPublicKeyFingerprint}")
-            PrivilegeAdbClient(tcpPort, key).cancellableUse { client ->
-                client.connect(output)
-                client.command("usb:", output)
+            PrivilegeAdbClient(connectEndpoint, key).cancellableUse { client ->
+                try {
+                    client.connect(output)
+                } catch (throwable: Throwable) {
+                    throwable.rethrowIfInterrupted()
+                    throw throwable.toLocalNetworkAccessFailure(connectEndpoint)
+                }
+                client.commandAllowingTransportClose(command, output)
             }
             PrivilegeAdbTcpResult(
                 port = tcpPort,
@@ -156,7 +198,9 @@ internal class PrivilegeAdbTcpManager(
             )
         } catch (throwable: Throwable) {
             throwable.rethrowIfInterrupted()
-            throw PrivilegeStartupException("Failed to stop ADB TCP mode: ${output.text()}", throwable)
+            throw PrivilegeStartupException("$failurePrefix: ${output.text()}", throwable)
+        } finally {
+            connectEndpointLease?.close()
         }
     }
 
@@ -271,6 +315,20 @@ internal class PrivilegeAdbTcpManager(
             identity = identityProvider.identity,
             publicKeyFingerprint = "",
         )
+    }
+
+    private fun PrivilegeAdbClient.commandAllowingTransportClose(
+        command: String,
+        output: PrivilegeAdbOutput,
+    ) {
+        runCatching {
+            command(command, output)
+        }.onFailure { throwable ->
+            throwable.rethrowIfInterrupted()
+            if (throwable !is EOFException && throwable !is SocketException) {
+                throw throwable
+            }
+        }
     }
 }
 

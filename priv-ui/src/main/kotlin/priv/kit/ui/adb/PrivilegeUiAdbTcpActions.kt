@@ -8,6 +8,7 @@ import priv.kit.core.adb.PrivilegeAdbAuthorizationRequestResult
 import priv.kit.core.adb.PrivilegeAdbAuthorizationStatus
 import priv.kit.core.adb.PrivilegeAdbStartOptions
 import priv.kit.core.adb.PrivilegeAdbManager
+import priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.ui.PrivilegeUiAdbTcpAuthorizationStatus
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
@@ -15,12 +16,15 @@ import priv.kit.ui.PrivilegeUiRuntimeStartSource
 import priv.kit.ui.PrivilegeUiSystemPromptCoordinator
 import priv.kit.ui.R
 import priv.kit.ui.privilegeUiTcpAuthorizationPrompt
+import priv.kit.ui.privilegeUiWirelessDebuggingPrompt
 import priv.kit.ui.runtime.PrivilegeUiRuntimeActions
 import priv.kit.ui.runtime.PrivilegeUiRuntimeStartAttempt
 import priv.kit.ui.runtime.PrivilegeUiRuntimeStartSession
 import priv.kit.ui.state.PrivilegeUiFailureKind
 import priv.kit.ui.state.PrivilegeUiViewModelStore
+import priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported
 import priv.kit.ui.state.privilegeUiTcpAuthorizationFailureKind
+import priv.kit.ui.state.toPrivilegeUiDiagnosticString
 
 internal class PrivilegeUiAdbTcpActions(
     private val store: PrivilegeUiViewModelStore,
@@ -38,6 +42,40 @@ internal class PrivilegeUiAdbTcpActions(
             tcpPort = tcpPort,
             timeoutMillis = timeoutMillis,
         )
+    },
+    private val tcpModeStopper: suspend (tcpPort: Int) -> Unit = { tcpPort ->
+        Privilege.createAdbManager(
+            adbDeviceName = store.currentAdbDeviceNameOverride(),
+        ).stopTcp(tcpPort)
+        Unit
+    },
+    private val wirelessTcpModeStopper: suspend (
+        tcpPort: Int,
+        options: PrivilegeAdbStartOptions,
+    ) -> Unit = { tcpPort, options ->
+        Privilege.createAdbManager(
+            adbDeviceName = store.currentAdbDeviceNameOverride(),
+        ).stopTcp(
+            tcpPort = tcpPort,
+            options = options,
+        )
+        Unit
+    },
+    private val tcpModeRestarter: suspend (tcpPort: Int) -> Int = { tcpPort ->
+        Privilege.createAdbManager(
+            adbDeviceName = store.currentAdbDeviceNameOverride(),
+        ).restartTcp(tcpPort).port
+    },
+    private val wirelessTcpModeRestarter: suspend (
+        tcpPort: Int,
+        options: PrivilegeAdbStartOptions,
+    ) -> Int = { tcpPort, options ->
+        Privilege.createAdbManager(
+            adbDeviceName = store.currentAdbDeviceNameOverride(),
+        ).restartTcp(
+            tcpPort = tcpPort,
+            options = options,
+        ).port
     },
 ) {
     fun enableTcpMode() {
@@ -66,17 +104,132 @@ internal class PrivilegeUiAdbTcpActions(
         )
     }
 
+    fun disableTcpMode() {
+        if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
+        val tcpPort = store.state.value.tcpModePort ?: return
+        runtimeActions.runBusy(
+            message = store.text(R.string.priv_ui_tcp_disabling),
+            failureKind = PrivilegeUiFailureKind.TCP_DISABLE_FAILED,
+            onFailure = {
+                refreshTcpModeEnabled()
+            },
+            action = {
+                runTcpControlWithWirelessFallback(
+                    staticAction = {
+                        tcpModeStopper(tcpPort)
+                    },
+                    wirelessAction = { options ->
+                        wirelessTcpModeStopper(tcpPort, options)
+                    },
+                )
+            },
+            onSuccess = {
+                store.updateTcpModePort(null)
+                store.updateConfiguredTcpModePort(null)
+                store.updateState { current ->
+                    current.copy(
+                        tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
+                    )
+                }
+                refreshTcpModeEnabled()
+                store.text(R.string.priv_ui_tcp_disabled)
+            },
+        )
+    }
+
+    fun restartTcpMode() {
+        if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
+        val tcpPort = store.state.value.tcpModePort ?: return
+        runtimeActions.runBusy(
+            message = store.text(R.string.priv_ui_tcp_restarting),
+            failureKind = PrivilegeUiFailureKind.TCP_RESTART_FAILED,
+            onFailure = {
+                refreshTcpModeEnabled()
+            },
+            action = {
+                runTcpControlWithWirelessFallback(
+                    staticAction = {
+                        tcpModeRestarter(tcpPort)
+                    },
+                    wirelessAction = { options ->
+                        wirelessTcpModeRestarter(tcpPort, options)
+                    },
+                )
+            },
+            onSuccess = { restartedPort ->
+                store.updateTcpModePort(restartedPort)
+                store.updateConfiguredTcpModePort(restartedPort)
+                store.updateState { current ->
+                    current.copy(
+                        tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
+                    )
+                }
+                refreshTcpModeEnabled()
+                store.text(R.string.priv_ui_tcp_restarted)
+            },
+        )
+    }
+
+    private suspend fun <T> runTcpControlWithWirelessFallback(
+        staticAction: suspend () -> T,
+        wirelessAction: suspend (PrivilegeAdbStartOptions) -> T,
+    ): T {
+        val staticFailure = try {
+            return staticAction()
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (throwable: Throwable) {
+            throwable
+        }
+        if (!isPrivilegeUiWirelessAdbSupported()) throw staticFailure
+        store.appendLog(store.text(R.string.priv_ui_tcp_wireless_fallback))
+        store.appendLog(staticFailure.toPrivilegeUiDiagnosticString())
+        val options = privilegeUiStaticTcpSwitchOptions(
+            managedWirelessAdbEnabled = store.managedWirelessAdbEnabledForStart(),
+            managedWirelessAdbStatus = store.state.value.managedWirelessAdbStatus,
+        )
+        return try {
+            withManagedWirelessDebuggingPrompt(options) {
+                wirelessAction(options)
+            }
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (wirelessFailure: Throwable) {
+            wirelessFailure.addSuppressed(staticFailure)
+            throw wirelessFailure
+        }
+    }
+
+    private suspend fun <T> withManagedWirelessDebuggingPrompt(
+        options: PrivilegeAdbStartOptions,
+        action: suspend () -> T,
+    ): T = if (
+        options.port == null &&
+        options.wirelessDebuggingControl != PrivilegeAdbWirelessDebuggingControl.NEVER
+    ) {
+        systemPromptCoordinator.withPrompt(
+            prompt = privilegeUiWirelessDebuggingPrompt(),
+            action = action,
+        )
+    } else {
+        action()
+    }
+
     suspend fun requestTcpAuthorizationForStart(
         session: PrivilegeUiRuntimeStartSession,
         tcpPort: Int,
     ): Boolean {
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return false
         session.appendStartupLog(store.text(R.string.priv_ui_adb_static_authorize_action))
+        session.appendStartupLog(store.text(R.string.priv_ui_tcp_authorization_prompt_waiting_help))
         store.updateState {
-            it.copy(tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING)
+            it.copy(
+                tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
+                tcpAuthorizationFailureDialogText = null,
+            )
         }
-        val result = try {
-            systemPromptCoordinator.withPrompt(privilegeUiTcpAuthorizationPrompt()) {
+        val promptObservation = try {
+            systemPromptCoordinator.withPromptObservation(privilegeUiTcpAuthorizationPrompt()) {
                 tcpAuthorizationRequester(
                     tcpPort,
                     store.config.adbAuthorizationTimeoutMillis,
@@ -89,8 +242,9 @@ internal class PrivilegeUiAdbTcpActions(
         session.checkActive()
         return applyTcpAuthorizationResult(
             session = session,
-            result = result,
+            result = promptObservation.value,
             showFailure = session.showAttemptFeedback && !session.cancellationRequested,
+            systemPromptObserved = promptObservation.hostTransitionObserved,
         )
     }
 
@@ -203,6 +357,7 @@ internal class PrivilegeUiAdbTcpActions(
         session: PrivilegeUiRuntimeStartSession,
         result: PrivilegeAdbAuthorizationRequestResult,
         showFailure: Boolean,
+        systemPromptObserved: Boolean,
     ): Boolean {
         val status = if (result.authorized) {
             PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED
@@ -220,8 +375,21 @@ internal class PrivilegeUiAdbTcpActions(
                 ?.takeIf { it.isNotBlank() }
                 ?.let(session::appendStartupLog)
             if (showFailure) {
-                store.showFailure(failureKind)
-                session.appendStartupLog(store.text(failureKind.messageResId))
+                if (
+                    result.endReason == PrivilegeAdbAuthorizationEndReason.AUTOMATIC_TIMEOUT &&
+                    !systemPromptObserved
+                ) {
+                    val promptNotShown = store.resourceText(
+                        R.string.priv_ui_tcp_authorization_prompt_not_shown,
+                    )
+                    store.updateState { current ->
+                        current.copy(tcpAuthorizationFailureDialogText = promptNotShown)
+                    }
+                    session.appendStartupLog(store.resolveText(promptNotShown))
+                } else {
+                    store.showFailure(failureKind)
+                    session.appendStartupLog(store.text(failureKind.messageResId))
+                }
             }
         }
         return result.authorized

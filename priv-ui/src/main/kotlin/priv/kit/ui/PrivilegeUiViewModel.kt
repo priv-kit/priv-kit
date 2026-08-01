@@ -307,6 +307,13 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         adbActions.closePairingDialog()
     }
 
+    internal fun dismissTcpAuthorizationFailureDialog() {
+        if (!uiInteractionsEnabled) return
+        store.updateState { current ->
+            current.copy(tcpAuthorizationFailureDialogText = null)
+        }
+    }
+
     public open fun submitNotificationPairingCode() {
         if (!uiInteractionsEnabled) return
         adbActions.submitNotificationPairingCode()
@@ -414,6 +421,16 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     public open fun enableTcpMode() {
         if (!uiInteractionsEnabled) return
         viewModelScope.launch { adbActions.enableTcpMode() }
+    }
+
+    internal fun disableTcpMode() {
+        if (!uiInteractionsEnabled) return
+        adbActions.disableTcpMode()
+    }
+
+    internal fun restartTcpMode() {
+        if (!uiInteractionsEnabled) return
+        adbActions.restartTcpMode()
     }
 
     public open fun startStaticTcpAdb() {

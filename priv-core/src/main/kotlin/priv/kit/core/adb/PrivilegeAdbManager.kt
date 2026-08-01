@@ -143,6 +143,32 @@ public class PrivilegeAdbManager private constructor(
     ): PrivilegeAdbTcpResult =
         tcpManager.stopTcp(tcpPort)
 
+    @Throws(PrivilegeStartupException::class)
+    public suspend fun stopTcp(
+        tcpPort: Int,
+        options: PrivilegeAdbStartOptions,
+    ): PrivilegeAdbTcpResult =
+        tcpManager.stopTcp(
+            tcpPort = tcpPort,
+            options = options,
+        )
+
+    @Throws(PrivilegeStartupException::class)
+    public suspend fun restartTcp(
+        tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
+    ): PrivilegeAdbTcpResult =
+        tcpManager.restartTcp(tcpPort)
+
+    @Throws(PrivilegeStartupException::class)
+    public suspend fun restartTcp(
+        tcpPort: Int,
+        options: PrivilegeAdbStartOptions,
+    ): PrivilegeAdbTcpResult =
+        tcpManager.restartTcp(
+            tcpPort = tcpPort,
+            options = options,
+        )
+
     public suspend fun checkTcpAuthorization(
         tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     ): PrivilegeAdbAuthorizationCheckResult =

@@ -13,7 +13,7 @@ public const val PRIVILEGE_INTERNAL_ADB_PAIRING_CODE_LENGTH: Int = 6
 public const val PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS: Long = 15_000L
 
 /** Default timeout for an interactive ADB authorization request. */
-public const val PRIVILEGE_INTERNAL_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS: Long = 60_000L
+public const val PRIVILEGE_INTERNAL_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS: Long = 15_000L
 
 /** Maximum ADB device-name length accepted by Priv Kit. */
 public const val PRIVILEGE_INTERNAL_MAX_ADB_DEVICE_NAME_LENGTH: Int = 128

@@ -107,6 +107,10 @@ public data class PrivilegeUiConfig public constructor(
     public val tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     public val adbTcpPolicy: PrivilegeUiAdbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
     public val enableManagedWirelessAdb: Boolean = true,
+    /**
+     * Maximum wait for the ADB key response after an active static TCP port is selected.
+     * Wireless Debugging discovery, pairing, and static-port enablement are outside this timeout.
+     */
     public val adbAuthorizationTimeoutMillis: Long =
         PRIVILEGE_INTERNAL_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS,
     public val wirelessStatusPollIntervalMillis: Long = DEFAULT_WIRELESS_STATUS_POLL_INTERVAL_MILLIS,
@@ -219,6 +223,7 @@ internal data class PrivilegeUiState(
     val tcpModePort: Int? = null,
     val tcpAuthorizationStatus: PrivilegeUiAdbTcpAuthorizationStatus =
         PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
+    val tcpAuthorizationFailureDialogText: PrivilegeUiText? = null,
     val staticTcpStatusLoaded: Boolean = false,
     val adbKeyFingerprint: String? = null,
     val notificationPairingRunning: Boolean = false,

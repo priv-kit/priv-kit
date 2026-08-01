@@ -18,6 +18,8 @@ internal enum class PrivilegeUiFailureKind(
     EXTERNAL_START_FAILED(R.string.priv_ui_external_start_failed),
     STOP_SERVICE_FAILED(R.string.priv_ui_stop_service_failed),
     TCP_ENABLE_FAILED(R.string.priv_ui_tcp_enable_failed),
+    TCP_DISABLE_FAILED(R.string.priv_ui_tcp_disable_failed),
+    TCP_RESTART_FAILED(R.string.priv_ui_tcp_restart_failed),
     TCP_AUTHORIZATION_NOT_COMPLETED(R.string.priv_ui_tcp_authorization_not_completed),
     TCP_AUTHORIZATION_FAILED(R.string.priv_ui_tcp_authorization_failed),
     PAIRING_CODE_REQUIRED(R.string.priv_ui_pairing_code_required),

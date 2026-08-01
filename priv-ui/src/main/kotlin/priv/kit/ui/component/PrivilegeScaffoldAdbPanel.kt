@@ -7,16 +7,22 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Typography
@@ -36,6 +42,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -44,6 +51,7 @@ import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
 import priv.kit.ui.PrivilegeUiScreenScope
+import priv.kit.ui.PrivilegeUiText
 import priv.kit.ui.PrivilegeUiWirelessAdbStatus
 import priv.kit.ui.R
 import priv.kit.ui.asString
@@ -105,6 +113,34 @@ internal fun PrivilegeUiScreenScope.AdbPanel() {
     staticTcpSwitchConfirmation?.let { action ->
         StaticTcpSwitchConfirmationDialog(action)
     }
+    state.tcpAuthorizationFailureDialogText?.let { text ->
+        TcpAuthorizationFailureDialog(text)
+    }
+}
+
+@Composable
+private fun PrivilegeUiScreenScope.TcpAuthorizationFailureDialog(message: PrivilegeUiText) {
+    AlertDialog(
+        onDismissRequest = {},
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+        ),
+        title = {
+            Text(stringResource(R.string.priv_ui_system_prompt_tcp_authorization_title))
+        },
+        text = {
+            Text(message.asString())
+        },
+        confirmButton = {
+            TextButton(
+                enabled = interactionEnabled,
+                onClick = viewModel::dismissTcpAuthorizationFailureDialog,
+            ) {
+                Text(stringResource(android.R.string.ok))
+            }
+        },
+    )
 }
 
 @Composable
@@ -273,7 +309,15 @@ private fun PrivilegeUiScreenScope.StaticTcpSwitchConfirmationDialog(
             Text(stringResource(R.string.priv_ui_adb_static_switch_confirmation_title))
         },
         text = {
-            Text(stringResource(R.string.priv_ui_adb_static_switch_confirmation_message))
+            Column(
+                verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.medium),
+            ) {
+                Text(
+                    text = stringResource(R.string.priv_ui_adb_static_switch_confirmation_message),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                AdbConnectionWarning()
+            }
         },
         confirmButton = {
             TextButton(
@@ -405,6 +449,7 @@ internal fun privilegeUiPairingInputHint(notificationPairingRunning: Boolean): I
 @Composable
 private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
     val copiedMessage = stringResource(R.string.priv_ui_adb_static_command_copied)
+    var controlDialogVisible by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.medium),
@@ -424,7 +469,9 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
             tcpModeActive = staticTcpActive,
             status = state.tcpAuthorizationStatus,
         )
-        val staticTcpCommand = privilegeUiStaticTcpOpenCommand(configuredTcpPort)
+        val staticTcpCommand = privilegeUiStaticTcpOpenCommand(
+            activeTcpPort ?: configuredTcpPort,
+        )
         val prepareActionVisible = !wirelessAdbSupported &&
             tcpPolicy == PrivilegeUiAdbTcpPolicy.AUTO_ENABLE_AFTER_WIRELESS_PAIRED
         val prepareActionEnabled = prepareActionVisible &&
@@ -443,6 +490,9 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
             wirelessAdbSupported = wirelessAdbSupported,
             interactionEnabled = interactionEnabled,
         )
+        val controlActionEnabled = interactionEnabled &&
+            !runtimeStartInProgress &&
+            !state.busy
         val commandHelpVisible = staticTcpCommandHelpVisible(
             wirelessAdbSupported = wirelessAdbSupported,
         )
@@ -468,27 +518,41 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
                 Text(stringResource(R.string.priv_ui_adb_static_prepare_action))
             }
         }
-        Button(
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            enabled = tcpStartActionEnabled,
-            onClick = {
-                when (startAction) {
-                    PrivilegeUiStartAction.START ->
-                        viewModel.startStaticTcpAdb()
-                    PrivilegeUiStartAction.CANCEL -> viewModel.stopCurrentStart()
-                    PrivilegeUiStartAction.CANCELLING,
-                    PrivilegeUiStartAction.NONE,
-                    -> Unit
-                }
-            },
+            horizontalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.small),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                stringResource(
-                    staticTcpActionLabel(
-                        action = startAction,
+            OutlinedButton(
+                enabled = controlActionEnabled,
+                onClick = {
+                    controlDialogVisible = true
+                },
+            ) {
+                Text(stringResource(R.string.priv_ui_adb_static_control_action))
+            }
+            Button(
+                modifier = Modifier.weight(1f),
+                enabled = tcpStartActionEnabled,
+                onClick = {
+                    when (startAction) {
+                        PrivilegeUiStartAction.START ->
+                            viewModel.startStaticTcpAdb()
+                        PrivilegeUiStartAction.CANCEL -> viewModel.stopCurrentStart()
+                        PrivilegeUiStartAction.CANCELLING,
+                        PrivilegeUiStartAction.NONE,
+                        -> Unit
+                    }
+                },
+            ) {
+                Text(
+                    stringResource(
+                        staticTcpActionLabel(
+                            action = startAction,
+                        ),
                     ),
-                ),
-            )
+                )
+            }
         }
         if (commandHelpVisible) {
             Column(
@@ -516,6 +580,119 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
                     Text(stringResource(R.string.priv_ui_manual_copy_command))
                 }
             }
+        }
+        if (controlDialogVisible) {
+            StaticTcpControlDialog(
+                commandLine = staticTcpCommand,
+                commandVisible = commandHelpVisible,
+                actionEnabled = controlActionEnabled && staticTcpActive,
+                onDismiss = {
+                    controlDialogVisible = false
+                },
+                onStop = {
+                    controlDialogVisible = false
+                    viewModel.disableTcpMode()
+                },
+                onRestart = {
+                    controlDialogVisible = false
+                    viewModel.restartTcpMode()
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun StaticTcpControlDialog(
+    commandLine: String,
+    commandVisible: Boolean,
+    actionEnabled: Boolean,
+    onDismiss: () -> Unit,
+    onStop: () -> Unit,
+    onRestart: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(dismissOnClickOutside = false),
+        title = {
+            Text(stringResource(R.string.priv_ui_adb_static_control_dialog_title))
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.medium),
+            ) {
+                if (commandVisible) {
+                    Text(
+                        text = stringResource(R.string.priv_ui_adb_static_command_desc),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    CommandBlock(commandLine)
+                }
+                AdbConnectionWarning()
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = actionEnabled,
+                onClick = onRestart,
+            ) {
+                Text(stringResource(R.string.priv_ui_adb_static_control_restart_action))
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.extraSmall)) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.priv_ui_adb_static_switch_cancel_action))
+                }
+                TextButton(
+                    enabled = actionEnabled,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                    onClick = onStop,
+                ) {
+                    Text(stringResource(R.string.priv_ui_adb_static_control_stop_action))
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun AdbConnectionWarning() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        shape = MaterialTheme.shapes.medium,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(PrivilegeUiSpacing.medium),
+            verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.extraSmall),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    modifier = Modifier.size(20.dp),
+                    imageVector = PrivilegeUiIcons.Warning,
+                    contentDescription = null,
+                )
+                Spacer(Modifier.width(PrivilegeUiSpacing.medium))
+                Text(
+                    modifier = Modifier.weight(1f),
+                    text = stringResource(R.string.priv_ui_adb_connection_warning_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Text(
+                text = stringResource(R.string.priv_ui_adb_connection_warning_message),
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 }

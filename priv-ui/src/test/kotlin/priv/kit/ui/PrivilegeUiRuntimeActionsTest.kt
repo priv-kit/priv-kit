@@ -440,7 +440,7 @@ class PrivilegeUiRuntimeActionsTest {
             )
 
             assertTrue(waitUntilIdle(store))
-            assertEquals("无法打开静态 ADB 端口，请重试", snackbar.await())
+            assertEquals("无法打开静态端口，请重试", snackbar.await())
             assertTrue(waitUntil {
                 store.state.value.startupLogLines.any {
                     "Failed to switch ADB to TCP mode: injected transcript" in it

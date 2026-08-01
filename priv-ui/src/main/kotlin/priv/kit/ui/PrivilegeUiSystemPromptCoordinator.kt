@@ -10,6 +10,11 @@ internal data class PrivilegeUiSystemPrompt(
     val message: PrivilegeUiText,
 )
 
+internal data class PrivilegeUiSystemPromptObservation<out T>(
+    val value: T,
+    val hostTransitionObserved: Boolean,
+)
+
 internal class PrivilegeUiSystemPromptCoordinator : AutoCloseable {
     private val closed = AtomicBoolean(false)
     private val lock = Any()
@@ -100,31 +105,46 @@ internal class PrivilegeUiSystemPromptCoordinator : AutoCloseable {
     fun begin(
         prompt: PrivilegeUiSystemPrompt,
         ownerHostId: String? = null,
-    ): AutoCloseable {
+    ): AutoCloseable = beginObserved(prompt, ownerHostId)
+
+    private fun beginObserved(
+        prompt: PrivilegeUiSystemPrompt,
+        ownerHostId: String? = null,
+    ): PromptSessionHandle {
+        val hostTransitionObserved = AtomicBoolean(false)
         val sessionId = synchronized(lock) {
-            if (closed.get() || activeSession != null) return NoOpCloseable
+            if (closed.get() || activeSession != null) return NoOpPromptSessionHandle
             val resolvedOwnerHostId = ownerHostId
                 ?.takeIf(hosts::containsKey)
                 ?: foregroundHostIdLocked()
-                ?: return NoOpCloseable
+                ?: return NoOpPromptSessionHandle
             (++nextSessionId).also { id ->
                 activeSession = PromptSession(
                     id = id,
                     prompt = prompt,
                     ownerHostId = resolvedOwnerHostId,
+                    hostTransitionObserved = hostTransitionObserved,
                 )
             }
         }
-        return PromptSessionCloseable(sessionId)
+        return PromptSessionCloseable(sessionId, hostTransitionObserved)
     }
 
     suspend fun <T> withPrompt(
         prompt: PrivilegeUiSystemPrompt,
         action: suspend () -> T,
-    ): T {
-        val session = begin(prompt)
+    ): T = withPromptObservation(prompt, action).value
+
+    suspend fun <T> withPromptObservation(
+        prompt: PrivilegeUiSystemPrompt,
+        action: suspend () -> T,
+    ): PrivilegeUiSystemPromptObservation<T> {
+        val session = beginObserved(prompt)
         return try {
-            action()
+            PrivilegeUiSystemPromptObservation(
+                value = action(),
+                hostTransitionObserved = session.hostTransitionObserved,
+            )
         } finally {
             session.close()
         }
@@ -146,6 +166,7 @@ internal class PrivilegeUiSystemPromptCoordinator : AutoCloseable {
     private fun revealPromptLocked(hostId: String) {
         val session = activeSession ?: return
         if (session.ownerHostId != hostId || session.visible) return
+        session.hostTransitionObserved.set(true)
         session.visible = true
         visiblePromptState.value = session.prompt
     }
@@ -183,8 +204,12 @@ internal class PrivilegeUiSystemPromptCoordinator : AutoCloseable {
 
     private inner class PromptSessionCloseable(
         private val sessionId: Long,
-    ) : AutoCloseable {
+        private val observation: AtomicBoolean,
+    ) : PromptSessionHandle {
         private val sessionClosed = AtomicBoolean(false)
+
+        override val hostTransitionObserved: Boolean
+            get() = observation.get()
 
         override fun close() {
             if (sessionClosed.compareAndSet(false, true)) {
@@ -205,11 +230,18 @@ internal class PrivilegeUiSystemPromptCoordinator : AutoCloseable {
         val id: Long,
         val prompt: PrivilegeUiSystemPrompt,
         val ownerHostId: String,
+        val hostTransitionObserved: AtomicBoolean,
         var visible: Boolean = false,
         var completed: Boolean = false,
     )
 
-    private data object NoOpCloseable : AutoCloseable {
+    private interface PromptSessionHandle : AutoCloseable {
+        val hostTransitionObserved: Boolean
+    }
+
+    private data object NoOpPromptSessionHandle : PromptSessionHandle {
+        override val hostTransitionObserved: Boolean = false
+
         override fun close() = Unit
     }
 }
