@@ -4,10 +4,13 @@ import kotlinx.coroutines.CompletableDeferred
 
 internal sealed class PrivilegeUiPermissionRequest(
     private val interactionPermit: AutoCloseable,
+    private val systemPrompt: PrivilegeUiSystemPrompt,
+    private val beginSystemPrompt: (PrivilegeUiSystemPrompt, String) -> AutoCloseable,
 ) : AutoCloseable {
     private val lock = Any()
     private val completion = CompletableDeferred<PrivilegeUiPermissionState?>()
     private var launchedHostId: String? = null
+    private var systemPromptSession: AutoCloseable? = null
     private var finished = false
 
     internal val wasLaunched: Boolean
@@ -18,6 +21,7 @@ internal sealed class PrivilegeUiPermissionRequest(
             if (finished || launchedHostId != null) false
             else {
                 launchedHostId = hostId
+                systemPromptSession = beginSystemPrompt(systemPrompt, hostId)
                 true
             }
         }
@@ -50,23 +54,38 @@ internal sealed class PrivilegeUiPermissionRequest(
         result: PrivilegeUiPermissionState?,
         canFinish: () -> Boolean,
     ) {
+        var promptSession: AutoCloseable? = null
         val claimed = synchronized(lock) {
             if (finished || !canFinish()) false
             else {
                 finished = true
+                promptSession = systemPromptSession
+                systemPromptSession = null
                 true
             }
         }
         if (!claimed) return
         completion.complete(result)
+        runCatching { promptSession?.close() }
         runCatching { interactionPermit.close() }
     }
 
-    class Notification(interactionPermit: AutoCloseable) :
-        PrivilegeUiPermissionRequest(interactionPermit)
+    class Notification(
+        interactionPermit: AutoCloseable,
+        beginSystemPrompt: (PrivilegeUiSystemPrompt, String) -> AutoCloseable,
+    ) : PrivilegeUiPermissionRequest(
+        interactionPermit = interactionPermit,
+        systemPrompt = privilegeUiNotificationPermissionPrompt(),
+        beginSystemPrompt = beginSystemPrompt,
+    )
 
     class LocalNetwork(
         val permission: String,
         interactionPermit: AutoCloseable,
-    ) : PrivilegeUiPermissionRequest(interactionPermit)
+        beginSystemPrompt: (PrivilegeUiSystemPrompt, String) -> AutoCloseable,
+    ) : PrivilegeUiPermissionRequest(
+        interactionPermit = interactionPermit,
+        systemPrompt = privilegeUiLocalNetworkPermissionPrompt(),
+        beginSystemPrompt = beginSystemPrompt,
+    )
 }

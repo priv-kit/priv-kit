@@ -86,6 +86,52 @@ class PrivilegeUiPermissionCoordinatorTest {
     }
 
     @Test
+    fun launchedPermissionUsesSystemPromptUntilHostReturnsToForeground() = runBlocking {
+        val hostId = "permission-host"
+        val promptCoordinator = PrivilegeUiSystemPromptCoordinator().also {
+            it.registerHost(
+                hostId = hostId,
+                resumed = true,
+                hasWindowFocus = true,
+            )
+        }
+        val coordinator = coordinator(
+            acquirePermit = { AutoCloseable {} },
+            systemPromptCoordinator = promptCoordinator,
+        )
+        coordinator.registerHost(hostId)
+        try {
+            val result = async(start = CoroutineStart.UNDISPATCHED) {
+                coordinator.requestNotificationPermission()
+            }
+            val request = coordinator.requests.first() as PrivilegeUiPermissionRequest.Notification
+            assertTrue(request.tryMarkLaunched(hostId))
+
+            promptCoordinator.onHostPaused(hostId)
+
+            val visiblePrompt = promptCoordinator.visiblePrompt.value
+            assertEquals(
+                R.string.priv_ui_system_prompt_notification_title,
+                (visiblePrompt?.title as PrivilegeUiText.Resource).id,
+            )
+
+            coordinator.completeNotificationPermissionRequest(
+                hostId = hostId,
+                permissionState = PrivilegeUiPermissionState.Granted,
+            )
+            assertEquals(PrivilegeUiPermissionState.Granted, result.await())
+            assertEquals(visiblePrompt, promptCoordinator.visiblePrompt.value)
+
+            promptCoordinator.onHostResumed(hostId, hasWindowFocus = true)
+            assertEquals(null, promptCoordinator.visiblePrompt.value)
+        } finally {
+            coordinator.unregisterHost(hostId, changingConfigurations = false)
+            coordinator.close()
+            promptCoordinator.close()
+        }
+    }
+
+    @Test
     fun removingTheLastHostCancelsTheSuspendedPermissionRequest() = runBlocking {
         val permitsClosed = AtomicInteger(0)
         val coordinator = coordinator {
@@ -106,6 +152,8 @@ class PrivilegeUiPermissionCoordinatorTest {
     }
 
     private fun coordinator(
+        systemPromptCoordinator: PrivilegeUiSystemPromptCoordinator =
+            PrivilegeUiSystemPromptCoordinator(),
         acquirePermit: () -> AutoCloseable?,
     ): PrivilegeUiPermissionCoordinator =
         PrivilegeUiPermissionCoordinator(
@@ -113,5 +161,6 @@ class PrivilegeUiPermissionCoordinatorTest {
             interactionsEnabled = { true },
             ownerClosed = { false },
             cancelPairingWithoutInteractionHost = {},
+            systemPromptCoordinator = systemPromptCoordinator,
         )
 }

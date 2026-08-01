@@ -64,10 +64,14 @@ class PrivilegeUiAdbTcpActionsTest {
             acquireStartPermit = { AutoCloseable {} },
         )
         val authorizationResult = CompletableDeferred<PrivilegeAdbAuthorizationRequestResult>()
+        val promptCoordinator = PrivilegeUiSystemPromptCoordinator().also {
+            it.registerHost("host", resumed = true, hasWindowFocus = true)
+        }
         val tcpActions = PrivilegeUiAdbTcpActions(
             store = store,
             runtimeActions = runtimeActions,
             refreshTcpModeEnabled = {},
+            systemPromptCoordinator = promptCoordinator,
             tcpAuthorizationRequester = { _, _ -> authorizationResult.await() },
         )
         try {
@@ -92,6 +96,11 @@ class PrivilegeUiAdbTcpActionsTest {
                 store.state.value.tcpAuthorizationStatus ==
                     PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING
             })
+            promptCoordinator.onHostPaused("host")
+            assertEquals(
+                R.string.priv_ui_system_prompt_tcp_authorization_title,
+                (promptCoordinator.visiblePrompt.value?.title as PrivilegeUiText.Resource).id,
+            )
             authorizationResult.complete(
                 PrivilegeAdbAuthorizationRequestResult(
                     authorized = false,
@@ -104,8 +113,12 @@ class PrivilegeUiAdbTcpActionsTest {
             assertTrue(waitUntilIdle(store))
             assertEquals(expectedStatus, store.state.value.tcpAuthorizationStatus)
             assertTrue(store.state.value.startupLogLines.any { diagnosticMessage in it })
+            assertTrue(promptCoordinator.visiblePrompt.value != null)
+            promptCoordinator.onHostResumed("host", hasWindowFocus = true)
+            assertEquals(null, promptCoordinator.visiblePrompt.value)
         } finally {
             runtimeActions.close()
+            promptCoordinator.close()
             runtimeScope.cancel()
             store.close()
         }

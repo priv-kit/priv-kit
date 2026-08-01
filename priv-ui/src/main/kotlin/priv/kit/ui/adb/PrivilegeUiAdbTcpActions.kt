@@ -12,7 +12,9 @@ import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.ui.PrivilegeUiAdbTcpAuthorizationStatus
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
+import priv.kit.ui.PrivilegeUiSystemPromptCoordinator
 import priv.kit.ui.R
+import priv.kit.ui.privilegeUiTcpAuthorizationPrompt
 import priv.kit.ui.runtime.PrivilegeUiRuntimeActions
 import priv.kit.ui.runtime.PrivilegeUiRuntimeStartAttempt
 import priv.kit.ui.runtime.PrivilegeUiRuntimeStartSession
@@ -24,6 +26,8 @@ internal class PrivilegeUiAdbTcpActions(
     private val store: PrivilegeUiViewModelStore,
     private val runtimeActions: PrivilegeUiRuntimeActions,
     private val refreshTcpModeEnabled: () -> Unit,
+    private val systemPromptCoordinator: PrivilegeUiSystemPromptCoordinator =
+        PrivilegeUiSystemPromptCoordinator(),
     private val tcpAuthorizationRequester: suspend (
         tcpPort: Int,
         timeoutMillis: Long,
@@ -72,10 +76,12 @@ internal class PrivilegeUiAdbTcpActions(
             it.copy(tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING)
         }
         val result = try {
-            tcpAuthorizationRequester(
-                tcpPort,
-                store.config.adbAuthorizationTimeoutMillis,
-            )
+            systemPromptCoordinator.withPrompt(privilegeUiTcpAuthorizationPrompt()) {
+                tcpAuthorizationRequester(
+                    tcpPort,
+                    store.config.adbAuthorizationTimeoutMillis,
+                )
+            }
         } catch (exception: CancellationException) {
             markTcpAuthorizationUnauthorizedIfAuthorizing()
             throw exception

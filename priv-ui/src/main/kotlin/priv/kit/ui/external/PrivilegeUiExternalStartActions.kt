@@ -22,6 +22,8 @@ internal class PrivilegeUiExternalStartActions(
         PrivilegeRuntimeStartCoordinator::createNativeStarterCommand,
     private val acquireInteractivePermit: () -> AutoCloseable? =
         PrivilegeUiStartGate.newInteractivePermitAcquirer(),
+    private val systemPromptCoordinator: PrivilegeUiSystemPromptCoordinator =
+        PrivilegeUiSystemPromptCoordinator(),
 ) {
     private val statusRefresh = Mutex()
 
@@ -68,7 +70,11 @@ internal class PrivilegeUiExternalStartActions(
             store.setExternalStartSnapshot(provider.id, snapshot)
             if (!snapshot.canStart) {
                 val requested = try {
-                    provider.requestAuthorization(context)
+                    systemPromptCoordinator.withPrompt(
+                        privilegeUiExternalAuthorizationPrompt(provider.label),
+                    ) {
+                        provider.requestAuthorization(context)
+                    }
                 } catch (exception: CancellationException) {
                     throw exception
                 } catch (throwable: Throwable) {

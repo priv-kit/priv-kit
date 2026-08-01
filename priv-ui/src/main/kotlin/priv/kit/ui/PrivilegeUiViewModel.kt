@@ -58,10 +58,12 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     private val desiredEnabledManager = PrivilegeUiDesiredEnabledManagers.get(application)
     private val interactiveStartOwner = PrivilegeUiStartGate.newInteractiveOwner()
     private val acquireInteractivePermit = interactiveStartOwner::tryAcquire
+    private val systemPromptCoordinator = PrivilegeUiSystemPromptCoordinator()
     private val runtimeActions = PrivilegeUiRuntimeActions(
         store = store,
         coroutineScope = viewModelScope,
         acquireStartPermit = acquireInteractivePermit,
+        systemPromptCoordinator = systemPromptCoordinator,
     )
     private val adbActions = PrivilegeUiAdbActions(
         store = store,
@@ -69,11 +71,13 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         coroutineScope = viewModelScope,
         acquireInteractivePermit = acquireInteractivePermit,
         hasInteractionHost = ::hasPermissionInteractionHost,
+        systemPromptCoordinator = systemPromptCoordinator,
     )
     private val externalStartActions = PrivilegeUiExternalStartActions(
         store = store,
         runtimeActions = runtimeActions,
         acquireInteractivePermit = acquireInteractivePermit,
+        systemPromptCoordinator = systemPromptCoordinator,
     )
     private val ownerClosed = AtomicBoolean(false)
     private val effectsCoordinator = PrivilegeUiEffectsCoordinator(
@@ -89,6 +93,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         interactionsEnabled = { uiInteractionsEnabled },
         ownerClosed = ownerClosed::get,
         cancelPairingWithoutInteractionHost = adbActions::cancelPairingWithoutInteractionHost,
+        systemPromptCoordinator = systemPromptCoordinator,
     )
     private var notificationPairingStartJob: Job? = null
     private var externalAuthorizationJob: Job? = null
@@ -105,6 +110,8 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         get() = effectsCoordinator.canInteract()
     internal val snackbarTexts: SharedFlow<PrivilegeUiText> = store.snackbarTexts
     internal val permissionRequests: Flow<PrivilegeUiPermissionRequest> = permissionCoordinator.requests
+    internal val visibleSystemPrompt: StateFlow<PrivilegeUiSystemPrompt?> =
+        systemPromptCoordinator.visiblePrompt
     internal val batteryOptimizationPromptVisible: StateFlow<Boolean> =
         batteryOptimizationPromptVisibleState.asStateFlow()
     /**
@@ -358,8 +365,35 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         }
     }
 
+    internal fun dispatchHostResume(
+        hostId: String,
+        hasWindowFocus: Boolean,
+    ) {
+        systemPromptCoordinator.onHostResumed(hostId, hasWindowFocus)
+        dispatchHostResume()
+    }
+
+    internal fun dispatchHostPause(hostId: String) {
+        systemPromptCoordinator.onHostPaused(hostId)
+    }
+
     internal fun dispatchHostWindowFocus() {
         refreshHostInteractiveState()
+    }
+
+    internal fun dispatchHostWindowFocus(
+        hostId: String,
+        hasWindowFocus: Boolean,
+        resumed: Boolean,
+    ) {
+        systemPromptCoordinator.onHostWindowFocusChanged(
+            hostId = hostId,
+            hasWindowFocus = hasWindowFocus,
+            resumed = resumed,
+        )
+        if (hasWindowFocus && resumed) {
+            dispatchHostWindowFocus()
+        }
     }
 
     private fun refreshBatteryOptimizationState() {
@@ -533,12 +567,22 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     private fun hasPermissionInteractionHost(): Boolean =
         permissionCoordinator.hasInteractionHost()
 
-    internal fun registerPermissionHost(hostId: String) = permissionCoordinator.registerHost(hostId)
+    internal fun registerPermissionHost(
+        hostId: String,
+        resumed: Boolean = true,
+        hasWindowFocus: Boolean = true,
+    ) {
+        systemPromptCoordinator.registerHost(hostId, resumed, hasWindowFocus)
+        permissionCoordinator.registerHost(hostId)
+    }
 
     internal fun unregisterPermissionHost(
         hostId: String,
         changingConfigurations: Boolean,
-    ) = permissionCoordinator.unregisterHost(hostId, changingConfigurations)
+    ) {
+        systemPromptCoordinator.unregisterHost(hostId, changingConfigurations)
+        permissionCoordinator.unregisterHost(hostId, changingConfigurations)
+    }
 
     internal fun cancelPermissionRequest(
         hostId: String,
@@ -554,6 +598,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         runtimeActions.close()
         runCatching { adbActions.close() }
         permissionCoordinator.close()
+        systemPromptCoordinator.close()
         runCatching { store.close() }
     }
 

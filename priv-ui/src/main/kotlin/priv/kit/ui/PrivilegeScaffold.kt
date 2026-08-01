@@ -7,13 +7,18 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FabPosition
@@ -30,10 +35,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -46,6 +53,7 @@ import priv.kit.ui.component.AuthorizationModeTabs
 import priv.kit.ui.component.AutoRecoveryWarning
 import priv.kit.ui.component.ExternalStartPanel
 import priv.kit.ui.component.ManualShellPanel
+import priv.kit.ui.component.PrivilegeSystemPromptOverlay
 import priv.kit.ui.component.PrivilegeTopBar
 import priv.kit.ui.component.PrivilegeUiSpacing
 import priv.kit.ui.component.RootPanel
@@ -79,6 +87,7 @@ public fun PrivilegeScaffold(
     val permissionHostId = rememberSaveable { UUID.randomUUID().toString() }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val startGateState by viewModel.startGateState.collectAsStateWithLifecycle()
+    val visibleSystemPrompt by viewModel.visibleSystemPrompt.collectAsStateWithLifecycle()
     val interactionEnabled = viewModel.canInteract(startGateState)
     val notificationPermission = if (isPrivilegeUiNotificationPermissionSupported()) {
         Manifest.permission.POST_NOTIFICATIONS
@@ -112,8 +121,12 @@ public fun PrivilegeScaffold(
             )
         },
     )
-    DisposableEffect(Unit) {
-        viewModel.registerPermissionHost(permissionHostId)
+    DisposableEffect(viewModel, permissionHostId, lifecycleOwner, view) {
+        viewModel.registerPermissionHost(
+            hostId = permissionHostId,
+            resumed = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED),
+            hasWindowFocus = view.hasWindowFocus(),
+        )
         onDispose {
             viewModel.unregisterPermissionHost(
                 hostId = permissionHostId,
@@ -190,14 +203,28 @@ public fun PrivilegeScaffold(
     LifecycleEventEffect(
         event = Lifecycle.Event.ON_RESUME,
         lifecycleOwner = lifecycleOwner,
-        onEvent = viewModel::dispatchHostResume,
+        onEvent = {
+            viewModel.dispatchHostResume(
+                hostId = permissionHostId,
+                hasWindowFocus = view.hasWindowFocus(),
+            )
+        },
     )
-    DisposableEffect(Unit) {
+    LifecycleEventEffect(
+        event = Lifecycle.Event.ON_PAUSE,
+        lifecycleOwner = lifecycleOwner,
+        onEvent = {
+            viewModel.dispatchHostPause(permissionHostId)
+        },
+    )
+    DisposableEffect(viewModel, permissionHostId, lifecycleOwner, view) {
         val lifecycle = lifecycleOwner.lifecycle
         val refreshObserver = ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
-            if (hasFocus && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-                viewModel.dispatchHostWindowFocus()
-            }
+            viewModel.dispatchHostWindowFocus(
+                hostId = permissionHostId,
+                hasWindowFocus = hasFocus,
+                resumed = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED),
+            )
         }
         val viewTreeObserver = view.viewTreeObserver
         viewTreeObserver.addOnWindowFocusChangeListener(refreshObserver)
@@ -213,54 +240,69 @@ public fun PrivilegeScaffold(
         }
     }
 
-    Scaffold(
-        modifier = modifier,
-        topBar = topBar,
-        bottomBar = bottomBar,
-        snackbarHost = {
-            snackbarHost(snackbarHostState)
-        },
-        floatingActionButton = floatingActionButton,
-        floatingActionButtonPosition = floatingActionButtonPosition,
-        containerColor = containerColor,
-        contentColor = contentColor,
-        contentWindowInsets = contentWindowInsets,
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .consumeWindowInsets(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(
-                    start = PrivilegeUiSpacing.large,
-                    top = PrivilegeUiSpacing.medium,
-                    end = PrivilegeUiSpacing.large,
-                    bottom = PrivilegeUiSpacing.extraLarge,
-                ),
-            verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.large),
-        ) {
-            Column {
-                AnimatedVisibility(
-                    visible = privilegeUiAutoRecoveryWarningVisible(
-                        state = state,
-                        interactionEnabled = interactionEnabled,
+    Box(modifier = modifier) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            topBar = topBar,
+            bottomBar = bottomBar,
+            snackbarHost = {
+                snackbarHost(snackbarHostState)
+            },
+            floatingActionButton = floatingActionButton,
+            floatingActionButtonPosition = floatingActionButtonPosition,
+            containerColor = containerColor,
+            contentColor = contentColor,
+            contentWindowInsets = contentWindowInsets,
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .consumeWindowInsets(innerPadding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(
+                        start = PrivilegeUiSpacing.large,
+                        top = PrivilegeUiSpacing.medium,
+                        end = PrivilegeUiSpacing.large,
+                        bottom = PrivilegeUiSpacing.extraLarge,
                     ),
-                ) {
-                    Column {
-                        screenScope.AutoRecoveryWarning()
-                        Spacer(Modifier.height(PrivilegeUiSpacing.large))
+                verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.large),
+            ) {
+                Column {
+                    AnimatedVisibility(
+                        visible = privilegeUiAutoRecoveryWarningVisible(
+                            state = state,
+                            interactionEnabled = interactionEnabled,
+                        ),
+                    ) {
+                        Column {
+                            screenScope.AutoRecoveryWarning()
+                            Spacer(Modifier.height(PrivilegeUiSpacing.large))
+                        }
                     }
+                    screenScope.ServiceStatusPanel()
                 }
-                screenScope.ServiceStatusPanel()
-            }
-            screenScope.PermissionRestrictionWarning()
-            screenScope.AuthorizationModeTabs()
-            screenScope.AuthorizationModePanel()
-            if (state.startupLogLines.isNotEmpty()) {
-                screenScope.StartupLogPanel()
+                screenScope.PermissionRestrictionWarning()
+                screenScope.AuthorizationModeTabs()
+                screenScope.AuthorizationModePanel()
+                if (state.startupLogLines.isNotEmpty()) {
+                    screenScope.StartupLogPanel()
+                }
             }
         }
+        PrivilegeSystemPromptOverlay(
+            prompt = visibleSystemPrompt,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .zIndex(1f)
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Top),
+                )
+                .padding(
+                    horizontal = PrivilegeUiSpacing.large,
+                    vertical = PrivilegeUiSpacing.medium,
+                ),
+        )
     }
 }
 

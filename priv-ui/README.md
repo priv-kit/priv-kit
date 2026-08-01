@@ -211,6 +211,15 @@ hook only opens the destination. The warning also returns its result to the orig
 coroutine: continue without notifications, resume with notifications after settings grants the
 permission, or cancel. Hosts that need custom top-bar actions should supply their own `topBar`.
 
+Before a foreground flow can open a supported system authorization prompt, `PrivilegeScaffold`
+arms a one-shot contextual hint. The hint stays hidden unless the owning Activity is first paused
+or loses window focus, then appears as a non-interactive card over the top of the existing Scaffold
+with the authorization name and its purpose. It is removed only after that Activity is resumed and
+has window focus again. Already-granted permissions and operations that do not open a prompt never
+show the card. Built-in hints cover notification and local-network permissions, Root and external
+provider authorization, static-TCP ADB key authorization, and managed Wireless Debugging network
+confirmation. This is an in-Activity Compose overlay, not a system overlay window.
+
 `PrivilegeScaffold` observes runtime status internally. Hosts that need the process-wide
 connection state outside the scaffold should collect `Privilege.serverState` from a scope owned
 by the intended consumer: an application-owned scope for process-lifetime work, or a

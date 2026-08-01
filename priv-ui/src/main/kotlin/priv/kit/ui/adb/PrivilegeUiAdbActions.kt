@@ -8,6 +8,8 @@ import priv.kit.ui.state.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import priv.kit.core.Privilege
+import priv.kit.core.adb.PrivilegeAdbStartOptions
+import priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl
 import priv.kit.core.adb.isPrivilegeAdbLocalNetworkAccessFailure
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import kotlin.time.Duration.Companion.milliseconds
@@ -18,6 +20,8 @@ internal class PrivilegeUiAdbActions(
     private val coroutineScope: CoroutineScope,
     private val acquireInteractivePermit: () -> AutoCloseable?,
     private val hasInteractionHost: () -> Boolean,
+    private val systemPromptCoordinator: PrivilegeUiSystemPromptCoordinator =
+        PrivilegeUiSystemPromptCoordinator(),
 ) : AutoCloseable {
     private val staticTcpConfirmationController = PrivilegeUiStaticTcpConfirmationController()
     private val statusActions = PrivilegeUiAdbStatusActions(
@@ -28,6 +32,7 @@ internal class PrivilegeUiAdbActions(
         store = store,
         runtimeActions = runtimeActions,
         refreshTcpModeEnabled = { statusActions.refreshTcpModeEnabled() },
+        systemPromptCoordinator = systemPromptCoordinator,
     )
     private val pairingActions = PrivilegeUiAdbPairingActions(
         store = store,
@@ -471,13 +476,15 @@ internal class PrivilegeUiAdbActions(
                 managedWirelessAdbEnabled = store.managedWirelessAdbEnabledForStart(),
                 managedWirelessAdbStatus = store.state.value.managedWirelessAdbStatus,
             )
-            val serverInfo = PrivilegeRuntimeStartCoordinator.startAdb(
-                launch = requireRuntimeClientLaunch(),
-                options = options,
-                timeoutMillis = store.config.startTimeoutMillis,
-                adbDeviceName = adbDeviceName,
-                startupLogListener = startupLogListener,
-            )
+            val serverInfo = withManagedWirelessDebuggingPrompt(options) {
+                PrivilegeRuntimeStartCoordinator.startAdb(
+                    launch = requireRuntimeClientLaunch(),
+                    options = options,
+                    timeoutMillis = store.config.startTimeoutMillis,
+                    adbDeviceName = adbDeviceName,
+                    startupLogListener = startupLogListener,
+                )
+            }
             updateTcpModeAfterWirelessAdbStart(
                 activeTcpPort = activeTcpPort,
             )
@@ -496,13 +503,16 @@ internal class PrivilegeUiAdbActions(
                 adbDeviceName = store.currentAdbDeviceNameOverride(),
             )
             appendStartupLog(store.text(R.string.priv_ui_tcp_enabling))
-            manager.switchToTcp(
-                tcpPort = tcpPort,
-                options = privilegeUiStaticTcpSwitchOptions(
-                    managedWirelessAdbEnabled = store.managedWirelessAdbEnabledForStart(),
-                    managedWirelessAdbStatus = store.state.value.managedWirelessAdbStatus,
-                ),
+            val options = privilegeUiStaticTcpSwitchOptions(
+                managedWirelessAdbEnabled = store.managedWirelessAdbEnabledForStart(),
+                managedWirelessAdbStatus = store.state.value.managedWirelessAdbStatus,
             )
+            withManagedWirelessDebuggingPrompt(options) {
+                manager.switchToTcp(
+                    tcpPort = tcpPort,
+                    options = options,
+                )
+            }
             delay(PRIVILEGE_UI_TCP_START_DELAY_MILLIS.milliseconds)
             val activeTcpPort = tcpActions.requireStaticTcpReady(manager, this)
             appendStartupLog(store.text(R.string.priv_ui_tcp_enabled))
@@ -543,6 +553,21 @@ internal class PrivilegeUiAdbActions(
                 statusActions.resetWirelessPairingSession()
             },
         )
+    }
+
+    private suspend fun <T> withManagedWirelessDebuggingPrompt(
+        options: PrivilegeAdbStartOptions,
+        action: suspend () -> T,
+    ): T = if (
+        options.port == null &&
+        options.wirelessDebuggingControl != PrivilegeAdbWirelessDebuggingControl.NEVER
+    ) {
+        systemPromptCoordinator.withPrompt(
+            prompt = privilegeUiWirelessDebuggingPrompt(),
+            action = action,
+        )
+    } else {
+        action()
     }
 
     private suspend fun runWithLocalNetworkPermissionRetry(

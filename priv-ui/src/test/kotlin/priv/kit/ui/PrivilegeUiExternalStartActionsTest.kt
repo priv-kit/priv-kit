@@ -38,9 +38,13 @@ class PrivilegeUiExternalStartActionsTest {
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication(), config)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val runtimeActions = newRuntimeActions(store, scope)
+        val promptCoordinator = PrivilegeUiSystemPromptCoordinator().also {
+            it.registerHost("host", resumed = true, hasWindowFocus = true)
+        }
         val actions = PrivilegeUiExternalStartActions(
             store = store,
             runtimeActions = runtimeActions,
+            systemPromptCoordinator = promptCoordinator,
         )
         try {
             val authorization = async(Dispatchers.Default) {
@@ -49,15 +53,24 @@ class PrivilegeUiExternalStartActionsTest {
 
             withTimeout(2_000.milliseconds) { provider.authorizationStarted.await() }
             assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+            promptCoordinator.onHostPaused("host")
+            assertEquals(
+                R.string.priv_ui_system_prompt_external_title,
+                (promptCoordinator.visiblePrompt.value?.title as PrivilegeUiText.Resource).id,
+            )
 
             provider.releaseAuthorization.complete(Unit)
             authorization.await()
+            assertNotNull(promptCoordinator.visiblePrompt.value)
+            promptCoordinator.onHostResumed("host", hasWindowFocus = true)
+            assertNull(promptCoordinator.visiblePrompt.value)
             val silentPermit = PrivilegeUiStartGate.tryAcquireSilent()
             assertNotNull(silentPermit)
             silentPermit!!.close()
         } finally {
             provider.releaseAuthorization.complete(Unit)
             runtimeActions.close()
+            promptCoordinator.close()
             scope.cancel()
             store.close()
         }

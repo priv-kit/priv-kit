@@ -1,0 +1,110 @@
+package priv.kit.ui.component
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import priv.kit.ui.PrivilegeUiSystemPrompt
+import priv.kit.ui.asString
+
+@Composable
+internal fun PrivilegeSystemPromptOverlay(
+    prompt: PrivilegeUiSystemPrompt?,
+    modifier: Modifier = Modifier,
+) {
+    var displayedPrompt by remember { mutableStateOf(prompt) }
+    val visibility = remember {
+        MutableTransitionState(prompt != null)
+    }
+    LaunchedEffect(prompt) {
+        if (prompt != null) {
+            displayedPrompt = prompt
+        }
+        visibility.targetState = prompt != null
+    }
+    LaunchedEffect(
+        prompt,
+        visibility.currentState,
+        visibility.isIdle,
+    ) {
+        if (prompt == null && visibility.isIdle && !visibility.currentState) {
+            displayedPrompt = null
+        }
+    }
+
+    Box(
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        AnimatedVisibility(
+            visibleState = visibility,
+            enter = fadeIn() + slideInVertically(),
+            exit = fadeOut() + slideOutVertically(),
+        ) {
+            displayedPrompt?.let { currentPrompt ->
+                PrivilegeSystemPromptCard(currentPrompt)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PrivilegeSystemPromptCard(prompt: PrivilegeUiSystemPrompt) {
+    Surface(
+        modifier = Modifier
+            .widthIn(max = PROMPT_MAX_WIDTH)
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                liveRegion = LiveRegionMode.Polite
+            },
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.inverseSurface,
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+        tonalElevation = 6.dp,
+        shadowElevation = 6.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(
+                horizontal = PrivilegeUiSpacing.large,
+                vertical = PrivilegeUiSpacing.medium,
+            ),
+            verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.extraSmall),
+        ) {
+            Text(
+                text = prompt.title.asString(),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = prompt.message.asString(),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+private val PROMPT_MAX_WIDTH = 560.dp

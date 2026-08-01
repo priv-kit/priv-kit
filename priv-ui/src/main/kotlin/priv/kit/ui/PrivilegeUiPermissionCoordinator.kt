@@ -12,6 +12,8 @@ internal class PrivilegeUiPermissionCoordinator(
     private val interactionsEnabled: () -> Boolean,
     private val ownerClosed: () -> Boolean,
     private val cancelPairingWithoutInteractionHost: () -> Unit,
+    private val systemPromptCoordinator: PrivilegeUiSystemPromptCoordinator =
+        PrivilegeUiSystemPromptCoordinator(),
 ) : AutoCloseable {
     private val closed = AtomicBoolean(false)
     private val lock = Any()
@@ -24,10 +26,21 @@ internal class PrivilegeUiPermissionCoordinator(
     fun hasInteractionHost(): Boolean = synchronized(lock) { attachedHostIds.isNotEmpty() }
 
     suspend fun requestNotificationPermission(): PrivilegeUiPermissionState? =
-        awaitRequest { PrivilegeUiPermissionRequest.Notification(it) }
+        awaitRequest {
+            PrivilegeUiPermissionRequest.Notification(
+                interactionPermit = it,
+                beginSystemPrompt = systemPromptCoordinator::begin,
+            )
+        }
 
     suspend fun requestLocalNetworkPermission(permission: String): PrivilegeUiPermissionState? =
-        awaitRequest { PrivilegeUiPermissionRequest.LocalNetwork(permission, it) }
+        awaitRequest {
+            PrivilegeUiPermissionRequest.LocalNetwork(
+                permission = permission,
+                interactionPermit = it,
+                beginSystemPrompt = systemPromptCoordinator::begin,
+            )
+        }
 
     fun completeNotificationPermissionRequest(
         hostId: String,
