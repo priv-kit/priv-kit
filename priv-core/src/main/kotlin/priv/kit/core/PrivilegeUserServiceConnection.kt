@@ -1,19 +1,26 @@
 package priv.kit.core
 
 import android.os.IBinder
-import java.io.Closeable
-import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 public class PrivilegeUserServiceConnection internal constructor(
-    private val id: String,
     public val binder: IBinder,
-    private val unbind: (String) -> Unit,
-) : Closeable {
-    private val closed = AtomicBoolean(false)
+    private val unbindAction: suspend () -> Unit,
+) {
+    private val unbindMutex = Mutex()
+    private var unbound = false
 
-    override fun close() {
-        if (closed.compareAndSet(false, true)) {
-            unbind(id)
+    public suspend fun unbind() {
+        withContext(NonCancellable) {
+            unbindMutex.withLock {
+                if (!unbound) {
+                    unbindAction()
+                    unbound = true
+                }
+            }
         }
     }
 }

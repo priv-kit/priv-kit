@@ -61,21 +61,32 @@ Privileged Server 进程中。直接运行时返回 `true`，运行在独立的 
 这是默认模式。服务运行在单独的 `app_process` 子进程中：
 
 ```kotlin
-val spec = PrivilegeUserServiceSpec(
-    serviceClassName = MyPrivilegeService::class.java.name,
-    tag = "main",
-    version = 1,
-)
+lifecycleScope.launch {
+    val spec = PrivilegeUserServiceSpec(
+        serviceClassName = MyPrivilegeService::class.java.name,
+        tag = "main",
+        version = 1,
+    )
 
-Privilege.startUserService(spec)
+    Privilege.startUserService(spec)
 
-Privilege.bindUserService(spec).use { connection ->
-    val service = IMyPrivilegeService.Stub.asInterface(connection.binder)
-    service.getUid()
+    val connection = Privilege.bindUserService(spec)
+    try {
+        val service = IMyPrivilegeService.Stub.asInterface(connection.binder)
+        service.getUid()
+    } finally {
+        connection.unbind()
+    }
+
+    Privilege.stopUserService(spec)
 }
-
-Privilege.stopUserService(spec)
 ```
+
+`startUserService`、`bindUserService` 和 `stopUserService` 都是可取消的挂起函数。
+等待服务锁或启动独立进程期间不会阻塞调用线程。如果协程在操作被接收前取消，运行时
+会移除待处理状态，并销毁只为该次已取消操作创建的进程或连接。
+`connection.unbind()` 是幂等的挂起函数。调用一旦进入，就会在不可取消上下文中完成，
+避免丢弃必要的资源清理；server 仍通过同一套有界异步协议在 Binder 线程之外执行。
 
 每个实例由 `serviceClassName + tag` 标识。上面示例中的 `version` 只控制同一实例
 能否复用，或是否必须替换。当已有实例与当前服务实现不再兼容时，应修改该值。
@@ -95,3 +106,4 @@ val spec = PrivilegeUserServiceSpec(
 
 嵌入式模式省去额外进程，适合简单且风险较低的服务。它的 `destroy()` 只清理服务
 自身资源；调用 `exitProcess(0)` 会终止整个 Privileged Server。
+绑定通常更快，因为不需要启动和认领子进程；服务构造仍会异步执行，并支持取消。

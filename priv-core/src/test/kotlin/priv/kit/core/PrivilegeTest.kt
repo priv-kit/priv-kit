@@ -4,6 +4,7 @@ import android.content.pm.PackageManager
 import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.RemoteException
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -35,18 +36,38 @@ class PrivilegeTest {
     }
 
     @Test
-    fun userServiceConnectionCloseIsIdempotent() {
+    fun userServiceConnectionUnbindIsIdempotent() = runBlocking {
         val unbindCalls = AtomicInteger(0)
         val connection = PrivilegeUserServiceConnection(
-            id = "connection-id",
             binder = TestBinder(),
-            unbind = { unbindCalls.incrementAndGet() },
+            unbindAction = { unbindCalls.incrementAndGet() },
         )
 
-        connection.close()
-        connection.close()
+        connection.unbind()
+        connection.unbind()
 
         assertEquals(1, unbindCalls.get())
+    }
+
+    @Test
+    fun userServiceConnectionRetriesFailedUnbind() = runBlocking {
+        val unbindCalls = AtomicInteger(0)
+        val connection = PrivilegeUserServiceConnection(
+            binder = TestBinder(),
+            unbindAction = {
+                if (unbindCalls.incrementAndGet() == 1) {
+                    throw IllegalStateException("unbind failed")
+                }
+            },
+        )
+
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { connection.unbind() }
+        }
+        connection.unbind()
+        connection.unbind()
+
+        assertEquals(2, unbindCalls.get())
     }
 
     @Test

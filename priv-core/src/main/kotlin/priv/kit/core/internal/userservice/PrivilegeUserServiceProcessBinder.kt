@@ -20,8 +20,6 @@ internal class PrivilegeUserServiceProcessBinder(
         return binder
     }
 
-    override fun unbind(connectionId: String) = Unit
-
     override fun destroy() {
         if (destroyed.compareAndSet(false, true)) {
             PrivilegeUserServiceDestroyer.destroy(binder)

@@ -6,7 +6,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import priv.kit.core.PrivilegeUserServiceConnection
 import priv.kit.sample.startup.PrivilegeSampleShizukuExternalStarter
 import priv.kit.sample.userservice.IPrivilegeSampleDedicatedUserService
@@ -63,14 +67,18 @@ internal class PrivilegeSampleDebugViewModel : ViewModel() {
 
     private fun clearSampleUserServices() {
         embeddedUserService = null
-        runCatching {
-            embeddedUserServiceConnection?.close()
-        }
+        val embeddedConnection = embeddedUserServiceConnection
         embeddedUserServiceConnection = null
         dedicatedUserService = null
-        runCatching {
-            dedicatedUserServiceConnection?.close()
-        }
+        val dedicatedConnection = dedicatedUserServiceConnection
         dedicatedUserServiceConnection = null
+        userServiceCleanupScope.launch {
+            runCatching { embeddedConnection?.unbind() }
+            runCatching { dedicatedConnection?.unbind() }
+        }
+    }
+
+    private companion object {
+        val userServiceCleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 }

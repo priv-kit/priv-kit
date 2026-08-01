@@ -363,14 +363,14 @@ public object Privilege {
         }
     }
 
-    public fun startUserService(spec: PrivilegeUserServiceSpec) {
+    public suspend fun startUserService(spec: PrivilegeUserServiceSpec) {
         userServiceClient.start(spec)
     }
 
-    public fun bindUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceConnection =
+    public suspend fun bindUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceConnection =
         userServiceClient.bind(spec)
 
-    public fun stopUserService(spec: PrivilegeUserServiceSpec) {
+    public suspend fun stopUserService(spec: PrivilegeUserServiceSpec) {
         userServiceClient.stop(spec)
     }
 

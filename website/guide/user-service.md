@@ -67,21 +67,36 @@ inside a UserService; the host selects the mode with
 This is the default. The service runs in a separate `app_process` child:
 
 ```kotlin
-val spec = PrivilegeUserServiceSpec(
-    serviceClassName = MyPrivilegeService::class.java.name,
-    tag = "main",
-    version = 1,
-)
+lifecycleScope.launch {
+    val spec = PrivilegeUserServiceSpec(
+        serviceClassName = MyPrivilegeService::class.java.name,
+        tag = "main",
+        version = 1,
+    )
 
-Privilege.startUserService(spec)
+    Privilege.startUserService(spec)
 
-Privilege.bindUserService(spec).use { connection ->
-    val service = IMyPrivilegeService.Stub.asInterface(connection.binder)
-    service.getUid()
+    val connection = Privilege.bindUserService(spec)
+    try {
+        val service = IMyPrivilegeService.Stub.asInterface(connection.binder)
+        service.getUid()
+    } finally {
+        connection.unbind()
+    }
+
+    Privilege.stopUserService(spec)
 }
-
-Privilege.stopUserService(spec)
 ```
+
+`startUserService`, `bindUserService`, and `stopUserService` are suspending,
+cancellable operations. They do not block the caller thread while waiting for
+a service lock or a dedicated process to start. If the coroutine is cancelled
+before an operation is accepted, the runtime removes pending work and disposes
+of a process or connection created only for that cancelled operation.
+`connection.unbind()` is an idempotent suspending operation. Once invoked, it
+runs in a non-cancellable context so mandatory resource cleanup is not abandoned,
+while the server performs the work through the same bounded asynchronous protocol
+outside Binder threads.
 
 Each instance is identified by `serviceClassName + tag`. The `version` value
 shown above only controls whether the same instance can be reused or must be
@@ -104,3 +119,5 @@ val spec = PrivilegeUserServiceSpec(
 Embedded mode avoids an extra process and suits small, low-risk work. Its
 `destroy()` implementation should clean up only service-owned resources;
 calling `exitProcess(0)` would terminate the complete Privileged Server.
+Binding is usually faster because it does not launch and claim a child process,
+but service construction still runs asynchronously and remains cancellable.

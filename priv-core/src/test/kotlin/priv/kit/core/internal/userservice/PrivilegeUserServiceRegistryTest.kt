@@ -8,8 +8,12 @@ import org.junit.Test
 import priv.kit.core.testing.TestBinder
 import priv.kit.core.testing.TestDedicatedUserServiceHost
 import priv.kit.core.testing.TestEmbeddedUserServiceHost
+import priv.kit.core.testing.TestProcess
 import priv.kit.core.testing.TestUserServiceProcess
 import priv.kit.core.userservice.*
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 
 class PrivilegeUserServiceRegistryTest {
     @Test
@@ -79,7 +83,7 @@ class PrivilegeUserServiceRegistryTest {
     }
 
     @Test
-    fun dedicatedProcessDeathClearsConnection() {
+    fun dedicatedProcessDeathMakesLateUnbindIdempotent() {
         val process = TestUserServiceProcess()
         val registry = registry(TestDedicatedUserServiceHost(process))
         val spec = dedicatedSpec()
@@ -87,9 +91,8 @@ class PrivilegeUserServiceRegistryTest {
         val result = registry.bind(spec, TestBinder())
         process.killBinder()
 
-        assertThrows(PrivilegeUserServiceException::class.java) {
-            registry.unbind(result.connectionId)
-        }
+        registry.unbind(result.connectionId)
+        registry.unbind(result.connectionId)
     }
 
     @Test
@@ -154,6 +157,135 @@ class PrivilegeUserServiceRegistryTest {
 
         assertEquals(2, EmbeddedService.created)
         assertNotSame(first.binder, second.binder)
+    }
+
+    @Test
+    fun dedicatedStartupDoesNotHoldGlobalRegistryLock() {
+        EmbeddedService.reset()
+        val waitEntered = CountDownLatch(1)
+        val releaseWait = CountDownLatch(1)
+        val host = object : TestDedicatedUserServiceHost(TestUserServiceProcess()) {
+            override fun startDedicatedProcess(
+                spec: PrivilegeUserServiceSpec,
+                token: String,
+            ): Process = TestProcess()
+
+            override fun awaitDedicatedProcess(
+                token: String,
+                timeoutMillis: Long,
+            ): IPrivilegeUserServiceProcess {
+                waitEntered.countDown()
+                check(releaseWait.await(5, TimeUnit.SECONDS))
+                return process
+            }
+        }
+        val registry = registry(host)
+        val dedicatedWorker = thread(name = "dedicated-registry-start") {
+            registry.start(dedicatedSpec(), TestBinder())
+        }
+        try {
+            assertEquals(true, waitEntered.await(5, TimeUnit.SECONDS))
+
+            val embedded = registry.bind(
+                embeddedSpec(
+                    tag = "parallel-embedded",
+                    version = 1,
+                    daemon = false,
+                ),
+                TestBinder(),
+            )
+
+            assertEquals(1, EmbeddedService.created)
+            registry.unbind(embedded.connectionId)
+        } finally {
+            releaseWait.countDown()
+            dedicatedWorker.join(5_000)
+        }
+        assertEquals(false, dedicatedWorker.isAlive)
+        registry.stop(dedicatedSpec())
+    }
+
+    @Test
+    fun cancelledDaemonBindRestoresPreviousKeepAliveState() {
+        EmbeddedService.reset()
+        val registry = registry(TestEmbeddedUserServiceHost())
+        val spec = embeddedSpec(
+            tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
+            version = 1,
+            daemon = true,
+        )
+
+        val accepted = registry.bind(spec, TestBinder())
+        accepted.accept()
+        val cancelled = registry.bind(spec, TestBinder())
+        cancelled.cancel()
+        registry.unbind(accepted.connectionId)
+        val rebound = registry.bind(spec, TestBinder())
+        rebound.accept()
+
+        assertEquals(1, EmbeddedService.created)
+        registry.unbind(rebound.connectionId)
+        registry.stop(spec)
+    }
+
+    @Test
+    fun cancellingOverlappingStartsOutOfOrderDoesNotLeakService() {
+        val destroyed = CountDownLatch(1)
+        val process = object : TestUserServiceProcess() {
+            override fun destroy() {
+                destroyed.countDown()
+            }
+        }
+        val registry = registry(TestDedicatedUserServiceHost(process))
+        val spec = dedicatedSpec()
+
+        val first = registry.start(spec, TestBinder())
+        val second = registry.start(spec, TestBinder())
+        first.rollback()
+        second.rollback()
+
+        assertEquals(true, destroyed.await(5, TimeUnit.SECONDS))
+    }
+
+    @Test
+    fun acceptedOverlappingStartSurvivesOtherCancellation() {
+        val destroyed = CountDownLatch(1)
+        val process = object : TestUserServiceProcess() {
+            override fun destroy() {
+                destroyed.countDown()
+            }
+        }
+        val registry = registry(TestDedicatedUserServiceHost(process))
+        val spec = dedicatedSpec()
+
+        val first = registry.start(spec, TestBinder())
+        val second = registry.start(spec, TestBinder())
+        first.rollback()
+        second.accept()
+
+        assertEquals(false, destroyed.await(100, TimeUnit.MILLISECONDS))
+        registry.stop(spec)
+        assertEquals(true, destroyed.await(5, TimeUnit.SECONDS))
+    }
+
+    @Test
+    fun bindFailureAfterRemoteBindDestroysUnusedProcess() {
+        val destroyed = CountDownLatch(1)
+        val process = object : TestUserServiceProcess() {
+            override fun destroy() {
+                destroyed.countDown()
+            }
+        }
+        val registry = registry(TestDedicatedUserServiceHost(process))
+        val deadClient = TestBinder().apply {
+            killBinder(notifyDeathRecipients = false)
+        }
+
+        assertThrows(PrivilegeUserServiceException::class.java) {
+            registry.bind(dedicatedSpec(), deadClient)
+        }
+
+        assertEquals(true, destroyed.await(5, TimeUnit.SECONDS))
     }
 
     @Test

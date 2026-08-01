@@ -7,90 +7,161 @@ import priv.kit.core.userservice.PrivilegeUserServiceException
 import priv.kit.core.userservice.PrivilegeUserServiceId
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
 import java.util.UUID
+import java.util.concurrent.locks.ReentrantLock
 
 internal class PrivilegeUserServiceRegistry internal constructor(
     private val host: PrivilegeUserServiceHost,
     private val embeddedContextRuntimeProvider: () -> PrivilegeUserServiceLoader.ContextRuntime,
     private val dedicatedStartTimeoutMillis: Long = DEFAULT_DEDICATED_START_TIMEOUT_MILLIS,
 ) {
-    private val lock = Any()
+    private val stateLock = Any()
+    private val serviceLocks = Array(SERVICE_LOCK_STRIPE_COUNT) { ReentrantLock() }
     private val records = mutableMapOf<PrivilegeUserServiceId, Record>()
     private val connections = mutableMapOf<String, Connection>()
 
     internal fun start(
         spec: PrivilegeUserServiceSpec,
         client: IBinder,
-    ) {
-        synchronized(lock) {
-            val record = ensureRecordLocked(spec)
-            linkOwnerLocked(record, client)
-            record.start()
+    ): StartResult {
+        val id = spec.id()
+        return withServiceLockInterruptibly(id) {
+            val ensured = ensureRecord(spec)
+            val mutation = ensured.record.beginStarted()
+            try {
+                ensureNotInterrupted()
+                linkOwner(ensured.record, client)
+                ensured.record.start()
+                ensureNotInterrupted()
+                StartResult(
+                    acceptAction = { acceptStart(id, ensured.record, mutation) },
+                    rollbackAction = { rollbackStart(id, ensured.record, mutation) },
+                )
+            } catch (throwable: Throwable) {
+                ensured.record.rollbackStarted(mutation)
+                destroyCreatedUnusedRecord(id, ensured)
+                throw throwable
+            }
         }
     }
 
     internal fun bind(
         spec: PrivilegeUserServiceSpec,
         client: IBinder,
-    ): BindResult =
-        synchronized(lock) {
-            val record = ensureRecordLocked(spec)
+    ): BindResult {
+        val id = spec.id()
+        return withServiceLockInterruptibly(id) {
+            val ensured = ensureRecord(spec)
             val connectionId = UUID.randomUUID().toString()
-            val binder = record.bind(connectionId)
-            if (record.spec.daemon) {
-                record.started = true
-            }
-            linkConnectionLocked(record, connectionId, client)
-            BindResult(
-                connectionId = connectionId,
-                binder = binder,
-            )
-        }
-
-    internal fun unbind(connectionId: String) {
-        synchronized(lock) {
-            if (!unbindLocked(connectionId)) {
-                throw PrivilegeUserServiceException(
-                    "UserService connection was not found: $connectionId",
+            var linked = false
+            var lifecycleMutation: LifecycleMutation? = null
+            try {
+                ensureNotInterrupted()
+                lifecycleMutation = if (ensured.record.spec.daemon) {
+                    ensured.record.beginStarted()
+                } else {
+                    null
+                }
+                val binder = ensured.record.bind()
+                ensureNotInterrupted()
+                linkConnection(
+                    record = ensured.record,
+                    serviceId = id,
+                    connectionId = connectionId,
+                    client = client,
+                    lifecycleMutation = lifecycleMutation,
                 )
+                linked = true
+                ensureNotInterrupted()
+                BindResult(
+                    connectionId = connectionId,
+                    binder = binder,
+                    acceptAction = {
+                        lifecycleMutation?.let { mutation ->
+                            acceptStart(id, ensured.record, mutation)
+                        }
+                    },
+                    cancelAction = {
+                        cancelBind(
+                            connectionId = connectionId,
+                            serviceId = id,
+                            record = ensured.record,
+                            lifecycleMutation = lifecycleMutation,
+                        )
+                    },
+                )
+            } catch (throwable: Throwable) {
+                if (linked) {
+                    unbindLockedByService(connectionId, cancelLifecycle = true)
+                } else {
+                    lifecycleMutation?.let(ensured.record::rollbackStarted)
+                }
+                destroyCreatedUnusedRecord(id, ensured)
+                throw throwable
             }
         }
     }
 
+    internal fun unbind(connectionId: String) {
+        val connection = synchronized(stateLock) {
+            connections[connectionId]
+        } ?: return
+        withServiceLockInterruptibly(connection.serviceId) {
+            unbindLockedByService(
+                connectionId = connectionId,
+                cancelLifecycle = false,
+            )
+        }
+    }
+
     internal fun stop(spec: PrivilegeUserServiceSpec) {
-        synchronized(lock) {
-            val id = spec.id()
-            val record = records[id] ?: return@synchronized
-            record.started = false
+        val id = spec.id()
+        withServiceLockInterruptibly(id) {
+            val record = synchronized(stateLock) {
+                records[id]
+            } ?: return@withServiceLockInterruptibly
+            record.stopStarted()
             if (record.boundCount == 0) {
-                destroyRecordLocked(id, record)
+                destroyRecord(id, record)
             }
         }
     }
 
     internal fun destroyOnOwnerDeath() {
-        synchronized(lock) {
-            records.entries
-                .filter { !it.value.spec.daemon }
-                .map { it.key to it.value }
-                .forEach { (id, record) ->
-                    destroyRecordLocked(id, record)
+        val ids = synchronized(stateLock) {
+            records.filterValues { !it.spec.daemon }.keys.toList()
+        }
+        ids.forEach { id ->
+            withServiceLock(id) {
+                val record = synchronized(stateLock) {
+                    records[id]
+                } ?: return@withServiceLock
+                if (!record.spec.daemon) {
+                    destroyRecord(id, record)
                 }
+            }
         }
     }
 
     internal fun destroyAll() {
-        synchronized(lock) {
-            records.entries
-                .map { it.key to it.value }
-                .forEach { (id, record) ->
-                    destroyRecordLocked(id, record)
+        val ids = synchronized(stateLock) {
+            records.keys.toList()
+        }
+        ids.forEach { id ->
+            withServiceLock(id) {
+                synchronized(stateLock) {
+                    records[id]
+                }?.let { record ->
+                    destroyRecord(id, record)
                 }
+            }
         }
     }
 
-    private fun ensureRecordLocked(spec: PrivilegeUserServiceSpec): Record {
+    private fun ensureRecord(spec: PrivilegeUserServiceSpec): EnsuredRecord {
         val id = spec.id()
-        val current = records[id]
+        val current = synchronized(stateLock) {
+            records[id]
+        }
         if (
             current != null &&
             current.spec.version == spec.version &&
@@ -99,23 +170,30 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             current.isRunning
         ) {
             current.spec = spec
-            return current
+            return EnsuredRecord(current, created = false)
         }
 
         if (current != null) {
-            destroyRecordLocked(id, current)
+            destroyRecord(id, current)
         }
 
+        ensureNotInterrupted()
         val record = if (spec.embedded) createEmbeddedRecord(spec) else createDedicatedRecord(spec)
-        records[id] = record
+        synchronized(stateLock) {
+            records[id] = record
+        }
         try {
-            record.onRegisteredLocked()
+            ensureNotInterrupted()
+            record.onRegistered()
+            ensureNotInterrupted()
         } catch (throwable: Throwable) {
-            records.remove(id, record)
+            synchronized(stateLock) {
+                records.remove(id, record)
+            }
             record.destroy()
             throw throwable
         }
-        return record
+        return EnsuredRecord(record, created = true)
     }
 
     private fun createDedicatedRecord(spec: PrivilegeUserServiceSpec): Record {
@@ -129,9 +207,12 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             )
         }
         val process = try {
-            host.awaitDedicatedProcess(token, dedicatedStartTimeoutMillis)
+            host.awaitDedicatedProcess(token, dedicatedStartTimeoutMillis).also {
+                ensureNotInterrupted()
+            }
         } catch (throwable: Throwable) {
             host.killDedicatedProcess(handle)
+            if (throwable is InterruptedException) throw throwable
             throw PrivilegeUserServiceException(
                 "Dedicated UserService did not report ready: ${spec.serviceClassName}",
                 throwable,
@@ -160,107 +241,276 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         )
     }
 
-    private fun linkOwnerLocked(
+    private fun linkOwner(
         record: Record,
         owner: IBinder,
     ) {
-        if (record.ownerLinked) return
+        if (record.ownerBinder != null) return
+        record.ownerBinder = owner
         try {
             owner.linkToDeath(record.ownerDeathRecipient, 0)
-            record.ownerBinder = owner
-            record.ownerLinked = true
-        } catch (_: RemoteException) {
-            destroyRecordLocked(record.spec.id(), record)
+        } catch (exception: RemoteException) {
+            record.ownerBinder = null
+            destroyRecord(record.spec.id(), record)
+            throw PrivilegeUserServiceException("UserService owner died while linking", exception)
         }
     }
 
-    private fun linkConnectionLocked(
+    private fun linkConnection(
         record: Record,
+        serviceId: PrivilegeUserServiceId,
         connectionId: String,
         client: IBinder,
+        lifecycleMutation: LifecycleMutation?,
     ) {
         val deathRecipient = IBinder.DeathRecipient {
-            synchronized(lock) {
-                unbindLocked(connectionId)
+            runCatching {
+                cancelBind(connectionId, serviceId, record, lifecycleMutation)
             }
         }
-        try {
-            client.linkToDeath(deathRecipient, 0)
-        } catch (_: RemoteException) {
-            record.unbind(connectionId)
-            if (!record.started && record.boundCount == 0) {
-                destroyRecordLocked(record.spec.id(), record)
-            }
-            return
-        }
-        connections[connectionId] = Connection(
-            id = connectionId,
+        val connection = Connection(
+            serviceId = serviceId,
             record = record,
             client = client,
             deathRecipient = deathRecipient,
+            lifecycleMutation = lifecycleMutation,
         )
+        synchronized(stateLock) {
+            connections[connectionId] = connection
+        }
         record.boundCount += 1
+        try {
+            client.linkToDeath(deathRecipient, 0)
+        } catch (exception: RemoteException) {
+            synchronized(stateLock) {
+                connections.remove(connectionId, connection)
+            }
+            record.boundCount -= 1
+            throw PrivilegeUserServiceException("UserService client died while linking", exception)
+        }
+
+        val stillLinked = synchronized(stateLock) {
+            connections[connectionId] === connection
+        }
+        if (!stillLinked) {
+            throw PrivilegeUserServiceException("UserService client died while binding")
+        }
     }
 
-    private fun unbindLocked(connectionId: String): Boolean {
-        val connection = connections.remove(connectionId) ?: return false
+    private fun cancelBind(
+        connectionId: String,
+        serviceId: PrivilegeUserServiceId,
+        record: Record,
+        lifecycleMutation: LifecycleMutation?,
+    ) {
+        withServiceLock(serviceId) {
+            val connection = synchronized(stateLock) {
+                connections[connectionId]
+            }
+            if (connection != null) {
+                unbindLockedByService(
+                    connectionId = connectionId,
+                    cancelLifecycle = true,
+                )
+            } else {
+                val current = synchronized(stateLock) {
+                    records[serviceId]
+                }
+                if (current === record) {
+                    lifecycleMutation?.let(record::rollbackStarted)
+                    if (!record.started && record.boundCount == 0) {
+                        destroyRecord(serviceId, record)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun unbindLockedByService(
+        connectionId: String,
+        cancelLifecycle: Boolean,
+    ) {
+        val connection = synchronized(stateLock) {
+            connections.remove(connectionId)
+        } ?: return
         runCatching {
             connection.client.unlinkToDeath(connection.deathRecipient, 0)
         }
-        connection.record.unbind(connectionId)
         connection.record.boundCount -= 1
-        if (!connection.record.started && connection.record.boundCount == 0) {
-            val spec = connection.record.spec
-            destroyRecordLocked(spec.id(), connection.record)
+        if (cancelLifecycle) {
+            connection.lifecycleMutation?.let(connection.record::rollbackStarted)
         }
-        return true
+        if (!connection.record.started && connection.record.boundCount == 0) {
+            destroyRecord(connection.serviceId, connection.record)
+        }
     }
 
-    private fun destroyRecordLocked(
+    private fun rollbackStart(
+        id: PrivilegeUserServiceId,
+        record: Record,
+        mutation: LifecycleMutation,
+    ) {
+        withServiceLock(id) {
+            val current = synchronized(stateLock) {
+                records[id]
+            }
+            if (current !== record) return@withServiceLock
+            record.rollbackStarted(mutation)
+            if (!record.started && record.boundCount == 0) {
+                destroyRecord(id, record)
+            }
+        }
+    }
+
+    private fun acceptStart(
+        id: PrivilegeUserServiceId,
+        record: Record,
+        mutation: LifecycleMutation,
+    ) {
+        val current = synchronized(stateLock) {
+            records[id]
+        }
+        if (current === record) {
+            record.acceptStarted(mutation)
+        }
+    }
+
+    private fun destroyCreatedUnusedRecord(
+        id: PrivilegeUserServiceId,
+        ensured: EnsuredRecord,
+    ) {
+        if (!ensured.created || ensured.record.started || ensured.record.boundCount != 0) return
+        val current = synchronized(stateLock) {
+            records[id]
+        }
+        if (current === ensured.record) {
+            destroyRecord(id, ensured.record)
+        }
+    }
+
+    private fun destroyRecord(
         id: PrivilegeUserServiceId,
         record: Record,
     ) {
-        records.remove(id, record)
-        unlinkConnectionsLocked(record)
-        unlinkOwnerLocked(record)
-        record.destroy()
+        if (detachRecord(id, record)) {
+            record.destroy()
+        }
     }
 
-    private fun failRecordLocked(
+    private fun failRecord(
+        id: PrivilegeUserServiceId,
         record: Record,
     ) {
-        val id = record.spec.id()
-        if (records[id] !== record || record.state == RecordState.DESTROYED) return
-        records.remove(id, record)
-        unlinkConnectionsLocked(record)
-        unlinkOwnerLocked(record)
-        record.fail()
-    }
-
-    private fun unlinkConnectionsLocked(record: Record) {
-        connections.values
-            .filter { it.record === record }
-            .forEach { connection ->
-                runCatching {
-                    connection.client.unlinkToDeath(connection.deathRecipient, 0)
-                }
-                connections.remove(connection.id)
+        withServiceLock(id) {
+            if (detachRecord(id, record)) {
+                record.fail()
             }
+        }
     }
 
-    private fun unlinkOwnerLocked(record: Record) {
+    private fun detachRecord(
+        id: PrivilegeUserServiceId,
+        record: Record,
+    ): Boolean {
+        val removedConnections = synchronized(stateLock) {
+            if (!records.remove(id, record)) {
+                null
+            } else {
+                connections
+                    .filterValues { it.record === record }
+                    .keys
+                    .toList()
+                    .mapNotNull(connections::remove)
+            }
+        } ?: return false
+        removedConnections.forEach { connection ->
+            runCatching {
+                connection.client.unlinkToDeath(connection.deathRecipient, 0)
+            }
+        }
+        unlinkOwner(record)
+        return true
+    }
+
+    private fun unlinkOwner(record: Record) {
         record.ownerBinder?.let { owner ->
             runCatching {
                 owner.unlinkToDeath(record.ownerDeathRecipient, 0)
             }
         }
         record.ownerBinder = null
-        record.ownerLinked = false
     }
 
-    internal class BindResult(
+    private fun serviceLock(id: PrivilegeUserServiceId): ReentrantLock =
+        serviceLocks[Math.floorMod(id.hashCode(), serviceLocks.size)]
+
+    private fun <T> withServiceLockInterruptibly(
+        id: PrivilegeUserServiceId,
+        block: () -> T,
+    ): T {
+        val lock = serviceLock(id)
+        lock.lockInterruptibly()
+        return try {
+            block()
+        } finally {
+            lock.unlock()
+        }
+    }
+
+    private fun <T> withServiceLock(
+        id: PrivilegeUserServiceId,
+        block: () -> T,
+    ): T {
+        val lock = serviceLock(id)
+        lock.lock()
+        return try {
+            block()
+        } finally {
+            lock.unlock()
+        }
+    }
+
+    private fun ensureNotInterrupted() {
+        if (Thread.currentThread().isInterrupted) {
+            throw InterruptedException("UserService operation was cancelled")
+        }
+    }
+
+    internal class StartResult internal constructor(
+        private val acceptAction: () -> Unit,
+        private val rollbackAction: () -> Unit,
+    ) {
+        internal fun accept() {
+            acceptAction()
+        }
+
+        internal fun rollback() {
+            rollbackAction()
+        }
+    }
+
+    internal class BindResult internal constructor(
         val connectionId: String,
         val binder: IBinder,
+        private val acceptAction: () -> Unit,
+        private val cancelAction: () -> Unit,
+    ) {
+        internal fun accept() {
+            acceptAction()
+        }
+
+        internal fun cancel() {
+            cancelAction()
+        }
+    }
+
+    private data class EnsuredRecord(
+        val record: Record,
+        val created: Boolean,
+    )
+
+    private data class LifecycleMutation(
+        val id: Long,
     )
 
     private enum class RecordState {
@@ -272,39 +522,75 @@ internal class PrivilegeUserServiceRegistry internal constructor(
     private abstract inner class Record(
         var spec: PrivilegeUserServiceSpec,
     ) {
-        var started: Boolean = false
+        private val lifecycleLock = Any()
+        private var committedStarted: Boolean = false
+        private var nextStartMutationId: Long = 0L
+        private val pendingStartMutations = mutableSetOf<Long>()
         var boundCount: Int = 0
         var state: RecordState = RecordState.RUNNING
         var ownerBinder: IBinder? = null
-        var ownerLinked: Boolean = false
 
         val isRunning: Boolean
             get() = state == RecordState.RUNNING
 
+        val started: Boolean
+            get() = synchronized(lifecycleLock) {
+                committedStarted || pendingStartMutations.isNotEmpty()
+            }
+
         val ownerDeathRecipient = IBinder.DeathRecipient {
-            synchronized(lock) {
-                val current = records[spec.id()]
+            val id = spec.id()
+            withServiceLock(id) {
+                val current = synchronized(stateLock) {
+                    records[id]
+                }
                 if (current === this && !spec.daemon) {
-                    destroyRecordLocked(spec.id(), this)
+                    destroyRecord(id, this)
                 }
             }
         }
 
         abstract fun start()
 
-        abstract fun bind(connectionId: String): IBinder
-
-        abstract fun unbind(connectionId: String)
+        abstract fun bind(): IBinder
 
         abstract fun destroy()
 
-        open fun onRegisteredLocked() = Unit
+        open fun onRegistered() = Unit
 
         open fun fail() {
             if (state == RecordState.DESTROYED) return
             state = RecordState.FAILED
-            started = false
+            stopStarted()
             boundCount = 0
+        }
+
+        fun beginStarted(): LifecycleMutation =
+            synchronized(lifecycleLock) {
+                val mutation = LifecycleMutation(id = ++nextStartMutationId)
+                pendingStartMutations += mutation.id
+                mutation
+            }
+
+        fun acceptStarted(mutation: LifecycleMutation) {
+            synchronized(lifecycleLock) {
+                if (pendingStartMutations.remove(mutation.id)) {
+                    committedStarted = true
+                }
+            }
+        }
+
+        fun rollbackStarted(mutation: LifecycleMutation) {
+            synchronized(lifecycleLock) {
+                pendingStartMutations.remove(mutation.id)
+            }
+        }
+
+        fun stopStarted() {
+            synchronized(lifecycleLock) {
+                committedStarted = false
+                pendingStartMutations.clear()
+            }
         }
 
         fun requireRunning(operation: String) {
@@ -322,21 +608,18 @@ internal class PrivilegeUserServiceRegistry internal constructor(
     ) : Record(spec) {
         private var gate: PrivilegeUserServiceGateBinder? = null
 
-        override fun start() {
-            started = true
-        }
+        override fun start() = Unit
 
-        override fun bind(connectionId: String): IBinder {
-            return gate ?: PrivilegeUserServiceGateBinder(binder).also {
+        override fun bind(): IBinder =
+            gate ?: PrivilegeUserServiceGateBinder(binder).also {
                 gate = it
             }
-        }
-
-        override fun unbind(connectionId: String) = Unit
 
         override fun destroy() {
             if (state == RecordState.DESTROYED) return
             state = RecordState.DESTROYED
+            stopStarted()
+            boundCount = 0
             gate?.close()
             PrivilegeUserServiceDestroyer.destroy(binder)
         }
@@ -350,12 +633,10 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         private var processLinked = false
         private var gate: PrivilegeUserServiceGateBinder? = null
         private val processDeathRecipient = IBinder.DeathRecipient {
-            synchronized(lock) {
-                failRecordLocked(record = this@DedicatedRecord)
-            }
+            failRecord(spec.id(), this@DedicatedRecord)
         }
 
-        override fun onRegisteredLocked() {
+        override fun onRegistered() {
             try {
                 processBinder.linkToDeath(processDeathRecipient, 0)
                 processLinked = true
@@ -377,7 +658,6 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             requireRunning("Start dedicated UserService")
             try {
                 process.start()
-                started = true
             } catch (throwable: Throwable) {
                 throw PrivilegeUserServiceException(
                     "Dedicated UserService start failed: ${spec.serviceClassName}",
@@ -386,7 +666,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             }
         }
 
-        override fun bind(connectionId: String): IBinder {
+        override fun bind(): IBinder {
             requireRunning("Bind dedicated UserService")
             val binder = try {
                 process.bind()
@@ -401,15 +681,11 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             }
         }
 
-        override fun unbind(connectionId: String) {
-            runCatching { process.unbind(connectionId) }
-        }
-
         override fun destroy() {
             if (state == RecordState.DESTROYED) return
             val shouldDestroyProcess = state != RecordState.FAILED
             state = RecordState.DESTROYED
-            started = false
+            stopStarted()
             boundCount = 0
             gate?.close()
             unlinkProcessDeath()
@@ -444,14 +720,16 @@ internal class PrivilegeUserServiceRegistry internal constructor(
     }
 
     private data class Connection(
-        val id: String,
+        val serviceId: PrivilegeUserServiceId,
         val record: Record,
         val client: IBinder,
         val deathRecipient: IBinder.DeathRecipient,
+        val lifecycleMutation: LifecycleMutation?,
     )
 
     companion object {
         const val DEFAULT_DEDICATED_START_TIMEOUT_MILLIS: Long = 15_000L
+        private const val SERVICE_LOCK_STRIPE_COUNT: Int = 64
 
         internal fun binderFrom(
             instance: Any,

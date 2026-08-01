@@ -816,7 +816,7 @@ private fun PrivilegeSampleDebugHost.stopSampleUserService(label: String) {
 private fun PrivilegeSampleDebugHost.runUserServiceAction(
     message: String,
     requireConnected: Boolean,
-    action: () -> UserServiceActionResult,
+    action: suspend () -> UserServiceActionResult,
 ) {
     if (screenState.busy) return
     if (requireConnected && !Privilege.pingServer()) {
@@ -1324,17 +1324,17 @@ private fun PrivilegeSampleDebugHost.setSampleUserService(
         message
     }
 
-private fun PrivilegeSampleDebugHost.clearSampleUserService(label: String) {
+private suspend fun PrivilegeSampleDebugHost.clearSampleUserService(label: String) {
     if (label == "embedded") {
         sampleViewModel.embeddedUserService = null
         runCatching {
-            sampleViewModel.embeddedUserServiceConnection?.close()
+            sampleViewModel.embeddedUserServiceConnection?.unbind()
         }
         sampleViewModel.embeddedUserServiceConnection = null
     } else {
         sampleViewModel.dedicatedUserService = null
         runCatching {
-            sampleViewModel.dedicatedUserServiceConnection?.close()
+            sampleViewModel.dedicatedUserServiceConnection?.unbind()
         }
         sampleViewModel.dedicatedUserServiceConnection = null
     }

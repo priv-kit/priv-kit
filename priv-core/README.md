@@ -11,7 +11,7 @@ Common entry points:
 - `Privilege.createAdbManager()` for Wireless ADB pairing, TCP mode, and identity diagnostics backed by `PrivilegeAdbManager`.
 - Process-wide current Privileged Server Binder state, exposed through `Privilege` global methods.
 - `Privilege.isPermissionRestricted()` for checking whether the connected privileged server is subject to permission restrictions. Root servers return `false` without a permission Binder call.
-- UserService entry points for app-defined Binder services: start, bind, and stop.
+- UserService entry points for app-defined Binder services: start, bind, unbind, and stop.
 
 Advanced entry points:
 
@@ -25,7 +25,7 @@ ADB startup discovers the Wireless Debugging connect endpoint when `PrivilegeAdb
 
 `Privilege.checkPermission(permName, pkgName, userId = cached current user id)`, `Privilege.grantRuntimePermission(packageName, permissionName, userId = cached current user id)`, and `Privilege.revokeRuntimePermission(packageName, permissionName, userId = cached current user id)` are thin framework pass-through calls. Runtime permission revocation uses `IPackageManager` through Android 10 and the `priv-shared` `CompatPermissionManager` wrapper on Android 11 and later. These calls do not add policy, discovery, batching, permission groups, app-ops, install flows, or package management abstractions.
 
-`Privilege.startRoot()`, `Privilege.startAdb()`, external startup, ADB discovery/pairing, TCP-mode operations, and authorization checks are suspend APIs. Blocking transport work runs on the IO dispatcher. Cancellation closes the active process, socket, persistent check session, or mDNS discovery so the owning coroutine retains one continuous lifecycle across discovery, authorization, startup, and cleanup.
+`Privilege.startRoot()`, `Privilege.startAdb()`, `Privilege.startUserService()`, `Privilege.bindUserService()`, `Privilege.stopUserService()`, `PrivilegeUserServiceConnection.unbind()`, external startup, ADB discovery/pairing, TCP-mode operations, and authorization checks are suspend APIs. Blocking transport work runs on the IO dispatcher. UserService start, bind, unbind, and stop use an internal bounded asynchronous Binder callback protocol; cancellation removes pending work plus any unaccepted process or connection created for that operation. Connection unbind is idempotent and runs in a non-cancellable context because resource release must not be abandoned. Other cancellation paths close the active process, socket, persistent check session, or mDNS discovery so the owning coroutine retains one continuous lifecycle across discovery, authorization, startup, and cleanup.
 
 `PrivilegeHandshakeProvider` initializes the runtime with the app `Context`, so callers use `Privilege` directly without passing `Context` into start, ADB, native-starter command, or ready-server APIs. The provider remains exported so shell/root/external privileged starters can reach it, but normal apps are stopped by the provider permission. The native starter rejects every identity except root, system, and shell before resolving the APK or spawning the server. The provider retains its owner-UID trust check as defense in depth for direct protocol calls; the protocol does not claim to distinguish or authenticate different processes sharing one of its trusted identities.
 

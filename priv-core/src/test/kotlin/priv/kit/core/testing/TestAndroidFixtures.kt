@@ -92,13 +92,11 @@ open class TestUserServiceProcess : IPrivilegeUserServiceProcess {
 
     override fun asBinder(): IBinder = binder
 
-    override fun start() = Unit
+    open override fun start() = Unit
 
-    override fun bind(): IBinder = binder
+    open override fun bind(): IBinder = binder
 
-    override fun unbind(connectionId: String) = Unit
-
-    override fun destroy() = Unit
+    open override fun destroy() = Unit
 
     fun killBinder() {
         binder.killBinder(notifyDeathRecipients = true)
