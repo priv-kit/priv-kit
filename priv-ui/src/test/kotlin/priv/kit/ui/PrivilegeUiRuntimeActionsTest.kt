@@ -19,7 +19,6 @@ import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeServerLaunchUncertainException
 import priv.kit.core.PrivilegeStartupException
-import priv.kit.core.adb.PrivilegeAdbAuthorizationRequestResult
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionEvent
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
@@ -481,65 +480,6 @@ class PrivilegeUiRuntimeActionsTest {
                 assertEquals(0, store.state.value.serverInfo?.uid)
             } finally {
                 releaseShutdown.countDown()
-            }
-        }
-    }
-
-    @Test
-    fun cancelledTcpAuthorizationCannotOverwriteNextSession() = runBlocking {
-        RuntimeActionsFixture().use { (store, actions) ->
-            val results = listOf(
-                CompletableDeferred<PrivilegeAdbAuthorizationRequestResult>(),
-                CompletableDeferred(),
-            )
-            val requestCount = AtomicInteger(0)
-            val tcpActions = PrivilegeUiAdbTcpActions(
-                store = store,
-                runtimeActions = actions,
-                refreshTcpModeEnabled = {},
-                tcpAuthorizationRequester = { _, _ ->
-                    results[requestCount.getAndIncrement()].await()
-                },
-            )
-
-            fun startAuthorization() {
-                actions.runServerStartWorkflow(
-                    PrivilegeUiRuntimeStartAttempt.Workflow(
-                        progressText = PrivilegeUiText.Literal("tcp"),
-                        startupSource = null,
-                    ) {
-                        tcpActions.requestTcpAuthorizationForStart(this, tcpPort = 5555)
-                        PrivilegeUiRuntimeStartResult.Finished
-                    },
-                )
-            }
-
-            try {
-                startAuthorization()
-                assertTrue(waitUntil { requestCount.get() == 1 })
-                actions.stopCurrentStart()
-                assertTrue(
-                    waitUntil {
-                        store.state.value.runtimeStartPhase == PrivilegeUiRuntimeStartPhase.IDLE
-                    },
-                )
-                results[0].complete(PrivilegeAdbAuthorizationRequestResult(authorized = true))
-                yield()
-                assertFalse(
-                    store.state.value.tcpAuthorizationStatus ==
-                        PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZED,
-                )
-
-                startAuthorization()
-                assertTrue(waitUntil { requestCount.get() == 2 })
-                assertEquals(
-                    PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
-                    store.state.value.tcpAuthorizationStatus,
-                )
-                results[1].complete(PrivilegeAdbAuthorizationRequestResult(authorized = false))
-                assertTrue(waitUntilIdle(store))
-            } finally {
-                actions.stopCurrentStart()
             }
         }
     }

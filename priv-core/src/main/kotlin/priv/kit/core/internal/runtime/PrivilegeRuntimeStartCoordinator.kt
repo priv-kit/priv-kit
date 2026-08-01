@@ -5,7 +5,7 @@ import androidx.annotation.RestrictTo
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeStartupLogListener
-import priv.kit.core.adb.PrivilegeAdbStartOptions
+import priv.kit.core.adb.PrivilegeAdbConnectionOptions
 import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.UUID
@@ -141,7 +141,7 @@ public object PrivilegeRuntimeStartCoordinator {
 
     public suspend fun startAdb(
         launch: PrivilegeRuntimeClientLaunch,
-        options: PrivilegeAdbStartOptions,
+        options: PrivilegeAdbConnectionOptions,
         timeoutMillis: Long,
         adbDeviceName: String?,
         startupLogListener: PrivilegeStartupLogListener? = null,

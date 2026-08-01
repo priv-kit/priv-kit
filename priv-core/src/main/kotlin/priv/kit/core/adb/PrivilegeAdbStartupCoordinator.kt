@@ -16,7 +16,7 @@ internal class PrivilegeAdbStartupCoordinator(
     @Throws(PrivilegeStartupException::class)
     suspend fun start(
         command: PrivilegeServerLaunchCommand,
-        options: PrivilegeAdbStartOptions,
+        options: PrivilegeAdbConnectionOptions,
         startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeAdbStartResult = withContext(Dispatchers.IO) {
         val output = PrivilegeAdbOutput(startupLogListener)
@@ -43,7 +43,7 @@ internal class PrivilegeAdbStartupCoordinator(
                 ?: endpointResolver.acquireConnectEndpointForStart(
                     options = options,
                     output = output,
-                    disableWirelessDebuggingAfterUse = options.disableWirelessDebuggingAfterStart,
+                    disableWirelessDebuggingAfterUse = options.disableWirelessDebuggingAfterUse,
                 ).also { lease ->
                     connectEndpointLease = lease
                 }.endpoint
@@ -140,7 +140,7 @@ internal class PrivilegeAdbStartupCoordinator(
     private fun connectWithRetry(
         client: PrivilegeAdbClient,
         endpoint: PrivilegeAdbEndpoint,
-        options: PrivilegeAdbStartOptions,
+        options: PrivilegeAdbConnectionOptions,
         output: PrivilegeAdbOutput,
     ) {
         var nextDelay = 0L

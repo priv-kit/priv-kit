@@ -135,14 +135,12 @@
     <string name="priv_ui_tcp_restarting">Restarting static port...</string>
     <string name="priv_ui_tcp_restarted">Static port restarted</string>
     <string name="priv_ui_tcp_restart_failed">Unable to restart the static port. Try again</string>
-    <string name="priv_ui_tcp_wireless_fallback">Static port connection failed. Trying Wireless debugging...</string>
     <string name="priv_ui_tcp_starting">Continuing start...</string>
     <string name="priv_ui_tcp_authorization_requesting">Tap Allow in the system prompt...</string>
     <string name="priv_ui_tcp_authorization_waiting_action">Waiting for system prompt</string>
     <string name="priv_ui_tcp_authorization_allowed">This device is allowed</string>
-    <string name="priv_ui_tcp_authorization_not_completed">System confirmation is not complete yet</string>
     <string name="priv_ui_tcp_authorization_prompt_waiting_help">Waiting for the system ADB key prompt. If no prompt appears, another authorization request may be occupying it</string>
-    <string name="priv_ui_tcp_authorization_prompt_not_shown">The system did not show the ADB key prompt. Close other authorization tools or restart ADB, then try again</string>
+    <string name="priv_ui_tcp_authorization_timeout_message">ADB key authorization did not complete. Make sure the system prompt is not occupied by another authorization request, or restart ADB and try again</string>
     <string name="priv_ui_tcp_authorization_waiting">Waiting for prompt</string>
     <string name="priv_ui_tcp_authorization_authorized">Allowed</string>
     <string name="priv_ui_tcp_authorization_unauthorized">Not allowed</string>

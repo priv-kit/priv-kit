@@ -31,7 +31,7 @@ class PrivilegeUiSystemPromptCoordinatorTest {
             resumed = true,
         )
 
-        assertEquals(expected, coordinator.visiblePrompt.value)
+        assertEquals(expected, coordinator.visiblePrompt.value?.prompt)
         session.close()
         assertNull(coordinator.visiblePrompt.value)
         coordinator.close()
@@ -46,7 +46,7 @@ class PrivilegeUiSystemPromptCoordinatorTest {
         coordinator.onHostPaused(HOST_ID)
         coordinator.onHostResumed(HOST_ID, hasWindowFocus = false)
 
-        assertEquals(expected, coordinator.visiblePrompt.value)
+        assertEquals(expected, coordinator.visiblePrompt.value?.prompt)
 
         coordinator.onHostWindowFocusChanged(
             hostId = HOST_ID,
@@ -66,7 +66,7 @@ class PrivilegeUiSystemPromptCoordinatorTest {
 
         coordinator.onHostPaused(HOST_ID)
         session.close()
-        assertEquals(expected, coordinator.visiblePrompt.value)
+        assertEquals(expected, coordinator.visiblePrompt.value?.prompt)
 
         coordinator.onHostResumed(HOST_ID, hasWindowFocus = false)
 
@@ -89,10 +89,11 @@ class PrivilegeUiSystemPromptCoordinatorTest {
         assertNull(coordinator.visiblePrompt.value)
 
         coordinator.onHostPaused(HOST_ID)
-        assertEquals(expected, coordinator.visiblePrompt.value)
+        assertEquals(expected, coordinator.visiblePrompt.value?.prompt)
+        assertEquals(HOST_ID, coordinator.visiblePrompt.value?.ownerHostId)
 
         coordinator.onHostResumed(SECOND_HOST_ID, hasWindowFocus = true)
-        assertEquals(expected, coordinator.visiblePrompt.value)
+        assertEquals(expected, coordinator.visiblePrompt.value?.prompt)
 
         coordinator.onHostResumed(HOST_ID, hasWindowFocus = true)
         assertNull(coordinator.visiblePrompt.value)
@@ -111,7 +112,7 @@ class PrivilegeUiSystemPromptCoordinatorTest {
         firstSession.close()
         coordinator.onHostPaused(HOST_ID)
 
-        assertEquals(expected, coordinator.visiblePrompt.value)
+        assertEquals(expected, coordinator.visiblePrompt.value?.prompt)
         coordinator.close()
     }
 

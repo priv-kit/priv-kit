@@ -15,7 +15,7 @@ import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeUserServiceConnection
 import priv.kit.core.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
-import priv.kit.core.adb.PrivilegeAdbStartOptions
+import priv.kit.core.adb.PrivilegeAdbConnectionOptions
 import priv.kit.core.adb.PrivilegeAdbManager
 import priv.kit.core.binder.PrivilegeBinderWrapper
 import priv.kit.core.binder.PrivilegeServerUnavailableException
@@ -531,7 +531,7 @@ internal fun PrivilegeSampleDebugHost.startWirelessAdb() {
         startupSource = "ADB",
     ) {
         Privilege.startAdb(
-            options = PrivilegeAdbStartOptions(),
+            options = PrivilegeAdbConnectionOptions(),
             adbDeviceName = adbDeviceName,
         )
     }
@@ -560,7 +560,7 @@ internal fun PrivilegeSampleDebugHost.restartTcp() {
         startupSource = "ADB",
     ) {
         Privilege.startAdb(
-            options = PrivilegeAdbStartOptions(
+            options = PrivilegeAdbConnectionOptions(
                 port = tcpPort,
             ),
             adbDeviceName = adbDeviceName,

@@ -106,7 +106,7 @@ internal fun PrivilegeUiState.staticTcpStartActionEnabled(
         action = action,
         busy = busy,
         wirelessAdbSupported = wirelessAdbSupported,
-        tcpModeConfigured = configuredTcpModePort != null,
+        tcpModeConfigured = staticTcp.configuredPort != null,
     ) &&
         interactionEnabled
 

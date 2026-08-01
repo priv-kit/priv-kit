@@ -243,7 +243,7 @@ class PrivilegeUiAdbActionsTest {
         )
 
         assertNull(options.port)
-        assertEquals(true, options.disableWirelessDebuggingAfterStart)
+        assertEquals(true, options.disableWirelessDebuggingAfterUse)
     }
 
     @Test

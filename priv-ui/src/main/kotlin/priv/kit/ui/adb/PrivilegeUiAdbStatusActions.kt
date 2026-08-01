@@ -24,6 +24,7 @@ import priv.kit.ui.PrivilegeAdbPairingService
 import priv.kit.ui.PrivilegeUiAdbTcpAuthorizationStatus
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiManagedWirelessAdbStatus
+import priv.kit.ui.PrivilegeUiStaticTcpState
 import priv.kit.ui.PrivilegeUiWirelessAdbStatus
 import priv.kit.ui.state.PrivilegeUiViewModelStore
 import priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported
@@ -43,7 +44,6 @@ internal class PrivilegeUiAdbStatusActions(
     fun refreshTcpModeEnabled() {
         coroutineScope.launch(CoroutineName("priv-ui-tcp-mode-refresh")) {
             refreshTcpModeEnabled(markChecking = true)
-            markStaticTcpStatusLoaded()
         }
     }
 
@@ -52,7 +52,6 @@ internal class PrivilegeUiAdbStatusActions(
             while (currentCoroutineContext().isActive) {
                 delay(store.config.wirelessStatusPollIntervalMillis.milliseconds)
                 refreshTcpModeEnabled(markChecking = false)
-                markStaticTcpStatusLoaded()
             }
         } finally {
             closeTcpSession()
@@ -108,7 +107,6 @@ internal class PrivilegeUiAdbStatusActions(
     ): Boolean {
         val refreshed = withTimeoutOrNull(actionRefreshTimeoutMillis().milliseconds) {
             refreshTcpModeEnabled(markChecking = markChecking)
-            markStaticTcpStatusLoaded()
             true
         }
         if (refreshed == null) closeTcpSession()
@@ -126,29 +124,25 @@ internal class PrivilegeUiAdbStatusActions(
         store.updateState { it.copy(wirelessAdbStatusLoaded = true) }
     }
 
-    private fun markStaticTcpStatusLoaded() {
-        store.updateState { it.copy(staticTcpStatusLoaded = true) }
-    }
-
     private suspend fun refreshTcpModeEnabled(markChecking: Boolean): Unit = tcpRefresh.withLock {
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) {
-            store.updateTcpModePort(null)
-            store.updateConfiguredTcpModePort(null)
             closeTcpSession()
-            store.updateState {
-                it.copy(tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN)
+            store.updateStaticTcp {
+                PrivilegeUiStaticTcpState(loaded = true)
             }
             return@withLock
         }
         if (markChecking) {
-            store.updateState {
+            store.updateStaticTcp {
                 it.copy(
-                    tcpAuthorizationStatus =
-                        it.tcpAuthorizationStatus.checkingUnlessAuthorizedOrAuthorizing(),
+                    authorizationStatus =
+                        it.authorizationStatus.checkingUnlessAuthorizedOrAuthorizing(),
                 )
             }
         }
-        if (shouldSkipTcpAuthorizationRefresh(store.state.value.tcpAuthorizationStatus)) return@withLock
+        if (shouldSkipTcpAuthorizationRefresh(store.state.value.staticTcp.authorizationStatus)) {
+            return@withLock
+        }
 
         val manager = Privilege.createAdbManager(
             adbDeviceName = store.currentAdbDeviceNameOverride(),
@@ -159,20 +153,28 @@ internal class PrivilegeUiAdbStatusActions(
         val configuredTcpPort = withContext(Dispatchers.IO) {
             runCatching { manager.getConfiguredTcpPort() }.getOrNull()
         }
-        store.updateTcpModePort(activeTcpPort)
-        store.updateConfiguredTcpModePort(configuredTcpPort)
         if (configuredTcpPort == null) {
             closeTcpSession()
-            store.updateState {
-                it.copy(tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN)
+            store.updateStaticTcp {
+                PrivilegeUiStaticTcpState(
+                    activePort = activeTcpPort,
+                    loaded = true,
+                )
             }
             return@withLock
         }
 
         val authorization = checkTcpAuthorization(manager, configuredTcpPort)
-        val previousStatus = store.state.value.tcpAuthorizationStatus
+        val previousStatus = store.state.value.staticTcp.authorizationStatus
         val nextStatus = authorization.status.toUiTcpAuthorizationStatus()
-        store.updateState { it.copy(tcpAuthorizationStatus = nextStatus) }
+        store.updateStaticTcp {
+            PrivilegeUiStaticTcpState(
+                activePort = activeTcpPort,
+                configuredPort = configuredTcpPort,
+                authorizationStatus = nextStatus,
+                loaded = true,
+            )
+        }
         if (
             shouldAppendTcpAuthorizationFailureLog(
                 previousStatus = previousStatus,

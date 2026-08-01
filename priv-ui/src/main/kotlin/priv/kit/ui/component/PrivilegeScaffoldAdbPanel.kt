@@ -113,13 +113,13 @@ internal fun PrivilegeUiScreenScope.AdbPanel() {
     staticTcpSwitchConfirmation?.let { action ->
         StaticTcpSwitchConfirmationDialog(action)
     }
-    state.tcpAuthorizationFailureDialogText?.let { text ->
-        TcpAuthorizationFailureDialog(text)
+    if (state.tcpAuthorizationFailureDialogVisible) {
+        TcpAuthorizationFailureDialog()
     }
 }
 
 @Composable
-private fun PrivilegeUiScreenScope.TcpAuthorizationFailureDialog(message: PrivilegeUiText) {
+private fun PrivilegeUiScreenScope.TcpAuthorizationFailureDialog() {
     AlertDialog(
         onDismissRequest = {},
         properties = DialogProperties(
@@ -130,7 +130,7 @@ private fun PrivilegeUiScreenScope.TcpAuthorizationFailureDialog(message: Privil
             Text(stringResource(R.string.priv_ui_system_prompt_tcp_authorization_title))
         },
         text = {
-            Text(message.asString())
+            Text(stringResource(R.string.priv_ui_tcp_authorization_timeout_message))
         },
         confirmButton = {
             TextButton(
@@ -457,9 +457,9 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
         val tcpPolicy = viewModel.config.adbTcpPolicy
         val configuredTcpPort = viewModel.config.tcpPort
         val paired = state.wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON
-        val activeTcpPort = state.tcpModePort
+        val activeTcpPort = state.staticTcp.activePort
         val staticTcpActive = activeTcpPort != null
-        val staticTcpConfigured = state.configuredTcpModePort != null
+        val staticTcpConfigured = state.staticTcp.configuredPort != null
         val runtimeStartInProgress = state.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE
         val staticTcpOwnsRuntimeStart = runtimeStartInProgress &&
             state.runtimeStartSource == PrivilegeUiRuntimeStartSource.ADB_STATIC_TCP
@@ -467,7 +467,7 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
         val staticTcpStatus = staticTcpPanelStatus(
             tcpModeConfigured = staticTcpConfigured,
             tcpModeActive = staticTcpActive,
-            status = state.tcpAuthorizationStatus,
+            status = state.staticTcp.authorizationStatus,
         )
         val staticTcpCommand = privilegeUiStaticTcpOpenCommand(
             activeTcpPort ?: configuredTcpPort,
@@ -475,7 +475,7 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
         val prepareActionVisible = !wirelessAdbSupported &&
             tcpPolicy == PrivilegeUiAdbTcpPolicy.AUTO_ENABLE_AFTER_WIRELESS_PAIRED
         val prepareActionEnabled = prepareActionVisible &&
-            state.staticTcpStatusLoaded &&
+            state.staticTcp.loaded &&
             interactionEnabled &&
             !runtimeStartInProgress &&
             !state.busy &&
@@ -492,18 +492,19 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
         )
         val controlActionEnabled = interactionEnabled &&
             !runtimeStartInProgress &&
-            !state.busy
+            !state.busy &&
+            staticTcpActive
         val commandHelpVisible = staticTcpCommandHelpVisible(
             wirelessAdbSupported = wirelessAdbSupported,
         )
         AdbStatusRow(
             label = stringResource(R.string.priv_ui_adb_tab_static),
-            text = if (state.staticTcpStatusLoaded) {
+            text = if (state.staticTcp.loaded) {
                 staticTcpStatus.displayText()
             } else {
                 stringResource(R.string.priv_ui_status_loading)
             },
-            color = if (state.staticTcpStatusLoaded) {
+            color = if (state.staticTcp.loaded) {
                 staticTcpStatus.displayColor()
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -585,7 +586,7 @@ private fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
             StaticTcpControlDialog(
                 commandLine = staticTcpCommand,
                 commandVisible = commandHelpVisible,
-                actionEnabled = controlActionEnabled && staticTcpActive,
+                actionEnabled = controlActionEnabled,
                 onDismiss = {
                     controlDialogVisible = false
                 },

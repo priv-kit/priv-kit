@@ -27,7 +27,7 @@ import priv.kit.ui.PrivilegeUiWirelessAdbStatus
 import priv.kit.ui.R
 import priv.kit.ui.isPrivilegeUiNotificationPermissionSupported
 import priv.kit.ui.toPrivilegeUiPairingCodeDigits
-import priv.kit.ui.adb.currentTcpModePort
+import priv.kit.ui.adb.currentConfiguredTcpPort
 import priv.kit.ui.runtime.PrivilegeUiStartGate
 import priv.kit.ui.state.PrivilegeUiFailureKind
 import priv.kit.ui.state.PrivilegeUiViewModelStore
@@ -649,7 +649,7 @@ internal class PrivilegeUiAdbPairingActions(
         if (
             !PrivilegeUiStartGate.isSilentStartInProgress &&
             store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.AUTO_ENABLE_AFTER_WIRELESS_PAIRED &&
-            store.currentTcpModePort() == null
+            store.currentConfiguredTcpPort() == null
         ) {
             enableTcpMode()
         }

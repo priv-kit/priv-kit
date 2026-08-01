@@ -346,7 +346,9 @@ class PrivilegeUiAdbPanelStateTest {
 
     @Test
     fun staticTcpStartButtonDoesNotWaitForStatusLoad() {
-        val loadingState = PrivilegeUiState(staticTcpStatusLoaded = false)
+        val loadingState = PrivilegeUiState(
+            staticTcp = PrivilegeUiStaticTcpState(loaded = false),
+        )
 
         assertTrue(
             loadingState.staticTcpStartActionEnabled(

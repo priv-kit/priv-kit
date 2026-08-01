@@ -10,10 +10,8 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import priv.kit.core.PrivilegeExistingServerStopException
 import priv.kit.core.PrivilegeStartupException
-import priv.kit.core.adb.PrivilegeAdbAuthorizationEndReason
 import priv.kit.ui.state.PrivilegeUiFailureKind
 import priv.kit.ui.state.privilegeUiRuntimeStartFailureKind
-import priv.kit.ui.state.privilegeUiTcpAuthorizationFailureKind
 import priv.kit.ui.state.toPrivilegeUiDiagnosticString
 
 @RunWith(RobolectricTestRunner::class)
@@ -79,23 +77,6 @@ class PrivilegeUiFailurePolicyTest {
             PrivilegeUiFailureKind.RESTART_STOP_FAILED,
             privilegeUiRuntimeStartFailureKind(PrivilegeUiRuntimeStartSource.ADB_WIRELESS, failure),
         )
-    }
-
-    @Test
-    fun tcpAuthorizationFailureUsesStructuredEndReason() {
-        assertEquals(
-            PrivilegeUiFailureKind.TCP_AUTHORIZATION_FAILED,
-            privilegeUiTcpAuthorizationFailureKind(PrivilegeAdbAuthorizationEndReason.FAILED),
-        )
-        listOf(
-            PrivilegeAdbAuthorizationEndReason.AUTOMATIC_TIMEOUT,
-            null,
-        ).forEach { endReason ->
-            assertEquals(
-                PrivilegeUiFailureKind.TCP_AUTHORIZATION_NOT_COMPLETED,
-                privilegeUiTcpAuthorizationFailureKind(endReason),
-            )
-        }
     }
 
     @Test

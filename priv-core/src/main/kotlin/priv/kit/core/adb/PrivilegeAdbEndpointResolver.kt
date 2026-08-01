@@ -39,7 +39,7 @@ internal class PrivilegeAdbEndpointResolver(
     }
 
     suspend fun acquireConnectEndpointForStart(
-        options: PrivilegeAdbStartOptions,
+        options: PrivilegeAdbConnectionOptions,
         output: PrivilegeAdbOutput,
         disableWirelessDebuggingAfterUse: Boolean,
     ): PrivilegeAdbConnectEndpointLease {
@@ -93,7 +93,7 @@ internal class PrivilegeAdbEndpointResolver(
     }
 
     private suspend fun discoverConnectEndpointForStart(
-        options: PrivilegeAdbStartOptions,
+        options: PrivilegeAdbConnectionOptions,
         output: PrivilegeAdbOutput,
         managedWirelessDebuggingEnabled: Boolean,
     ): PrivilegeAdbEndpoint {

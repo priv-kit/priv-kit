@@ -154,7 +154,7 @@ adbManager.switchToTcp(tcpPort = tcpPort)
 `adb tcpip`。打开或重启静态端口会影响其他依赖 ADB 的进程。`priv-core` 不提供
 确认界面，应用必须在调用前自行取得用户确认。
 已经知道当前 ADB 连接使用的端口时，通过
-`options = PrivilegeAdbStartOptions(port = sourcePort)` 直接传入。
+`options = PrivilegeAdbConnectionOptions(port = sourcePort)` 直接传入。
 
 之前已经配置静态端口时，启动前先检查并恢复该端口：
 
@@ -182,15 +182,17 @@ check(request.authorized) {
 
 ```kotlin
 val serverInfo = Privilege.startAdb(
-    options = PrivilegeAdbStartOptions(
+    options = PrivilegeAdbConnectionOptions(
         port = tcpPort,
     ),
 )
 ```
 
 只需检查一次授权状态时使用 `checkTcpAuthorization()`，需要反复检查时使用
-`openTcpAuthorizationCheckSession()`。调用 `stopTcp(tcpPort)` 可以让 `adbd`
-返回 USB 模式。
+`openTcpAuthorizationCheckSession()`。`stopTcp(tcpPort)` 用于停止静态端口，
+`restartTcp(tcpPort)` 使用同一端口重启。两者都可以传入
+`PrivilegeAdbConnectionOptions`；它们优先连接静态端口，并且只会在控制命令尚未
+发送时回退到其它连接。
 
 ### 手动 {#manual}
 

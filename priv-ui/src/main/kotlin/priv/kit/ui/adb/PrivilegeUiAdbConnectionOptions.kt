@@ -1,6 +1,6 @@
 package priv.kit.ui.adb
 
-import priv.kit.core.adb.PrivilegeAdbStartOptions
+import priv.kit.core.adb.PrivilegeAdbConnectionOptions
 import priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl
 import priv.kit.shared.hasPrivilegeAdbCertificateUnknownMessage
 import priv.kit.shared.hasPrivilegeAdbKeyNotAuthorizedMessage
@@ -18,12 +18,12 @@ internal fun privilegeUiWirelessAdbStartOptions(
     activeTcpPort: Int?,
     managedWirelessAdbEnabled: Boolean,
     managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus,
-): PrivilegeAdbStartOptions =
+): PrivilegeAdbConnectionOptions =
     if (
         tcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED &&
         activeTcpPort != null
     ) {
-        PrivilegeAdbStartOptions(
+        PrivilegeAdbConnectionOptions(
             port = activeTcpPort,
         )
     } else {
@@ -36,7 +36,7 @@ internal fun privilegeUiWirelessAdbStartOptions(
 internal fun privilegeUiStaticTcpSwitchOptions(
     managedWirelessAdbEnabled: Boolean,
     managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus,
-): PrivilegeAdbStartOptions =
+): PrivilegeAdbConnectionOptions =
     privilegeUiManagedWirelessAdbStartOptions(
         managedWirelessAdbEnabled = managedWirelessAdbEnabled,
         managedWirelessAdbStatus = managedWirelessAdbStatus,
@@ -45,8 +45,8 @@ internal fun privilegeUiStaticTcpSwitchOptions(
 private fun privilegeUiManagedWirelessAdbStartOptions(
     managedWirelessAdbEnabled: Boolean,
     managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus,
-): PrivilegeAdbStartOptions =
-    PrivilegeAdbStartOptions(
+): PrivilegeAdbConnectionOptions =
+    PrivilegeAdbConnectionOptions(
         wirelessDebuggingControl = managedWirelessAdbEnabled
             .withDeclaredManagedWirelessAdbStatus(managedWirelessAdbStatus)
             .toWirelessDebuggingControl(),

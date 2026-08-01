@@ -41,11 +41,11 @@ public data class PrivilegeAdbIdentityInfo public constructor(
 /**
  * @param port ADB connect port. When `null`, startup discovers the Wireless Debugging connect port.
  */
-public data class PrivilegeAdbStartOptions public constructor(
+public data class PrivilegeAdbConnectionOptions public constructor(
     public val port: Int? = null,
     public val wirelessDebuggingControl: PrivilegeAdbWirelessDebuggingControl =
         PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE,
-    public val disableWirelessDebuggingAfterStart: Boolean = true,
+    public val disableWirelessDebuggingAfterUse: Boolean = true,
     public val portDiscoveryTimeoutMillis: Long = PRIVILEGE_ADB_DEFAULT_PORT_DISCOVERY_TIMEOUT_MILLIS,
     public val connectRetryCount: Int = 5,
     public val connectRetryDelayMillis: Long = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,

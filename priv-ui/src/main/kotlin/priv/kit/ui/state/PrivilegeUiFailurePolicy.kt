@@ -3,7 +3,6 @@ package priv.kit.ui.state
 import androidx.annotation.StringRes
 import priv.kit.core.PrivilegeExistingServerStopException
 import priv.kit.core.PrivilegeStartupException
-import priv.kit.core.adb.PrivilegeAdbAuthorizationEndReason
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
 import priv.kit.ui.R
 
@@ -20,7 +19,6 @@ internal enum class PrivilegeUiFailureKind(
     TCP_ENABLE_FAILED(R.string.priv_ui_tcp_enable_failed),
     TCP_DISABLE_FAILED(R.string.priv_ui_tcp_disable_failed),
     TCP_RESTART_FAILED(R.string.priv_ui_tcp_restart_failed),
-    TCP_AUTHORIZATION_NOT_COMPLETED(R.string.priv_ui_tcp_authorization_not_completed),
     TCP_AUTHORIZATION_FAILED(R.string.priv_ui_tcp_authorization_failed),
     PAIRING_CODE_REQUIRED(R.string.priv_ui_pairing_code_required),
     PAIRING_PORT_UNAVAILABLE(R.string.priv_ui_pairing_port_unavailable),
@@ -49,17 +47,6 @@ internal fun privilegeUiRuntimeStartFailureKind(
 private fun Throwable.hasExistingServerStopFailure(): Boolean =
     generateSequence(this) { it.cause }.any {
         it is PrivilegeExistingServerStopException
-    }
-
-internal fun privilegeUiTcpAuthorizationFailureKind(
-    endReason: PrivilegeAdbAuthorizationEndReason?,
-): PrivilegeUiFailureKind =
-    when (endReason) {
-        PrivilegeAdbAuthorizationEndReason.FAILED ->
-            PrivilegeUiFailureKind.TCP_AUTHORIZATION_FAILED
-        PrivilegeAdbAuthorizationEndReason.AUTOMATIC_TIMEOUT,
-        null,
-        -> PrivilegeUiFailureKind.TCP_AUTHORIZATION_NOT_COMPLETED
     }
 
 private fun Throwable.hasRootUnavailableDiagnostic(): Boolean =

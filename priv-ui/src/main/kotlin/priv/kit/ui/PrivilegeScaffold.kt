@@ -291,7 +291,9 @@ public fun PrivilegeScaffold(
             }
         }
         PrivilegeSystemPromptOverlay(
-            prompt = visibleSystemPrompt,
+            prompt = visibleSystemPrompt
+                ?.takeIf { it.ownerHostId == permissionHostId }
+                ?.prompt,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .zIndex(1f)

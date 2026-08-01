@@ -7,6 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.EOFException
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
@@ -195,6 +196,69 @@ class PrivilegeAdbClientTest {
     }
 
     @Test
+    fun transportCloseBeforeCommandAcceptanceIsNotSuccess() {
+        ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { server ->
+            val serverThread = thread(name = "fake-adb-close-before-okay", isDaemon = true) {
+                server.accept().use { socket ->
+                    val input = DataInputStream(socket.getInputStream())
+                    val output = DataOutputStream(socket.getOutputStream())
+                    input.readAdbMessage()
+                    output.writeConnected()
+                    input.readAdbMessage()
+                }
+            }
+
+            assertThrows(EOFException::class.java) {
+                client(
+                    port = server.localPort,
+                    socketReadTimeoutMillis = 1_000,
+                    signAuthToken = { "signature".toByteArray() },
+                ).use { client ->
+                    val output = PrivilegeAdbOutput()
+                    client.connect(output)
+                    client.commandAllowingAcceptedTransportClose("tcpip:5555", output)
+                }
+            }
+            serverThread.join(1_500L)
+        }
+    }
+
+    @Test
+    fun transportCloseAfterCommandAcceptanceIsSuccess() {
+        ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { server ->
+            val serverThread = thread(name = "fake-adb-close-after-okay", isDaemon = true) {
+                server.accept().use { socket ->
+                    val input = DataInputStream(socket.getInputStream())
+                    val output = DataOutputStream(socket.getOutputStream())
+                    input.readAdbMessage()
+                    output.writeConnected()
+                    val open = input.readAdbMessage()
+                    output.writeAdbMessage(
+                        PrivilegeAdbMessage(
+                            command = PrivilegeAdbProtocol.A_OKAY,
+                            arg0 = 1,
+                            arg1 = open.arg0,
+                            data = null,
+                        ),
+                    )
+                }
+            }
+
+            client(
+                port = server.localPort,
+                socketReadTimeoutMillis = 1_000,
+                signAuthToken = { "signature".toByteArray() },
+            ).use { client ->
+                val output = PrivilegeAdbOutput()
+                client.connect(output)
+                client.commandAllowingAcceptedTransportClose("tcpip:5555", output)
+                assertTrue(output.text().contains("transport closed after command acceptance"))
+            }
+            serverThread.join(1_500L)
+        }
+    }
+
+    @Test
     fun rejectsPayloadLargerThanAdvertisedMaximum() {
         ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { server ->
             val serverThread = thread(name = "fake-adb-oversized-payload", isDaemon = true) {
@@ -304,6 +368,17 @@ class PrivilegeAdbClientTest {
                 data = ByteArray(PrivilegeAdbProtocol.ADB_AUTH_TOKEN_LENGTH) { index ->
                     tokenBytes[index % tokenBytes.size]
                 },
+            ),
+        )
+    }
+
+    private fun DataOutputStream.writeConnected() {
+        writeAdbMessage(
+            PrivilegeAdbMessage(
+                command = PrivilegeAdbProtocol.A_CNXN,
+                arg0 = PrivilegeAdbProtocol.A_VERSION,
+                arg1 = PrivilegeAdbProtocol.A_MAXDATA,
+                data = "device::".toByteArray(),
             ),
         )
     }

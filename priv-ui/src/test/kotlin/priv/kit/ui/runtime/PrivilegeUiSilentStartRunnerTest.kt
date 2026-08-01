@@ -19,7 +19,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import priv.kit.core.PrivilegeServerInfo
-import priv.kit.core.adb.PrivilegeAdbStartOptions
+import priv.kit.core.adb.PrivilegeAdbConnectionOptions
 import priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl
 import priv.kit.core.internal.runtime.PrivilegeRuntimeClientLaunch
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
@@ -101,7 +101,7 @@ class PrivilegeUiSilentStartRunnerTest {
 
             override suspend fun startAdb(
                 launch: PrivilegeRuntimeClientLaunch,
-                options: PrivilegeAdbStartOptions,
+                options: PrivilegeAdbConnectionOptions,
                 timeoutMillis: Long,
                 adbDeviceName: String?,
             ): PrivilegeServerInfo = error("unexpected ADB start")
@@ -284,7 +284,7 @@ class PrivilegeUiSilentStartRunnerTest {
 
             override suspend fun startAdb(
                 launch: PrivilegeRuntimeClientLaunch,
-                options: PrivilegeAdbStartOptions,
+                options: PrivilegeAdbConnectionOptions,
                 timeoutMillis: Long,
                 adbDeviceName: String?,
             ): PrivilegeServerInfo = error("unexpected ADB start")
@@ -327,7 +327,7 @@ class PrivilegeUiSilentStartRunnerTest {
         var adbCalls = 0
         var externalCalls = 0
         var lastLaunch: PrivilegeRuntimeClientLaunch? = null
-        var lastAdbOptions: PrivilegeAdbStartOptions? = null
+        var lastAdbOptions: PrivilegeAdbConnectionOptions? = null
         var lastExternalProvider: PrivilegeUiExternalStartProvider? = null
 
         val totalCalls: Int
@@ -344,7 +344,7 @@ class PrivilegeUiSilentStartRunnerTest {
 
         override suspend fun startAdb(
             launch: PrivilegeRuntimeClientLaunch,
-            options: PrivilegeAdbStartOptions,
+            options: PrivilegeAdbConnectionOptions,
             timeoutMillis: Long,
             adbDeviceName: String?,
         ): PrivilegeServerInfo {

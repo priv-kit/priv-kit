@@ -360,7 +360,9 @@ class PrivilegeUiViewModelTest {
         store.updateState {
             it.copy(
                 wifiConnected = false,
-                tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+                staticTcp = it.staticTcp.copy(
+                    authorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+                ),
             )
         }
 

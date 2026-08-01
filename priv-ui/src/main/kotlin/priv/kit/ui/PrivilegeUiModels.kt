@@ -195,6 +195,14 @@ internal data class PrivilegeUiExternalStartItemState(
     val statusLoaded: Boolean = false,
 )
 
+internal data class PrivilegeUiStaticTcpState(
+    val activePort: Int? = null,
+    val configuredPort: Int? = null,
+    val authorizationStatus: PrivilegeUiAdbTcpAuthorizationStatus =
+        PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
+    val loaded: Boolean = false,
+)
+
 internal data class PrivilegeUiState(
     val busy: Boolean = false,
     val runtimeStatus: PrivilegeUiRuntimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
@@ -220,11 +228,8 @@ internal data class PrivilegeUiState(
     val managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus =
         PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
     val wifiConnected: Boolean = false,
-    val tcpModePort: Int? = null,
-    val tcpAuthorizationStatus: PrivilegeUiAdbTcpAuthorizationStatus =
-        PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
-    val tcpAuthorizationFailureDialogText: PrivilegeUiText? = null,
-    val staticTcpStatusLoaded: Boolean = false,
+    val staticTcp: PrivilegeUiStaticTcpState = PrivilegeUiStaticTcpState(),
+    val tcpAuthorizationFailureDialogVisible: Boolean = false,
     val adbKeyFingerprint: String? = null,
     val notificationPairingRunning: Boolean = false,
     val externalStartItems: List<PrivilegeUiExternalStartItemState> = emptyList(),
@@ -232,7 +237,6 @@ internal data class PrivilegeUiState(
     val connectionSerial: Long = 0L,
     val runtimeStartPhase: PrivilegeUiRuntimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
     val runtimeStartProviderId: String? = null,
-    val configuredTcpModePort: Int? = null,
     val permissionRestrictionStatus: PrivilegeUiPermissionRestrictionStatus =
         PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
     val desiredEnabled: Boolean = false,

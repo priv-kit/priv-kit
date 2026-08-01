@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
-import priv.kit.core.adb.PrivilegeAdbStartOptions
+import priv.kit.core.adb.PrivilegeAdbConnectionOptions
 import priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl
 import priv.kit.core.internal.runtime.PrivilegeRuntimeClientLaunch
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
@@ -57,7 +57,7 @@ internal class PrivilegeUiSilentStartRunner(
         }
         return backend.startAdb(
             launch = launch,
-            options = PrivilegeAdbStartOptions(
+            options = PrivilegeAdbConnectionOptions(
                 wirelessDebuggingControl = if (config.enableManagedWirelessAdb) {
                     PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE
                 } else {
@@ -80,7 +80,7 @@ internal class PrivilegeUiSilentStartRunner(
         }
         return backend.startAdb(
             launch = launch,
-            options = PrivilegeAdbStartOptions(
+            options = PrivilegeAdbConnectionOptions(
                 port = config.tcpPort,
             ),
             timeoutMillis = config.startTimeoutMillis,
@@ -114,7 +114,7 @@ internal interface PrivilegeUiSilentStartBackend {
 
     suspend fun startAdb(
         launch: PrivilegeRuntimeClientLaunch,
-        options: PrivilegeAdbStartOptions,
+        options: PrivilegeAdbConnectionOptions,
         timeoutMillis: Long,
         adbDeviceName: String?,
     ): PrivilegeServerInfo
@@ -139,7 +139,7 @@ private object PrivilegeUiPlatformSilentStartBackend : PrivilegeUiSilentStartBac
 
     override suspend fun startAdb(
         launch: PrivilegeRuntimeClientLaunch,
-        options: PrivilegeAdbStartOptions,
+        options: PrivilegeAdbConnectionOptions,
         timeoutMillis: Long,
         adbDeviceName: String?,
     ): PrivilegeServerInfo =

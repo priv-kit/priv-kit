@@ -157,7 +157,9 @@ class PrivilegeUiDirectStartTest {
                 PrivilegeUiStartupMode.ADB,
                 PrivilegeUiStartupMode.ROOT,
             ),
-            tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+            staticTcp = PrivilegeUiStaticTcpState(
+                authorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+            ),
             wifiConnected = false,
         )
 
@@ -197,7 +199,9 @@ class PrivilegeUiDirectStartTest {
         val state = PrivilegeUiState(
             selectedStartupMode = PrivilegeUiStartupMode.ADB,
             startupModes = listOf(PrivilegeUiStartupMode.ADB),
-            tcpAuthorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+            staticTcp = PrivilegeUiStaticTcpState(
+                authorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+            ),
             wifiConnected = false,
         )
 

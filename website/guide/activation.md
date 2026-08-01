@@ -171,7 +171,7 @@ connection from which it can issue `adb tcpip`. Starting or restarting this
 endpoint affects other ADB-backed processes. `priv-core` does not present a
 confirmation surface, so the host must obtain confirmation before calling it.
 When the source connection port is already known, pass it through
-`options = PrivilegeAdbStartOptions(port = sourcePort)`.
+`options = PrivilegeAdbConnectionOptions(port = sourcePort)`.
 
 When a static port was configured earlier, prepare it before startup:
 
@@ -199,15 +199,17 @@ Pass the port explicitly. A non-null `port` skips Wireless Debugging discovery:
 
 ```kotlin
 val serverInfo = Privilege.startAdb(
-    options = PrivilegeAdbStartOptions(
+    options = PrivilegeAdbConnectionOptions(
         port = tcpPort,
     ),
 )
 ```
 
 Use `checkTcpAuthorization()` when the host only needs a one-shot status check.
-Use `openTcpAuthorizationCheckSession()` for repeated polling. Call
-`stopTcp(tcpPort)` to return `adbd` to USB mode.
+Use `openTcpAuthorizationCheckSession()` for repeated polling. `stopTcp(tcpPort)`
+stops the static listener. `restartTcp(tcpPort)` restarts it on the same port.
+Both controls can accept `PrivilegeAdbConnectionOptions`; they try the static
+endpoint first and only fall back before the control command is dispatched.
 
 ### Manual {#manual}
 

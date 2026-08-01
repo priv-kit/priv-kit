@@ -56,7 +56,7 @@ class PrivilegeUiExternalStartActionsTest {
             promptCoordinator.onHostPaused("host")
             assertEquals(
                 R.string.priv_ui_system_prompt_external_title,
-                (promptCoordinator.visiblePrompt.value?.title as PrivilegeUiText.Resource).id,
+                (promptCoordinator.visiblePrompt.value?.prompt?.title as PrivilegeUiText.Resource).id,
             )
 
             provider.releaseAuthorization.complete(Unit)

@@ -9,7 +9,7 @@ import android.os.RemoteException
 import android.util.Log
 import androidx.annotation.WorkerThread
 import priv.kit.core.adb.PrivilegeAdbIdentity
-import priv.kit.core.adb.PrivilegeAdbStartOptions
+import priv.kit.core.adb.PrivilegeAdbConnectionOptions
 import priv.kit.core.adb.PrivilegeAdbStartResult
 import priv.kit.core.adb.PrivilegeAdbManager
 import priv.kit.core.binder.serverUnavailable
@@ -203,7 +203,7 @@ public object Privilege {
 
     @Throws(PrivilegeStartupException::class)
     public suspend fun startAdb(
-        options: PrivilegeAdbStartOptions = PrivilegeAdbStartOptions(),
+        options: PrivilegeAdbConnectionOptions = PrivilegeAdbConnectionOptions(),
         timeoutMillis: Long = PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS,
         adbDeviceName: String? = null,
         startupLogListener: PrivilegeStartupLogListener? = null,
@@ -217,7 +217,7 @@ public object Privilege {
 
     internal suspend fun startAdbWithLaunchCorrelationId(
         launchCorrelationId: String,
-        options: PrivilegeAdbStartOptions,
+        options: PrivilegeAdbConnectionOptions,
         timeoutMillis: Long,
         adbDeviceName: String?,
         startupLogListener: PrivilegeStartupLogListener?,

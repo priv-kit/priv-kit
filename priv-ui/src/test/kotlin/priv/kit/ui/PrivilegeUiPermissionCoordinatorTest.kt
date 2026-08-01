@@ -112,7 +112,7 @@ class PrivilegeUiPermissionCoordinatorTest {
             val visiblePrompt = promptCoordinator.visiblePrompt.value
             assertEquals(
                 R.string.priv_ui_system_prompt_notification_title,
-                (visiblePrompt?.title as PrivilegeUiText.Resource).id,
+                (visiblePrompt?.prompt?.title as PrivilegeUiText.Resource).id,
             )
 
             coordinator.completeNotificationPermissionRequest(

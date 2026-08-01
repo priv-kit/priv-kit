@@ -213,57 +213,93 @@ internal class PrivilegeAdbClient internal constructor(
     fun command(
         command: String,
         output: PrivilegeAdbOutput,
+    ) = command(
+        command = command,
+        output = output,
+        allowAcceptedTransportClose = false,
+    )
+
+    fun commandAllowingAcceptedTransportClose(
+        command: String,
+        output: PrivilegeAdbOutput,
+    ) = command(
+        command = command,
+        output = output,
+        allowAcceptedTransportClose = true,
+    )
+
+    private fun command(
+        command: String,
+        output: PrivilegeAdbOutput,
+        allowAcceptedTransportClose: Boolean,
     ) {
         val localId = nextLocalId()
-        output.diagnostic("Opening ADB service ${command.toDiagnosticName()}")
-        write(PrivilegeAdbProtocol.A_OPEN, localId, 0, command)
+        var accepted = false
+        try {
+            output.diagnostic("Opening ADB service ${command.toDiagnosticName()}")
+            write(PrivilegeAdbProtocol.A_OPEN, localId, 0, command)
 
-        var message = read()
-        output.diagnostic("ADB OPEN response: ${message.toStringShort()}")
-        when (message.command) {
-            PrivilegeAdbProtocol.A_OKAY -> {
-                output.diagnostic("ADB stream opened")
-                while (true) {
-                    message = read()
-                    val remoteId = message.arg0
-                    when (message.command) {
-                        PrivilegeAdbProtocol.A_WRTE -> {
-                            val data = message.data
-                            output.diagnostic("ADB stream WRTE bytes=${message.dataLength}")
-                            if (message.dataLength > 0 && data != null) {
-                                output.append("adb", String(data))
+            var message = read()
+            output.diagnostic("ADB OPEN response: ${message.toStringShort()}")
+            when (message.command) {
+                PrivilegeAdbProtocol.A_OKAY -> {
+                    accepted = true
+                    output.diagnostic("ADB stream opened")
+                    while (true) {
+                        message = read()
+                        val remoteId = message.arg0
+                        when (message.command) {
+                            PrivilegeAdbProtocol.A_WRTE -> {
+                                val data = message.data
+                                output.diagnostic("ADB stream WRTE bytes=${message.dataLength}")
+                                if (message.dataLength > 0 && data != null) {
+                                    output.append("adb", String(data))
+                                }
+                                write(
+                                    command = PrivilegeAdbProtocol.A_OKAY,
+                                    arg0 = localId,
+                                    arg1 = remoteId,
+                                    data = null,
+                                )
                             }
-                            write(
-                                command = PrivilegeAdbProtocol.A_OKAY,
-                                arg0 = localId,
-                                arg1 = remoteId,
-                                data = null,
-                            )
+                            PrivilegeAdbProtocol.A_CLSE -> {
+                                output.diagnostic("ADB stream closed by remote")
+                                write(
+                                    command = PrivilegeAdbProtocol.A_CLSE,
+                                    arg0 = localId,
+                                    arg1 = remoteId,
+                                    data = null,
+                                )
+                                break
+                            }
+                            else -> privilegeAdbError("ADB stream returned an unexpected message")
                         }
-                        PrivilegeAdbProtocol.A_CLSE -> {
-                            output.diagnostic("ADB stream closed by remote")
-                            write(
-                                command = PrivilegeAdbProtocol.A_CLSE,
-                                arg0 = localId,
-                                arg1 = remoteId,
-                                data = null,
-                            )
-                            break
-                        }
-                        else -> privilegeAdbError("ADB stream returned an unexpected message")
                     }
                 }
+                PrivilegeAdbProtocol.A_CLSE -> {
+                    output.diagnostic("ADB service closed immediately")
+                    write(
+                        command = PrivilegeAdbProtocol.A_CLSE,
+                        arg0 = localId,
+                        arg1 = message.arg0,
+                        data = null,
+                    )
+                    if (allowAcceptedTransportClose) {
+                        privilegeAdbError("ADB service closed before accepting the control command")
+                    }
+                }
+                else -> privilegeAdbError("ADB command did not return OKAY or CLSE")
             }
-            PrivilegeAdbProtocol.A_CLSE -> {
-                output.diagnostic("ADB service closed immediately")
-                write(
-                    command = PrivilegeAdbProtocol.A_CLSE,
-                    arg0 = localId,
-                    arg1 = message.arg0,
-                    data = null,
-                )
+        } catch (throwable: Throwable) {
+            throwable.rethrowIfInterrupted()
+            if (
+                !allowAcceptedTransportClose ||
+                !accepted ||
+                (throwable !is java.io.EOFException && throwable !is java.net.SocketException)
+            ) {
+                throw throwable
             }
-            else -> privilegeAdbError("ADB command did not return OKAY or CLSE")
+            output.diagnostic("ADB transport closed after command acceptance")
         }
     }
 

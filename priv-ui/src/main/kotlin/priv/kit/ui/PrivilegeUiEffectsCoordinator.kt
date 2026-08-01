@@ -155,7 +155,7 @@ internal class PrivilegeUiEffectsCoordinator(
             }
             if (
                 store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED &&
-                !state.staticTcpStatusLoaded
+                !state.staticTcp.loaded
             ) {
                 launch {
                     adbActions.refreshTcpModeEnabledNow(markChecking = false)

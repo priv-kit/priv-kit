@@ -110,7 +110,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         get() = effectsCoordinator.canInteract()
     internal val snackbarTexts: SharedFlow<PrivilegeUiText> = store.snackbarTexts
     internal val permissionRequests: Flow<PrivilegeUiPermissionRequest> = permissionCoordinator.requests
-    internal val visibleSystemPrompt: StateFlow<PrivilegeUiSystemPrompt?> =
+    internal val visibleSystemPrompt: StateFlow<PrivilegeUiVisibleSystemPrompt?> =
         systemPromptCoordinator.visiblePrompt
     internal val batteryOptimizationPromptVisible: StateFlow<Boolean> =
         batteryOptimizationPromptVisibleState.asStateFlow()
@@ -310,7 +310,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     internal fun dismissTcpAuthorizationFailureDialog() {
         if (!uiInteractionsEnabled) return
         store.updateState { current ->
-            current.copy(tcpAuthorizationFailureDialogText = null)
+            current.copy(tcpAuthorizationFailureDialogVisible = false)
         }
     }
 
@@ -425,12 +425,12 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
     internal fun disableTcpMode() {
         if (!uiInteractionsEnabled) return
-        adbActions.disableTcpMode()
+        adbActions.disableTcpMode(permissionCoordinator::requestLocalNetworkPermission)
     }
 
     internal fun restartTcpMode() {
         if (!uiInteractionsEnabled) return
-        adbActions.restartTcpMode()
+        adbActions.restartTcpMode(permissionCoordinator::requestLocalNetworkPermission)
     }
 
     public open fun startStaticTcpAdb() {
