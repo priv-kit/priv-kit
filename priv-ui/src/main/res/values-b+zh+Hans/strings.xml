@@ -78,8 +78,8 @@
     <string name="priv_ui_adb_static_port_status">静态端口 %1$d</string>
     <string name="priv_ui_adb_static_port_status_unavailable">静态端口</string>
     <string name="priv_ui_adb_static_port_ready">已开启</string>
-    <string name="priv_ui_adb_static_port_unavailable">未配置静态端口</string>
-    <string name="priv_ui_adb_static_service_stopped">ADB 服务未运行</string>
+    <string name="priv_ui_adb_static_port_unavailable">未配置</string>
+    <string name="priv_ui_adb_static_service_stopped">不可用</string>
     <string name="priv_ui_adb_static_preparing">正在准备静态 ADB 连接</string>
     <string name="priv_ui_adb_static_status_unauthorized">未授权</string>
     <string name="priv_ui_adb_static_status_authorized">已授权</string>
@@ -110,7 +110,7 @@
     <string name="priv_ui_wireless_status_unknown">未知</string>
     <string name="priv_ui_wireless_status_on">开启</string>
     <string name="priv_ui_wireless_status_wifi_required">需要 Wi-Fi</string>
-    <string name="priv_ui_wireless_status_off">关闭</string>
+    <string name="priv_ui_wireless_status_off">未开启</string>
     <string name="priv_ui_wireless_status_unpaired">未配对</string>
     <string name="priv_ui_wireless_status_pairable">可配对</string>
     <string name="priv_ui_wireless_status_paired">已配对</string>
