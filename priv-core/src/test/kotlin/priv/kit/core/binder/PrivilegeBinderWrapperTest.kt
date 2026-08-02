@@ -5,11 +5,15 @@ import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.IInterface
 import android.os.Parcel
+import android.os.ParcelFileDescriptor
 import android.os.RemoteException
+import android.os.ResultReceiver
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -27,6 +31,7 @@ import priv.kit.core.internal.core.PrivilegeServerHandshakeResult
 import priv.kit.core.internal.runtime.PrivilegeContext
 import priv.kit.core.testing.TestBinder
 import java.io.Closeable
+import java.io.FileDescriptor
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -84,6 +89,164 @@ class PrivilegeBinderWrapperTest {
             assertThrows(PrivilegeServerUnavailableException::class.java) {
                 wrapper.linkToDeath(recipient, 0)
             }
+        }
+    }
+
+    @Test
+    fun targetBinderDumpMethodsUsePrivilegeServer() {
+        val targetBinder = FakeBinder()
+        val observedTargetFlags = mutableListOf<Int>()
+        val pipe = ParcelFileDescriptor.createPipe()
+        try {
+            withServer(
+                FakePrivilegeServer(
+                    transactHandler = { code, data, reply, flags ->
+                        assertEquals(PrivilegeBinderWrapper.TRANSACTION_TRANSACT_BINDER, code)
+                        assertEquals(0, flags)
+                        data.enforceInterface(PrivilegeBinderWrapper.DESCRIPTOR)
+                        assertEquals(PrivilegeBinderWrapper.TARGET_BINDER, data.readInt())
+                        assertSame(targetBinder, data.readStrongBinder())
+                        assertEquals(IBinder.DUMP_TRANSACTION, data.readInt())
+                        observedTargetFlags += data.readInt()
+                        assertNextFileDescriptor(data)
+                        assertArrayEquals(arrayOf("arg-one", "arg-two"), data.createStringArray())
+                        reply!!.writeNoException()
+                        true
+                    },
+                ),
+            ) {
+                val wrapper = PrivilegeBinderWrapper.fromBinder(targetBinder)
+
+                wrapper.dump(pipe[1].fileDescriptor, arrayOf("arg-one", "arg-two"))
+                wrapper.dumpAsync(pipe[1].fileDescriptor, arrayOf("arg-one", "arg-two"))
+            }
+        } finally {
+            pipe.forEach(ParcelFileDescriptor::close)
+        }
+
+        assertEquals(listOf(0, IBinder.FLAG_ONEWAY), observedTargetFlags)
+        assertEquals(0, targetBinder.directDumpCallCount)
+        assertEquals(0, targetBinder.directDumpAsyncCallCount)
+    }
+
+    @Test
+    fun serverProcessSystemServiceDumpForwardsSynchronousDumpTransaction() {
+        val serviceName = "priv.kit.test.dump"
+        val pipe = ParcelFileDescriptor.createPipe()
+        try {
+            withServer(
+                FakePrivilegeServer(
+                    hasSystemService = true,
+                    transactHandler = { code, data, reply, flags ->
+                        assertEquals(PrivilegeBinderWrapper.TRANSACTION_TRANSACT_BINDER, code)
+                        assertEquals(0, flags)
+                        data.enforceInterface(PrivilegeBinderWrapper.DESCRIPTOR)
+                        assertEquals(PrivilegeBinderWrapper.TARGET_SYSTEM_SERVICE, data.readInt())
+                        assertEquals(serviceName, data.readString())
+                        assertEquals(IBinder.DUMP_TRANSACTION, data.readInt())
+                        assertEquals(0, data.readInt())
+                        assertNextFileDescriptor(data)
+                        assertArrayEquals(arrayOf("--checkin"), data.createStringArray())
+                        reply!!.writeNoException()
+                        true
+                    },
+                ),
+            ) {
+                val wrapper = PrivilegeBinderWrapper.fromSystemService(
+                    serviceName = serviceName,
+                    source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+                )!!
+
+                wrapper.dump(pipe[1].fileDescriptor, arrayOf("--checkin"))
+            }
+        } finally {
+            pipe.forEach(ParcelFileDescriptor::close)
+        }
+    }
+
+    @Test
+    fun serverProcessSystemServiceDumpAsyncForwardsOneWayDumpTransaction() {
+        val serviceName = "priv.kit.test.dump-async"
+        val pipe = ParcelFileDescriptor.createPipe()
+        try {
+            withServer(
+                FakePrivilegeServer(
+                    hasSystemService = true,
+                    transactHandler = { code, data, reply, flags ->
+                        assertEquals(PrivilegeBinderWrapper.TRANSACTION_TRANSACT_BINDER, code)
+                        assertEquals(0, flags)
+                        data.enforceInterface(PrivilegeBinderWrapper.DESCRIPTOR)
+                        assertEquals(PrivilegeBinderWrapper.TARGET_SYSTEM_SERVICE, data.readInt())
+                        assertEquals(serviceName, data.readString())
+                        assertEquals(IBinder.DUMP_TRANSACTION, data.readInt())
+                        assertEquals(IBinder.FLAG_ONEWAY, data.readInt())
+                        assertNextFileDescriptor(data)
+                        assertNull(data.createStringArray())
+                        reply!!.writeException(IllegalStateException("one-way reply is ignored"))
+                        true
+                    },
+                ),
+            ) {
+                val wrapper = PrivilegeBinderWrapper.fromSystemService(
+                    serviceName = serviceName,
+                    source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+                )!!
+
+                wrapper.dumpAsync(pipe[1].fileDescriptor, null)
+            }
+        } finally {
+            pipe.forEach(ParcelFileDescriptor::close)
+        }
+    }
+
+    @Test
+    fun serverProcessSystemServiceShellCommandForwardsFrameworkTransaction() {
+        val serviceName = "priv.kit.test.shell-command"
+        val inputPipe = ParcelFileDescriptor.createPipe()
+        val outputPipe = ParcelFileDescriptor.createPipe()
+        val errorPipe = ParcelFileDescriptor.createPipe()
+        val resultReceiver = ResultReceiver(null)
+        try {
+            withServer(
+                FakePrivilegeServer(
+                    hasSystemService = true,
+                    transactHandler = { code, data, reply, flags ->
+                        assertEquals(PrivilegeBinderWrapper.TRANSACTION_TRANSACT_BINDER, code)
+                        assertEquals(0, flags)
+                        data.enforceInterface(PrivilegeBinderWrapper.DESCRIPTOR)
+                        assertEquals(PrivilegeBinderWrapper.TARGET_SYSTEM_SERVICE, data.readInt())
+                        assertEquals(serviceName, data.readString())
+                        assertEquals(SHELL_COMMAND_TRANSACTION, data.readInt())
+                        assertEquals(0, data.readInt())
+                        assertNextFileDescriptor(data)
+                        assertNextFileDescriptor(data)
+                        assertNextFileDescriptor(data)
+                        assertArrayEquals(arrayOf("reset", "--user", "10"), data.createStringArray())
+                        assertNull(data.readStrongBinder())
+                        assertNotNull(data.readStrongBinder())
+                        reply!!.writeNoException()
+                        true
+                    },
+                ),
+            ) {
+                val wrapper = PrivilegeBinderWrapper.fromSystemService(
+                    serviceName = serviceName,
+                    source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+                )!!
+
+                wrapper.shellCommand(
+                    input = inputPipe[0].fileDescriptor,
+                    output = outputPipe[1].fileDescriptor,
+                    error = errorPipe[1].fileDescriptor,
+                    args = arrayOf("reset", "--user", "10"),
+                    shellCallback = null,
+                    resultReceiver = resultReceiver,
+                )
+            }
+        } finally {
+            inputPipe.forEach(ParcelFileDescriptor::close)
+            outputPipe.forEach(ParcelFileDescriptor::close)
+            errorPipe.forEach(ParcelFileDescriptor::close)
         }
     }
 
@@ -219,13 +382,24 @@ class PrivilegeBinderWrapperTest {
         field.set(Privilege, null)
     }
 
+    private fun assertNextFileDescriptor(data: Parcel) {
+        val descriptor = data.readFileDescriptor()
+        try {
+            assertNotNull(descriptor)
+        } finally {
+            descriptor?.close()
+        }
+    }
+
     private class FakePrivilegeServer(
         private val hasSystemService: Boolean = false,
         private val transactException: RemoteException? = null,
+        transactHandler: ((Int, Parcel, Parcel?, Int) -> Boolean)? = null,
     ) : IPrivilegeServer {
         val binder = FakeBinder(
             localInterface = this,
             transactException = transactException,
+            transactHandler = transactHandler,
         )
         private val lifecycleBinder = TestBinder()
 
@@ -264,10 +438,24 @@ class PrivilegeBinderWrapperTest {
     private class FakeBinder(
         localInterface: android.os.IInterface? = null,
         private val transactException: RemoteException? = null,
+        private val transactHandler: ((Int, Parcel, Parcel?, Int) -> Boolean)? = null,
         alive: Boolean = true,
     ) : TestBinder(localInterface = localInterface, alive = alive) {
+        var directDumpCallCount: Int = 0
+            private set
+        var directDumpAsyncCallCount: Int = 0
+            private set
+
         fun kill() {
             killBinder(notifyDeathRecipients = false)
+        }
+
+        override fun dump(fd: FileDescriptor, args: Array<out String>?) {
+            directDumpCallCount += 1
+        }
+
+        override fun dumpAsync(fd: FileDescriptor, args: Array<out String>?) {
+            directDumpAsyncCallCount += 1
         }
 
         override fun transact(
@@ -277,7 +465,19 @@ class PrivilegeBinderWrapperTest {
             flags: Int,
         ): Boolean {
             transactException?.let { throw it }
+            transactHandler?.let { handler ->
+                data.setDataPosition(0)
+                return try {
+                    handler(code, data, reply, flags)
+                } finally {
+                    reply?.setDataPosition(0)
+                }
+            }
             return super.transact(code, data, reply, flags)
         }
+    }
+
+    private companion object {
+        const val SHELL_COMMAND_TRANSACTION: Int = 0x5f434d44
     }
 }

@@ -1,11 +1,14 @@
 package priv.kit.core.binder
 
 import android.os.IBinder
+import android.os.IBinderHidden
 import android.os.IInterface
 import android.os.Parcel
-import android.os.RemoteException
+import android.os.ResultReceiver
 import android.os.ServiceManager
+import android.os.ShellCallback
 import priv.kit.core.Privilege
+import priv.kit.shared.toHidden
 import java.io.FileDescriptor
 
 public enum class PrivilegeSystemServiceSource {
@@ -35,6 +38,59 @@ public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
     }
 
     override fun queryLocalInterface(descriptor: String): IInterface? = null
+
+    override fun dump(fd: FileDescriptor, args: Array<out String>?) {
+        val data = Parcel.obtain()
+        val reply = Parcel.obtain()
+        try {
+            data.writeFileDescriptor(fd)
+            data.writeStringArray(args)
+            transact(IBinder.DUMP_TRANSACTION, data, reply, 0)
+            reply.readException()
+        } finally {
+            data.recycle()
+            reply.recycle()
+        }
+    }
+
+    override fun dumpAsync(fd: FileDescriptor, args: Array<out String>?) {
+        val data = Parcel.obtain()
+        val reply = Parcel.obtain()
+        try {
+            data.writeFileDescriptor(fd)
+            data.writeStringArray(args)
+            transact(IBinder.DUMP_TRANSACTION, data, reply, IBinder.FLAG_ONEWAY)
+        } finally {
+            data.recycle()
+            reply.recycle()
+        }
+    }
+
+    public fun shellCommand(
+        input: FileDescriptor?,
+        output: FileDescriptor?,
+        error: FileDescriptor?,
+        args: Array<out String>,
+        shellCallback: ShellCallback?,
+        resultReceiver: ResultReceiver,
+    ) {
+        val data = Parcel.obtain()
+        val reply = Parcel.obtain()
+        try {
+            val hiddenData = data.toHidden
+            hiddenData.writeFileDescriptor(input)
+            hiddenData.writeFileDescriptor(output)
+            hiddenData.writeFileDescriptor(error)
+            data.writeStringArray(args)
+            ShellCallback.writeToParcel(shellCallback, data)
+            resultReceiver.writeToParcel(data, 0)
+            transact(IBinderHidden.SHELL_COMMAND_TRANSACTION, data, reply, 0)
+            reply.readException()
+        } finally {
+            data.recycle()
+            reply.recycle()
+        }
+    }
 
     protected abstract fun writeTargetToRemoteData(data: Parcel)
 
@@ -138,14 +194,6 @@ private class TargetBinderWrapper(
     override fun isBinderAlive(): Boolean =
         binder.isBinderAlive
 
-    override fun dump(fd: FileDescriptor, args: Array<out String>?) {
-        binder.dump(fd, args)
-    }
-
-    override fun dumpAsync(fd: FileDescriptor, args: Array<out String>?) {
-        binder.dumpAsync(fd, args)
-    }
-
     override fun linkToDeath(
         recipient: IBinder.DeathRecipient,
         flags: Int,
@@ -181,18 +229,6 @@ private class ServerProcessSystemServiceWrapper(
 
     override fun isBinderAlive(): Boolean =
         pingBinder()
-
-    override fun dump(fd: FileDescriptor, args: Array<out String>?) {
-        throw RemoteException(
-            "Server-process system service dump is not supported: $serviceName",
-        )
-    }
-
-    override fun dumpAsync(fd: FileDescriptor, args: Array<out String>?) {
-        throw RemoteException(
-            "Server-process system service dump is not supported: $serviceName",
-        )
-    }
 
     override fun linkToDeath(
         recipient: IBinder.DeathRecipient,

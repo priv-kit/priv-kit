@@ -574,11 +574,9 @@ public object Privilege {
         } ?: serverUnavailable(cause = null)
     }
 
-    @JvmSynthetic
     internal fun requireServerInterface(): IPrivilegeServer =
         requireServerConnection().server
 
-    @JvmSynthetic
     internal fun <T> callServer(block: (IPrivilegeServer) -> T): T =
         callServer(requireServerConnection(), block)
 

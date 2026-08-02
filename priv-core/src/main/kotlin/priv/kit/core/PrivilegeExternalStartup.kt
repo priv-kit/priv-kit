@@ -117,7 +117,6 @@ public class PrivilegeExternalStartupReceiver private constructor(
     internal companion object {
         private const val DEFAULT_REMOTE_SOURCE = "external"
 
-        @JvmSynthetic
         fun create(
             startupLogListener: PrivilegeStartupLogListener,
             sourcePrefix: String?,

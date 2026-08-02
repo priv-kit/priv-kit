@@ -33,7 +33,8 @@ API declarations, use the project `android-api-diff` skill. The `:hidden-api`
 module must not contain Java constant declarations, field initializers, or any
 `final` modifier. Convert generated `public static final` fields to uninitialized
 `public static` fields, and remove `final` from generated type and member
-declarations.
+declarations. Hidden API methods whose return type is `void` must use an empty
+method body instead of throwing an exception.
 
 When a hidden API changes across Android maintenance releases that share the
 same API level, implement runtime signature detection and dispatch in

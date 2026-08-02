@@ -25,6 +25,10 @@ android {
     }
 }
 
+configurations.named("testCompileOnly") {
+    extendsFrom(configurations.named("compileOnly").get())
+}
+
 dependencies {
     implementation(project(":priv-adb-crypto"))
     implementation(project(":priv-shared"))

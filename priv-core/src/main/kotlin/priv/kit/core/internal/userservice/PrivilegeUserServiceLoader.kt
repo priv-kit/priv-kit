@@ -6,8 +6,8 @@ import android.content.res.CompatibilityInfo
 import android.os.Looper
 import android.os.UserHandleHidden
 import android.util.Log
-import priv.kit.core.internal.hidden.castedHidden
 import priv.kit.core.userservice.PrivilegeUserServiceException
+import priv.kit.shared.toHidden
 import java.lang.reflect.Constructor
 import java.lang.reflect.InvocationTargetException
 
@@ -195,7 +195,7 @@ internal object PrivilegeUserServiceLoader {
     ): Context {
         val systemContext = activityThread.systemContext
         val userHandle = UserHandleHidden.of(userId)
-        return systemContext.castedHidden.createPackageContextAsUser(
+        return systemContext.toHidden.createPackageContextAsUser(
             packageName,
             Context.CONTEXT_INCLUDE_CODE or Context.CONTEXT_IGNORE_SECURITY,
             userHandle,
