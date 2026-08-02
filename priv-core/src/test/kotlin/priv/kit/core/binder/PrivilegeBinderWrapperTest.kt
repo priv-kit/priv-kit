@@ -227,12 +227,15 @@ class PrivilegeBinderWrapperTest {
             localInterface = this,
             transactException = transactException,
         )
+        private val lifecycleBinder = TestBinder()
 
         override fun asBinder(): IBinder = binder
 
         override fun shutdown() = Unit
 
         override fun getUserServiceManager(): IBinder? = null
+
+        override fun getLifecycleBinder(): IBinder = lifecycleBinder
 
         override fun hasSystemService(serviceName: String): Boolean = hasSystemService
 

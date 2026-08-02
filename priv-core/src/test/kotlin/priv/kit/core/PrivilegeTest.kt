@@ -8,6 +8,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -75,6 +76,66 @@ class PrivilegeTest {
         assertThrows(PrivilegeServerUnavailableException::class.java) {
             Privilege.getServerInfo()
         }
+    }
+
+    @Test
+    fun getServerLifecycleBinderWithoutServerThrowsDisconnectedException() {
+        assertThrows(PrivilegeServerUnavailableException::class.java) {
+            Privilege.getServerLifecycleBinder()
+        }
+    }
+
+    @Test
+    fun getServerLifecycleBinderReturnsStableDedicatedBinder() {
+        val server = FakePrivilegeServer()
+        Privilege.connectHandshake(
+            handshakeResult = PrivilegeServerHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                serverBinder = server.asBinder(),
+            ),
+            startupLogListener = null,
+        )
+
+        assertSame(server.expectedLifecycleBinder, Privilege.getServerLifecycleBinder())
+        assertSame(server.expectedLifecycleBinder, Privilege.getServerLifecycleBinder())
+        assertNotSame(server.asBinder(), Privilege.getServerLifecycleBinder())
+    }
+
+    @Test
+    fun replacementServerReturnsDifferentLifecycleBinder() {
+        val firstServer = FakePrivilegeServer()
+        Privilege.connectHandshake(
+            handshakeResult = PrivilegeServerHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                serverBinder = firstServer.asBinder(),
+            ),
+            startupLogListener = null,
+        )
+        val firstLifecycleBinder = Privilege.getServerLifecycleBinder()
+        val replacementServer = FakePrivilegeServer()
+
+        Privilege.connectHandshake(
+            handshakeResult = PrivilegeServerHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 5678,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                ),
+                serverBinder = replacementServer.asBinder(),
+            ),
+            startupLogListener = null,
+        )
+
+        assertSame(replacementServer.expectedLifecycleBinder, Privilege.getServerLifecycleBinder())
+        assertNotSame(firstLifecycleBinder, Privilege.getServerLifecycleBinder())
     }
 
     @Test
@@ -580,6 +641,7 @@ class PrivilegeTest {
         private val checkServerPermissionCall: ((String) -> Int)? = null,
     ) : IPrivilegeServer {
         private val binder = TestBinder(localInterface = this)
+        val expectedLifecycleBinder: IBinder = TestBinder()
         val serverPermissionChecks = mutableListOf<String>()
         val packagePermissionChecks = mutableListOf<PackagePermissionCheck>()
         val runtimePermissionGrants = mutableListOf<RuntimePermissionGrant>()
@@ -596,6 +658,8 @@ class PrivilegeTest {
         override fun shutdown() = Unit
 
         override fun getUserServiceManager(): IBinder? = null
+
+        override fun getLifecycleBinder(): IBinder = expectedLifecycleBinder
 
         override fun hasSystemService(serviceName: String): Boolean = false
 

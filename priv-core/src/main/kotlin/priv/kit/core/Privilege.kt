@@ -281,6 +281,22 @@ public object Privilege {
         requireServerConnection().serverInfo
 
     /**
+     * Returns an inert Binder owned by the connected Privileged Server process.
+     *
+     * The Binder exposes no privileged operations. It can be passed to another process as a
+     * lifecycle token and becomes dead when the current Privileged Server process exits. Calls
+     * for the same server process return the same Binder; a replacement server returns a new one.
+     * Do not retain the Binder across [serverState] changes.
+     *
+     * @throws priv.kit.core.binder.PrivilegeServerUnavailableException if no live Privileged
+     * Server is connected.
+     */
+    public fun getServerLifecycleBinder(): IBinder =
+        callServer { server ->
+            server.getLifecycleBinder()
+        } ?: serverUnavailable(cause = null)
+
+    /**
      * Returns whether the connected privileged server is subject to permission restrictions.
      *
      * Root servers are always treated as unrestricted without making a permission Binder call.

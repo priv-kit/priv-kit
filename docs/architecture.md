@@ -138,12 +138,17 @@ signal 权限预检，再向所有已验证的旧服务端发送 `SIGKILL`，并
 Binder 支持只负责底层连接和 transaction：
 
 - Binder 连接生命周期与 death 观察
+- 与当前 Privileged Server 进程同生命周期、无业务 transaction 的 Binder token
 - 显式目标 Binder 的 raw transaction
 - 显式系统服务名的 raw transaction
 - transaction 错误和服务端不可用状态
 - 运行时内部所需的项目自有类型化契约
 
 项目不得为 package、input、settings、app-ops、activity 等系统服务提供类型化 facade，也不得提供系统服务领域枚举或策略 API。
+
+公开的 server lifecycle Binder 只作为跨进程 death token。它必须与内部
+`IPrivilegeServer` 控制 Binder 分离，不得附加业务 interface 或自定义 transaction；
+同一 server 进程内保持 Binder identity 稳定，server 替换后必须返回新 token。
 
 唯一保留的 package permission 例外是 `Privilege.checkPermission(...)`、`Privilege.grantRuntimePermission(...)` 和 `Privilege.revokeRuntimePermission(...)` 三个无策略的 framework pass-through。它们不得扩展为权限组、批处理、app-ops、安装流程、设备选择、撤销原因或授权策略抽象。
 

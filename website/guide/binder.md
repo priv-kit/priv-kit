@@ -34,6 +34,26 @@ val binder = PrivilegeBinderWrapper.fromSystemService(
 The integrating app owns the framework interface and the meaning of each
 transaction.
 
+## Bind resources to the server lifetime {#server-lifecycle}
+
+Some Binder APIs accept an owner or death token so that the remote process can
+release a resource when its owner exits. Use the dedicated server lifecycle
+Binder when that resource belongs to the current Privileged Server process:
+
+```kotlin
+val serverLifecycle = Privilege.getServerLifecycleBinder()
+serverLifecycle.linkToDeath(
+    { Log.d("server", "Privileged Server exited") },
+    0,
+)
+```
+
+The token exposes no privileged operations or custom transactions. Its Binder
+identity remains stable for one server process and changes when the server is
+replaced. Acquire it again after `Privilege.serverState` changes instead of
+caching it across connections. A missing or dead server raises
+`PrivilegeServerUnavailableException`.
+
 ## Understand failures {#failure-semantics}
 
 Project-owned control calls normalize a missing or dead server to

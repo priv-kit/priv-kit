@@ -1,6 +1,7 @@
 package priv.kit.core.internal.server
 
 import android.content.pm.IPackageManager
+import android.os.Binder
 import android.os.IBinder
 import android.os.Parcel
 import android.os.Process as AndroidProcess
@@ -46,6 +47,7 @@ internal class PrivilegeServerBinder(
     private val permissionManager by lazy {
         getSystemService("permissionmgr")?.let(::CompatPermissionManager)
     }
+    private val lifecycleBinder: IBinder = Binder()
     private val systemServiceCache = HashMap<String, IBinder>()
 
     override fun getUserServiceManager(): IBinder = userServiceManager.value.asBinder()
@@ -101,6 +103,8 @@ internal class PrivilegeServerBinder(
             userId,
         ) ?: packageManager.revokeRuntimePermission(packageName, permissionName, userId)
     }
+
+    override fun getLifecycleBinder(): IBinder = lifecycleBinder
 
     override fun shutdown() {
         Log.i(TAG, "Shutdown requested by client")
