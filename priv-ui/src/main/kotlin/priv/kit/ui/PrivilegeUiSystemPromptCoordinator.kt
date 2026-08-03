@@ -1,13 +1,17 @@
 package priv.kit.ui
 
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
 
 internal data class PrivilegeUiSystemPrompt(
     val title: PrivilegeUiText,
     val message: PrivilegeUiText,
+    val displayDelayMillis: Long = 0,
 )
 
 internal data class PrivilegeUiVisibleSystemPrompt(
@@ -226,12 +230,14 @@ internal fun privilegeUiNotificationPermissionPrompt(): PrivilegeUiSystemPrompt 
     PrivilegeUiSystemPrompt(
         title = privilegeUiText(R.string.priv_ui_system_prompt_notification_title),
         message = privilegeUiText(R.string.priv_ui_system_prompt_notification_message),
+        displayDelayMillis = PERMISSION_PROMPT_DISPLAY_DELAY_MILLIS,
     )
 
 internal fun privilegeUiLocalNetworkPermissionPrompt(): PrivilegeUiSystemPrompt =
     PrivilegeUiSystemPrompt(
         title = privilegeUiText(R.string.priv_ui_system_prompt_local_network_title),
         message = privilegeUiText(R.string.priv_ui_system_prompt_local_network_message),
+        displayDelayMillis = PERMISSION_PROMPT_DISPLAY_DELAY_MILLIS,
     )
 
 internal fun privilegeUiTcpAuthorizationPrompt(): PrivilegeUiSystemPrompt =
@@ -264,3 +270,11 @@ internal fun privilegeUiExternalAuthorizationPrompt(
         providerLabel,
     ),
 )
+
+@OptIn(FlowPreview::class)
+internal fun Flow<PrivilegeUiVisibleSystemPrompt?>.debouncedForDisplay():
+    Flow<PrivilegeUiVisibleSystemPrompt?> = debounce { visiblePrompt ->
+        visiblePrompt?.prompt?.displayDelayMillis ?: 0L
+    }
+
+private const val PERMISSION_PROMPT_DISPLAY_DELAY_MILLIS = 500L

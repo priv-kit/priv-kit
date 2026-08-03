@@ -42,7 +42,7 @@ internal fun isPrivilegeUiNotificationPermissionSupported(): Boolean =
     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
 
 internal fun PrivilegeUiPermissionState.shouldLaunchPermissionRequest(): Boolean =
-    this == PrivilegeUiPermissionState.NotGranted.Denied
+    this is PrivilegeUiPermissionState.NotGranted
 
 internal fun privilegeUiPermissionState(
     granted: Boolean,

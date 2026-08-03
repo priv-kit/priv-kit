@@ -1,10 +1,64 @@
 package priv.kit.ui
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PrivilegeUiSystemPromptCoordinatorTest {
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun permissionPromptDisplayIsDebounced() = runTest {
+        val source = MutableStateFlow<PrivilegeUiVisibleSystemPrompt?>(null)
+        val observed = mutableListOf<PrivilegeUiVisibleSystemPrompt?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            source.debouncedForDisplay().collect(observed::add)
+        }
+        val expected = visiblePrompt("notification", displayDelayMillis = 500)
+
+        source.value = expected
+        runCurrent()
+        assertNull(observed.last())
+
+        advanceTimeBy(499)
+        runCurrent()
+        assertNull(observed.last())
+
+        source.value = null
+        runCurrent()
+        advanceTimeBy(500)
+        runCurrent()
+        assertNull(observed.last())
+
+        source.value = expected
+        runCurrent()
+        advanceTimeBy(500)
+        runCurrent()
+        assertEquals(expected, observed.last())
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun promptWithoutDisplayDelayAppearsImmediately() = runTest {
+        val source = MutableStateFlow<PrivilegeUiVisibleSystemPrompt?>(null)
+        val observed = mutableListOf<PrivilegeUiVisibleSystemPrompt?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            source.debouncedForDisplay().collect(observed::add)
+        }
+        val expected = visiblePrompt("tcp", displayDelayMillis = 0)
+
+        source.value = expected
+        runCurrent()
+
+        assertEquals(expected, observed.last())
+    }
+
     @Test
     fun armedPromptDoesNotAppearWithoutForegroundLoss() {
         val coordinator = coordinatorWithForegroundHost()
@@ -125,11 +179,23 @@ class PrivilegeUiSystemPromptCoordinatorTest {
             )
         }
 
-    private fun prompt(name: String): PrivilegeUiSystemPrompt =
+    private fun prompt(
+        name: String,
+        displayDelayMillis: Long = 0,
+    ): PrivilegeUiSystemPrompt =
         PrivilegeUiSystemPrompt(
             title = PrivilegeUiText.Literal("$name title"),
             message = PrivilegeUiText.Literal("$name message"),
+            displayDelayMillis = displayDelayMillis,
         )
+
+    private fun visiblePrompt(
+        name: String,
+        displayDelayMillis: Long,
+    ): PrivilegeUiVisibleSystemPrompt = PrivilegeUiVisibleSystemPrompt(
+        ownerHostId = HOST_ID,
+        prompt = prompt(name, displayDelayMillis),
+    )
 
     private companion object {
         const val HOST_ID = "host"

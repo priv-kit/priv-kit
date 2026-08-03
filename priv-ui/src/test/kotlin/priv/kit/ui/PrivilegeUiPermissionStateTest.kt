@@ -55,14 +55,14 @@ class PrivilegeUiPermissionStateTest {
     }
 
     @Test
-    fun onlyDeniedPermissionLaunchesAnotherRequest() {
+    fun everyNotGrantedPermissionLaunchesAnotherRequest() {
         assertFalse(
             PrivilegeUiPermissionState.Granted.shouldLaunchPermissionRequest(),
         )
         assertTrue(
             PrivilegeUiPermissionState.NotGranted.Denied.shouldLaunchPermissionRequest(),
         )
-        assertFalse(
+        assertTrue(
             PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
                 .shouldLaunchPermissionRequest(),
         )

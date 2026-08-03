@@ -87,7 +87,9 @@ public fun PrivilegeScaffold(
     val permissionHostId = rememberSaveable { UUID.randomUUID().toString() }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val startGateState by viewModel.startGateState.collectAsStateWithLifecycle()
-    val visibleSystemPrompt by viewModel.visibleSystemPrompt.collectAsStateWithLifecycle()
+    val visibleSystemPrompt by remember(viewModel.visibleSystemPrompt) {
+        viewModel.visibleSystemPrompt.debouncedForDisplay()
+    }.collectAsStateWithLifecycle(initialValue = null)
     val interactionEnabled = viewModel.canInteract(startGateState)
     val notificationPermission = if (isPrivilegeUiNotificationPermissionSupported()) {
         Manifest.permission.POST_NOTIFICATIONS
@@ -162,9 +164,10 @@ public fun PrivilegeScaffold(
                             val permissionState = privilegeUiPermissionState(activity, notificationPermission)
                             if (permissionState.shouldLaunchPermissionRequest()) {
                                 if (request.tryMarkLaunched(permissionHostId)) {
-                                    markPrivilegeUiPermissionRequested(notificationPermission)
                                     runCatching {
                                         notificationPermissionLauncher.launch(notificationPermission)
+                                    }.onSuccess {
+                                        markPrivilegeUiPermissionRequested(notificationPermission)
                                     }.onFailure {
                                         viewModel.cancelPermissionRequest(permissionHostId, request)
                                     }
@@ -182,9 +185,10 @@ public fun PrivilegeScaffold(
                 }
                 is PrivilegeUiPermissionRequest.LocalNetwork -> {
                     if (request.tryMarkLaunched(permissionHostId)) {
-                        markPrivilegeUiPermissionRequested(request.permission)
                         runCatching {
                             localNetworkPermissionLauncher.launch(request.permission)
+                        }.onSuccess {
+                            markPrivilegeUiPermissionRequested(request.permission)
                         }.onFailure {
                             viewModel.cancelPermissionRequest(permissionHostId, request)
                         }
