@@ -56,7 +56,7 @@
     <string name="priv_ui_manual_command_unavailable">手动命令不可用</string>
     <string name="priv_ui_manual_copy_command">复制</string>
     <string name="priv_ui_manual_command_copied">已复制手动命令</string>
-    <string name="priv_ui_manual_command_clip_label">Priv Kit 手动命令</string>
+    <string name="priv_ui_manual_command_clip_label">手动命令</string>
     <string name="priv_ui_pairing_default_message">正在搜索配对服务...</string>
     <string name="priv_ui_pairing_input_hint">可从通知栏输入，或使用分屏输入</string>
     <string name="priv_ui_pairing_split_screen_hint">请使用分屏输入</string>
@@ -93,7 +93,7 @@
     <string name="priv_ui_adb_static_control_stop_action">停止</string>
     <string name="priv_ui_adb_static_control_restart_action">重启</string>
     <string name="priv_ui_adb_static_command_copied">已复制静态端口命令</string>
-    <string name="priv_ui_adb_static_command_clip_label">Priv Kit 静态端口命令</string>
+    <string name="priv_ui_adb_static_command_clip_label">静态端口命令</string>
     <string name="priv_ui_adb_static_check_action">正在检查静态端口</string>
     <string name="priv_ui_adb_static_authorize_action">允许静态端口连接</string>
     <string name="priv_ui_adb_static_start_action">启动</string>
@@ -156,7 +156,7 @@
     <string name="priv_ui_system_prompt_local_network_title">本地网络权限</string>
     <string name="priv_ui_system_prompt_local_network_message">用于连接本机的无线调试服务</string>
     <string name="priv_ui_system_prompt_tcp_authorization_title">ADB 密钥授权</string>
-    <string name="priv_ui_system_prompt_tcp_authorization_message">允许 Priv Kit 通过静态 TCP 端口连接本机 ADB</string>
+    <string name="priv_ui_system_prompt_tcp_authorization_message">通过静态 TCP 端口连接本机 ADB</string>
     <string name="priv_ui_system_prompt_wireless_debugging_title">无线调试网络授权</string>
     <string name="priv_ui_system_prompt_wireless_debugging_message">用于在当前 Wi-Fi 网络开启并连接无线调试</string>
     <string name="priv_ui_system_prompt_root_title">Root 权限</string>

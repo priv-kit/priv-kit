@@ -27,6 +27,15 @@ Simplified Chinese page under `website/zh`. Internal or AI-readable Markdown
 belongs under `docs`, not `website`. Run `pnpm check` and `pnpm build` from the
 `website` directory after changing public documentation.
 
+User-facing copy in reusable product modules, including `:priv-ui`, must not
+contain the product name `Priv Kit`. Describe the action or capability without
+presenting the library as the host application. System-prompt text, dialogs,
+notifications, accessibility text, and clipboard labels all count as
+user-facing copy. Logs and diagnostics, documentation, repository metadata,
+and the `:priv-sample` app's own branding are exempt. When changing
+user-facing copy, sweep every locale and other non-log UI surfaces for
+hard-coded `Priv Kit` references.
+
 Declare every hidden Android API only in the `:hidden-api` module. Do not place
 framework mirrors or stubs in product modules. Before adding or changing hidden
 API declarations, use the project `android-api-diff` skill. The `:hidden-api`
