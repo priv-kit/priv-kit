@@ -175,9 +175,11 @@ entries and reconciles runtime state before enabling them again. A root manager
 may still show its own authorization UI when a remembered grant is no longer
 valid.
 
-An accepted initial launch enables automatic recovery. Only a confirmed stop or
-the built-in "Disable automatic recovery" action disables it; disconnection,
-server death, and failed replay leave it unchanged.
+A matching successful foreground launch enables automatic recovery. Initial
+connections outside a UI-owned foreground operation, including a copied manual
+shell command, do not enable it. Only a confirmed stop or the built-in "Disable
+automatic recovery" action disables it; disconnection, server death, and failed
+replay leave it unchanged.
 `startSilently(...)` respects automatic recovery by default. Pass
 `ignoreAutomaticRecoverySetting = true` only when the application intentionally
 needs to replay regardless of that setting.

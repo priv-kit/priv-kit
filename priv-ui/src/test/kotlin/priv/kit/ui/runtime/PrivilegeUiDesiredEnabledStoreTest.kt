@@ -12,11 +12,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.test.runTest
-import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -65,37 +60,12 @@ class PrivilegeUiDesiredEnabledStoreTest {
     @Test
     fun managerPublishesAndPersistsDesiredState() {
         val manager = PrivilegeUiDesiredEnabledManager(application)
-        try {
-            manager.setDesiredEnabled(true)
-            assertTrue(manager.desiredEnabled.value)
-            assertEquals("1", file.readText(StandardCharsets.UTF_8))
+        manager.setDesiredEnabled(true)
+        assertTrue(manager.desiredEnabled.value)
+        assertEquals("1", file.readText(StandardCharsets.UTF_8))
 
-            manager.setDesiredEnabled(false)
-            assertFalse(manager.desiredEnabled.value)
-            assertEquals("0", file.readText(StandardCharsets.UTF_8))
-        } finally {
-            manager.close()
-        }
-    }
-
-    @Test
-    fun initialLaunchIsPersistedWithoutViewModel() = runTest {
-        val events = MutableSharedFlow<PrivilegeRuntimeConnectionOrigin>()
-        val manager = PrivilegeUiDesiredEnabledManager(
-            context = application,
-            serverHandshakeAcceptedEvents = events,
-            coroutineScope = this,
-        )
-        try {
-            val emitted = async(start = CoroutineStart.UNDISPATCHED) {
-                events.emit(PrivilegeRuntimeConnectionOrigin.INITIAL_LAUNCH)
-            }
-            emitted.await()
-
-            assertTrue(manager.desiredEnabled.value)
-            assertEquals("1", file.readText(StandardCharsets.UTF_8))
-        } finally {
-            manager.close()
-        }
+        manager.setDesiredEnabled(false)
+        assertFalse(manager.desiredEnabled.value)
+        assertEquals("0", file.readText(StandardCharsets.UTF_8))
     }
 }

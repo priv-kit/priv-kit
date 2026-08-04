@@ -405,7 +405,7 @@ internal class PrivilegeUiRuntimeStartCoordinator(
             if (isClosed()) return
             when (completion) {
                 is RuntimeStartCompletion.Connected -> {
-                    completion.successfulMethod?.let(::recordSuccessfulStartMethod)
+                    completion.successfulMethod?.let(::recordSuccessfulUiStart)
                     publishConnectedServer(completion.serverInfo)
                 }
                 RuntimeStartCompletion.Cancelled -> {
@@ -516,9 +516,12 @@ internal class PrivilegeUiRuntimeStartCoordinator(
         if (isCurrent(session)) store.appendStartupLog(line)
     }
 
-    private fun recordSuccessfulStartMethod(method: PrivilegeUiStartMethod) {
+    private fun recordSuccessfulUiStart(method: PrivilegeUiStartMethod) {
         store.applicationContext?.let { context ->
-            runCatching { PrivilegeUiStartMethodStore(context).write(method) }
+            runCatching {
+                PrivilegeUiStartMethodStore(context).write(method)
+                PrivilegeUiDesiredEnabledManagers.get(context).setDesiredEnabled(true)
+            }
         }
     }
 

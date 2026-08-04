@@ -10,10 +10,7 @@ import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
@@ -68,20 +65,12 @@ public object PrivilegeRuntimeStartCoordinator {
     private val arbiter = PrivilegeRuntimeStartArbiter(
         elapsedRealtime = SystemClock::elapsedRealtime,
     )
-    private val mutableServerHandshakeAcceptedEvents =
-        MutableSharedFlow<PrivilegeRuntimeConnectionOrigin>(
-            extraBufferCapacity = 1,
-            onBufferOverflow = BufferOverflow.DROP_OLDEST,
-        )
 
     public val serverConnectionEvents: SharedFlow<PrivilegeRuntimeConnectionEvent>
         get() {
             Privilege.initializeRuntimeConnection()
             return Privilege.serverConnectionEvents
         }
-
-    public val serverHandshakeAcceptedEvents: SharedFlow<PrivilegeRuntimeConnectionOrigin> =
-        mutableServerHandshakeAcceptedEvents.asSharedFlow()
 
     public fun beginPreflight(): PrivilegeRuntimeStartPreflight =
         arbiter.beginPreflight()
@@ -190,16 +179,6 @@ public object PrivilegeRuntimeStartCoordinator {
         }
     }
 
-    internal fun notifyServerHandshakeAccepted(ticket: PrivilegeRuntimeHandshakeTicket) {
-        val origin = when (ticket.origin) {
-            PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH ->
-                PrivilegeRuntimeConnectionOrigin.INITIAL_LAUNCH
-            PrivilegeServerHandshakeOrigin.OWNER_RECONNECT ->
-                PrivilegeRuntimeConnectionOrigin.OWNER_RECONNECT
-        }
-        mutableServerHandshakeAcceptedEvents.tryEmit(origin)
-    }
-
     private fun finishClientStart(operationId: Long) {
         if (!arbiter.finishClientStart(operationId)) return
         notifyOwnerReconnect()
@@ -218,7 +197,6 @@ public object PrivilegeRuntimeStartCoordinator {
 
 internal data class PrivilegeRuntimeHandshakeTicket(
     val serial: Long,
-    val origin: PrivilegeServerHandshakeOrigin,
     val clientStartOperationId: Long?,
 )
 
@@ -349,7 +327,6 @@ internal class PrivilegeRuntimeStartArbiter(
             handshakeInFlightCount += 1
             PrivilegeRuntimeHandshakeTicket(
                 serial = stateSerial,
-                origin = origin,
                 clientStartOperationId = activeOperationId.takeIf {
                     origin == PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH
                 },

@@ -180,8 +180,8 @@ UI 层只呈现和控制 Core 生命周期原语。静默恢复必须满足：
 - 只重放 UI 最近一次成功确认的精确启动方式
 - 不跨启动方式 fallback
 - 不主动请求权限、外部授权或用户交互
-- 只有匹配当前 operation 和 `launchCorrelationId` 的初始连接才能更新 methodId
-- 被 runtime 接受的初始启动可记录用户期望开启
+- 只有匹配当前 UI operation 和 `launchCorrelationId` 的初始连接才能同时更新 methodId 并记录用户期望开启
+- 非 UI 发起的初始连接和 owner 重连只能更新 Core 连接状态，不得推断用户的自动恢复意图
 - 断连、server 死亡和恢复失败不得隐式关闭该期望
 - 只有用户确认停止或关闭自动恢复时才能记录关闭
 

@@ -124,7 +124,7 @@ The foreground service action calls `PrivilegeUiViewModel.startInteractive()` an
 
 ## Foreground, silent, and owner-reconnect startup
 
-When a foreground start owned by `PrivilegeUiViewModel` commits a launch method and receives the matching `INITIAL_LAUNCH` Binder connection for that runtime operation before cancellation, `priv-ui` records the exact winning method in `filesDir/.priv-kit/ui-start-method`. The file contains one raw UTF-8 method ID, not JSON or a preference schema:
+When a foreground start owned by `PrivilegeUiViewModel` commits a launch method and receives the matching `INITIAL_LAUNCH` Binder connection for that runtime operation before cancellation, `priv-ui` records the exact winning method in `filesDir/.priv-kit/ui-start-method` and enables automatic recovery. The method file contains one raw UTF-8 method ID, not JSON or a preference schema:
 
 - `root`
 - `adb-wireless`
@@ -133,9 +133,9 @@ When a foreground start owned by `PrivilegeUiViewModel` commits a launch method 
 
 Silent starts, retained-server `OWNER_RECONNECT` handshakes, already-connected servers, manual shell starts outside the matching foreground operation, cancelled starts, and failed starts do not replace this method value.
 
-Separately, `priv-ui` owns a desired-state latch in `filesDir/.priv-kit/ui-desired-enabled`. Its entire content is exactly one ASCII byte: `1` for enabled or `0` for disabled. A missing or invalid file is disabled. The library's non-exported initialization provider installs the connection listener after core runtime initialization but before app providers are published, so every accepted `INITIAL_LAUNCH` connection writes `1`, including a server started from a copied external shell command while the app process is cold. An `OWNER_RECONNECT`, server death, disconnect, or failed recovery attempt leaves the value unchanged.
+Separately, `priv-ui` owns a desired-state latch in `filesDir/.priv-kit/ui-desired-enabled`. Its entire content is exactly one ASCII byte: `1` for enabled or `0` for disabled. A missing or invalid file is disabled. The same matching foreground completion that records the method writes `1`. `priv-ui` declares no initialization provider; its ViewModel and silent entry point load this state only when used.
 
-An accepted launch outside a matching UI-owned foreground operation enables this latch but does not invent or replace a replay method. If no UI-confirmed method history exists and that server later stops, gated recovery returns `null` and the disconnected warning remains visible until the user disables automatic recovery or starts a server again.
+An initial launch outside a matching UI-owned foreground operation, including a copied manual shell command, updates the Core connection state but does not enable this latch or invent a replay method. An `OWNER_RECONNECT`, server death, disconnect, or failed recovery attempt also leaves the value unchanged.
 
 There is no general-purpose switch for this latch. A confirmed stop action in the built-in UI writes `0` before asking the server to shut down. When the latch is `1` but runtime state is disconnected or failed, the top of `PrivilegeScaffold` shows a warning card whose "Disable automatic recovery" action also writes `0`. This keeps the value about user intent instead of current server liveness.
 

@@ -22,6 +22,7 @@ import priv.kit.core.PrivilegeStartupException
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionEvent
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
+import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -49,6 +50,71 @@ import kotlinx.coroutines.withTimeout
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class PrivilegeUiRuntimeActionsTest {
+    @Test
+    fun successfulForegroundStartEnablesAutomaticRecovery() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val desiredEnabledManager = PrivilegeUiDesiredEnabledManagers.get(context)
+        val startMethodFile = File(context.filesDir, ".priv-kit/ui-start-method")
+        desiredEnabledManager.setDesiredEnabled(false)
+        startMethodFile.delete()
+
+        try {
+            RuntimeActionsFixture(context = context).use { (store, actions) ->
+                assertTrue(
+                    actions.runServerStart(
+                        PrivilegeUiRuntimeStartAttempt.Connect(
+                            progressText = PrivilegeUiText.Literal("root"),
+                            startupSource = null,
+                            runtimeStartSource = PrivilegeUiRuntimeStartSource.ROOT,
+                        ) {
+                            shellServerInfo()
+                        },
+                    ),
+                )
+
+                assertTrue(waitUntilConnected(store))
+                assertTrue(desiredEnabledManager.desiredEnabled.value)
+                assertTrue(PrivilegeUiDesiredEnabledStore(context).read())
+                assertEquals(
+                    PrivilegeUiStartMethod.Root,
+                    PrivilegeUiStartMethodStore(context).read(),
+                )
+            }
+        } finally {
+            desiredEnabledManager.setDesiredEnabled(false)
+            startMethodFile.delete()
+        }
+    }
+
+    @Test
+    fun passiveInitialConnectionDoesNotEnableAutomaticRecovery() {
+        val context = RuntimeEnvironment.getApplication()
+        val desiredEnabledManager = PrivilegeUiDesiredEnabledManagers.get(context)
+        val startMethodFile = File(context.filesDir, ".priv-kit/ui-start-method")
+        desiredEnabledManager.setDesiredEnabled(false)
+        startMethodFile.delete()
+
+        try {
+            RuntimeActionsFixture(context = context).use { (_, actions) ->
+                actions.handleServerConnected(
+                    PrivilegeRuntimeConnectionEvent(
+                        serverInfo = shellServerInfo(),
+                        origin = PrivilegeRuntimeConnectionOrigin.INITIAL_LAUNCH,
+                        clientStartOperationId = null,
+                        launchCorrelationId = null,
+                    ),
+                )
+
+                assertFalse(desiredEnabledManager.desiredEnabled.value)
+                assertFalse(PrivilegeUiDesiredEnabledStore(context).read())
+                assertNull(PrivilegeUiStartMethodStore(context).read())
+            }
+        } finally {
+            desiredEnabledManager.setDesiredEnabled(false)
+            startMethodFile.delete()
+        }
+    }
+
     @Test
     fun silentOwnerRejectsUiBusySideEffects() {
         RuntimeActionsFixture().use { (store, actions) ->

@@ -9,52 +9,11 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import priv.kit.core.PrivilegeServerInfo
-import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
-import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import java.lang.reflect.Proxy
 import java.util.concurrent.atomic.AtomicReference
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
 class PrivilegeServerHandshakeRegistryTest {
-    @Test
-    fun acceptedInitialLaunchIsReportedOnce(): Unit = runBlocking {
-        val launchCorrelationId = newCorrelationId()
-        val pendingHandshake = PrivilegeServerHandshakeRegistry.prepare(launchCorrelationId)
-        val acceptedOrigin = async(start = CoroutineStart.UNDISPATCHED) {
-            PrivilegeRuntimeStartCoordinator.serverHandshakeAcceptedEvents.first()
-        }
-
-        try {
-            assertTrue(
-                PrivilegeServerHandshakeRegistry.deliverReady(
-                    serverBinder = fakeBinder(),
-                    serverInfo = serverInfo(pid = 1234),
-                    origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
-                    launchCorrelationId = launchCorrelationId,
-                ),
-            )
-            assertFalse(
-                PrivilegeServerHandshakeRegistry.deliverReady(
-                    serverBinder = fakeBinder(),
-                    serverInfo = serverInfo(pid = 5678),
-                    origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
-                    launchCorrelationId = launchCorrelationId,
-                ),
-            )
-
-            assertEquals(
-                PrivilegeRuntimeConnectionOrigin.INITIAL_LAUNCH,
-                acceptedOrigin.await(),
-            )
-            pendingHandshake.await(1)
-        } finally {
-            PrivilegeServerHandshakeRegistry.acknowledge(launchCorrelationId)
-        }
-    }
-
     @Test
     fun readyHandshakeCanBePreparedAfterDelivery() = runBlocking {
         val launchCorrelationId = newCorrelationId()

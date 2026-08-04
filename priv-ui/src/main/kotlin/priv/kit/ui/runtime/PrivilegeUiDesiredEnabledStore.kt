@@ -1,18 +1,9 @@
 package priv.kit.ui.runtime
 
 import android.content.Context
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
-import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.shared.PrivilegeBinaryFileStore
 import priv.kit.shared.PrivilegeStoragePaths
 
@@ -45,22 +36,10 @@ internal class PrivilegeUiDesiredEnabledStore(context: Context) {
     }
 }
 
-internal class PrivilegeUiDesiredEnabledManager(
-    context: Context,
-    serverHandshakeAcceptedEvents: Flow<PrivilegeRuntimeConnectionOrigin> =
-        PrivilegeRuntimeStartCoordinator.serverHandshakeAcceptedEvents,
-    coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-) : AutoCloseable {
+internal class PrivilegeUiDesiredEnabledManager(context: Context) {
     private val store = PrivilegeUiDesiredEnabledStore(context.applicationContext)
     private val stateLock = Any()
     private val mutableDesiredEnabled = MutableStateFlow(store.read())
-    private val handshakeWatcher: Job = coroutineScope.launch(start = CoroutineStart.UNDISPATCHED) {
-        serverHandshakeAcceptedEvents.collect { origin ->
-            if (origin == PrivilegeRuntimeConnectionOrigin.INITIAL_LAUNCH) {
-                setDesiredEnabled(true)
-            }
-        }
-    }
     val desiredEnabled: StateFlow<Boolean> = mutableDesiredEnabled.asStateFlow()
 
     fun setDesiredEnabled(enabled: Boolean) {
@@ -68,10 +47,6 @@ internal class PrivilegeUiDesiredEnabledManager(
             store.write(enabled)
             mutableDesiredEnabled.value = enabled
         }
-    }
-
-    override fun close() {
-        handshakeWatcher.cancel()
     }
 }
 
