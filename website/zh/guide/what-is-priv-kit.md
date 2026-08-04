@@ -22,6 +22,17 @@ Priv Kit 是面向 Android 的应用自有特权运行时。它让单个应用�
 TCP/IP 确认、手动和静默启动。应用可以直接使用这套流程，不必重新实现
 这些交互。
 
+<table>
+  <tr>
+    <td><img width="320" height="714" src="https://camo.githubusercontent.com/a22e4d6fa31e9e938bfe9a648f24dc0ddb2afa592fdad852dc4b8df953ad648a/687474703a2f2f652e676b642e6c692f32333461313665302d333463362d346364342d623631632d663632646332653761303838" /></td>
+    <td><img width="320" height="714" src="https://camo.githubusercontent.com/8d6850f2c4fc5039e7dd7fab7f05985dbe0a02530494ce1aa1e235c31769a374/687474703a2f2f652e676b642e6c692f65616331303764662d393664362d346164372d383361342d656138303035636561363663" /></td>
+  </tr>
+  <tr>
+    <td><img width="320" height="714" src="https://camo.githubusercontent.com/e43b81ac8bd9121b8d57e9afd219789677a8cd44e62a119387b7061a5889c4ad/687474703a2f2f652e676b642e6c692f36613439316261352d653330612d346436302d626164612d373234303931353932306330" /></td>
+    <td><img width="320" height="714" src="https://camo.githubusercontent.com/8e6be96279e239f690394e4b28dca0d1f4263d4b0517514577388a1eb918a147/687474703a2f2f652e676b642e6c692f64663139663637662d646136352d346263662d623133632d623939386233613434623761" /></td>
+  </tr>
+</table>
+
 ### 用 priv-core 构建自定义界面 {#priv-core}
 
 `priv-core` 提供 Root、无线 ADB、静态 TCP、手动和外部授权器所需的启动与连接
