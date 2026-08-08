@@ -1,5 +1,5 @@
 <resources>
-    <string name="priv_ui_title">授权启动</string>
+    <string name="priv_ui_title">特权服务</string>
     <string name="priv_ui_nav_back">返回</string>
     <string name="priv_ui_auth_method_root">Root</string>
     <string name="priv_ui_auth_method_manual_shell">手动</string>

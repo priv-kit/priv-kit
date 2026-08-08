@@ -1,5 +1,5 @@
 <resources>
-    <string name="priv_ui_title">Privilege startup</string>
+    <string name="priv_ui_title">Privileged service</string>
     <string name="priv_ui_nav_back">Back</string>
     <string name="priv_ui_auth_method_root">Root</string>
     <string name="priv_ui_auth_method_manual_shell">Manual</string>
