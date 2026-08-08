@@ -13,6 +13,8 @@ Public entry points:
 - `PrivilegeUiConfig`, used to enable startup modes, polling intervals, and external start providers.
 - `PrivilegeUiExternalStartProvider`, whose suspend authorization and startup methods keep the
   requesting ViewModel coroutine continuous across third-party prompts and callbacks.
+- `PrivilegeUi.desiredEnabled`, the read-only process-wide `StateFlow` for the persisted automatic
+  recovery intent.
 - `PrivilegeUi.startSilently(...)`, the headless recovery entry point. It respects the automatic
   recovery setting by default and can explicitly ignore that setting when required.
 
@@ -133,7 +135,7 @@ When a foreground start owned by `PrivilegeUiViewModel` commits a launch method 
 
 Silent starts, retained-server `OWNER_RECONNECT` handshakes, already-connected servers, manual shell starts outside the matching foreground operation, cancelled starts, and failed starts do not replace this method value.
 
-Separately, `priv-ui` owns a desired-state latch in `filesDir/.priv-kit/ui-desired-enabled`. Its entire content is exactly one ASCII byte: `1` for enabled or `0` for disabled. A missing or invalid file is disabled. The same matching foreground completion that records the method writes `1`. `priv-ui` declares no initialization provider; its ViewModel and silent entry point load this state only when used.
+Separately, `priv-ui` owns a desired-state latch in `filesDir/.priv-kit/ui-desired-enabled`. Its entire content is exactly one ASCII byte: `1` for enabled or `0` for disabled. A missing or invalid file is disabled. The same matching foreground completion that records the method writes `1`. `PrivilegeUi.desiredEnabled` exposes this persisted intent as a read-only process-wide `StateFlow<Boolean>`. It is independent of the current connection exposed by `Privilege.serverState`. `priv-ui` declares no initialization provider; its ViewModel, desired-state property, and silent entry point load this state only when used.
 
 An initial launch outside a matching UI-owned foreground operation, including a copied manual shell command, updates the Core connection state but does not enable this latch or invent a replay method. An `OWNER_RECONNECT`, server death, disconnect, or failed recovery attempt also leaves the value unchanged.
 

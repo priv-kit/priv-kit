@@ -18,6 +18,7 @@ import priv.kit.core.PrivilegeServerLaunchUncertainException
 import priv.kit.core.PrivilegeStartupLogLine
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionEvent
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
+import priv.kit.ui.PrivilegeUi
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
 import priv.kit.ui.PrivilegeUiRuntimeStatus
 import priv.kit.ui.PrivilegeUiState
@@ -520,7 +521,7 @@ internal class PrivilegeUiRuntimeStartCoordinator(
         store.applicationContext?.let { context ->
             runCatching {
                 PrivilegeUiStartMethodStore(context).write(method)
-                PrivilegeUiDesiredEnabledManagers.get(context).setDesiredEnabled(true)
+                PrivilegeUi.setDesiredEnabled(true)
             }
         }
     }

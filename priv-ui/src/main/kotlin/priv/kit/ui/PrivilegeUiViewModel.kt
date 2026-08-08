@@ -24,7 +24,6 @@ import priv.kit.ui.adb.PrivilegeUiAdbActions
 import priv.kit.ui.adb.PrivilegeUiStaticTcpSwitchAction
 import priv.kit.ui.external.PrivilegeUiExternalStartActions
 import priv.kit.ui.runtime.PrivilegeUiDirectStartTarget
-import priv.kit.ui.runtime.PrivilegeUiDesiredEnabledManagers
 import priv.kit.ui.runtime.PrivilegeUiRuntimeActions
 import priv.kit.ui.runtime.PrivilegeUiStartGate
 import priv.kit.ui.runtime.PrivilegeUiStartGateState
@@ -55,7 +54,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
             }
         }
     }
-    private val desiredEnabledManager = PrivilegeUiDesiredEnabledManagers.get(application)
     private val interactiveStartOwner = PrivilegeUiStartGate.newInteractiveOwner()
     private val acquireInteractivePermit = interactiveStartOwner::tryAcquire
     private val systemPromptCoordinator = PrivilegeUiSystemPromptCoordinator()
@@ -146,10 +144,10 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     private fun configure() {
         adbActions.observePairingNotificationEvents()
         store.updateState {
-            it.copy(desiredEnabled = desiredEnabledManager.desiredEnabled.value)
+            it.copy(desiredEnabled = PrivilegeUi.desiredEnabled.value)
         }
         viewModelScope.launch {
-            desiredEnabledManager.desiredEnabled.collect { enabled ->
+            PrivilegeUi.desiredEnabled.collect { enabled ->
                 store.updateState { it.copy(desiredEnabled = enabled) }
             }
         }
@@ -626,7 +624,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
     private fun disableDesiredEnabled() {
         runCatching {
-            desiredEnabledManager.setDesiredEnabled(false)
+            PrivilegeUi.setDesiredEnabled(false)
         }.onFailure { throwable ->
             store.showSnackbar(store.resourceText(R.string.priv_ui_auto_recovery_disable_failed))
             store.appendLog(throwable.toPrivilegeUiDiagnosticString())

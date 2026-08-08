@@ -16,6 +16,8 @@ with `priv-core`.
 - `PrivilegeUiViewModel` is an open `AndroidViewModel` controller.
 - `PrivilegeUiConfig` enables startup modes and external providers.
 - `PrivilegeUiExternalStartProvider` integrates an app-owned external path.
+- `PrivilegeUi.desiredEnabled` exposes the persisted automatic-recovery intent
+  as a read-only process-wide `StateFlow<Boolean>`.
 - `PrivilegeUi.startSilently(...)` replays the last successful method while
   automatic recovery is enabled. Pass `ignoreAutomaticRecoverySetting = true`
   only when the application intentionally needs to ignore that setting.
@@ -92,6 +94,17 @@ process-wide `Privilege.serverState` instead of a UI-specific callback.
 The state remains available whether or not `PrivilegeScaffold` is currently
 composed. [Startup methods](./activation#connection-state) shows
 both application-wide collection and screen-local rendering.
+
+Observe `PrivilegeUi.desiredEnabled` separately when a custom surface needs to
+show whether the user still wants automatic recovery:
+
+```kotlin
+val desiredEnabled by PrivilegeUi.desiredEnabled.collectAsStateWithLifecycle()
+```
+
+This read-only state persists across disconnections and failed replay. It does
+not indicate whether a server is currently connected and cannot be changed by
+collectors.
 
 ## ADB UI orchestration {#adb-ui}
 
@@ -180,6 +193,8 @@ connections outside a UI-owned foreground operation, including a copied manual
 shell command, do not enable it. Only a confirmed stop or the built-in "Disable
 automatic recovery" action disables it; disconnection, server death, and failed
 replay leave it unchanged.
+`PrivilegeUi.desiredEnabled` publishes this persisted intent independently of
+the current server connection.
 `startSilently(...)` respects automatic recovery by default. Pass
 `ignoreAutomaticRecoverySetting = true` only when the application intentionally
 needs to replay regardless of that setting.

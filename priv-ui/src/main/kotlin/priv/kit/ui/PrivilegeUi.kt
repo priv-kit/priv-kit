@@ -3,6 +3,9 @@ package priv.kit.ui
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
@@ -15,6 +18,34 @@ import priv.kit.ui.runtime.PrivilegeUiStartMethodStore
 import kotlin.time.Duration.Companion.milliseconds
 
 public object PrivilegeUi {
+    private val desiredEnabledLock = Any()
+    private val desiredEnabledStore by lazy {
+        PrivilegeUiDesiredEnabledStore(PrivilegeContext.require())
+    }
+    private val mutableDesiredEnabled by lazy {
+        MutableStateFlow(desiredEnabledStore.read())
+    }
+
+    /**
+     * Whether the user still wants automatic recovery of the Privileged Server.
+     *
+     * A matching successful foreground start enables this value. A confirmed stop or the
+     * built-in disable action clears it. Disconnection, server death, and failed silent recovery
+     * leave it unchanged. This state does not indicate whether a server is currently connected;
+     * observe [Privilege.serverState] for the process-wide connection state. Its initial value is
+     * read synchronously from app-private storage on first access.
+     */
+    public val desiredEnabled: StateFlow<Boolean> by lazy {
+        mutableDesiredEnabled.asStateFlow()
+    }
+
+    internal fun setDesiredEnabled(enabled: Boolean) {
+        synchronized(desiredEnabledLock) {
+            desiredEnabledStore.write(enabled)
+            mutableDesiredEnabled.value = enabled
+        }
+    }
+
     /**
      * Replays the last successful foreground startup method with the supplied current config.
      *

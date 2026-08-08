@@ -56,16 +56,4 @@ class PrivilegeUiDesiredEnabledStoreTest {
         assertFalse(store.read())
         assertFalse(temporaryFile.exists())
     }
-
-    @Test
-    fun managerPublishesAndPersistsDesiredState() {
-        val manager = PrivilegeUiDesiredEnabledManager(application)
-        manager.setDesiredEnabled(true)
-        assertTrue(manager.desiredEnabled.value)
-        assertEquals("1", file.readText(StandardCharsets.UTF_8))
-
-        manager.setDesiredEnabled(false)
-        assertFalse(manager.desiredEnabled.value)
-        assertEquals("0", file.readText(StandardCharsets.UTF_8))
-    }
 }

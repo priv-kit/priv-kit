@@ -14,6 +14,8 @@ description: 使用推荐的 Compose 授权界面，并配置静默启动。
 - `PrivilegeUiViewModel` 是可继承的 `AndroidViewModel` 控制器。
 - `PrivilegeUiConfig` 用于启用启动方式和外部 Provider。
 - `PrivilegeUiExternalStartProvider` 用于添加应用提供的外部启动方式。
+- `PrivilegeUi.desiredEnabled` 以只读进程级 `StateFlow<Boolean>` 公开持久化的自动恢复
+  意图。
 - `PrivilegeUi.startSilently(...)` 在自动恢复开启时按上次成功的方式静默启动。只有
   应用明确需要忽略该设置时，才传入 `ignoreAutomaticRecoverySetting = true`。
 
@@ -83,6 +85,16 @@ Server 已连接时，点击内置的 Root、ADB 或外部启动按钮会先显�
 无论 `PrivilegeScaffold` 页面当前是否显示，该状态都持续可用。
 [启动方式](./activation#connection-state)分别给出了应用级持续监听和页面级状态
 展示的写法。
+
+自定义界面需要展示用户是否仍期望自动恢复时，可以单独观察
+`PrivilegeUi.desiredEnabled`：
+
+```kotlin
+val desiredEnabled by PrivilegeUi.desiredEnabled.collectAsStateWithLifecycle()
+```
+
+这个只读状态在断连和静默启动失败后仍会保留。它不表示服务端当前是否已连接，
+观察者也不能通过它修改设置。
 
 ## ADB 界面流程 {#adb-ui}
 
@@ -156,6 +168,7 @@ UI 发起的前台启动成功并收到匹配的初始连接后，才会开启�
 之外的初始连接（包括执行复制的手动 Shell 命令）不会开启自动恢复。只有用户确认
 停止，或在内置提示中选择“关闭自动恢复”时才会关闭；断连、服务端死亡和静默启动
 失败不会改变它。
+`PrivilegeUi.desiredEnabled` 会独立于当前服务端连接状态发布这项持久化意图。
 `startSilently(...)` 默认遵循自动恢复设置。只有应用明确需要忽略该设置时，才传入
 `ignoreAutomaticRecoverySetting = true`。
 

@@ -1,9 +1,6 @@
 package priv.kit.ui.runtime
 
 import android.content.Context
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import priv.kit.shared.PrivilegeBinaryFileStore
 import priv.kit.shared.PrivilegeStoragePaths
 
@@ -34,30 +31,4 @@ internal class PrivilegeUiDesiredEnabledStore(context: Context) {
         val DISABLED_BYTES = byteArrayOf('0'.code.toByte())
         val fileLock = Any()
     }
-}
-
-internal class PrivilegeUiDesiredEnabledManager(context: Context) {
-    private val store = PrivilegeUiDesiredEnabledStore(context.applicationContext)
-    private val stateLock = Any()
-    private val mutableDesiredEnabled = MutableStateFlow(store.read())
-    val desiredEnabled: StateFlow<Boolean> = mutableDesiredEnabled.asStateFlow()
-
-    fun setDesiredEnabled(enabled: Boolean) {
-        synchronized(stateLock) {
-            store.write(enabled)
-            mutableDesiredEnabled.value = enabled
-        }
-    }
-}
-
-internal object PrivilegeUiDesiredEnabledManagers {
-    private val lock = Any()
-    private var manager: PrivilegeUiDesiredEnabledManager? = null
-
-    fun get(context: Context): PrivilegeUiDesiredEnabledManager =
-        synchronized(lock) {
-            manager ?: PrivilegeUiDesiredEnabledManager(context.applicationContext).also {
-                manager = it
-            }
-        }
 }

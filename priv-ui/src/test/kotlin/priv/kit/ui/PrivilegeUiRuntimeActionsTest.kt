@@ -9,6 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,6 +20,7 @@ import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeServerLaunchUncertainException
 import priv.kit.core.PrivilegeStartupException
+import priv.kit.core.internal.runtime.PrivilegeContext
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionEvent
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
@@ -53,9 +55,9 @@ class PrivilegeUiRuntimeActionsTest {
     @Test
     fun successfulForegroundStartEnablesAutomaticRecovery() = runBlocking {
         val context = RuntimeEnvironment.getApplication()
-        val desiredEnabledManager = PrivilegeUiDesiredEnabledManagers.get(context)
         val startMethodFile = File(context.filesDir, ".priv-kit/ui-start-method")
-        desiredEnabledManager.setDesiredEnabled(false)
+        PrivilegeContext.install(context)
+        PrivilegeUi.setDesiredEnabled(false)
         startMethodFile.delete()
 
         try {
@@ -73,7 +75,8 @@ class PrivilegeUiRuntimeActionsTest {
                 )
 
                 assertTrue(waitUntilConnected(store))
-                assertTrue(desiredEnabledManager.desiredEnabled.value)
+                assertTrue(PrivilegeUi.desiredEnabled.value)
+                assertSame(PrivilegeUi.desiredEnabled, PrivilegeUi.desiredEnabled)
                 assertTrue(PrivilegeUiDesiredEnabledStore(context).read())
                 assertEquals(
                     PrivilegeUiStartMethod.Root,
@@ -81,7 +84,7 @@ class PrivilegeUiRuntimeActionsTest {
                 )
             }
         } finally {
-            desiredEnabledManager.setDesiredEnabled(false)
+            PrivilegeUi.setDesiredEnabled(false)
             startMethodFile.delete()
         }
     }
@@ -89,9 +92,9 @@ class PrivilegeUiRuntimeActionsTest {
     @Test
     fun passiveInitialConnectionDoesNotEnableAutomaticRecovery() {
         val context = RuntimeEnvironment.getApplication()
-        val desiredEnabledManager = PrivilegeUiDesiredEnabledManagers.get(context)
         val startMethodFile = File(context.filesDir, ".priv-kit/ui-start-method")
-        desiredEnabledManager.setDesiredEnabled(false)
+        PrivilegeContext.install(context)
+        PrivilegeUi.setDesiredEnabled(false)
         startMethodFile.delete()
 
         try {
@@ -105,12 +108,12 @@ class PrivilegeUiRuntimeActionsTest {
                     ),
                 )
 
-                assertFalse(desiredEnabledManager.desiredEnabled.value)
+                assertFalse(PrivilegeUi.desiredEnabled.value)
                 assertFalse(PrivilegeUiDesiredEnabledStore(context).read())
                 assertNull(PrivilegeUiStartMethodStore(context).read())
             }
         } finally {
-            desiredEnabledManager.setDesiredEnabled(false)
+            PrivilegeUi.setDesiredEnabled(false)
             startMethodFile.delete()
         }
     }
