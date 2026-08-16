@@ -35,7 +35,7 @@ class PrivilegeServerHandshakeRegistryTest {
         val result = pendingHandshake.await(1)
         PrivilegeServerHandshakeRegistry.acknowledge(launchCorrelationId)
 
-        assertEquals(serverInfo, result.serverInfo)
+        assertSame(serverInfo, result.serverInfo)
         assertEquals(PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH, result.origin)
         assertEquals(launchCorrelationId, result.launchCorrelationId)
         assertNull(result.clientStartOperationId)
@@ -372,6 +372,7 @@ class PrivilegeServerHandshakeRegistryTest {
             uid = 2000,
             pid = pid,
             protocolVersion = PrivilegeProtocol.VERSION,
+            lifecycleBinder = android.os.Binder(),
         )
 
     private fun fakeBinder(): IBinder =

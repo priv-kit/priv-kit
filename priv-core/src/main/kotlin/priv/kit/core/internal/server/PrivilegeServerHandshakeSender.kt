@@ -46,6 +46,10 @@ internal object PrivilegeServerHandshakeSender {
                 }
             }
             putBinder(PrivilegeHandshakeContract.EXTRA_SERVER_BINDER, serverBinder.asBinder())
+            putBinder(
+                PrivilegeHandshakeContract.EXTRA_SERVER_LIFECYCLE_BINDER,
+                serverBinder.lifecycleBinder,
+            )
             putInt(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION, config.protocolVersion)
             putString(
                 PrivilegeHandshakeContract.EXTRA_CLASSPATH_IDENTITY,

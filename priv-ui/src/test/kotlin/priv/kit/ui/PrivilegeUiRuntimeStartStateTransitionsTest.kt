@@ -2,13 +2,12 @@ package priv.kit.ui
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import priv.kit.core.PrivilegeServerInfo
 import priv.kit.ui.runtime.finishRuntimeStartDisconnected
 import priv.kit.ui.runtime.toConnectedRuntimeIdle
 import priv.kit.ui.runtime.toDisconnectedRuntimeIdle
 
 class PrivilegeUiRuntimeStartStateTransitionsTest {
-    private val serverInfo = PrivilegeServerInfo(uid = 2000, pid = 123, protocolVersion = 1)
+    private val serverInfo = testServerInfo(uid = 2000, pid = 123, protocolVersion = 1)
 
     @Test
     fun disconnectedCompletionPreservesAConnectionThatWonTheRace() {

@@ -335,6 +335,7 @@ class PrivilegeBinderWrapperTest {
             uid = 2000,
             pid = 1234,
             protocolVersion = PrivilegeProtocol.VERSION,
+            lifecycleBinder = android.os.Binder(),
         )
         try {
             repeat(2) {
@@ -346,7 +347,7 @@ class PrivilegeBinderWrapperTest {
                     startupLogListener = null,
                 )
             }
-            assertEquals(serverInfo, Privilege.serverState.value)
+            assertSame(serverInfo, Privilege.serverState.value)
         } finally {
             runCatching { Privilege.shutdownServer() }
             resetRuntimeConnectionListener()
@@ -363,6 +364,7 @@ class PrivilegeBinderWrapperTest {
                     uid = 2000,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
                 ),
                 serverBinder = server.asBinder(),
             ),
@@ -401,15 +403,11 @@ class PrivilegeBinderWrapperTest {
             transactException = transactException,
             transactHandler = transactHandler,
         )
-        private val lifecycleBinder = TestBinder()
-
         override fun asBinder(): IBinder = binder
 
         override fun shutdown() = Unit
 
         override fun getUserServiceManager(): IBinder? = null
-
-        override fun getLifecycleBinder(): IBinder = lifecycleBinder
 
         override fun hasSystemService(serviceName: String): Boolean = hasSystemService
 

@@ -1,5 +1,7 @@
 package priv.kit.ui
 
+import android.os.Binder
+import android.os.IBinder
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -8,6 +10,29 @@ import priv.kit.core.PrivilegeServerInfo
 import priv.kit.ui.runtime.PrivilegeUiRuntimeActions
 import priv.kit.ui.runtime.PrivilegeUiRuntimeStartAttempt
 import priv.kit.ui.state.PrivilegeUiViewModelStore
+
+private val privilegeServerInfoConstructor =
+    PrivilegeServerInfo::class.java.getDeclaredConstructor(
+        Integer.TYPE,
+        Integer.TYPE,
+        Integer.TYPE,
+        IBinder::class.java,
+    ).apply {
+        isAccessible = true
+    }
+
+internal fun testServerInfo(
+    uid: Int,
+    pid: Int,
+    protocolVersion: Int = 1,
+    lifecycleBinder: IBinder = Binder(),
+): PrivilegeServerInfo =
+    privilegeServerInfoConstructor.newInstance(
+        uid,
+        pid,
+        protocolVersion,
+        lifecycleBinder,
+    )
 
 internal fun PrivilegeUiRuntimeActions.runServerStart(
     message: String,

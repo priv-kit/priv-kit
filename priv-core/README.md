@@ -10,7 +10,7 @@ Common entry points:
 - `Privilege.startAdb()` for Wireless Debugging / TCP ADB startup, configured with `PrivilegeAdbConnectionOptions`.
 - `Privilege.createAdbManager()` for Wireless ADB pairing, TCP mode, and identity diagnostics backed by `PrivilegeAdbManager`.
 - Process-wide current Privileged Server Binder state, exposed through `Privilege` global methods.
-- `Privilege.getServerLifecycleBinder()` for obtaining an inert Binder owned by the current Privileged Server process, suitable for external owner or death-token parameters.
+- `PrivilegeServerInfo.lifecycleBinder` for an inert Binder owned by the represented Privileged Server process, suitable for external owner or death-token parameters.
 - `Privilege.isPermissionRestricted()` for checking whether the connected privileged server is subject to permission restrictions. Root servers return `false` without a permission Binder call.
 - UserService entry points for app-defined Binder services: start, bind, unbind, and stop.
 
@@ -46,7 +46,7 @@ Like shizuku-api, the runtime treats the Privileged Server Binder as a single pr
 
 `Privilege.getServerInfo()`, project-owned server control calls, and `PrivilegeBinderWrapper` resolve the server Binder through the same global connection. A missing or dead server on a project-owned control call is normalized to `PrivilegeServerUnavailableException`. `PrivilegeBinderWrapper` keeps raw transaction failures unchanged because a forwarded failure cannot reliably identify whether the target Binder or the Privileged Server died.
 
-`Privilege.getServerLifecycleBinder()` returns a dedicated Binder with no privileged interface or custom transactions. Its identity is stable for one Privileged Server process and changes when that server is replaced. Callers can pass it to another process that needs to release resources when the server dies, and must acquire it again after `Privilege.serverState` changes. The internal `IPrivilegeServer` control Binder remains hidden.
+`PrivilegeServerInfo.lifecycleBinder` is a dedicated Binder with no privileged interface or custom transactions. Each `PrivilegeServerInfo` snapshot receives its lifecycle Binder in the same handshake as the internal control Binder, so the metadata and token always identify the same server process. Its identity is stable for one Privileged Server process and changes when that server is replaced. Callers can pass it to another process that needs to release resources when the server dies, and must use the new snapshot after `Privilege.serverState` changes. The internal `IPrivilegeServer` control Binder remains hidden.
 
 Hosts can wrap a server-related or UserService Binder invocation with `PrivilegeBinderCall.orElse(...)`. Its fallback receives `PrivilegeBinderCallFailure.ServerUnavailable` for the normalized Privileged Server failure or `PrivilegeBinderCallFailure.BinderDied` for a directly called dead endpoint. Other exceptions propagate unchanged. A fallback means that the result is unknown; mutating calls are not retried automatically because the remote side may have completed the operation before dying.
 

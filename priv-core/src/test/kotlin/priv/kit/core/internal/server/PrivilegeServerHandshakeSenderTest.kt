@@ -5,6 +5,7 @@ import android.os.Bundle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,10 +28,12 @@ class PrivilegeServerHandshakeSenderTest {
         var providerArg: String? = "not-called"
         var sentCorrelationId: String? = null
         var ownerReconnect = true
+        var sentLifecycleBinder: android.os.IBinder? = null
+        val serverBinder = PrivilegeServerBinder(config)
 
         val result = PrivilegeServerHandshakeSender.send(
             config = config,
-            serverBinder = PrivilegeServerBinder(config),
+            serverBinder = serverBinder,
             origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
             providerCall = { _, _, arg, extras, _ ->
                 providerArg = arg
@@ -39,6 +42,9 @@ class PrivilegeServerHandshakeSenderTest {
                 )
                 ownerReconnect = extras.getBoolean(
                     PrivilegeHandshakeContract.EXTRA_OWNER_RECONNECT,
+                )
+                sentLifecycleBinder = extras.getBinder(
+                    PrivilegeHandshakeContract.EXTRA_SERVER_LIFECYCLE_BINDER,
                 )
                 Bundle().apply {
                     putBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, true)
@@ -60,6 +66,7 @@ class PrivilegeServerHandshakeSenderTest {
         assertNull(providerArg)
         assertEquals("launch-1", sentCorrelationId)
         assertFalse(ownerReconnect)
+        assertSame(serverBinder.lifecycleBinder, sentLifecycleBinder)
         assertNull(result.ownerConfig.launchCorrelationId)
     }
 

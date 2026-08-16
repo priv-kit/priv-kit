@@ -56,17 +56,17 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
             ?.getString(PrivilegeHandshakeContract.EXTRA_LAUNCH_CORRELATION_ID)
             ?.takeIf { !ownerReconnect && it.isNotBlank() }
         val serverBinder = extras?.getBinder(PrivilegeHandshakeContract.EXTRA_SERVER_BINDER)
+        val lifecycleBinder = extras?.getBinder(
+            PrivilegeHandshakeContract.EXTRA_SERVER_LIFECYCLE_BINDER,
+        )
+        val protocolVersion = extras?.protocolVersionOrNull()
         Log.i(
             TAG,
             "Handshake call received initial=${!ownerReconnect}, " +
                 "callingUid=$callingUid, callingPid=$callingPid, hasExtras=${extras != null}, " +
-                "hasBinder=${serverBinder != null}",
+                "hasBinder=${serverBinder != null}, hasLifecycleBinder=${lifecycleBinder != null}",
         )
-        val serverInfo = extras?.toServerInfo(
-            uid = callingUid,
-            pid = callingPid,
-        )
-        val protocolMatches = serverInfo?.matchesCurrentProtocol() == true
+        val protocolMatches = protocolVersion == PrivilegeProtocol.VERSION
         val classpathIdentityMatches = extras?.classpathIdentityMatches() == true
         val matchesCurrentRuntime = protocolMatches && classpathIdentityMatches
         val trustedCaller = isTrustedServerStarterCaller(callingUid)
@@ -75,11 +75,11 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
         } else {
             PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH
         }
-        if (serverInfo != null && trustedCaller && !matchesCurrentRuntime) {
+        if (protocolVersion != null && trustedCaller && !matchesCurrentRuntime) {
             Log.w(
                 TAG,
-                "Rejecting server mismatch protocol=${serverInfo.protocolVersion}, " +
-                "classpathIdentityMatches=$classpathIdentityMatches",
+                "Rejecting server mismatch protocol=$protocolVersion, " +
+                    "classpathIdentityMatches=$classpathIdentityMatches",
             )
         }
         val existingServerAlive =
@@ -87,10 +87,20 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
                 matchesCurrentRuntime &&
                 origin == PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH &&
                 Privilege.pingServer()
-        val accepted = if (trustedCaller && matchesCurrentRuntime && !existingServerAlive) {
+        val accepted = if (
+            trustedCaller &&
+            matchesCurrentRuntime &&
+            lifecycleBinder != null &&
+            !existingServerAlive
+        ) {
             PrivilegeServerHandshakeRegistry.deliverReady(
                 serverBinder = serverBinder,
-                serverInfo = serverInfo,
+                serverInfo = PrivilegeServerInfo(
+                    uid = callingUid,
+                    pid = callingPid,
+                    protocolVersion = protocolVersion,
+                    lifecycleBinder = lifecycleBinder,
+                ),
                 origin = origin,
                 launchCorrelationId = launchCorrelationId,
             )
@@ -99,7 +109,7 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
         }
         val replacementCommand = replacementCommandFor(
             trustedCaller = trustedCaller,
-            serverInfo = serverInfo,
+            protocolVersion = protocolVersion,
             matchesCurrentRuntime = matchesCurrentRuntime,
             launchCorrelationId = launchCorrelationId,
         )
@@ -186,16 +196,13 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
     ): Int = 0
 
-    private fun PrivilegeServerInfo.matchesCurrentProtocol(): Boolean =
-        protocolVersion == PrivilegeProtocol.VERSION
-
     private fun replacementCommandFor(
         trustedCaller: Boolean,
-        serverInfo: PrivilegeServerInfo?,
+        protocolVersion: Int?,
         matchesCurrentRuntime: Boolean,
         launchCorrelationId: String?,
     ): String? {
-        if (serverInfo == null || matchesCurrentRuntime) {
+        if (protocolVersion == null || matchesCurrentRuntime) {
             return null
         }
         if (!trustedCaller) {
@@ -222,20 +229,12 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
             ownerUid == callingUid
     }
 
-    private fun Bundle.toServerInfo(
-        uid: Int,
-        pid: Int,
-    ): PrivilegeServerInfo =
-        PrivilegeServerInfo(
-            uid = uid,
-            pid = pid,
-            protocolVersion = requireIntExtra(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION),
-        )
-
-    private fun Bundle.requireIntExtra(key: String): Int {
-        require(containsKey(key)) { "Handshake request is missing $key" }
-        return getInt(key)
-    }
+    private fun Bundle.protocolVersionOrNull(): Int? =
+        if (containsKey(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION)) {
+            getInt(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION)
+        } else {
+            null
+        }
 
     private companion object {
         private const val TAG = "PrivKit"

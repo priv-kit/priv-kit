@@ -149,6 +149,10 @@ Binder 支持只负责底层连接和 transaction：
 公开的 server lifecycle Binder 只作为跨进程 death token。它必须与内部
 `IPrivilegeServer` 控制 Binder 分离，不得附加业务 interface 或自定义 transaction；
 同一 server 进程内保持 Binder identity 稳定，server 替换后必须返回新 token。
+该 token 必须与控制 Binder 在同一次 handshake 中传递，并作为
+`PrivilegeServerInfo` 连接快照的一部分发布，不能通过后续 IPC 获取另一个时刻的 token。
+`PrivilegeServerInfo` 只能由 Core 根据已验证的 handshake 构造，并按对象 identity
+表示一次已接受的连接；它不是允许调用方复制或重组字段的 value/data class。
 
 唯一保留的 package permission 例外是 `Privilege.checkPermission(...)`、`Privilege.grantRuntimePermission(...)` 和 `Privilege.revokeRuntimePermission(...)` 三个无策略的 framework pass-through。它们不得扩展为权限组、批处理、app-ops、安装流程、设备选择、撤销原因或授权策略抽象。
 

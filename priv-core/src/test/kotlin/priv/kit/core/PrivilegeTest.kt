@@ -23,6 +23,7 @@ import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.core.PrivilegeProtocol
 import priv.kit.core.internal.core.PrivilegeServerHandshakeResult
 import priv.kit.core.testing.TestBinder
+import java.io.Closeable
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -34,6 +35,14 @@ class PrivilegeTest {
     @After
     fun clearServer() {
         runCatching { Privilege.shutdownServer() }
+        resetRuntimeConnectionListener()
+    }
+
+    private fun resetRuntimeConnectionListener() {
+        val field = Privilege::class.java.getDeclaredField("runtimeConnectionListener")
+            .apply { isAccessible = true }
+        (field.get(Privilege) as? Closeable)?.close()
+        field.set(Privilege, null)
     }
 
     @Test
@@ -79,48 +88,45 @@ class PrivilegeTest {
     }
 
     @Test
-    fun getServerLifecycleBinderWithoutServerThrowsDisconnectedException() {
-        assertThrows(PrivilegeServerUnavailableException::class.java) {
-            Privilege.getServerLifecycleBinder()
-        }
-    }
-
-    @Test
-    fun getServerLifecycleBinderReturnsStableDedicatedBinder() {
+    fun serverInfoExposesStableDedicatedLifecycleBinder() {
         val server = FakePrivilegeServer()
+        val lifecycleBinder = TestBinder()
         Privilege.connectHandshake(
             handshakeResult = PrivilegeServerHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = lifecycleBinder,
                 ),
                 serverBinder = server.asBinder(),
             ),
             startupLogListener = null,
         )
 
-        assertSame(server.expectedLifecycleBinder, Privilege.getServerLifecycleBinder())
-        assertSame(server.expectedLifecycleBinder, Privilege.getServerLifecycleBinder())
-        assertNotSame(server.asBinder(), Privilege.getServerLifecycleBinder())
+        assertSame(lifecycleBinder, Privilege.getServerInfo().lifecycleBinder)
+        assertSame(lifecycleBinder, Privilege.serverState.value?.lifecycleBinder)
+        assertNotSame(server.asBinder(), lifecycleBinder)
     }
 
     @Test
     fun replacementServerReturnsDifferentLifecycleBinder() {
         val firstServer = FakePrivilegeServer()
+        val firstLifecycleBinder = TestBinder()
         Privilege.connectHandshake(
             handshakeResult = PrivilegeServerHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = firstLifecycleBinder,
                 ),
                 serverBinder = firstServer.asBinder(),
             ),
             startupLogListener = null,
         )
-        val firstLifecycleBinder = Privilege.getServerLifecycleBinder()
         val replacementServer = FakePrivilegeServer()
+        val replacementLifecycleBinder = TestBinder()
 
         Privilege.connectHandshake(
             handshakeResult = PrivilegeServerHandshakeResult(
@@ -128,14 +134,15 @@ class PrivilegeTest {
                     uid = 2000,
                     pid = 5678,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = replacementLifecycleBinder,
                 ),
                 serverBinder = replacementServer.asBinder(),
             ),
             startupLogListener = null,
         )
 
-        assertSame(replacementServer.expectedLifecycleBinder, Privilege.getServerLifecycleBinder())
-        assertNotSame(firstLifecycleBinder, Privilege.getServerLifecycleBinder())
+        assertSame(replacementLifecycleBinder, Privilege.getServerInfo().lifecycleBinder)
+        assertNotSame(firstLifecycleBinder, Privilege.getServerInfo().lifecycleBinder)
     }
 
     @Test
@@ -174,6 +181,7 @@ class PrivilegeTest {
             uid = 2000,
             pid = 1234,
             protocolVersion = PrivilegeProtocol.VERSION,
+            lifecycleBinder = android.os.Binder(),
         )
         Privilege.connectHandshake(
             handshakeResult = PrivilegeServerHandshakeResult(
@@ -184,7 +192,7 @@ class PrivilegeTest {
         )
         server.killBinder()
 
-        assertEquals(serverInfo, Privilege.getServerInfo())
+        assertSame(serverInfo, Privilege.getServerInfo())
         assertFalse(Privilege.pingServer())
         assertThrows(PrivilegeServerUnavailableException::class.java) {
             Privilege.getServerInfo()
@@ -202,6 +210,7 @@ class PrivilegeTest {
                     uid = 2000,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
                 ),
                 serverBinder = server.asBinder(),
             ),
@@ -226,6 +235,7 @@ class PrivilegeTest {
                     uid = 2000,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
                 ),
                 serverBinder = server.asBinder(),
             ),
@@ -262,6 +272,7 @@ class PrivilegeTest {
                     uid = 2000,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
                 ),
                 serverBinder = server.asBinder(),
             ),
@@ -306,6 +317,7 @@ class PrivilegeTest {
                     uid = 2000,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
                 ),
                 serverBinder = oldServer.asBinder(),
             ),
@@ -336,6 +348,7 @@ class PrivilegeTest {
             uid = 2000,
             pid = 5678,
             protocolVersion = PrivilegeProtocol.VERSION,
+            lifecycleBinder = android.os.Binder(),
         )
         try {
             assertTrue(callEntered.await(5, TimeUnit.SECONDS))
@@ -355,7 +368,7 @@ class PrivilegeTest {
         assertNull(unexpected.get())
         assertEquals(PackageManager.PERMISSION_DENIED, result.get())
         assertTrue(failure.get() is PrivilegeBinderCallFailure.ServerUnavailable)
-        assertEquals(replacementInfo, Privilege.getServerInfo())
+        assertSame(replacementInfo, Privilege.getServerInfo())
     }
 
     @Test
@@ -368,6 +381,7 @@ class PrivilegeTest {
                     uid = 0,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
                 ),
                 serverBinder = oldServer.asBinder(),
             ),
@@ -379,6 +393,7 @@ class PrivilegeTest {
             uid = 2000,
             pid = 5678,
             protocolVersion = PrivilegeProtocol.VERSION,
+            lifecycleBinder = android.os.Binder(),
         )
         Privilege.connectHandshake(
             handshakeResult = PrivilegeServerHandshakeResult(
@@ -390,7 +405,7 @@ class PrivilegeTest {
 
         assertEquals(0, oldServer.deathRecipientCount)
         assertEquals(1, newServer.deathRecipientCount)
-        assertEquals(replacementInfo, Privilege.getServerInfo())
+        assertSame(replacementInfo, Privilege.getServerInfo())
     }
 
     @Test
@@ -404,6 +419,7 @@ class PrivilegeTest {
                     uid = 0,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
                 ),
                 serverBinder = server.asBinder(),
             ),
@@ -425,6 +441,7 @@ class PrivilegeTest {
                     uid = 1000,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
                 ),
                 serverBinder = grantedServer.asBinder(),
             ),
@@ -447,6 +464,7 @@ class PrivilegeTest {
                     uid = 2000,
                     pid = 5678,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
                 ),
                 serverBinder = deniedServer.asBinder(),
             ),
@@ -478,6 +496,7 @@ class PrivilegeTest {
                     uid = 2000,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
                 ),
                 serverBinder = server.asBinder(),
             ),
@@ -515,6 +534,7 @@ class PrivilegeTest {
                     uid = 2000,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
                 ),
                 serverBinder = server.asBinder(),
             ),
@@ -551,6 +571,7 @@ class PrivilegeTest {
                     uid = 2000,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
                 ),
                 serverBinder = server.asBinder(),
             ),
@@ -588,6 +609,7 @@ class PrivilegeTest {
                     uid = 2000,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
                 ),
                 server = server,
                 packageName = "test.package",
@@ -615,6 +637,7 @@ class PrivilegeTest {
                     uid = 0,
                     pid = 1234,
                     protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
                 ),
                 server = server,
                 packageName = "test.package",
@@ -641,7 +664,6 @@ class PrivilegeTest {
         private val checkServerPermissionCall: ((String) -> Int)? = null,
     ) : IPrivilegeServer {
         private val binder = TestBinder(localInterface = this)
-        val expectedLifecycleBinder: IBinder = TestBinder()
         val serverPermissionChecks = mutableListOf<String>()
         val packagePermissionChecks = mutableListOf<PackagePermissionCheck>()
         val runtimePermissionGrants = mutableListOf<RuntimePermissionGrant>()
@@ -658,8 +680,6 @@ class PrivilegeTest {
         override fun shutdown() = Unit
 
         override fun getUserServiceManager(): IBinder? = null
-
-        override fun getLifecycleBinder(): IBinder = expectedLifecycleBinder
 
         override fun hasSystemService(serviceName: String): Boolean = false
 

@@ -535,7 +535,7 @@ class PrivilegeUiRuntimeActionsTest {
                 assertTrue(shutdownStarted.await(2, TimeUnit.SECONDS))
 
                 actions.connectForTest(
-                    PrivilegeServerInfo(
+                    testServerInfo(
                         uid = 0,
                         pid = 5678,
                         protocolVersion = 1,
@@ -665,7 +665,7 @@ class PrivilegeUiRuntimeActionsTest {
                         startupSource = null,
                     ) {
                         attemptCount.incrementAndGet()
-                        PrivilegeServerInfo(
+                        testServerInfo(
                             uid = 0,
                             pid = 4321,
                             protocolVersion = 1,
@@ -714,7 +714,7 @@ class PrivilegeUiRuntimeActionsTest {
                         startupSource = null,
                     ) {
                         secondAttemptStarted.countDown()
-                        PrivilegeServerInfo(
+                        testServerInfo(
                             uid = 2000,
                             pid = 1234,
                             protocolVersion = 1,
@@ -1120,7 +1120,7 @@ class PrivilegeUiRuntimeActionsTest {
 
             actions.disconnectForTest()
             actions.connectForTest(
-                PrivilegeServerInfo(
+                testServerInfo(
                     uid = 0,
                     pid = 5678,
                     protocolVersion = 1,
@@ -1526,7 +1526,7 @@ class PrivilegeUiRuntimeActionsTest {
         updateState {
             it.copy(
                 runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
-                serverInfo = PrivilegeServerInfo(
+                serverInfo = testServerInfo(
                     uid = 2000,
                     pid = 1234,
                     protocolVersion = 1,
@@ -1565,7 +1565,7 @@ class PrivilegeUiRuntimeActionsTest {
     }
 
     private fun shellServerInfo(): PrivilegeServerInfo =
-        PrivilegeServerInfo(
+        testServerInfo(
             uid = 2000,
             pid = 1234,
             protocolVersion = 1,

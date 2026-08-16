@@ -38,7 +38,8 @@ val binder = PrivilegeBinderWrapper.fromSystemService(
 如果资源应当跟随当前 Privileged Server 进程，可以使用专用的服务端生命周期 Binder：
 
 ```kotlin
-val serverLifecycle = Privilege.getServerLifecycleBinder()
+val serverInfo = Privilege.getServerInfo()
+val serverLifecycle = serverInfo.lifecycleBinder
 serverLifecycle.linkToDeath(
     { Log.d("server", "Privileged Server 已退出") },
     0,
@@ -46,9 +47,10 @@ serverLifecycle.linkToDeath(
 ```
 
 这个 token 不提供特权操作或自定义 transaction。同一个服务端进程内，它的 Binder
-identity 保持不变；服务端被替换后，新服务端会返回不同的 token。应用应当在
-`Privilege.serverState` 变化后重新获取，不要跨连接缓存。服务端不存在或已经死亡时，
-该方法会抛出 `PrivilegeServerUnavailableException`。
+identity 保持不变；服务端被替换后，新服务端会返回不同的 token。它与
+`PrivilegeServerInfo` 的其他字段属于同一个服务端快照。应用应当在
+`Privilege.serverState` 变化后使用新值，不要跨连接缓存。服务端不存在或已经死亡时，
+`Privilege.getServerInfo()` 会抛出 `PrivilegeServerUnavailableException`。
 
 ## 处理调用失败 {#failure-semantics}
 

@@ -47,7 +47,7 @@ internal class PrivilegeServerBinder(
     private val permissionManager by lazy {
         getSystemService("permissionmgr")?.let(::CompatPermissionManager)
     }
-    private val lifecycleBinder: IBinder = Binder()
+    internal val lifecycleBinder: IBinder = Binder()
     private val systemServiceCache = HashMap<String, IBinder>()
 
     override fun getUserServiceManager(): IBinder = userServiceManager.value.asBinder()
@@ -103,8 +103,6 @@ internal class PrivilegeServerBinder(
             userId,
         ) ?: packageManager.revokeRuntimePermission(packageName, permissionName, userId)
     }
-
-    override fun getLifecycleBinder(): IBinder = lifecycleBinder
 
     override fun shutdown() {
         Log.i(TAG, "Shutdown requested by client")

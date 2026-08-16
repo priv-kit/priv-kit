@@ -26,6 +26,7 @@ import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartLease
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiConfig
+import priv.kit.ui.testServerInfo
 import priv.kit.ui.PrivilegeUiExternalStartProvider
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
 import priv.kit.ui.PrivilegeUiStartupMode
@@ -34,7 +35,7 @@ import priv.kit.ui.PrivilegeUiStartupMode
 @Config(sdk = [36])
 class PrivilegeUiSilentStartRunnerTest {
     private val context: Context = RuntimeEnvironment.getApplication()
-    private val serverInfo = PrivilegeServerInfo(uid = 2000, pid = 42, protocolVersion = 1)
+    private val serverInfo = testServerInfo(uid = 2000, pid = 42, protocolVersion = 1)
     private lateinit var runtimeStartLease: PrivilegeRuntimeStartLease
     private lateinit var clientLaunch: PrivilegeRuntimeClientLaunch
 

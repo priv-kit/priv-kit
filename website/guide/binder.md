@@ -41,7 +41,8 @@ release a resource when its owner exits. Use the dedicated server lifecycle
 Binder when that resource belongs to the current Privileged Server process:
 
 ```kotlin
-val serverLifecycle = Privilege.getServerLifecycleBinder()
+val serverInfo = Privilege.getServerInfo()
+val serverLifecycle = serverInfo.lifecycleBinder
 serverLifecycle.linkToDeath(
     { Log.d("server", "Privileged Server exited") },
     0,
@@ -50,9 +51,10 @@ serverLifecycle.linkToDeath(
 
 The token exposes no privileged operations or custom transactions. Its Binder
 identity remains stable for one server process and changes when the server is
-replaced. Acquire it again after `Privilege.serverState` changes instead of
-caching it across connections. A missing or dead server raises
-`PrivilegeServerUnavailableException`.
+replaced. It belongs to the same server snapshot as the other
+`PrivilegeServerInfo` fields. Use the new value after `Privilege.serverState`
+changes instead of caching it across connections. `Privilege.getServerInfo()`
+raises `PrivilegeServerUnavailableException` when no live server is connected.
 
 ## Understand failures {#failure-semantics}
 

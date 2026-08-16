@@ -20,9 +20,9 @@ class PrivilegeServerBinderTest {
             ),
         )
 
-        val lifecycleBinder = server.getLifecycleBinder()
+        val lifecycleBinder = server.lifecycleBinder
 
-        assertSame(lifecycleBinder, server.getLifecycleBinder())
+        assertSame(lifecycleBinder, server.lifecycleBinder)
         assertNotSame(server.asBinder(), lifecycleBinder)
         assertNull(
             lifecycleBinder.queryLocalInterface(
