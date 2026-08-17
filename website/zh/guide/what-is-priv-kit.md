@@ -6,7 +6,8 @@ description: 了解 Priv Kit 提供什么、为何采用应用自有运行时，
 
 Priv Kit 是面向 Android 的应用自有特权运行时。它让单个应用可以通过 Root、ADB、
 手动或外部授权器启动、连接并管理自己的 Privileged Server。连接成功后，
-应用可以访问 Binder 服务或运行自己的 UserService，业务逻辑仍由应用自己实现。
+应用可以访问 Binder 服务、使用内置文件代理或运行自己的 UserService，业务逻辑仍由
+应用自己实现。
 
 大多数应用应先使用 `priv-ui`。它提供 Compose 授权页面，并处理启动、授权和状态
 展示。
@@ -45,6 +46,12 @@ Priv Kit 可以按服务名获取系统服务并执行底层 Binder transaction�
 服务接口、定义每个 transaction 的调用格式，并处理调用失败。具体用法见
 [Binder 指南](./binder)。
 
+### 内置文件代理 {#file-proxy}
+
+基础的绝对路径文件操作可以直接在 Privileged Server 中执行，不需要应用定义
+UserService。文件内容通过真实文件描述符传递，目录项通过 pipe 流式返回。
+[文件代理指南](./file-proxy)说明了与 `java.io.File` 一致的返回语义和明确的安全边界。
+
 ### 应用自定义 UserService {#user-service}
 
 如果直接执行 Binder transaction 不方便，应用可以定义自己的 AIDL 接口和特权
@@ -66,6 +73,7 @@ Priv Kit 只管理当前应用自己的服务，不在多个应用之间共享�
 - 按照[快速接入](./getting-started)添加 `priv-ui` 并嵌入授权页面。
 - 在 [Privilege UI](./priv-ui) 中配置自带的前台与静默流程。
 - 只有使用 `priv-core` 构建自定义界面时，才阅读[启动方式](./activation)。
-- 选择 [Binder](./binder) 执行底层 Binder transaction，或选择
+- 选择[文件代理](./file-proxy)执行基础文件操作、选择 [Binder](./binder) 执行底层
+  Binder transaction，或选择
   [UserService](./user-service) 运行应用自定义 AIDL 服务。
 - 在 [GitHub](https://github.com/priv-kit/priv-kit) 浏览源码或反馈问题。

@@ -44,7 +44,10 @@ class MainActivity : ComponentActivity() {
                     selectedDebugDestination = debugViewModel.selectedDebugDestination,
                     selectedStartupTab = debugViewModel.selectedStartupTab,
                     onOpenDebug = viewModel::openDebug,
+                    onOpenDeviceFiles = viewModel::openDeviceFiles,
+                    onOpenFileApi = viewModel::openFileApi,
                     onOpenPrivilegeUi = viewModel::openPrivilegeUi,
+                    onBackToHome = viewModel::navigateBack,
                     onDebugStarted = debugController::initialize,
                     onDebugStopped = debugController::dispose,
                     debugCallbacks = debugController.createCallbacks(

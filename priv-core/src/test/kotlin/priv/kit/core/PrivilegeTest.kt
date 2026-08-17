@@ -21,8 +21,8 @@ import priv.kit.core.binder.PrivilegeServerUnavailableException
 import priv.kit.core.internal.core.PrivilegeAndroidUsers
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.core.PrivilegeProtocol
-import priv.kit.core.internal.core.PrivilegeServerHandshakeResult
 import priv.kit.core.testing.TestBinder
+import priv.kit.core.testing.testHandshakeResult
 import java.io.Closeable
 import java.io.File
 import java.util.concurrent.CountDownLatch
@@ -92,7 +92,7 @@ class PrivilegeTest {
         val server = FakePrivilegeServer()
         val lifecycleBinder = TestBinder()
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -114,7 +114,7 @@ class PrivilegeTest {
         val firstServer = FakePrivilegeServer()
         val firstLifecycleBinder = TestBinder()
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -129,7 +129,7 @@ class PrivilegeTest {
         val replacementLifecycleBinder = TestBinder()
 
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 5678,
@@ -184,7 +184,7 @@ class PrivilegeTest {
             lifecycleBinder = android.os.Binder(),
         )
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = serverInfo,
                 serverBinder = server.asBinder(),
             ),
@@ -205,7 +205,7 @@ class PrivilegeTest {
             permissionResult = PackageManager.PERMISSION_GRANTED,
         )
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -230,7 +230,7 @@ class PrivilegeTest {
             checkServerPermissionCall = { throw deadObjectException },
         )
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -267,7 +267,7 @@ class PrivilegeTest {
             checkServerPermissionCall = { throw remoteException },
         )
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -312,7 +312,7 @@ class PrivilegeTest {
             },
         )
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -353,7 +353,7 @@ class PrivilegeTest {
         try {
             assertTrue(callEntered.await(5, TimeUnit.SECONDS))
             Privilege.connectHandshake(
-                handshakeResult = PrivilegeServerHandshakeResult(
+                handshakeResult = testHandshakeResult(
                     serverInfo = replacementInfo,
                     serverBinder = FakePrivilegeServer().asBinder(),
                 ),
@@ -376,7 +376,7 @@ class PrivilegeTest {
         val oldServer = FakePrivilegeServer()
         val newServer = FakePrivilegeServer()
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 0,
                     pid = 1234,
@@ -396,7 +396,7 @@ class PrivilegeTest {
             lifecycleBinder = android.os.Binder(),
         )
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = replacementInfo,
                 serverBinder = newServer.asBinder(),
             ),
@@ -414,7 +414,7 @@ class PrivilegeTest {
             permissionResult = PackageManager.PERMISSION_DENIED,
         )
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 0,
                     pid = 1234,
@@ -436,7 +436,7 @@ class PrivilegeTest {
             permissionResult = PackageManager.PERMISSION_GRANTED,
         )
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 1000,
                     pid = 1234,
@@ -459,7 +459,7 @@ class PrivilegeTest {
             permissionResult = PackageManager.PERMISSION_DENIED,
         )
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 5678,
@@ -491,7 +491,7 @@ class PrivilegeTest {
             permissionResult = PackageManager.PERMISSION_GRANTED,
         )
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -529,7 +529,7 @@ class PrivilegeTest {
             permissionResult = PackageManager.PERMISSION_DENIED,
         )
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -566,7 +566,7 @@ class PrivilegeTest {
             permissionResult = PackageManager.PERMISSION_DENIED,
         )
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -678,8 +678,6 @@ class PrivilegeTest {
         override fun asBinder(): IBinder = binder
 
         override fun shutdown() = Unit
-
-        override fun getUserServiceManager(): IBinder? = null
 
         override fun hasSystemService(serviceName: String): Boolean = false
 

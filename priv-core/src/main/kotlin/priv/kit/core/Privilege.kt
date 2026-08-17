@@ -7,7 +7,6 @@ import android.os.IBinder
 import android.os.Process
 import android.os.RemoteException
 import android.util.Log
-import androidx.annotation.WorkerThread
 import priv.kit.core.adb.PrivilegeAdbIdentity
 import priv.kit.core.adb.PrivilegeAdbConnectionOptions
 import priv.kit.core.adb.PrivilegeAdbStartResult
@@ -19,6 +18,8 @@ import priv.kit.core.internal.core.PrivilegeProtocol
 import priv.kit.core.internal.core.PrivilegePendingHandshake
 import priv.kit.core.internal.core.PrivilegeServerHandshakeRegistry
 import priv.kit.core.internal.core.PrivilegeServerHandshakeResult
+import priv.kit.core.file.PrivilegeFile
+import priv.kit.core.internal.file.IPrivilegeFileSystem
 import priv.kit.core.internal.runtime.PrivilegeRootProcess
 import priv.kit.core.internal.runtime.PrivilegeRootStarter
 import priv.kit.core.internal.runtime.PrivilegeStarterContract
@@ -66,7 +67,10 @@ public object Privilege {
         mutableServerConnectionEvents.asSharedFlow()
     private val runtimeConnectionListenerLock = Any()
     private var runtimeConnectionListener: Closeable? = null
-    private val userServiceClient = PrivilegeUserServiceClient(::getUserServiceManagerBinder)
+    private val userServiceClient = PrivilegeUserServiceClient(::requireUserServiceManagerBinder)
+
+    /** Creates an absolute file handle whose I/O runs in the connected Privileged Server. */
+    public fun file(absolutePath: String): PrivilegeFile = PrivilegeFile(absolutePath)
 
     @Throws(PrivilegeStartupException::class)
     public suspend fun startRoot(
@@ -100,7 +104,7 @@ public object Privilege {
             startupLogListener.emitStartupLog("runtime", "Waiting for Privileged Server handshake")
             val handshakeResult = awaitRootHandshakeOrStarterExit(
                 pendingHandshake = pendingHandshake,
-                rootProcess = checkNotNull(rootProcess),
+                rootProcess = rootProcess,
                 timeoutMillis = timeoutMillis,
             )
             startupLogListener.emitStartupLog("runtime", "Privileged Server handshake received")
@@ -164,7 +168,6 @@ public object Privilege {
      * machine. The starter only runs as root (UID 0), system (UID 1000), or shell (UID 2000).
      */
     @get:Throws(PrivilegeStartupException::class)
-    @get:WorkerThread
     public val nativeStarterCommand: String by lazy {
         PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
             baseNativeStarterCommand = baseNativeStarterCommand,
@@ -379,8 +382,7 @@ public object Privilege {
         startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeServerInfo =
         connectServer(
-            serverBinder = handshakeResult.serverBinder,
-            serverInfo = handshakeResult.serverInfo,
+            handshakeResult = handshakeResult,
             startupLogListener = startupLogListener,
         )
 
@@ -422,12 +424,17 @@ public object Privilege {
 
     @Throws(PrivilegeStartupException::class)
     private fun connectServer(
-        serverBinder: IBinder,
-        serverInfo: PrivilegeServerInfo,
+        handshakeResult: PrivilegeServerHandshakeResult,
         startupLogListener: PrivilegeStartupLogListener?,
     ): PrivilegeServerInfo {
-        val server = IPrivilegeServer.Stub.asInterface(serverBinder)
+        val server = IPrivilegeServer.Stub.asInterface(handshakeResult.serverBinder)
             ?: throw PrivilegeStartupException("Privileged Server returned an invalid Binder")
+        val serviceEndpoints = handshakeResult.serviceEndpoints
+        val fileSystem = IPrivilegeFileSystem.Stub.asInterface(serviceEndpoints.fileSystemBinder)
+            ?: throw PrivilegeStartupException(
+                "Privileged Server returned an invalid file-system Binder",
+            )
+        val serverInfo = handshakeResult.serverInfo
 
         if (!serverInfo.matchesCurrentRuntime()) {
             throw PrivilegeStartupException(
@@ -437,7 +444,14 @@ public object Privilege {
         }
 
         grantOwnerStartupPermissions(serverInfo, server, startupLogListener)
-        return installCurrentServer(serverInfo, server)
+        return installCurrentServer(
+            serverInfo = serverInfo,
+            server = server,
+            serviceEndpoints = ConnectedServiceEndpoints(
+                fileSystem = fileSystem,
+                userServiceManagerBinder = serviceEndpoints.userServiceManagerBinder,
+            ),
+        )
     }
 
     private fun grantOwnerStartupPermissions(
@@ -509,6 +523,7 @@ public object Privilege {
     private fun installCurrentServer(
         serverInfo: PrivilegeServerInfo,
         server: IPrivilegeServer,
+        serviceEndpoints: ConnectedServiceEndpoints,
     ): PrivilegeServerInfo {
         val binder = server.asBinder()
         var previous: ServerConnection? = null
@@ -535,6 +550,7 @@ public object Privilege {
             val newConnection = ServerConnection(
                 serverInfo = serverInfo,
                 server = server,
+                serviceEndpoints = serviceEndpoints,
                 deathRecipient = deathRecipient,
             )
             if (!binder.pingBinder()) {
@@ -564,12 +580,24 @@ public object Privilege {
     internal fun <T> callServer(block: (IPrivilegeServer) -> T): T =
         callServer(requireServerConnection(), block)
 
+    internal fun <T> callFileSystem(block: (IPrivilegeFileSystem) -> T): T =
+        callConnection(requireServerConnection()) { connection ->
+            block(connection.serviceEndpoints.fileSystem)
+        }
+
     private fun <T> callServer(
         connection: ServerConnection,
         block: (IPrivilegeServer) -> T,
+    ): T = callConnection(connection) { current ->
+        block(current.server)
+    }
+
+    private fun <T> callConnection(
+        connection: ServerConnection,
+        block: (ServerConnection) -> T,
     ): T =
         try {
-            block(connection.server)
+            block(connection)
         } catch (exception: RemoteException) {
             val unavailable =
                 exception is DeadObjectException ||
@@ -579,10 +607,8 @@ public object Privilege {
             serverUnavailable(exception)
         }
 
-    private fun getUserServiceManagerBinder(): IBinder =
-        callServer { server ->
-            server.getUserServiceManager()
-        } ?: serverUnavailable(cause = null)
+    private fun requireUserServiceManagerBinder(): IBinder =
+        requireServerConnection().serviceEndpoints.userServiceManagerBinder
 
     internal fun runtimeConfig(): PrivilegeConfigSnapshot =
         PrivilegeConfig.snapshot()
@@ -687,6 +713,7 @@ public object Privilege {
     private data class ServerConnection(
         val serverInfo: PrivilegeServerInfo,
         val server: IPrivilegeServer,
+        val serviceEndpoints: ConnectedServiceEndpoints,
         val deathRecipient: IBinder.DeathRecipient,
     ) {
         fun unlink() {
@@ -696,6 +723,11 @@ public object Privilege {
             }
         }
     }
+
+    private data class ConnectedServiceEndpoints(
+        val fileSystem: IPrivilegeFileSystem,
+        val userServiceManagerBinder: IBinder,
+    )
 }
 
 internal fun rootServerLaunchMayHaveCompleted(

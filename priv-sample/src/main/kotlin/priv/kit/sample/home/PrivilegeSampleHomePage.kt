@@ -32,6 +32,8 @@ internal fun PrivilegeSampleHomePage(
     serverRunning: Boolean,
     onOpenPrivilegeUi: () -> Unit,
     onOpenDebug: () -> Unit,
+    onOpenDeviceFiles: () -> Unit,
+    onOpenFileApi: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     Scaffold(
@@ -76,6 +78,18 @@ internal fun PrivilegeSampleHomePage(
                 onClick = onOpenDebug,
             ) {
                 Text("Open Debug Tools")
+            }
+            FilledTonalButton(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onOpenFileApi,
+            ) {
+                Text("Test File API")
+            }
+            FilledTonalButton(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onOpenDeviceFiles,
+            ) {
+                Text("Browse Device Files")
             }
         }
     }

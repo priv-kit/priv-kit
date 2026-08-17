@@ -13,6 +13,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
+import priv.kit.core.internal.core.PrivilegeServerServiceEndpoints
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -29,6 +30,7 @@ class PrivilegeServerHandshakeSenderTest {
         var sentCorrelationId: String? = null
         var ownerReconnect = true
         var sentLifecycleBinder: android.os.IBinder? = null
+        var sentServiceEndpoints: PrivilegeServerServiceEndpoints? = null
         val serverBinder = PrivilegeServerBinder(config)
 
         val result = PrivilegeServerHandshakeSender.send(
@@ -46,6 +48,7 @@ class PrivilegeServerHandshakeSenderTest {
                 sentLifecycleBinder = extras.getBinder(
                     PrivilegeHandshakeContract.EXTRA_SERVER_LIFECYCLE_BINDER,
                 )
+                sentServiceEndpoints = PrivilegeHandshakeContract.serviceEndpointsOrNull(extras)
                 Bundle().apply {
                     putBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, true)
                     putBinder(PrivilegeHandshakeContract.RESULT_OWNER_BINDER, ownerBinder)
@@ -67,6 +70,14 @@ class PrivilegeServerHandshakeSenderTest {
         assertEquals("launch-1", sentCorrelationId)
         assertFalse(ownerReconnect)
         assertSame(serverBinder.lifecycleBinder, sentLifecycleBinder)
+        assertSame(
+            serverBinder.serviceEndpoints.fileSystemBinder,
+            sentServiceEndpoints?.fileSystemBinder,
+        )
+        assertSame(
+            serverBinder.serviceEndpoints.userServiceManagerBinder,
+            sentServiceEndpoints?.userServiceManagerBinder,
+        )
         assertNull(result.ownerConfig.launchCorrelationId)
     }
 

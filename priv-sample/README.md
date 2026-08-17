@@ -18,7 +18,10 @@ Source packages:
 
 - `priv.kit.sample` contains the app entry point, root navigation, and app-wide theme.
 - `priv.kit.sample.common` contains the small diagnostic formatter shared by Debug and Startup integrations.
-- `priv.kit.sample.home` contains the Home page that opens Privilege UI or Debug Tools.
+- `priv.kit.sample.home` contains the Home page that opens Privilege UI, Debug Tools, File API
+  tests, or the device-file browser.
+- `priv.kit.sample.file` contains the File API test page, its isolated smoke-test actions, and a
+  read-only device-file browser with bounded text and hexadecimal previews.
 - `priv.kit.sample.debug` contains the Connection, Binder, and UserService debug pages together with their state, ViewModel, callbacks, runtime actions, lifecycle controller, and hidden-API probes.
 - `priv.kit.sample.userservice` contains the app-owned UserService implementations, shared state, and AIDL contracts.
 - `priv.kit.sample.startup` contains the `priv-ui` page, configuration, ViewModel, automatic recovery, notification-pairing integration, and the app-owned Shizuku external-start bridge with its AIDL contract.
@@ -29,7 +32,15 @@ Phase 1 contents:
 
 - A Compose-only sample surface backed by a root-navigation `PrivilegeSampleViewModel`, a feature-scoped `PrivilegeSampleDebugViewModel`, and Navigation 3.
 - A Material 3 theme that follows the system light or dark mode, including the embedded `priv-ui` authorization page.
-- A Home page with a primary Privilege UI destination and a secondary Debug Tools destination.
+- A Home page with Privilege UI, Debug Tools, File API test, and device-file browser destinations.
+- A read-only device-file browser that starts at `/`, supports direct absolute-directory entry,
+  parent navigation, refresh, directory-first sorting, and bounded text or hexadecimal previews
+  for regular files. Names remain visible when the server identity can enumerate an entry but
+  cannot read its metadata; those rows are marked as unavailable and re-probed when selected.
+- A File API page for inspecting paths and exercising `mkdir`, `mkdirs`, create, stream
+  write/append/read, metadata, rename, errno-preserving atomic replacement, directory scan, and
+  non-recursive cleanup against a configurable absolute test directory, with copy support for the
+  operation log.
 - Three pages inside Debug Tools: `Test Authorization`, `Test Binder`, and `Test UserService`.
 - Each page uses a Material 3 `Scaffold` container with a vertically scrolling `Column` content area.
 - Authorization tests are split into independent Root, manual shell, Shizuku-backed shell start, Wireless ADB, TCP mode, and session-log tabs.

@@ -21,7 +21,7 @@ class PrivilegeServerHandshakeRegistryTest {
         val serverInfo = serverInfo(pid = 1234)
 
         assertTrue(
-            PrivilegeServerHandshakeRegistry.deliverReady(
+            deliverReady(
                 serverBinder = binder,
                 serverInfo = serverInfo,
                 origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
@@ -51,7 +51,7 @@ class PrivilegeServerHandshakeRegistryTest {
 
         try {
             assertTrue(
-                PrivilegeServerHandshakeRegistry.deliverReady(
+                deliverReady(
                     serverBinder = fakeBinder(),
                     serverInfo = serverInfo(pid = 1234),
                     origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
@@ -75,7 +75,7 @@ class PrivilegeServerHandshakeRegistryTest {
 
         try {
             assertTrue(
-                PrivilegeServerHandshakeRegistry.deliverReady(
+                deliverReady(
                     serverBinder = binder,
                     serverInfo = serverInfo(pid = 1234),
                     origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
@@ -96,7 +96,7 @@ class PrivilegeServerHandshakeRegistryTest {
 
         try {
             assertTrue(
-                PrivilegeServerHandshakeRegistry.deliverReady(
+                deliverReady(
                     serverBinder = fakeBinder(),
                     serverInfo = serverInfo(pid = 1234),
                     origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
@@ -105,7 +105,7 @@ class PrivilegeServerHandshakeRegistryTest {
             )
             installReady = true
             assertTrue(
-                PrivilegeServerHandshakeRegistry.deliverReady(
+                deliverReady(
                     serverBinder = fakeBinder(),
                     serverInfo = serverInfo(pid = 5678),
                     origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
@@ -129,7 +129,7 @@ class PrivilegeServerHandshakeRegistryTest {
         )
 
         assertTrue(
-            PrivilegeServerHandshakeRegistry.deliverReady(
+            deliverReady(
                 serverBinder = reconnectBinder,
                 serverInfo = serverInfo(pid = 1234),
                 origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
@@ -143,7 +143,7 @@ class PrivilegeServerHandshakeRegistryTest {
         assertEquals(PrivilegeServerHandshakeOrigin.OWNER_RECONNECT, reconnect?.origin)
 
         assertTrue(
-            PrivilegeServerHandshakeRegistry.deliverReady(
+            deliverReady(
                 serverBinder = initialLaunchBinder,
                 serverInfo = serverInfo(pid = 5678),
                 origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
@@ -165,7 +165,7 @@ class PrivilegeServerHandshakeRegistryTest {
         val reconnectBinder = fakeBinder()
 
         assertTrue(
-            PrivilegeServerHandshakeRegistry.deliverReady(
+            deliverReady(
                 serverBinder = reconnectBinder,
                 serverInfo = serverInfo(pid = 1234),
                 origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
@@ -183,7 +183,7 @@ class PrivilegeServerHandshakeRegistryTest {
 
         val initialLaunchBinder = fakeBinder()
         assertTrue(
-            PrivilegeServerHandshakeRegistry.deliverReady(
+            deliverReady(
                 serverBinder = initialLaunchBinder,
                 serverInfo = serverInfo(pid = 5678),
                 origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
@@ -208,7 +208,7 @@ class PrivilegeServerHandshakeRegistryTest {
         val differentBinder = fakeBinder()
 
         assertTrue(
-            PrivilegeServerHandshakeRegistry.deliverReady(
+            deliverReady(
                 serverBinder = differentBinder,
                 serverInfo = serverInfo(pid = 1234),
                 origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
@@ -218,7 +218,7 @@ class PrivilegeServerHandshakeRegistryTest {
 
         val expectedBinder = fakeBinder()
         assertTrue(
-            PrivilegeServerHandshakeRegistry.deliverReady(
+            deliverReady(
                 serverBinder = expectedBinder,
                 serverInfo = serverInfo(pid = 5678),
                 origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
@@ -245,7 +245,7 @@ class PrivilegeServerHandshakeRegistryTest {
         )
 
         assertTrue(
-            PrivilegeServerHandshakeRegistry.deliverReady(
+            deliverReady(
                 serverBinder = firstBinder,
                 serverInfo = serverInfo(pid = 1234),
                 origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
@@ -253,7 +253,7 @@ class PrivilegeServerHandshakeRegistryTest {
             ),
         )
         assertFalse(
-            PrivilegeServerHandshakeRegistry.deliverReady(
+            deliverReady(
                 serverBinder = duplicateBinder,
                 serverInfo = serverInfo(pid = 5678),
                 origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
@@ -280,7 +280,7 @@ class PrivilegeServerHandshakeRegistryTest {
 
         try {
             assertTrue(
-                PrivilegeServerHandshakeRegistry.deliverReady(
+                deliverReady(
                     serverBinder = binder,
                     serverInfo = serverInfo(pid = 1234),
                     origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
@@ -313,7 +313,7 @@ class PrivilegeServerHandshakeRegistryTest {
 
         try {
             assertTrue(
-                PrivilegeServerHandshakeRegistry.deliverReady(
+                deliverReady(
                     serverBinder = fakeBinder(),
                     serverInfo = serverInfo(pid = 1234),
                     origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
@@ -349,7 +349,7 @@ class PrivilegeServerHandshakeRegistryTest {
             assertFalse(PrivilegeServerHandshakeRegistry.cancel(launchCorrelationId))
 
             assertTrue(
-                PrivilegeServerHandshakeRegistry.deliverReady(
+                deliverReady(
                     serverBinder = binder,
                     serverInfo = serverInfo(pid = 1234),
                     origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
@@ -363,6 +363,23 @@ class PrivilegeServerHandshakeRegistryTest {
             listener.close()
         }
     }
+
+    private fun deliverReady(
+        serverBinder: IBinder?,
+        serverInfo: PrivilegeServerInfo,
+        origin: PrivilegeServerHandshakeOrigin,
+        launchCorrelationId: String?,
+    ): Boolean =
+        PrivilegeServerHandshakeRegistry.deliverReady(
+            serverBinder = serverBinder,
+            serviceEndpoints = PrivilegeServerServiceEndpoints(
+                fileSystemBinder = fakeBinder(),
+                userServiceManagerBinder = fakeBinder(),
+            ),
+            serverInfo = serverInfo,
+            origin = origin,
+            launchCorrelationId = launchCorrelationId,
+        )
 
     private fun newCorrelationId(): String =
         "launch-${System.nanoTime()}"

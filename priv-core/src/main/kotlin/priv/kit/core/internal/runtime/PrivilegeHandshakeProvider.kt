@@ -59,12 +59,14 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
         val lifecycleBinder = extras?.getBinder(
             PrivilegeHandshakeContract.EXTRA_SERVER_LIFECYCLE_BINDER,
         )
+        val serviceEndpoints = extras?.let(PrivilegeHandshakeContract::serviceEndpointsOrNull)
         val protocolVersion = extras?.protocolVersionOrNull()
         Log.i(
             TAG,
             "Handshake call received initial=${!ownerReconnect}, " +
                 "callingUid=$callingUid, callingPid=$callingPid, hasExtras=${extras != null}, " +
-                "hasBinder=${serverBinder != null}, hasLifecycleBinder=${lifecycleBinder != null}",
+                "hasBinder=${serverBinder != null}, hasLifecycleBinder=${lifecycleBinder != null}, " +
+                "hasServiceEndpoints=${serviceEndpoints != null}",
         )
         val protocolMatches = protocolVersion == PrivilegeProtocol.VERSION
         val classpathIdentityMatches = extras?.classpathIdentityMatches() == true
@@ -91,10 +93,12 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
             trustedCaller &&
             matchesCurrentRuntime &&
             lifecycleBinder != null &&
+            serviceEndpoints != null &&
             !existingServerAlive
         ) {
             PrivilegeServerHandshakeRegistry.deliverReady(
                 serverBinder = serverBinder,
+                serviceEndpoints = serviceEndpoints,
                 serverInfo = PrivilegeServerInfo(
                     uid = callingUid,
                     pid = callingPid,

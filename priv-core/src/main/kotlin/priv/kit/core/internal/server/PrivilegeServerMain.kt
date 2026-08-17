@@ -45,7 +45,7 @@ public object PrivilegeServerMain {
             Log.i(TAG, "Owner process died before server state was ready; exiting Privileged Server")
             exitServer(0)
         }
-        state.serverBinder.destroyUserServicesOnOwnerDeath()
+        state.serverBinder.releaseOwnerResourcesOnDeath()
         scheduleOwnerReconnect(state, "Owner process died")
     }
 

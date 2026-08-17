@@ -7,13 +7,13 @@ description: 将 Priv Kit 接入 Android 应用，并启动第一个应用自有
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.priv-kit/priv-core.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.priv-kit/priv-core)
 
 Priv Kit 支持 Android API 26 及以上版本。它为单个应用提供启动、连接并使用
-自有 Privileged Server 的基础能力。应用可以通过 Binder 或自己的 UserService
-实现特权功能。
+自有 Privileged Server 的基础能力。应用可以使用内置文件代理、通过 Binder 或
+自己的 UserService 实现特权功能。
 
 ## 添加依赖 {#add-dependencies}
 
 优先使用 `priv-ui`。它提供 Compose 授权页面，并通过传递依赖公开 `priv-core`，
-应用只声明这一个模块即可使用运行时、Binder 和 UserService API。
+应用只声明这一个模块即可使用运行时、文件代理、Binder 和 UserService API。
 
 ```kotlin
 dependencies {
@@ -107,6 +107,7 @@ val adbServer = Privilege.startAdb()
 ## 选择使用方式 {#usage-mode}
 
 - 使用 [Binder](./binder) 访问系统服务或执行底层 Binder 调用。
+- 使用[文件代理](./file-proxy)执行基础的绝对路径文件操作，无需定义 UserService。
 - 使用 [UserService](./user-service) 运行应用自定义 AIDL 服务。
 - 使用 [Privilege UI](./priv-ui) 接入自带授权页面。
 - 需要用 `priv-core` 替换该页面时阅读[启动方式](./activation)。

@@ -1,6 +1,7 @@
 package priv.kit.core.internal.core
 
 import android.net.Uri
+import android.os.Bundle
 import java.io.File
 
 internal object PrivilegeHandshakeContract {
@@ -8,6 +9,7 @@ internal object PrivilegeHandshakeContract {
 
     const val EXTRA_SERVER_BINDER: String = "privilege_server_binder"
     const val EXTRA_SERVER_LIFECYCLE_BINDER: String = "privilege_server_lifecycle_binder"
+    const val EXTRA_SERVER_SERVICE_ENDPOINTS: String = "privilege_server_service_endpoints"
     const val EXTRA_PROTOCOL_VERSION: String = "privilege_protocol_version"
     const val EXTRA_CLASSPATH_IDENTITY: String = "privilege_classpath_identity"
     const val EXTRA_FOLLOW_DEATH_DELAY_MILLIS: String = "privilege_follow_death_delay_millis"
@@ -21,6 +23,37 @@ internal object PrivilegeHandshakeContract {
     const val RESULT_ACCEPTED: String = "privilege_accepted"
     const val RESULT_OWNER_BINDER: String = "privilege_owner_binder"
     const val RESULT_REPLACEMENT_COMMAND: String = "privilege_replacement_command"
+
+    private const val SERVICE_ENDPOINT_FILE_SYSTEM_BINDER: String =
+        "privilege_file_system_binder"
+    private const val SERVICE_ENDPOINT_USER_SERVICE_MANAGER_BINDER: String =
+        "privilege_user_service_manager_binder"
+
+    fun putServiceEndpoints(
+        extras: Bundle,
+        endpoints: PrivilegeServerServiceEndpoints,
+    ) {
+        val endpointExtras = Bundle().apply {
+            putBinder(SERVICE_ENDPOINT_FILE_SYSTEM_BINDER, endpoints.fileSystemBinder)
+            putBinder(
+                SERVICE_ENDPOINT_USER_SERVICE_MANAGER_BINDER,
+                endpoints.userServiceManagerBinder,
+            )
+        }
+        extras.putBundle(EXTRA_SERVER_SERVICE_ENDPOINTS, endpointExtras)
+    }
+
+    fun serviceEndpointsOrNull(extras: Bundle): PrivilegeServerServiceEndpoints? {
+        val endpointExtras = extras.getBundle(EXTRA_SERVER_SERVICE_ENDPOINTS) ?: return null
+        val fileSystemBinder =
+            endpointExtras.getBinder(SERVICE_ENDPOINT_FILE_SYSTEM_BINDER) ?: return null
+        val userServiceManagerBinder =
+            endpointExtras.getBinder(SERVICE_ENDPOINT_USER_SERVICE_MANAGER_BINDER) ?: return null
+        return PrivilegeServerServiceEndpoints(
+            fileSystemBinder = fileSystemBinder,
+            userServiceManagerBinder = userServiceManagerBinder,
+        )
+    }
 
     fun providerAuthority(packageName: String): String = "$packageName.privilege.handshake"
 

@@ -32,10 +32,32 @@ jobs:
 
       - run: ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache
 
+      - name: Build sample APK
+        run: ./gradlew :priv-sample:assembleRelease --no-configuration-cache
+
       - uses: actions/create-release@v1
+        id: create_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name }}
           release_name: Release ${{ github.ref_name }}
           body_path: ./CHANGELOG.md
+
+      - uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./priv-sample/build/outputs/apk/legacy/release/priv-sample-legacy-release.apk
+          asset_name: priv-sample-legacy-${{ github.ref_name }}.apk
+          asset_content_type: application/vnd.android.package-archive
+
+      - uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./priv-sample/build/outputs/apk/api29/release/priv-sample-api29-release.apk
+          asset_name: priv-sample-api29-${{ github.ref_name }}.apk
+          asset_content_type: application/vnd.android.package-archive

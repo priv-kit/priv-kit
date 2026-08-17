@@ -19,6 +19,7 @@ const englishSidebar = [
     text: 'Use the runtime',
     items: [
       { text: 'Binder', link: '/guide/binder' },
+      { text: 'File proxy', link: '/guide/file-proxy' },
       { text: 'UserService', link: '/guide/user-service' },
     ],
   },
@@ -38,6 +39,7 @@ const chineseSidebar = [
     text: '使用',
     items: [
       { text: 'Binder', link: '/zh/guide/binder' },
+      { text: '文件代理', link: '/zh/guide/file-proxy' },
       { text: 'UserService', link: '/zh/guide/user-service' },
     ],
   },

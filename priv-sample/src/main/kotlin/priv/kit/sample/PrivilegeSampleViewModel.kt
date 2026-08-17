@@ -25,6 +25,14 @@ internal class PrivilegeSampleViewModel : ViewModel() {
         openRootDestination(PrivilegeSampleRootDestination.PrivilegeUi)
     }
 
+    fun openFileApi() {
+        openRootDestination(PrivilegeSampleRootDestination.FileApi)
+    }
+
+    fun openDeviceFiles() {
+        openRootDestination(PrivilegeSampleRootDestination.DeviceFiles)
+    }
+
     fun navigateBack() {
         if (backStack.size > 1) {
             backStack.removeAt(backStack.lastIndex)

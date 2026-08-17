@@ -1,0 +1,552 @@
+package priv.kit.core.internal.file
+
+import android.os.ParcelFileDescriptor
+import android.system.ErrnoException
+import android.system.Os
+import android.system.OsConstants
+import java.io.BufferedOutputStream
+import java.io.Closeable
+import java.io.DataOutputStream
+import java.io.File
+import java.io.FileDescriptor
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.IOException
+import java.nio.file.AccessDeniedException
+import java.nio.file.DirectoryIteratorException
+import java.nio.file.Files
+import java.nio.file.NoSuchFileException
+import java.nio.file.NotDirectoryException
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.Semaphore
+import java.util.concurrent.SynchronousQueue
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import priv.kit.core.file.PrivilegeFilePath
+
+internal class PrivilegeFileSystemBinder : IPrivilegeFileSystem.Stub() {
+    private val activeScans = ConcurrentHashMap<ParcelFileDescriptor, Unit>()
+    private val activeTransfers = ConcurrentHashMap<ActiveTransfer, Unit>()
+    private val transferSlots = Semaphore(PrivilegeFileSystemContract.MAX_CONCURRENT_TRANSFERS)
+    private val scanExecutor = ThreadPoolExecutor(
+        0,
+        PrivilegeFileSystemContract.MAX_CONCURRENT_SCANS,
+        SCAN_THREAD_KEEP_ALIVE_SECONDS,
+        TimeUnit.SECONDS,
+        SynchronousQueue(),
+        ScanThreadFactory(),
+    )
+    private val transferExecutor = ThreadPoolExecutor(
+        0,
+        PrivilegeFileSystemContract.MAX_CONCURRENT_TRANSFERS,
+        TRANSFER_THREAD_KEEP_ALIVE_SECONDS,
+        TimeUnit.SECONDS,
+        SynchronousQueue(),
+        TransferThreadFactory(),
+    )
+
+    @Volatile
+    private var closed = false
+
+    override fun query(path: String, kind: Int): Boolean {
+        validatePath(path)
+        val file = File(path)
+        return when (kind) {
+            PrivilegeFileSystemContract.QUERY_EXISTS -> file.exists()
+            PrivilegeFileSystemContract.QUERY_IS_FILE -> file.isFile
+            PrivilegeFileSystemContract.QUERY_IS_DIRECTORY -> file.isDirectory
+            PrivilegeFileSystemContract.QUERY_CAN_READ -> file.canRead()
+            PrivilegeFileSystemContract.QUERY_CAN_WRITE -> file.canWrite()
+            PrivilegeFileSystemContract.QUERY_CAN_EXECUTE -> file.canExecute()
+            PrivilegeFileSystemContract.QUERY_IS_SYMBOLIC_LINK -> isSymbolicLink(path)
+            else -> throw IllegalArgumentException("Unknown file query: $kind")
+        }
+    }
+
+    override fun queryLong(path: String, kind: Int): Long {
+        validatePath(path)
+        val file = File(path)
+        return when (kind) {
+            PrivilegeFileSystemContract.QUERY_LENGTH -> file.length()
+            PrivilegeFileSystemContract.QUERY_LAST_MODIFIED -> file.lastModified()
+            else -> throw IllegalArgumentException("Unknown long file query: $kind")
+        }
+    }
+
+    override fun stat(
+        path: String,
+        followSymbolicLinks: Boolean,
+    ): PrivilegeFileResult {
+        validatePath(path)
+        return try {
+            PrivilegeFileResult.metadata(
+                PrivilegeFileWire.statToArray(
+                    if (followSymbolicLinks) Os.stat(path) else Os.lstat(path),
+                ),
+            )
+        } catch (exception: ErrnoException) {
+            PrivilegeFileResult.error(exception.errno)
+        }
+    }
+
+    override fun openInput(path: String): PrivilegeFileResult {
+        validatePath(path)
+        if (!reserveTransferSlot()) return PrivilegeFileResult.error(
+            if (closed) OsConstants.EPIPE else OsConstants.EBUSY,
+        )
+        var slotReserved = true
+        var targetDescriptor: FileDescriptor? = null
+        var target: FileInputStream? = null
+        var clientSource: ParcelFileDescriptor? = null
+        var serverSink: ParcelFileDescriptor? = null
+
+        return try {
+            targetDescriptor = Os.open(
+                path,
+                OsConstants.O_RDONLY,
+                PrivilegeFileSystemContract.CREATE_MODE,
+            )
+            target = FileInputStream(targetDescriptor)
+            targetDescriptor = null
+            val pipe = ParcelFileDescriptor.createReliablePipe()
+            clientSource = pipe[0]
+            serverSink = pipe[1]
+            val transfer = ActiveTransfer(
+                target = target,
+                dataEndpoint = serverSink,
+            )
+            target = null
+            serverSink = null
+            activeTransfers[transfer] = Unit
+            try {
+                transferExecutor.execute {
+                    try {
+                        transferInput(transfer)
+                    } finally {
+                        finishTransfer(transfer)
+                    }
+                }
+            } catch (_: RejectedExecutionException) {
+                activeTransfers.remove(transfer)
+                transfer.cancel()
+                return PrivilegeFileResult.error(
+                    if (closed) OsConstants.EPIPE else OsConstants.EBUSY,
+                )
+            }
+            slotReserved = false
+            PrivilegeFileResult.input(requireNotNull(clientSource).also { clientSource = null })
+        } catch (exception: ErrnoException) {
+            PrivilegeFileResult.error(exception.errno)
+        } catch (_: IOException) {
+            PrivilegeFileResult.error(OsConstants.EIO)
+        } finally {
+            targetDescriptor?.let { descriptor -> runCatching { Os.close(descriptor) } }
+            runCatching { target?.close() }
+            runCatching { clientSource?.close() }
+            runCatching { serverSink?.close() }
+            if (slotReserved) transferSlots.release()
+        }
+    }
+
+    override fun openOutput(
+        path: String,
+        append: Boolean,
+        syncOnClose: Boolean,
+    ): PrivilegeFileResult {
+        validatePath(path)
+        if (!reserveTransferSlot()) return PrivilegeFileResult.error(
+            if (closed) OsConstants.EPIPE else OsConstants.EBUSY,
+        )
+        var slotReserved = true
+        var targetDescriptor: FileDescriptor? = null
+        var target: FileOutputStream? = null
+        var serverSource: ParcelFileDescriptor? = null
+        var clientSink: ParcelFileDescriptor? = null
+        var clientCompletion: ParcelFileDescriptor? = null
+        var serverCompletion: ParcelFileDescriptor? = null
+
+        return try {
+            val flags = OsConstants.O_WRONLY or OsConstants.O_CREAT or if (append) {
+                OsConstants.O_APPEND
+            } else {
+                OsConstants.O_TRUNC
+            }
+            targetDescriptor = Os.open(
+                path,
+                flags,
+                PrivilegeFileSystemContract.CREATE_MODE,
+            )
+            target = FileOutputStream(targetDescriptor)
+            targetDescriptor = null
+            val dataPipe = ParcelFileDescriptor.createReliablePipe()
+            serverSource = dataPipe[0]
+            clientSink = dataPipe[1]
+            val completionPipe = ParcelFileDescriptor.createReliablePipe()
+            clientCompletion = completionPipe[0]
+            serverCompletion = completionPipe[1]
+            val transfer = ActiveTransfer(
+                target = target,
+                dataEndpoint = serverSource,
+                completionEndpoint = serverCompletion,
+                syncOnClose = syncOnClose,
+            )
+            target = null
+            serverSource = null
+            serverCompletion = null
+            activeTransfers[transfer] = Unit
+            try {
+                transferExecutor.execute {
+                    try {
+                        transferOutput(transfer)
+                    } finally {
+                        finishTransfer(transfer)
+                    }
+                }
+            } catch (_: RejectedExecutionException) {
+                activeTransfers.remove(transfer)
+                transfer.cancel()
+                return PrivilegeFileResult.error(
+                    if (closed) OsConstants.EPIPE else OsConstants.EBUSY,
+                )
+            }
+            slotReserved = false
+            PrivilegeFileResult.output(
+                value = requireNotNull(clientSink).also { clientSink = null },
+                completion = requireNotNull(clientCompletion).also { clientCompletion = null },
+            )
+        } catch (exception: ErrnoException) {
+            PrivilegeFileResult.error(exception.errno)
+        } catch (_: IOException) {
+            PrivilegeFileResult.error(OsConstants.EIO)
+        } finally {
+            targetDescriptor?.let { descriptor -> runCatching { Os.close(descriptor) } }
+            runCatching { target?.close() }
+            runCatching { serverSource?.close() }
+            runCatching { clientSink?.close() }
+            runCatching { clientCompletion?.close() }
+            runCatching { serverCompletion?.close() }
+            if (slotReserved) transferSlots.release()
+        }
+    }
+
+    override fun createNewFile(path: String): Int {
+        validatePath(path)
+        return try {
+            val descriptor = Os.open(
+                path,
+                OsConstants.O_WRONLY or OsConstants.O_CREAT or OsConstants.O_EXCL,
+                PrivilegeFileSystemContract.CREATE_MODE,
+            )
+            Os.close(descriptor)
+            1
+        } catch (exception: ErrnoException) {
+            if (exception.errno == OsConstants.EEXIST) {
+                0
+            } else {
+                -exception.errno
+            }
+        }
+    }
+
+    override fun mkdir(path: String): Boolean {
+        validatePath(path)
+        return File(path).mkdir()
+    }
+
+    override fun mkdirs(path: String): Boolean {
+        validatePath(path)
+        return File(path).mkdirs()
+    }
+
+    override fun delete(path: String): Boolean {
+        validatePath(path)
+        return File(path).delete()
+    }
+
+    override fun renameTo(sourcePath: String, targetPath: String): Boolean {
+        validatePath(sourcePath)
+        validatePath(targetPath)
+        return File(sourcePath).renameTo(File(targetPath))
+    }
+
+    override fun replaceAtomically(sourcePath: String, targetPath: String): Int {
+        validatePath(sourcePath)
+        validatePath(targetPath)
+        return try {
+            Os.rename(sourcePath, targetPath)
+            0
+        } catch (exception: ErrnoException) {
+            exception.errno
+        }
+    }
+
+    override fun scanDirectory(
+        path: String,
+        sink: ParcelFileDescriptor,
+    ): Int {
+        validatePath(path)
+        if (closed) {
+            sink.close()
+            return OsConstants.EPIPE
+        }
+
+        activeScans[sink] = Unit
+        try {
+            scanExecutor.execute {
+                try {
+                    writeDirectory(path, sink)
+                } finally {
+                    activeScans.remove(sink)
+                    runCatching(sink::close)
+                }
+            }
+            return 0
+        } catch (_: RejectedExecutionException) {
+            activeScans.remove(sink)
+            sink.close()
+            return if (closed) OsConstants.EPIPE else OsConstants.EBUSY
+        }
+    }
+
+    fun cancelActiveScans() {
+        activeScans.keys.forEach { sink -> runCatching(sink::close) }
+    }
+
+    fun cancelActiveOperations() {
+        cancelActiveScans()
+        activeTransfers.keys.forEach(ActiveTransfer::cancel)
+    }
+
+    fun shutdown() {
+        closed = true
+        cancelActiveOperations()
+        scanExecutor.shutdownNow()
+        transferExecutor.shutdownNow()
+    }
+
+    private fun reserveTransferSlot(): Boolean {
+        if (closed || !transferSlots.tryAcquire()) return false
+        if (closed) {
+            transferSlots.release()
+            return false
+        }
+        return true
+    }
+
+    private fun transferInput(transfer: ActiveTransfer) {
+        val source = transfer.target as FileInputStream
+        val sink = transfer.dataEndpoint
+        val output = ParcelFileDescriptor.AutoCloseOutputStream(sink)
+        var failure: Throwable? = null
+        try {
+            source.copyTo(output)
+            output.flush()
+            if (transfer.cancelled) throw IOException("File transfer was cancelled")
+        } catch (throwable: Throwable) {
+            failure = throwable
+        } finally {
+            runCatching(source::close)
+            if (failure == null) {
+                runCatching(output::close)
+            } else {
+                runCatching { sink.closeWithError(failure.toTransferMessage()) }
+                runCatching(output::close)
+            }
+        }
+    }
+
+    private fun transferOutput(transfer: ActiveTransfer) {
+        val target = transfer.target as FileOutputStream
+        val source = transfer.dataEndpoint
+        var failure: Throwable? = null
+        try {
+            ParcelFileDescriptor.AutoCloseInputStream(source).use { input ->
+                input.copyTo(target)
+            }
+            if (transfer.cancelled) throw IOException("File transfer was cancelled")
+            target.flush()
+            if (transfer.syncOnClose) Os.fsync(target.fd)
+        } catch (throwable: Throwable) {
+            failure = throwable
+        } finally {
+            try {
+                target.close()
+            } catch (throwable: Throwable) {
+                if (failure == null) {
+                    failure = throwable
+                } else {
+                    failure.addSuppressed(throwable)
+                }
+            }
+            writeTransferCompletion(transfer.completionEndpoint, failure)
+        }
+    }
+
+    private fun writeTransferCompletion(
+        sink: ParcelFileDescriptor?,
+        failure: Throwable?,
+    ) {
+        if (sink == null) return
+        val output = DataOutputStream(
+            BufferedOutputStream(ParcelFileDescriptor.AutoCloseOutputStream(sink)),
+        )
+        try {
+            output.writeInt(failure?.errnoOrEio() ?: 0)
+            output.writeUTF(failure?.toTransferMessage().orEmpty())
+            output.flush()
+        } catch (_: IOException) {
+        } finally {
+            runCatching(output::close)
+        }
+    }
+
+    private fun finishTransfer(transfer: ActiveTransfer) {
+        activeTransfers.remove(transfer)
+        transfer.close()
+        transferSlots.release()
+    }
+
+    private fun writeDirectory(
+        path: String,
+        sink: ParcelFileDescriptor,
+    ) {
+        val output = DataOutputStream(
+            BufferedOutputStream(ParcelFileDescriptor.AutoCloseOutputStream(sink)),
+        )
+        try {
+            Files.newDirectoryStream(File(path).toPath()).use { entries ->
+                for (entry in entries) {
+                    val entryPath = entry.toAbsolutePath().toString()
+                    val stat = try {
+                        Os.lstat(entryPath)
+                    } catch (exception: ErrnoException) {
+                        when (
+                            classifyPrivilegeFileScanStatFailure(
+                                errno = exception.errno,
+                                noEntryErrno = OsConstants.ENOENT,
+                                accessDeniedErrno = OsConstants.EACCES,
+                                operationNotPermittedErrno = OsConstants.EPERM,
+                            )
+                        ) {
+                            PrivilegeFileScanStatFailureAction.SKIP_ENTRY -> continue
+                            PrivilegeFileScanStatFailureAction.EMIT_NAME_ONLY -> null
+                            PrivilegeFileScanStatFailureAction.FAIL_SCAN -> throw exception
+                        }
+                    }
+                    PrivilegeFileWire.writeEntry(output, entryPath, stat)
+                    output.flush()
+                }
+            }
+            output.writeByte(PrivilegeFileSystemContract.SCAN_COMPLETE)
+            output.flush()
+        } catch (throwable: Throwable) {
+            val failure = throwable.toScanFailure()
+            runCatching {
+                output.writeByte(PrivilegeFileSystemContract.SCAN_ERROR)
+                output.writeInt(failure.errno)
+                output.writeUTF(failure.message)
+                output.flush()
+            }
+        } finally {
+            runCatching(output::close)
+        }
+    }
+
+    private fun isSymbolicLink(path: String): Boolean = try {
+        OsConstants.S_ISLNK(Os.lstat(path).st_mode)
+    } catch (_: ErrnoException) {
+        false
+    }
+
+    private fun validatePath(path: String) {
+        PrivilegeFilePath.validateAbsolute(path)
+    }
+
+    private fun Throwable.toScanFailure(): ScanFailure {
+        val actual = if (this is DirectoryIteratorException) cause ?: this else this
+        return when (actual) {
+            is ErrnoException -> ScanFailure(actual.errno, actual.message.orEmpty())
+            is NoSuchFileException -> ScanFailure(OsConstants.ENOENT, actual.message.orEmpty())
+            is NotDirectoryException -> ScanFailure(OsConstants.ENOTDIR, actual.message.orEmpty())
+            is AccessDeniedException -> ScanFailure(OsConstants.EACCES, actual.message.orEmpty())
+            is IOException -> ScanFailure(OsConstants.EIO, actual.message.orEmpty())
+            else -> ScanFailure(OsConstants.EIO, actual.message.orEmpty())
+        }
+    }
+
+    private fun Throwable.errnoOrEio(): Int {
+        var current: Throwable? = this
+        while (current != null) {
+            if (current is ErrnoException) return current.errno
+            current = current.cause
+        }
+        return OsConstants.EIO
+    }
+
+    private fun Throwable?.toTransferMessage(): String {
+        val throwable = this
+        return throwable?.message?.take(MAX_TRANSFER_ERROR_CHARS).orEmpty().ifBlank {
+            throwable?.javaClass?.simpleName ?: "File transfer failed"
+        }
+    }
+
+    private data class ScanFailure(
+        val errno: Int,
+        val message: String,
+    )
+
+    private class ScanThreadFactory : ThreadFactory {
+        private val sequence = AtomicInteger()
+
+        override fun newThread(runnable: Runnable): Thread = Thread(
+            runnable,
+            "priv-kit-file-scan-${sequence.incrementAndGet()}",
+        ).apply {
+            isDaemon = true
+        }
+    }
+
+    private class TransferThreadFactory : ThreadFactory {
+        private val sequence = AtomicInteger()
+
+        override fun newThread(runnable: Runnable): Thread = Thread(
+            runnable,
+            "priv-kit-file-transfer-${sequence.incrementAndGet()}",
+        ).apply {
+            isDaemon = true
+        }
+    }
+
+    private class ActiveTransfer(
+        val target: Closeable,
+        val dataEndpoint: ParcelFileDescriptor,
+        val completionEndpoint: ParcelFileDescriptor? = null,
+        val syncOnClose: Boolean = false,
+    ) : Closeable {
+        @Volatile
+        var cancelled: Boolean = false
+            private set
+
+        fun cancel() {
+            cancelled = true
+            runCatching { dataEndpoint.closeWithError("File transfer was cancelled") }
+            runCatching { completionEndpoint?.closeWithError("File transfer was cancelled") }
+            runCatching(target::close)
+        }
+
+        override fun close() {
+            runCatching(dataEndpoint::close)
+            runCatching { completionEndpoint?.close() }
+            runCatching(target::close)
+        }
+    }
+
+    private companion object {
+        const val SCAN_THREAD_KEEP_ALIVE_SECONDS: Long = 30L
+        const val TRANSFER_THREAD_KEEP_ALIVE_SECONDS: Long = 30L
+        const val MAX_TRANSFER_ERROR_CHARS: Int = 2_048
+    }
+}

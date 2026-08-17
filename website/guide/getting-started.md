@@ -8,14 +8,14 @@ description: Add Priv Kit to an Android application and start the first app-owne
 
 Priv Kit targets Android API 26 and later. It gives one application the
 primitives to start, connect to, and use its own Privileged Server. Applications
-can build their privileged operations directly on Binder or their own
-UserService contracts.
+can use the built-in file proxy, build privileged operations directly on
+Binder, or define their own UserService contracts.
 
 ## Add the dependencies {#add-dependencies}
 
 Start with `priv-ui`. It provides the Compose authorization page and exposes
-`priv-core` transitively, so the application can use the runtime, Binder, and
-UserService APIs without declaring both modules.
+`priv-core` transitively, so the application can use the runtime, file proxy,
+Binder, and UserService APIs without declaring both modules.
 
 ```kotlin
 dependencies {
@@ -113,6 +113,8 @@ the complete `priv-core` flows.
 ## Choose a usage mode {#usage-mode}
 
 - Use [Binder](./binder) for explicit raw Binder access.
+- Use the [file proxy](./file-proxy) for basic absolute-path file access without
+  defining a UserService.
 - Use [UserService](./user-service) for an app-defined AIDL service.
 - Use [Privilege UI](./priv-ui) for the supplied authorization page.
 - Read [startup methods](./activation) before replacing that page with a custom

@@ -9,6 +9,8 @@ import android.os.ServiceManager
 import android.util.Log
 import priv.kit.core.binder.PrivilegeBinderWrapper
 import priv.kit.core.internal.binder.IPrivilegeServer
+import priv.kit.core.internal.core.PrivilegeServerServiceEndpoints
+import priv.kit.core.internal.file.PrivilegeFileSystemBinder
 import priv.kit.core.internal.userservice.PrivilegeUserServiceLoader
 import priv.kit.core.internal.userservice.PrivilegeUserServiceManagerBinder
 import priv.kit.core.internal.userservice.PrivilegeUserServiceRegistry
@@ -48,9 +50,15 @@ internal class PrivilegeServerBinder(
         getSystemService("permissionmgr")?.let(::CompatPermissionManager)
     }
     internal val lifecycleBinder: IBinder = Binder()
+    private val fileSystem = PrivilegeFileSystemBinder()
     private val systemServiceCache = HashMap<String, IBinder>()
 
-    override fun getUserServiceManager(): IBinder = userServiceManager.value.asBinder()
+    internal val serviceEndpoints: PrivilegeServerServiceEndpoints by lazy {
+        PrivilegeServerServiceEndpoints(
+            fileSystemBinder = fileSystem.asBinder(),
+            userServiceManagerBinder = userServiceManager.value.asBinder(),
+        )
+    }
 
     override fun onTransact(
         code: Int,
@@ -106,6 +114,7 @@ internal class PrivilegeServerBinder(
 
     override fun shutdown() {
         Log.i(TAG, "Shutdown requested by client")
+        fileSystem.shutdown()
         if (userServiceManager.isInitialized()) {
             userServiceManager.value.destroyAll()
         }
@@ -116,7 +125,8 @@ internal class PrivilegeServerBinder(
         }.start()
     }
 
-    fun destroyUserServicesOnOwnerDeath() {
+    fun releaseOwnerResourcesOnDeath() {
+        fileSystem.cancelActiveOperations()
         if (userServiceManager.isInitialized()) {
             userServiceManager.value.destroyOnOwnerDeath()
         }

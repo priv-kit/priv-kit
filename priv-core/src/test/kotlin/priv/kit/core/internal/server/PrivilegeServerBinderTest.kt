@@ -21,9 +21,13 @@ class PrivilegeServerBinderTest {
         )
 
         val lifecycleBinder = server.lifecycleBinder
+        val serviceEndpoints = server.serviceEndpoints
 
         assertSame(lifecycleBinder, server.lifecycleBinder)
+        assertSame(serviceEndpoints, server.serviceEndpoints)
         assertNotSame(server.asBinder(), lifecycleBinder)
+        assertNotSame(server.asBinder(), serviceEndpoints.fileSystemBinder)
+        assertNotSame(server.asBinder(), serviceEndpoints.userServiceManagerBinder)
         assertNull(
             lifecycleBinder.queryLocalInterface(
                 "priv.kit.core.internal.binder.IPrivilegeServer",

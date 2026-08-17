@@ -4,19 +4,20 @@
 
 ## 项目定位
 
-`Priv Kit` 是面向单应用的自管理 Privileged Runtime。它帮助应用启动、连接并管理自己的 Privileged Server，提供运行时生命周期、启动入口、底层 Binder 原语和 UserService 管线。
+`Priv Kit` 是面向单应用的自管理 Privileged Runtime。它帮助应用启动、连接并管理自己的 Privileged Server，提供运行时生命周期、启动入口、底层 Binder 原语、内置文件代理和 UserService 管线。
 
-项目提供特权执行基础设施，不提供特权 Android 操作库，也不提供 AndroidX 风格的系统 API 兼容层。
+项目提供特权执行基础设施，不提供通用特权 Android 操作库，也不提供 AndroidX 风格的系统 API 兼容层。内置文件代理是一个受限例外：它只代理绝对路径上的基础文件操作和目录扫描，不扩展为存储管理策略或 Android 系统服务 facade。
 
 允许的能力范围：
 
 - 启动、停止、连接、重连和观察 Privileged Server
 - Root、ADB、手动命令和具备代码执行能力的外部启动入口
 - 显式目标 Binder 或显式系统服务名的 raw Binder transaction
+- 不依赖应用自定义 UserService 的基础文件代理
 - 应用自定义 UserService 的启动、绑定、停止和状态观察
 - 围绕同一组运行时原语的可选 Compose UI
 
-禁止把包管理、输入、设置、app-ops、ActivityManager、设备自动化或高级 shell 操作包装成项目公开 API。这些领域能力应由接入应用或下游库基于 Binder、UserService 自行实现。
+除上述基础文件代理外，禁止把包管理、输入、设置、app-ops、ActivityManager、设备自动化或高级 shell 操作包装成项目公开 API。这些领域能力应由接入应用或下游库基于 Binder、UserService 自行实现。
 
 本项目只服务一个应用管理自己的服务端，不得发展为设备级共享守护进程、多租户注册中心、插件市场或通用权限代理。
 
@@ -46,7 +47,7 @@
 | Gradle 模块 | 发布名称 | 所有权 |
 | --- | --- | --- |
 | `:priv-shared` | `priv-shared` | 窄 Android/JDK 底层机制、不变量和内部 hidden API 兼容扩展 |
-| `:priv-core` | `priv-core` | Runtime、启动入口、server、Binder、UserService 和内部协议 |
+| `:priv-core` | `priv-core` | Runtime、启动入口、server、Binder、文件代理、UserService 和内部协议 |
 | `:priv-adb-crypto` | `priv-adb-crypto` | ADB 证书与 Wireless Debugging pairing 所需的最小 Kotlin/JVM 加密实现 |
 | `:priv-ui` | `priv-ui` | 可选 Compose 生命周期 UI 和精确静默恢复 |
 | `:priv-sample` | 不发布 | 公开能力的示例 |
@@ -75,7 +76,7 @@
 所有权规则：
 
 - `:priv-shared` 只能保存产品模块使用的无领域状态机制、窄 Android/JDK 原语和 hidden API 兼容逻辑。跨 Android 小版本的 hidden API 分派必须位于该模块，并且只能通过 `compileOnly(:hidden-api)` 获取声明。隐藏 interface 在部分受支持 API 上不存在时，使用接收 `IBinder` 的窄 compat wrapper 隔离类型；其他情况将兼容逻辑保留在对应隐藏类型上。该模块不得依赖 AndroidX、Compose、协程、Core 或 UI，不得包含资源、manifest、长期可变状态、启动策略、权限流程或业务编排。
-- `:priv-core` 拥有运行时生命周期、Root、ADB、手动命令、外部启动、native starter、server entry、Binder、UserService、内部 AIDL、wire contract 和 handshake。
+- `:priv-core` 拥有运行时生命周期、Root、ADB、手动命令、外部启动、native starter、server entry、Binder、内置文件代理、UserService、内部 AIDL、wire contract 和 handshake。
 - `:priv-adb-crypto` 只包含 ADB 所需的证书与 pairing 加密，不依赖 Android API，不扩展为通用加密、证书、PKI、SSL 或 TLS 库。
 - `:priv-ui` 只编排 Core 已有原语，不拥有 transport 和底层权限请求能力，Core 不得反向依赖 UI。
 - `:priv-sample` 只演示项目已承诺的能力，不得承载发布模块的实现。它从同一源码树构建 `legacy` 和 `api29` 两个 product flavor：前者以 API 26 为最低版本并启用旧式 JNI 库打包，后者以 API 29 为最低版本并使用 AGP 现代打包。
@@ -143,20 +144,35 @@ Binder 支持只负责底层连接和 transaction：
 - 显式系统服务名的 raw transaction
 - transaction 错误和服务端不可用状态
 - 运行时内部所需的项目自有类型化契约
+- 与内部控制 Binder 同次握手交付、只服务当前应用的基础文件代理契约
 
 项目不得为 package、input、settings、app-ops、activity 等系统服务提供类型化 facade，也不得提供系统服务领域枚举或策略 API。
 
 公开的 server lifecycle Binder 只作为跨进程 death token。它必须与内部
 `IPrivilegeServer` 控制 Binder 分离，不得附加业务 interface 或自定义 transaction；
 同一 server 进程内保持 Binder identity 稳定，server 替换后必须返回新 token。
-该 token 必须与控制 Binder 在同一次 handshake 中传递，并作为
-`PrivilegeServerInfo` 连接快照的一部分发布，不能通过后续 IPC 获取另一个时刻的 token。
+该 token、文件代理 Binder 和 UserService manager Binder 必须与控制 Binder 在同一次
+handshake 中传递。文件代理和 UserService manager 两个内部服务端点必须先组成一个
+不可变分组，再通过单个 handshake payload 字段写入；客户端也必须以该分组为单位安装，
+使任何线程只能观察到旧分组或完整的新分组。不得通过控制 Binder 上的后续 getter 获取
+另一个时刻的子端点。公开 token 作为 `PrivilegeServerInfo` 的一部分发布，其余三个 Binder
+保持内部可见。
 `PrivilegeServerInfo` 只能由 Core 根据已验证的 handshake 构造，并按对象 identity
 表示一次已接受的连接；它不是允许调用方复制或重组字段的 value/data class。
 
 唯一保留的 package permission 例外是 `Privilege.checkPermission(...)`、`Privilege.grantRuntimePermission(...)` 和 `Privilege.revokeRuntimePermission(...)` 三个无策略的 framework pass-through。它们不得扩展为权限组、批处理、app-ops、安装流程、设备选择、撤销原因或授权策略抽象。
 
 如果 transaction 需要 fallback，必须保留原始结果的不确定性。连接中断后不能在无法判断服务端是否已经执行时自动重试具有副作用的调用。
+
+## 文件代理
+
+文件代理由独立的内部 Binder 端点承载，并与 `IPrivilegeServer` 控制 Binder 在同一次 handshake 中交付。它由 Privileged Server 进程执行，不启动第二个服务进程，也不经过应用自定义 UserService；客户端文件操作不得先通过控制 Binder 获取或缓存端点。公开入口是 `Privilege.file(absolutePath)`，返回组合式 `PrivilegeFile`，不得继承 `java.io.File` 或宣称可透明替换本地文件对象。
+
+路径组合、名称、父路径和隐藏状态计算在客户端完成；存在性、类型、权限、元数据、创建、删除、重命名和打开文件均在服务端执行。`mkdir`、`mkdirs`、`delete`、`renameTo` 等与 `java.io.File` 同名的方法保留其布尔返回语义；`replaceAtomically` 必须直接执行同一挂载文件系统内的 `Os.rename`，不得退化为复制或预先删除目标，失败时通过 `IOException` 的 `ErrnoException` cause 保留 errno。Binder 缺失或死亡仍归一化为 `PrivilegeServerUnavailableException`，不得伪装成文件操作返回 `false`。
+
+目标文件描述符必须始终由 Privileged Server 持有，不得把客户端自身 SELinux 域无权访问的目标 FD 通过 Binder 直接交给客户端。文件内容通过 `ParcelFileDescriptor` reliable pipe 流式传输，不得为每个数据块发起 Binder transaction。读取端在 EOF 时检查服务端错误；写入端使用独立完成 pipe，使 `OutputStream.close()` 必须等待服务端消费全部数据并关闭目标文件。`syncOnClose` 还必须在报告完成前执行 `fsync`。文件传输使用独立有界执行器，同时最多四个且不排队，超出容量返回 `EBUSY`；owner 死亡和服务端关闭必须取消活动传输并关闭 pipe。
+
+目录扫描必须使用有界并发的服务端任务和 `ParcelFileDescriptor` pipe 流式返回，不得把完整目录装入一个 Binder 返回值。扫描是无排序、非递归、弱一致的冷流，先枚举目录项名称，再以 `lstat` 尽力读取元数据。服务端身份因 `EACCES` 或 `EPERM` 无法读取单个条目属性时必须保留该名称并返回空元数据；条目在读取属性前消失时跳过。只有目标目录本身无法打开、迭代或发生其他不可恢复错误时才终止整个扫描。调用方取消、owner 死亡和服务端关闭必须关闭 pipe。服务端同时最多执行四个扫描且不排队，超出容量返回 `EBUSY`。文件代理不得提供递归删除、存储清理、路径发现、授权策略或跨应用共享守护进程。
 
 ## UserService 管线
 
@@ -221,8 +237,8 @@ VitePress 工程根目录和公开源目录均为 `website`。每个公开英文
 
 新增公开 API、模块、示例或文档前，必须确认：
 
-1. 变更是否只服务运行时、启动、Binder 或 UserService。
-2. 应用是否本可基于 Binder 或 UserService 自行实现该领域能力。
+1. 变更是否只服务运行时、启动、Binder、受限文件代理或 UserService。
+2. 除已批准的受限文件代理外，应用是否本可基于 Binder 或 UserService 自行实现该领域能力。
 3. 名称是否暗示高级 Android 系统服务封装。
 4. 是否在 Android framework API 之上创建第二层领域抽象。
 5. 是否会鼓励 `Privilege.input.tap(...)` 或 `Privilege.package.install(...)` 一类 API。

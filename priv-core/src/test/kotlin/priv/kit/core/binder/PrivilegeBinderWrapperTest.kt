@@ -27,9 +27,9 @@ import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.internal.binder.IPrivilegeServer
 import priv.kit.core.internal.core.PrivilegeProtocol
-import priv.kit.core.internal.core.PrivilegeServerHandshakeResult
 import priv.kit.core.internal.runtime.PrivilegeContext
 import priv.kit.core.testing.TestBinder
+import priv.kit.core.testing.testHandshakeResult
 import java.io.Closeable
 import java.io.FileDescriptor
 
@@ -340,7 +340,7 @@ class PrivilegeBinderWrapperTest {
         try {
             repeat(2) {
                 Privilege.connectHandshake(
-                    handshakeResult = PrivilegeServerHandshakeResult(
+                    handshakeResult = testHandshakeResult(
                         serverInfo = serverInfo,
                         serverBinder = server.asBinder(),
                     ),
@@ -359,7 +359,7 @@ class PrivilegeBinderWrapperTest {
         block: (FakePrivilegeServer) -> Unit,
     ) {
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = PrivilegeServerInfo(
                     uid = 2000,
                     pid = 1234,
@@ -406,8 +406,6 @@ class PrivilegeBinderWrapperTest {
         override fun asBinder(): IBinder = binder
 
         override fun shutdown() = Unit
-
-        override fun getUserServiceManager(): IBinder? = null
 
         override fun hasSystemService(serviceName: String): Boolean = hasSystemService
 

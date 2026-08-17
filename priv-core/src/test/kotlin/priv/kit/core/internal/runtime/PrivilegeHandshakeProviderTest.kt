@@ -31,7 +31,9 @@ import priv.kit.core.internal.core.PrivilegeProtocol
 import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
 import priv.kit.core.internal.core.PrivilegeServerHandshakeRegistry
 import priv.kit.core.internal.core.PrivilegeServerHandshakeResult
+import priv.kit.core.internal.core.PrivilegeServerServiceEndpoints
 import priv.kit.core.testing.TestBinder
+import priv.kit.core.testing.testHandshakeResult
 import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(RobolectricTestRunner::class)
@@ -71,6 +73,8 @@ class PrivilegeHandshakeProviderTest {
         prepareRuntimeApplication()
         val serverBinder = Binder()
         val lifecycleBinder = Binder()
+        val fileSystemBinder = Binder()
+        val userServiceManagerBinder = Binder()
         val received = AtomicReference<PrivilegeServerHandshakeResult?>()
         val listener = PrivilegeServerHandshakeRegistry.addReadyListener { result ->
             received.set(result)
@@ -81,13 +85,23 @@ class PrivilegeHandshakeProviderTest {
             val response = PrivilegeHandshakeProvider().call(
                 PrivilegeHandshakeContract.METHOD_SERVER_READY,
                 null,
-                currentHandshakeExtras(serverBinder, lifecycleBinder),
+                currentHandshakeExtras(
+                    serverBinder = serverBinder,
+                    lifecycleBinder = lifecycleBinder,
+                    fileSystemBinder = fileSystemBinder,
+                    userServiceManagerBinder = userServiceManagerBinder,
+                ),
             )
 
             assertNotNull(response)
             assertTrue(response!!.getBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, false))
             assertSame(serverBinder, received.get()?.serverBinder)
             assertSame(lifecycleBinder, received.get()?.serverInfo?.lifecycleBinder)
+            assertSame(fileSystemBinder, received.get()?.serviceEndpoints?.fileSystemBinder)
+            assertSame(
+                userServiceManagerBinder,
+                received.get()?.serviceEndpoints?.userServiceManagerBinder,
+            )
             assertEquals(
                 PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
                 received.get()?.origin,
@@ -185,7 +199,7 @@ class PrivilegeHandshakeProviderTest {
     }
 
     @Test
-    fun currentHandshakeWithoutLifecycleBinderIsRejected() {
+    fun currentHandshakeWithoutServiceEndpointsIsRejected() {
         prepareRuntimeApplication()
         val received = AtomicReference<PrivilegeServerHandshakeResult?>()
         val listener = PrivilegeServerHandshakeRegistry.addReadyListener { result ->
@@ -194,16 +208,21 @@ class PrivilegeHandshakeProviderTest {
         }
 
         try {
-            val response = PrivilegeHandshakeProvider().call(
-                PrivilegeHandshakeContract.METHOD_SERVER_READY,
-                null,
-                currentHandshakeExtras(Binder()).apply {
-                    remove(PrivilegeHandshakeContract.EXTRA_SERVER_LIFECYCLE_BINDER)
-                },
-            )
+            listOf(
+                PrivilegeHandshakeContract.EXTRA_SERVER_LIFECYCLE_BINDER,
+                PrivilegeHandshakeContract.EXTRA_SERVER_SERVICE_ENDPOINTS,
+            ).forEach { missingKey ->
+                val response = PrivilegeHandshakeProvider().call(
+                    PrivilegeHandshakeContract.METHOD_SERVER_READY,
+                    null,
+                    currentHandshakeExtras(Binder()).apply { remove(missingKey) },
+                )
 
-            assertNotNull(response)
-            assertFalse(response!!.getBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, true))
+                assertNotNull(response)
+                assertFalse(
+                    response!!.getBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, true),
+                )
+            }
             assertNull(received.get())
         } finally {
             listener.close()
@@ -254,12 +273,21 @@ class PrivilegeHandshakeProviderTest {
     private fun currentHandshakeExtras(
         serverBinder: Binder,
         lifecycleBinder: IBinder = Binder(),
+        fileSystemBinder: IBinder = Binder(),
+        userServiceManagerBinder: IBinder = Binder(),
     ): Bundle =
         Bundle().apply {
             putBinder(PrivilegeHandshakeContract.EXTRA_SERVER_BINDER, serverBinder)
             putBinder(
                 PrivilegeHandshakeContract.EXTRA_SERVER_LIFECYCLE_BINDER,
                 lifecycleBinder,
+            )
+            PrivilegeHandshakeContract.putServiceEndpoints(
+                extras = this,
+                endpoints = PrivilegeServerServiceEndpoints(
+                    fileSystemBinder = fileSystemBinder,
+                    userServiceManagerBinder = userServiceManagerBinder,
+                ),
             )
             putInt(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION, PrivilegeProtocol.VERSION)
             putString(
@@ -278,7 +306,7 @@ class PrivilegeHandshakeProviderTest {
             lifecycleBinder = server.lifecycleBinder,
         )
         Privilege.connectHandshake(
-            handshakeResult = PrivilegeServerHandshakeResult(
+            handshakeResult = testHandshakeResult(
                 serverInfo = serverInfo,
                 serverBinder = server.asBinder(),
             ),
@@ -294,8 +322,6 @@ class PrivilegeHandshakeProviderTest {
         override fun asBinder(): IBinder = binder
 
         override fun shutdown() = Unit
-
-        override fun getUserServiceManager(): IBinder? = null
 
         override fun hasSystemService(serviceName: String): Boolean = false
 

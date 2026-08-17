@@ -7,8 +7,8 @@ description: Learn what Priv Kit provides, why its runtime is app-owned, and whe
 Priv Kit is an app-owned privileged runtime for Android. It lets a single
 application start, connect to, and manage its own Privileged Server through
 Root, ADB, Manual, or an external authorization bridge. Once
-connected, the application can use explicit Binder primitives or run its own
-UserService while keeping domain logic under its control.
+connected, the application can use explicit Binder primitives, the built-in
+file proxy, or its own UserService while keeping domain logic under its control.
 
 Most applications should start with `priv-ui`, which provides the Compose
 authorization page and uses the runtime on the application's behalf. Use
@@ -53,6 +53,13 @@ application remains responsible for the service interface, transaction format,
 and domain behavior. Read the [Binder guide](./binder) for the available
 primitives.
 
+### Built-in file proxy {#file-proxy}
+
+Basic absolute-path file operations can run directly in the Privileged Server
+without an application-defined UserService. Content uses real file descriptors,
+and directory entries stream over a pipe. Read the [file proxy guide](./file-proxy)
+for its `java.io.File`-compatible return semantics and deliberate safety limits.
+
 ### Application-defined UserService {#user-service}
 
 When raw transactions are not the right boundary, an application can define its
@@ -81,7 +88,8 @@ an uncertain result as success.
   [Privilege UI](./priv-ui).
 - Read [startup methods](./activation) only when building a custom interface
   with `priv-core`.
-- Choose [Binder](./binder) for raw transactions or
+- Choose the [file proxy](./file-proxy) for basic filesystem access,
+  [Binder](./binder) for raw transactions, or
   [UserService](./user-service) for an application-defined AIDL service.
 - Browse the source and report issues on
   [GitHub](https://github.com/priv-kit/priv-kit).

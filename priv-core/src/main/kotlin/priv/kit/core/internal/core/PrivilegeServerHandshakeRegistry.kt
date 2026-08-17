@@ -38,11 +38,14 @@ internal object PrivilegeServerHandshakeRegistry {
 
     fun deliverReady(
         serverBinder: IBinder?,
+        serviceEndpoints: PrivilegeServerServiceEndpoints?,
         serverInfo: PrivilegeServerInfo,
         origin: PrivilegeServerHandshakeOrigin,
         launchCorrelationId: String?,
     ): Boolean {
-        if (serverBinder == null) {
+        if (
+            serverBinder == null || serviceEndpoints == null
+        ) {
             return false
         }
         val ticket = PrivilegeRuntimeStartCoordinator.tryAcceptHandshake(
@@ -53,6 +56,7 @@ internal object PrivilegeServerHandshakeRegistry {
         val result = PrivilegeServerHandshakeResult(
             serverInfo = serverInfo,
             serverBinder = serverBinder,
+            serviceEndpoints = serviceEndpoints,
             origin = origin,
             launchCorrelationId = launchCorrelationId,
             clientStartOperationId = ticket.clientStartOperationId,

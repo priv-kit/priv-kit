@@ -11,6 +11,7 @@ internal enum class PrivilegeServerHandshakeOrigin {
 internal data class PrivilegeServerHandshakeResult(
     val serverInfo: PrivilegeServerInfo,
     val serverBinder: IBinder,
+    val serviceEndpoints: PrivilegeServerServiceEndpoints,
     val origin: PrivilegeServerHandshakeOrigin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
     val launchCorrelationId: String? = null,
     val clientStartOperationId: Long? = null,

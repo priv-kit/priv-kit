@@ -50,6 +50,10 @@ internal object PrivilegeServerHandshakeSender {
                 PrivilegeHandshakeContract.EXTRA_SERVER_LIFECYCLE_BINDER,
                 serverBinder.lifecycleBinder,
             )
+            PrivilegeHandshakeContract.putServiceEndpoints(
+                extras = this,
+                endpoints = serverBinder.serviceEndpoints,
+            )
             putInt(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION, config.protocolVersion)
             putString(
                 PrivilegeHandshakeContract.EXTRA_CLASSPATH_IDENTITY,
