@@ -5,6 +5,7 @@ import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeStartupException
 import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.core.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
+import priv.kit.ui.adb.pairing.PrivilegeAdbPairingIntentContract
 import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS
 import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS
 import priv.kit.shared.isPrivilegeAdbPort
@@ -107,6 +108,12 @@ public data class PrivilegeUiConfig public constructor(
     public val tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     public val adbTcpPolicy: PrivilegeUiAdbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
     public val enableManagedWirelessAdb: Boolean = true,
+    /** Stable channel ID reserved by the host application for notification pairing. */
+    public val notificationPairingChannelId: String =
+        PrivilegeAdbPairingIntentContract.NOTIFICATION_CHANNEL_ID,
+    /** First of two consecutive notification IDs reserved for notification pairing. */
+    public val notificationPairingNotificationId: Int =
+        PrivilegeAdbPairingIntentContract.NOTIFICATION_ID,
     /**
      * Maximum wait for the ADB key response after an active static TCP port is selected.
      * Wireless Debugging discovery, pairing, and static-port enablement are outside this timeout.
@@ -124,6 +131,12 @@ public data class PrivilegeUiConfig public constructor(
         }
         require(startTimeoutMillis > 0L) { "startTimeoutMillis must be positive" }
         require(tcpPort.isPrivilegeAdbPort()) { "tcpPort must be between 1 and 65535" }
+        require(notificationPairingChannelId.isNotBlank()) {
+            "notificationPairingChannelId must not be blank"
+        }
+        require(notificationPairingNotificationId in 1 until Int.MAX_VALUE) {
+            "notificationPairingNotificationId must be between 1 and ${Int.MAX_VALUE - 1}"
+        }
         require(adbAuthorizationTimeoutMillis > 0L) { "adbAuthorizationTimeoutMillis must be positive" }
         require(wirelessStatusPollIntervalMillis > 0L) {
             "wirelessStatusPollIntervalMillis must be positive"

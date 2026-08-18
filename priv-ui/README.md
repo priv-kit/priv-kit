@@ -10,7 +10,7 @@ Public entry points:
 
 - `PrivilegeScaffold`, the root Compose page.
 - `PrivilegeUiViewModel`, an `open` `AndroidViewModel` controller that callers may subclass.
-- `PrivilegeUiConfig`, used to enable startup modes, polling intervals, and external start providers.
+- `PrivilegeUiConfig`, used to enable startup modes, polling intervals, notification pairing identifiers, and external start providers.
 - `PrivilegeUiExternalStartProvider`, whose suspend authorization and startup methods keep the
   requesting ViewModel coroutine continuous across third-party prompts and callbacks.
 - `PrivilegeUi.desiredEnabled`, the read-only process-wide `StateFlow` for the persisted automatic
@@ -54,6 +54,14 @@ Internal Android components:
 
 - `PrivilegeAdbPairingService` is manifest-merged for the built-in notification pairing flow and is not a public app-call API.
 - Notification pairing may use Android `RemoteViews` XML layouts for notification-only controls. These layouts are not page UI and must not be inflated by app screens.
+
+`PrivilegeUiConfig.notificationPairingChannelId` selects the host application's channel for
+notification pairing and defaults to `priv_ui_adb_pairing`. `priv-ui` creates this channel on
+demand and does not delete it, so an overridden value should remain stable and be dedicated to
+this flow. `notificationPairingNotificationId` defaults to `201` and reserves two consecutive
+host notification IDs: that value for the foreground status notification and the next value for
+pairing-code input. It must be between `1` and `Int.MAX_VALUE - 1`; the host is responsible for
+avoiding collisions with its other notifications.
 
 The UI covers ordinary user-facing authorization only:
 

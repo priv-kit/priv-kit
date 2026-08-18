@@ -24,7 +24,7 @@ import java.util.UUID
 
 internal class PrivilegeUiViewModelStore(
     context: Context? = null,
-    var config: PrivilegeUiConfig = PrivilegeUiConfig(),
+    val config: PrivilegeUiConfig = PrivilegeUiConfig(),
 ) : AutoCloseable {
     val state = MutableStateFlow(
         initialPrivilegeUiState(

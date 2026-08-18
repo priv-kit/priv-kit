@@ -613,9 +613,7 @@ class PrivilegeUiRuntimeActionsTest {
     fun connectedRuntimeRunsRequestStartAndReportsReplacementTimeout() = runBlocking {
         val attempted = AtomicBoolean(false)
         RuntimeActionsFixture(
-            configureStore = { store ->
-                store.config = store.config.copy(startTimeoutMillis = 50L)
-            },
+            config = PrivilegeUiConfig(startTimeoutMillis = 50L),
         ).use { (store, actions) ->
             store.connectAsShell()
             val snackbar = async(start = CoroutineStart.UNDISPATCHED) { waitForSnackbar(store) }
@@ -814,9 +812,7 @@ class PrivilegeUiRuntimeActionsTest {
     fun fallbackExternalRequestRemainsOwnedUntilConnectionOrTimeout() = runBlocking {
         val attemptOrder = mutableListOf<String>()
         RuntimeActionsFixture(
-            configureStore = { store ->
-                store.config = store.config.copy(startTimeoutMillis = 5_000L)
-            },
+            config = PrivilegeUiConfig(startTimeoutMillis = 5_000L),
         ).use { (store, actions) ->
             actions.runServerStartFallback(
                 listOf(
@@ -855,9 +851,7 @@ class PrivilegeUiRuntimeActionsTest {
     fun fallbackStopsAfterExternalRequestTimesOut() = runBlocking {
         val attemptOrder = mutableListOf<String>()
         RuntimeActionsFixture(
-            configureStore = { store ->
-                store.config = store.config.copy(startTimeoutMillis = 250L)
-            },
+            config = PrivilegeUiConfig(startTimeoutMillis = 250L),
         ).use { (store, actions) ->
             actions.runServerStartFallback(
                 listOf(
@@ -895,9 +889,7 @@ class PrivilegeUiRuntimeActionsTest {
         val release = CountDownLatch(1)
         val cleanupCount = AtomicInteger(0)
         RuntimeActionsFixture(
-            configureStore = { store ->
-                store.config = store.config.copy(startTimeoutMillis = 250L)
-            },
+            config = PrivilegeUiConfig(startTimeoutMillis = 250L),
             beforeClose = release::countDown,
         ).use { (store, actions) ->
             actions.runServerStartRequest(
@@ -940,9 +932,7 @@ class PrivilegeUiRuntimeActionsTest {
         val release = CountDownLatch(1)
         val returned = CountDownLatch(1)
         RuntimeActionsFixture(
-            configureStore = { store ->
-                store.config = store.config.copy(startTimeoutMillis = 350L)
-            },
+            config = PrivilegeUiConfig(startTimeoutMillis = 350L),
             beforeClose = release::countDown,
         ).use { (store, actions) ->
             actions.runServerStartRequest(
@@ -1056,9 +1046,7 @@ class PrivilegeUiRuntimeActionsTest {
         val release = CountDownLatch(1)
         val returned = CountDownLatch(1)
         RuntimeActionsFixture(
-            configureStore = { store ->
-                store.config = store.config.copy(startTimeoutMillis = 5_000L)
-            },
+            config = PrivilegeUiConfig(startTimeoutMillis = 5_000L),
             beforeClose = release::countDown,
         ).use { (store, actions) ->
             actions.runServerStartRequest(
@@ -1573,14 +1561,14 @@ class PrivilegeUiRuntimeActionsTest {
 
     private class RuntimeActionsFixture(
         context: Context = RuntimeEnvironment.getApplication(),
-        configureStore: (PrivilegeUiViewModelStore) -> Unit = {},
+        config: PrivilegeUiConfig = PrivilegeUiConfig(),
         shutdownServer: () -> Unit = { Privilege.shutdownServer() },
         isPermissionRestricted: () -> Boolean = Privilege::isPermissionRestricted,
         acquireStartPermit: () -> AutoCloseable? = { AutoCloseable {} },
         operationDispatcher: CoroutineDispatcher = Dispatchers.IO,
         private val beforeClose: () -> Unit = {},
     ) : AutoCloseable {
-        val store = PrivilegeUiViewModelStore(context).apply(configureStore)
+        val store = PrivilegeUiViewModelStore(context, config)
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val actions = PrivilegeUiRuntimeActions(
             store = store,

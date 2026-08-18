@@ -12,9 +12,10 @@ internal object PrivilegeAdbPairingIntentContract {
 
     const val REMOTE_INPUT_PAIRING_CODE: String = "pairing_code"
     const val EXTRA_NOTIFICATION_OWNER_ID: String = "notification_owner_id"
+    const val EXTRA_NOTIFICATION_CHANNEL_ID: String = "notification_channel_id"
+    const val EXTRA_NOTIFICATION_ID: String = "notification_id"
     const val NOTIFICATION_CHANNEL_ID: String = "priv_ui_adb_pairing"
     const val NOTIFICATION_ID: Int = 201
-    const val INPUT_NOTIFICATION_ID: Int = 202
     const val REQUEST_REPLY: Int = 1
     const val REQUEST_STOP: Int = 3
     const val REQUEST_INPUT_LEFT: Int = 5
@@ -22,4 +23,26 @@ internal object PrivilegeAdbPairingIntentContract {
     const val REQUEST_INPUT_DOWN: Int = 7
     const val REQUEST_INPUT_RIGHT: Int = 8
     const val REQUEST_INPUT_SUBMIT: Int = 9
+}
+
+internal data class PrivilegeAdbPairingNotificationSpec(
+    val channelId: String,
+    val notificationId: Int,
+) {
+    init {
+        require(channelId.isNotBlank()) { "channelId must not be blank" }
+        require(notificationId in 1 until Int.MAX_VALUE) {
+            "notificationId must be between 1 and ${Int.MAX_VALUE - 1}"
+        }
+    }
+
+    val inputNotificationId: Int
+        get() = notificationId + 1
+
+    companion object {
+        val Default = PrivilegeAdbPairingNotificationSpec(
+            channelId = PrivilegeAdbPairingIntentContract.NOTIFICATION_CHANNEL_ID,
+            notificationId = PrivilegeAdbPairingIntentContract.NOTIFICATION_ID,
+        )
+    }
 }

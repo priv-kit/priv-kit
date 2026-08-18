@@ -21,11 +21,12 @@ import priv.kit.ui.privilegeUiText
 
 internal class PrivilegeAdbPairingNotificationFactory(
     private val context: Context,
+    private val notificationSpec: PrivilegeAdbPairingNotificationSpec,
 ) {
     fun ensureNotificationChannel() {
         notificationManager.createNotificationChannel(
             NotificationChannel(
-                PrivilegeAdbPairingIntentContract.NOTIFICATION_CHANNEL_ID,
+                notificationSpec.channelId,
                 text(R.string.priv_ui_pairing_channel_name),
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
@@ -72,7 +73,7 @@ internal class PrivilegeAdbPairingNotificationFactory(
         title: String,
         text: String,
     ): Notification.Builder =
-        Notification.Builder(context, PrivilegeAdbPairingIntentContract.NOTIFICATION_CHANNEL_ID)
+        Notification.Builder(context, notificationSpec.channelId)
             .setSmallIcon(notificationSmallIcon())
             .setContentTitle(title)
             .setContentText(text)

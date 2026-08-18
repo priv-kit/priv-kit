@@ -25,6 +25,7 @@ import priv.kit.ui.adb.pairing.PrivilegeAdbPairingInputState
 import priv.kit.ui.adb.pairing.PrivilegeAdbPairingIntentContract
 import priv.kit.ui.adb.pairing.PrivilegeAdbPairingNotificationEvent
 import priv.kit.ui.adb.pairing.PrivilegeAdbPairingNotificationFactory
+import priv.kit.ui.adb.pairing.PrivilegeAdbPairingNotificationSpec
 import priv.kit.ui.adb.pairing.PrivilegeAdbPairingNotificationUnavailableReason
 import priv.kit.ui.adb.pairing.isPrivilegeUiPairingCode
 import priv.kit.ui.adb.pairing.toPrivilegeUiFailureKind
@@ -35,6 +36,9 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
     private var notificationOwnerId: String? = null
     private var lastRemoteInputSubmissionElapsedRealtime: Long = NO_REMOTE_INPUT_SUBMISSION
     private var pendingStopOwnerId: String? = null
+    private var notificationSpec = PrivilegeAdbPairingNotificationSpec.Default
+    private var notificationStatusText: PrivilegeUiText? = null
+    private var notificationAcceptsPairingCode: Boolean = true
     private lateinit var notificationFactory: PrivilegeAdbPairingNotificationFactory
     private val mainHandler = Handler(Looper.getMainLooper())
     private val pendingStopRunnable = Runnable {
@@ -47,23 +51,48 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
 
     override fun onCreate() {
         super.onCreate()
-        notificationFactory = PrivilegeAdbPairingNotificationFactory(this)
-        notificationFactory.ensureNotificationChannel()
+        applyNotificationSpec(notificationSpec)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        if (intent?.action != PrivilegeAdbPairingIntentContract.ACTION_START &&
+            notificationOwnerId == null
+        ) {
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         val notification = when (intent?.action) {
             PrivilegeAdbPairingIntentContract.ACTION_START -> {
-                val ownerId = intent.getStringExtra(
-                    PrivilegeAdbPairingIntentContract.EXTRA_NOTIFICATION_OWNER_ID,
-                ) ?: latestOwnerId
-                if (ownerId.isNullOrBlank()) {
-                    stopNotificationService()
+                val ownerId = requireNotNull(
+                    intent.getStringExtra(PrivilegeAdbPairingIntentContract.EXTRA_NOTIFICATION_OWNER_ID),
+                )
+                val requestedNotificationSpec = PrivilegeAdbPairingNotificationSpec(
+                    channelId = requireNotNull(
+                        intent.getStringExtra(
+                            PrivilegeAdbPairingIntentContract.EXTRA_NOTIFICATION_CHANNEL_ID,
+                        ),
+                    ),
+                    notificationId = intent.getIntExtra(
+                        PrivilegeAdbPairingIntentContract.EXTRA_NOTIFICATION_ID,
+                        0,
+                    ),
+                )
+                val requestedNotificationFactory = PrivilegeAdbPairingNotificationFactory(
+                    context = this,
+                    notificationSpec = requestedNotificationSpec,
+                )
+                requestedNotificationFactory.ensureNotificationChannel()
+                if (!notificationsAvailable(this, requestedNotificationSpec.channelId)) {
+                    handleRequestedNotificationUnavailable(ownerId, requestedNotificationSpec)
                     null
                 } else {
-                    attachOwner(ownerId)
-                    if (ensureNotificationUiAvailable()) showPairingNotifications() else null
+                    attachOwner(
+                        ownerId = ownerId,
+                        requestedNotificationSpec = requestedNotificationSpec,
+                        requestedNotificationFactory = requestedNotificationFactory,
+                    )
+                    showPairingNotifications()
                 }
             }
             PrivilegeAdbPairingIntentContract.ACTION_REPLY -> {
@@ -115,6 +144,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        if (notificationOwnerId == null) return
         notificationFactory.ensureNotificationChannel()
         showPairingNotifications()?.let(::startForegroundSafely)
     }
@@ -123,8 +153,8 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         val detachedOwnerId = notificationOwnerId
         notificationOwnerId = null
         cancelPendingStop()
-        cancelInputNotification()
-        cancelStatusNotification()
+        cancelInputNotification(notificationSpec)
+        cancelStatusNotification(notificationSpec)
         clearActiveService(detachedOwnerId)
         detachedOwnerId?.let { ownerId ->
             notificationEventState.tryEmit(PrivilegeAdbPairingNotificationEvent.Detached(ownerId))
@@ -132,14 +162,28 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         super.onDestroy()
     }
 
-    private fun attachOwner(ownerId: String) {
+    private fun attachOwner(
+        ownerId: String,
+        requestedNotificationSpec: PrivilegeAdbPairingNotificationSpec,
+        requestedNotificationFactory: PrivilegeAdbPairingNotificationFactory,
+    ) {
         cancelPendingStop()
         lastRemoteInputSubmissionElapsedRealtime = NO_REMOTE_INPUT_SUBMISSION
         val previousOwnerId = notificationOwnerId
+        val previousNotificationSpec = notificationSpec
+        if (previousOwnerId != null && previousNotificationSpec != requestedNotificationSpec) {
+            cancelInputNotification(previousNotificationSpec)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            cancelStatusNotification(previousNotificationSpec)
+        }
         if (previousOwnerId != null && previousOwnerId != ownerId) {
             notificationEventState.tryEmit(PrivilegeAdbPairingNotificationEvent.Detached(previousOwnerId))
             pairingInputState = PrivilegeAdbPairingInputState()
         }
+        notificationSpec = requestedNotificationSpec
+        notificationFactory = requestedNotificationFactory
+        notificationStatusText = latestStatusText
+        notificationAcceptsPairingCode = latestAcceptsPairingCode
         notificationOwnerId = ownerId
         latestOwnerId = ownerId
         activeService = this
@@ -147,9 +191,9 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
 
     private fun showPairingNotifications(): Notification? {
         if (notificationOwnerId == null || !showInputNotification()) return null
-        val text = (latestStatusText ?: privilegeUiText(R.string.priv_ui_pairing_search_text))
+        val text = (notificationStatusText ?: privilegeUiText(R.string.priv_ui_pairing_search_text))
             .asString(this)
-        return if (latestAcceptsPairingCode) {
+        return if (notificationAcceptsPairingCode) {
             notificationFactory.statusNotification(text)
         } else {
             notificationFactory.workingNotification(text)
@@ -193,6 +237,8 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         acceptsPairingCode: Boolean,
     ) {
         if (notificationOwnerId == null || !ensureNotificationUiAvailable()) return
+        notificationStatusText = text
+        notificationAcceptsPairingCode = acceptsPairingCode
         val resolvedText = text.asString(this)
         val notification = if (acceptsPairingCode) {
             notificationFactory.statusNotification(resolvedText)
@@ -216,7 +262,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
     }
 
     private fun ensureNotificationUiAvailable(): Boolean {
-        if (notificationsAvailable(this)) return true
+        if (notificationsAvailable(this, notificationSpec.channelId)) return true
         handleNotificationUnavailable(
             PrivilegeAdbPairingNotificationUnavailableReason.NOTIFICATION_PERMISSION_REQUIRED,
         )
@@ -239,6 +285,37 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         stopNotificationService()
     }
 
+    private fun handleRequestedNotificationUnavailable(
+        ownerId: String,
+        requestedNotificationSpec: PrivilegeAdbPairingNotificationSpec,
+    ) {
+        val reason = PrivilegeAdbPairingNotificationUnavailableReason.NOTIFICATION_PERMISSION_REQUIRED
+        if (notificationOwnerId == ownerId && notificationSpec == requestedNotificationSpec) {
+            handleNotificationUnavailable(reason)
+            return
+        }
+        notificationEventState.tryEmit(
+            PrivilegeAdbPairingNotificationEvent.Unavailable(
+                ownerId = ownerId,
+                message = privilegeUiText(reason.toPrivilegeUiFailureKind().messageResId).asString(this),
+                reason = reason,
+            ),
+        )
+        val activeOwnerId = notificationOwnerId
+        if (activeOwnerId == null) {
+            if (latestOwnerId == ownerId) {
+                latestOwnerId = null
+                latestStatusText = null
+                latestAcceptsPairingCode = true
+            }
+            stopSelf()
+        } else if (latestOwnerId == ownerId) {
+            latestOwnerId = activeOwnerId
+            latestStatusText = notificationStatusText
+            latestAcceptsPairingCode = notificationAcceptsPairingCode
+        }
+    }
+
     private fun stopNotificationService() {
         val ownerId = notificationOwnerId
         notificationOwnerId = null
@@ -249,10 +326,12 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
             latestStatusText = null
             latestAcceptsPairingCode = true
         }
-        cancelInputNotification()
+        notificationStatusText = null
+        notificationAcceptsPairingCode = true
+        cancelInputNotification(notificationSpec)
         clearActiveService(ownerId)
         stopForeground(STOP_FOREGROUND_REMOVE)
-        cancelStatusNotification()
+        cancelStatusNotification(notificationSpec)
         stopSelf()
     }
 
@@ -263,7 +342,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
             stopNotificationService()
             return
         }
-        cancelInputNotification()
+        cancelInputNotification(notificationSpec)
         pendingStopOwnerId = ownerId
         mainHandler.removeCallbacks(pendingStopRunnable)
         mainHandler.postDelayed(pendingStopRunnable, graceMillis)
@@ -281,18 +360,26 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         mainHandler.removeCallbacks(pendingStopRunnable)
     }
 
-    private fun cancelInputNotification() {
-        notificationManager.cancel(PrivilegeAdbPairingIntentContract.INPUT_NOTIFICATION_ID)
+    private fun cancelInputNotification(spec: PrivilegeAdbPairingNotificationSpec) {
+        notificationManager.cancel(spec.inputNotificationId)
     }
 
-    private fun cancelStatusNotification() {
-        notificationManager.cancel(PrivilegeAdbPairingIntentContract.NOTIFICATION_ID)
+    private fun cancelStatusNotification(spec: PrivilegeAdbPairingNotificationSpec) {
+        notificationManager.cancel(spec.notificationId)
+    }
+
+    private fun applyNotificationSpec(spec: PrivilegeAdbPairingNotificationSpec) {
+        notificationSpec = spec
+        notificationFactory = PrivilegeAdbPairingNotificationFactory(
+            context = this,
+            notificationSpec = spec,
+        )
     }
 
     private fun startForegroundSafely(notification: Notification) {
         if (notificationOwnerId == null || !ensureNotificationUiAvailable()) return
         try {
-            startForeground(PrivilegeAdbPairingIntentContract.NOTIFICATION_ID, notification)
+            startForeground(notificationSpec.notificationId, notification)
         } catch (throwable: Throwable) {
             Log.e(TAG, "Unable to start pairing foreground service", throwable)
             handleNotificationUnavailable(
@@ -303,7 +390,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
 
     @SuppressLint("MissingPermission")
     private fun notifyInputSafely(notification: Notification) {
-        notificationManager.notify(PrivilegeAdbPairingIntentContract.INPUT_NOTIFICATION_ID, notification)
+        notificationManager.notify(notificationSpec.inputNotificationId, notification)
     }
 
     private fun clearActiveService(ownerId: String?) {
@@ -350,18 +437,28 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
             context = context,
             ownerId = ownerId,
             statusText = PrivilegeUiText.Literal(statusText),
+            notificationChannelId = PrivilegeAdbPairingIntentContract.NOTIFICATION_CHANNEL_ID,
+            notificationId = PrivilegeAdbPairingIntentContract.NOTIFICATION_ID,
         )
 
         internal fun startWithText(
             context: Context,
             ownerId: String,
             statusText: PrivilegeUiText,
+            notificationChannelId: String,
+            notificationId: Int,
         ): Boolean {
             require(ownerId.isNotBlank()) { "ownerId must not be blank" }
-            if (!notificationsAvailable(context)) {
-                activeService?.handleNotificationUnavailable(
-                    PrivilegeAdbPairingNotificationUnavailableReason.NOTIFICATION_PERMISSION_REQUIRED,
-                )
+            if (!notificationsAvailable(context, notificationChannelId)) {
+                activeService
+                    ?.takeIf { service ->
+                        service.notificationOwnerId == ownerId &&
+                            service.notificationSpec.channelId == notificationChannelId &&
+                            service.notificationSpec.notificationId == notificationId
+                    }
+                    ?.handleNotificationUnavailable(
+                        PrivilegeAdbPairingNotificationUnavailableReason.NOTIFICATION_PERMISSION_REQUIRED,
+                    )
                 return false
             }
             val previousOwnerId = latestOwnerId
@@ -374,7 +471,15 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
                 context.startForegroundService(
                     Intent(context, PrivilegeAdbPairingService::class.java)
                         .setAction(PrivilegeAdbPairingIntentContract.ACTION_START)
-                        .putExtra(PrivilegeAdbPairingIntentContract.EXTRA_NOTIFICATION_OWNER_ID, ownerId),
+                        .putExtra(PrivilegeAdbPairingIntentContract.EXTRA_NOTIFICATION_OWNER_ID, ownerId)
+                        .putExtra(
+                            PrivilegeAdbPairingIntentContract.EXTRA_NOTIFICATION_CHANNEL_ID,
+                            notificationChannelId,
+                        )
+                        .putExtra(
+                            PrivilegeAdbPairingIntentContract.EXTRA_NOTIFICATION_ID,
+                            notificationId,
+                        ),
                 )
             } catch (throwable: Throwable) {
                 if (latestOwnerId == ownerId) {
@@ -429,7 +534,10 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         internal fun isRequested(ownerId: String): Boolean =
             latestOwnerId == ownerId
 
-        private fun notificationsAvailable(context: Context): Boolean {
+        private fun notificationsAvailable(
+            context: Context,
+            notificationChannelId: String,
+        ): Boolean {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 ContextCompat.checkSelfPermission(
                     context,
@@ -440,7 +548,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
             }
             val manager = NotificationManagerCompat.from(context)
             if (!manager.areNotificationsEnabled()) return false
-            return manager.getNotificationChannel(PrivilegeAdbPairingIntentContract.NOTIFICATION_CHANNEL_ID)
+            return manager.getNotificationChannel(notificationChannelId)
                 ?.importance != NotificationManager.IMPORTANCE_NONE
         }
 

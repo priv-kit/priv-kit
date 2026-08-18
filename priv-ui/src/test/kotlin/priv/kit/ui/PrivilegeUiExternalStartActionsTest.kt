@@ -105,7 +105,10 @@ class PrivilegeUiExternalStartActionsTest {
     @Test
     fun refreshBeforeAttachUsesConstructionContext() = runBlocking {
         val provider = CountingExternalStartProvider()
-        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
+        val store = PrivilegeUiViewModelStore(
+            context = RuntimeEnvironment.getApplication(),
+            config = PrivilegeUiConfig(externalStartProviders = listOf(provider)),
+        )
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val runtimeActions = newRuntimeActions(store, scope)
         val actions = PrivilegeUiExternalStartActions(
@@ -113,8 +116,6 @@ class PrivilegeUiExternalStartActionsTest {
             runtimeActions = runtimeActions,
         )
         try {
-            store.config = PrivilegeUiConfig(externalStartProviders = listOf(provider))
-
             val refreshed = actions.refreshExternalStartStatusNow(providerId = null)
 
             assertTrue(refreshed)

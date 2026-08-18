@@ -539,6 +539,8 @@ internal class PrivilegeUiAdbPairingActions(
                 context = context,
                 ownerId = notificationOwnerId,
                 statusText = text,
+                notificationChannelId = store.config.notificationPairingChannelId,
+                notificationId = store.config.notificationPairingNotificationId,
             )
         } catch (throwable: Throwable) {
             startFailure = throwable

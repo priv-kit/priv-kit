@@ -140,6 +140,15 @@ pairing dialog available for a split-screen flow with Android Settings. Its
 warning returns continue-without-notifications, granted-in-settings, or cancel
 to the same suspended pairing operation.
 
+Hosts can reserve their own notification namespace through
+`PrivilegeUiConfig.notificationPairingChannelId` and
+`notificationPairingNotificationId`. The defaults are `priv_ui_adb_pairing`
+and `201`. The notification ID reserves two consecutive values: the configured
+value for foreground status and the next value for pairing-code input. Keep the
+channel ID stable and dedicated to this flow, and choose a notification ID from
+`1` through `Int.MAX_VALUE - 1` that does not collide with host notifications.
+`priv-ui` creates the configured channel on demand and does not delete it.
+
 Managed Wireless Debugging remains a `priv-core` capability. `priv-ui` reads
 its status and passes the selected policy to `priv-core`; it does not write
 `Settings.Global` itself.

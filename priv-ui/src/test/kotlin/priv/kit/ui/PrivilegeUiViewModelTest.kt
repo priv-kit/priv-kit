@@ -353,10 +353,12 @@ class PrivilegeUiViewModelTest {
 
     @Test
     fun directAdbStartUsesConfiguredTcpWithoutCachedAuthorization() {
-        val viewModel = RootOnlyPrivilegeUiViewModel(application())
+        val viewModel = ConfiguredPrivilegeUiViewModel(
+            application = application(),
+            config = PrivilegeUiConfig(adbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING),
+        )
         val store = viewModel.storeForTest()
         val adbActions = viewModel.adbActionsForTest()
-        store.config = store.config.copy(adbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING)
         store.updateState {
             it.copy(
                 wifiConnected = false,

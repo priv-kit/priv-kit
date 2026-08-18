@@ -127,6 +127,13 @@ val config = PrivilegeUiConfig(
 对话框，供用户与 Android 设置页配合分屏操作。权限警告会把“无通知继续”、设置中
 授权后继续或取消返回给同一个挂起的配对协程。
 
+宿主可以通过 `PrivilegeUiConfig.notificationPairingChannelId` 和
+`notificationPairingNotificationId` 预留自己的通知命名空间，默认值分别是
+`priv_ui_adb_pairing` 和 `201`。通知 ID 会连续占用两个值：配置值用于前台状态通知，
+下一个值用于输入配对码。渠道 ID 应保持稳定并专用于此流程；通知 ID 必须处于 `1`
+到 `Int.MAX_VALUE - 1`，且不能与宿主的其他通知冲突。`priv-ui` 会按需创建配置的渠道，
+但不会删除它。
+
 `priv-core` 可以在具备权限时临时打开和关闭无线调试。`priv-ui` 只读取状态并把
 对应配置传给 `priv-core`，不会自行写入 `Settings.Global`。
 
