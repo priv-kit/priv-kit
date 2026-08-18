@@ -23,6 +23,8 @@ internal interface PrivilegeFileOperations {
 
     fun delete(path: String): Boolean
 
+    suspend fun deleteRecursively(path: String): Boolean
+
     fun renameTo(sourcePath: String, targetPath: String): Boolean
 
     fun replaceAtomically(sourcePath: String, targetPath: String)

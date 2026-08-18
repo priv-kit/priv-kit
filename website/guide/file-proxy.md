@@ -16,10 +16,12 @@ caller waits for Binder dispatch and server-side filesystem I/O. The
 file-service Binder is installed with the server handshake, so a filesystem
 method normally adds one Binder round trip to the corresponding filesystem call.
 
-`scanDirectory()` is different: its Binder request and pipe reader run on
-`Dispatchers.IO`, so collecting the returned flow does not block the collector's
-thread. Opening file content requires a synchronous Binder handoff, but the
-content then moves through pipes without one Binder transaction per data chunk.
+`scanDirectory()` and `deleteRecursively()` are different. Directory scanning
+runs its Binder request and pipe reader on `Dispatchers.IO`.
+`deleteRecursively()` suspends while a bounded server-side coroutine performs
+the traversal, so neither operation blocks the caller's thread. Opening file
+content requires a synchronous Binder handoff, but the content then moves
+through pipes without one Binder transaction per data chunk.
 
 ## Create a handle {#create-handle}
 
@@ -68,6 +70,38 @@ exists and raises `IOException` for other I/O failures. Whether `renameTo()` can
 replace an existing destination depends on the server filesystem. Metadata and
 scan failures preserve the Linux error as `ErrnoException`; open failures use
 `IOException` with that errno exception as their cause.
+
+## Delete a tree {#delete-recursively}
+
+```kotlin
+val deleted = directory.deleteRecursively()
+if (!deleted) {
+    Log.w("file", "Some entries could not be deleted from $directory")
+}
+```
+
+`deleteRecursively()` is a suspending operation. Its initial Binder call only
+validates and admits the request; filesystem traversal runs in the Privileged
+Server on a bounded IO coroutine dispatcher. The server accepts at most four
+recursive deletes at once and has no waiting queue. A request rejected at that
+limit returns `false` without starting.
+
+A regular file or symbolic link is deleted directly. A directory is traversed
+children-first with secure descriptor-relative directory operations, and
+symbolic links are never followed. The public client method lexically normalizes
+repeated separators and `.` or `..` segments before contacting the server. A
+target that resolves to filesystem root is rejected with
+`IllegalArgumentException`. The server uses the resulting path directly. If
+safe relative directory operations are unavailable, the method returns `false`
+instead of falling back to a traversal vulnerable to symbolic-link replacement
+races.
+
+The method returns `true` when the target is already absent or every entry was
+deleted. It returns `false` if any entry remains, but continues attempting its
+siblings. Cancellation, a `false` result, or Privileged Server death can leave a
+partially deleted tree. Cancellation stops at an entry boundary and cannot
+restore prior deletions. Do not automatically retry after server death because
+the completed portion is unknown.
 
 ## Replace a file atomically {#atomic-replacement}
 
@@ -150,5 +184,7 @@ itself still fails the scan. Cancelling collection closes the pipe. The server
 allows four active scans without a waiting queue; another scan fails with
 `EBUSY`.
 
-The proxy intentionally has no `deleteRecursively()` or storage-cleanup API.
-Destructive traversal remains an application-owned policy.
+The proxy does not turn recursive deletion into a storage-cleanup policy. It
+does not discover targets, select retained files, expose configurable traversal
+rules, or schedule persistent cleanup work; the application must still choose
+the one explicit path to delete.

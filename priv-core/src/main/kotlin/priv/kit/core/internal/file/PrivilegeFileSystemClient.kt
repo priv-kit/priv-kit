@@ -1,6 +1,9 @@
 package priv.kit.core.internal.file
 
+import android.os.DeadObjectException
+import android.os.IBinder
 import android.os.ParcelFileDescriptor
+import android.os.ResultReceiver
 import android.system.ErrnoException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -8,7 +11,10 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
+import priv.kit.core.binder.PrivilegeServerUnavailableException
 import priv.kit.core.file.PrivilegeFileDirectoryEntry
 import priv.kit.core.file.PrivilegeFileMetadata
 import priv.kit.core.file.PrivilegeFileOperations
@@ -18,6 +24,9 @@ import java.io.EOFException
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 internal object PrivilegeFileSystemClient : PrivilegeFileOperations {
     override fun query(path: String, kind: Int): Boolean =
@@ -97,6 +106,11 @@ internal object PrivilegeFileSystemClient : PrivilegeFileOperations {
     override fun delete(path: String): Boolean =
         call { fileSystem -> fileSystem.delete(path) }
 
+    override suspend fun deleteRecursively(path: String): Boolean =
+        withContext(Dispatchers.IO) {
+            awaitRecursiveDelete(path)
+        }
+
     override fun renameTo(sourcePath: String, targetPath: String): Boolean =
         call { fileSystem -> fileSystem.renameTo(sourcePath, targetPath) }
 
@@ -164,6 +178,109 @@ internal object PrivilegeFileSystemClient : PrivilegeFileOperations {
             reader.cancel()
         }
     }
+
+    internal suspend fun awaitRecursiveDelete(
+        path: String,
+        callOperation: ((IPrivilegeFileSystem) -> Boolean) -> Boolean = { block -> call(block) },
+    ): Boolean =
+        suspendCancellableCoroutine { continuation ->
+            val operationId = UUID.randomUUID().toString()
+            val completed = AtomicBoolean(false)
+            val linked = AtomicBoolean(false)
+            val binderReference = AtomicReference<IBinder?>()
+            val startLock = Any()
+            var fileSystem: IPrivilegeFileSystem? = null
+
+            lateinit var deathRecipient: IBinder.DeathRecipient
+            val unlinkDeath = {
+                val binder = binderReference.get()
+                if (binder != null && linked.compareAndSet(true, false)) {
+                    runCatching { binder.unlinkToDeath(deathRecipient, 0) }
+                }
+                Unit
+            }
+            val resumeResult = { result: Boolean ->
+                if (completed.compareAndSet(false, true)) {
+                    unlinkDeath()
+                    continuation.resumeWith(Result.success(result))
+                }
+                Unit
+            }
+            val resumeFailure = { throwable: Throwable ->
+                if (completed.compareAndSet(false, true)) {
+                    unlinkDeath()
+                    continuation.resumeWith(Result.failure(throwable))
+                }
+                Unit
+            }
+            val cancelRemote = {
+                synchronized(startLock) {
+                    fileSystem?.let { endpoint ->
+                        runCatching { endpoint.cancelDeleteRecursively(operationId) }
+                    }
+                }
+                Unit
+            }
+
+            deathRecipient = IBinder.DeathRecipient {
+                resumeFailure(
+                    PrivilegeServerUnavailableException(
+                        cause = DeadObjectException(
+                            "File-system Binder died during recursive delete",
+                        ),
+                    ),
+                )
+            }
+            val receiver = object : ResultReceiver(null) {
+                override fun onReceiveResult(resultCode: Int, resultData: android.os.Bundle?) {
+                    when (resultCode) {
+                        PrivilegeFileSystemContract.RECURSIVE_DELETE_SUCCEEDED ->
+                            resumeResult(true)
+
+                        PrivilegeFileSystemContract.RECURSIVE_DELETE_FAILED ->
+                            resumeResult(false)
+
+                        else -> resumeFailure(
+                            IOException(
+                                "Unknown recursive delete result $resultCode for $path",
+                            ),
+                        )
+                    }
+                }
+            }
+
+            continuation.invokeOnCancellation {
+                if (completed.compareAndSet(false, true)) {
+                    unlinkDeath()
+                    cancelRemote()
+                }
+            }
+            if (!continuation.isActive) return@suspendCancellableCoroutine
+
+            try {
+                val accepted = callOperation operation@{ endpoint ->
+                    synchronized(startLock) {
+                        if (!continuation.isActive || completed.get()) {
+                            return@operation false
+                        }
+                        fileSystem = endpoint
+                        val binder = endpoint.asBinder()
+                        binderReference.set(binder)
+                        linked.set(true)
+                        binder.linkToDeath(deathRecipient, 0)
+                        if (!binder.pingBinder()) {
+                            throw DeadObjectException(
+                                "File-system Binder died before recursive delete",
+                            )
+                        }
+                        endpoint.startDeleteRecursively(operationId, path, receiver)
+                    }
+                }
+                if (!accepted) resumeResult(false)
+            } catch (throwable: Throwable) {
+                resumeFailure(throwable)
+            }
+        }
 
     private fun <T> call(block: (IPrivilegeFileSystem) -> T): T =
         Privilege.callFileSystem(block)

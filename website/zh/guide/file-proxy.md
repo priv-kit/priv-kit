@@ -13,9 +13,10 @@ Binder 调用，可以在任意线程调用，但调用方需要等待 Binder �
 I/O，通常应放在工作线程执行。文件服务 Binder 已随服务端握手安装，因此一次文件系统
 方法通常只增加一次到对应文件操作的 Binder 往返。
 
-`scanDirectory()` 不同：它会在 `Dispatchers.IO` 中发起 Binder 请求并读取 pipe，
-因此扫描工作不会阻塞收集 Flow 的线程。打开文件内容时需要同步完成 Binder 交接，
-之后的内容通过 pipe 传输，不会为每个数据块发起一次 Binder transaction。
+`scanDirectory()` 和 `deleteRecursively()` 不同。目录扫描会在 `Dispatchers.IO` 中
+发起 Binder 请求并读取 pipe；`deleteRecursively()` 会挂起调用方，并由服务端有界
+协程执行遍历，因此两者都不会阻塞调用方线程。打开文件内容时仍需要同步完成 Binder
+交接，之后的内容通过 pipe 传输，不会为每个数据块发起一次 Binder transaction。
 
 ## 创建句柄 {#create-handle}
 
@@ -61,6 +62,30 @@ Privileged Server 未连接或已经死亡时，会抛出 `PrivilegeServerUnavai
 失败抛出 `IOException`。`renameTo()` 是否能够替换已有目标取决于服务端文件系统。
 元数据和扫描失败会保留 Linux `errno` 并抛出 `ErrnoException`；打开失败使用
 `IOException`，其 cause 是对应的 errno 异常。
+
+## 删除目录树 {#delete-recursively}
+
+```kotlin
+val deleted = directory.deleteRecursively()
+if (!deleted) {
+    Log.w("file", "$directory 中有条目无法删除")
+}
+```
+
+`deleteRecursively()` 是挂起操作。最初的 Binder 调用只负责校验和受理请求，实际文件
+遍历在 Privileged Server 的有界 IO 协程调度器中执行。服务端最多同时受理四个递归
+删除且不设置等待队列；达到上限后，新请求直接返回 `false`，不会开始删除。
+
+普通文件和符号链接会被直接删除。目录使用安全的描述符相对操作按“子项优先”顺序
+遍历，并且绝不跟随符号链接。客户端公开方法会在连接服务端前按词法合并重复分隔符及
+`.`、`..` 路径段；合并后指向文件系统根的目标会抛出 `IllegalArgumentException`，
+服务端直接使用合并结果。底层无法提供安全的相对目录操作时，该方法返回 `false`，
+不会退化为容易受到符号链接替换竞态影响的路径遍历。
+
+目标已经不存在或所有条目均删除时返回 `true`。任一条目无法删除时返回 `false`，但
+仍会继续尝试其兄弟条目。取消、`false` 结果或 Privileged Server 死亡都可能留下已经
+部分删除的目录树；取消只能在条目边界阻止后续工作，无法恢复已经删除的内容。服务端
+死亡后无法确定已完成范围，因此不得自动重试。
 
 ## 原子替换文件 {#atomic-replacement}
 
@@ -134,5 +159,5 @@ directory.scanDirectory().collect { entry ->
 本身无法打开或迭代仍会让扫描失败。取消收集会关闭 pipe。服务端最多同时执行四个
 扫描且不设置等待队列；继续发起扫描会以 `EBUSY` 失败。
 
-文件代理刻意不提供 `deleteRecursively()` 或存储清理 API。破坏性的遍历策略仍由
-接入应用负责。
+递归删除不会扩展为存储清理策略。文件代理不发现删除目标、不决定保留文件、不提供
+可配置遍历规则，也不调度持久清理任务；接入应用仍必须明确选择唯一的目标路径。

@@ -1,6 +1,7 @@
 package priv.kit.core.internal.file;
 
 import android.os.ParcelFileDescriptor;
+import android.os.ResultReceiver;
 import priv.kit.core.internal.file.PrivilegeFileResult;
 
 interface IPrivilegeFileSystem {
@@ -16,4 +17,10 @@ interface IPrivilegeFileSystem {
     boolean renameTo(String sourcePath, String targetPath);
     int replaceAtomically(String sourcePath, String targetPath);
     int scanDirectory(String path, in ParcelFileDescriptor sink);
+    boolean startDeleteRecursively(
+        String operationId,
+        String path,
+        in ResultReceiver receiver
+    );
+    oneway void cancelDeleteRecursively(String operationId);
 }

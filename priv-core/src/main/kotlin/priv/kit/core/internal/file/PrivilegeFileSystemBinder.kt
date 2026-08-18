@@ -1,9 +1,19 @@
 package priv.kit.core.internal.file
 
 import android.os.ParcelFileDescriptor
+import android.os.ResultReceiver
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.io.BufferedOutputStream
 import java.io.Closeable
 import java.io.DataOutputStream
@@ -25,12 +35,30 @@ import java.util.concurrent.ThreadFactory
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import priv.kit.core.file.PrivilegeFilePath
 
-internal class PrivilegeFileSystemBinder : IPrivilegeFileSystem.Stub() {
+internal class PrivilegeFileSystemBinder(
+    private val recursiveDeleteAction: suspend (String) -> Boolean =
+        PrivilegeFileRecursiveDelete::delete,
+    recursiveDeleteDispatcher: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(
+        PrivilegeFileSystemContract.MAX_CONCURRENT_RECURSIVE_DELETES,
+        "priv-kit-file-recursive-delete",
+    ),
+) : IPrivilegeFileSystem.Stub() {
     private val activeScans = ConcurrentHashMap<ParcelFileDescriptor, Unit>()
     private val activeTransfers = ConcurrentHashMap<ActiveTransfer, Unit>()
+    private val activeRecursiveDeletes = ConcurrentHashMap<String, ActiveRecursiveDelete>()
     private val transferSlots = Semaphore(PrivilegeFileSystemContract.MAX_CONCURRENT_TRANSFERS)
+    private val recursiveDeleteSlots = Semaphore(
+        PrivilegeFileSystemContract.MAX_CONCURRENT_RECURSIVE_DELETES,
+    )
+    private val recursiveDeleteAdmissionLock = Any()
+    private val recursiveDeleteJob = SupervisorJob()
+    private val recursiveDeleteScope = CoroutineScope(
+        recursiveDeleteJob + recursiveDeleteDispatcher +
+            CoroutineName("priv-kit-file-recursive-delete"),
+    )
     private val scanExecutor = ThreadPoolExecutor(
         0,
         PrivilegeFileSystemContract.MAX_CONCURRENT_SCANS,
@@ -266,6 +294,46 @@ internal class PrivilegeFileSystemBinder : IPrivilegeFileSystem.Stub() {
         return File(path).delete()
     }
 
+    override fun startDeleteRecursively(
+        operationId: String,
+        path: String,
+        receiver: ResultReceiver?,
+    ): Boolean {
+        if (operationId.isBlank() || receiver == null) return false
+
+        val operation = synchronized(recursiveDeleteAdmissionLock) {
+            if (closed || !recursiveDeleteSlots.tryAcquire()) return false
+            val candidate = ActiveRecursiveDelete(receiver)
+            if (activeRecursiveDeletes.putIfAbsent(operationId, candidate) != null) {
+                recursiveDeleteSlots.release()
+                return false
+            }
+            candidate
+        }
+
+        val job = recursiveDeleteScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                operation.complete(recursiveDeleteAction(path))
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (_: Throwable) {
+                operation.complete(false)
+            }
+        }
+        operation.attach(job)
+        job.invokeOnCompletion {
+            if (activeRecursiveDeletes.remove(operationId, operation)) {
+                recursiveDeleteSlots.release()
+            }
+        }
+        job.start()
+        return true
+    }
+
+    override fun cancelDeleteRecursively(operationId: String) {
+        activeRecursiveDeletes[operationId]?.cancel()
+    }
+
     override fun renameTo(sourcePath: String, targetPath: String): Boolean {
         validatePath(sourcePath)
         validatePath(targetPath)
@@ -318,11 +386,15 @@ internal class PrivilegeFileSystemBinder : IPrivilegeFileSystem.Stub() {
     fun cancelActiveOperations() {
         cancelActiveScans()
         activeTransfers.keys.forEach(ActiveTransfer::cancel)
+        activeRecursiveDeletes.values.forEach(ActiveRecursiveDelete::cancel)
     }
 
     fun shutdown() {
-        closed = true
+        synchronized(recursiveDeleteAdmissionLock) {
+            closed = true
+        }
         cancelActiveOperations()
+        recursiveDeleteJob.cancel()
         scanExecutor.shutdownNow()
         transferExecutor.shutdownNow()
     }
@@ -541,6 +613,44 @@ internal class PrivilegeFileSystemBinder : IPrivilegeFileSystem.Stub() {
             runCatching(dataEndpoint::close)
             runCatching { completionEndpoint?.close() }
             runCatching(target::close)
+        }
+    }
+
+    private class ActiveRecursiveDelete(
+        private val receiver: ResultReceiver,
+    ) {
+        private val state = AtomicInteger(STATE_PENDING)
+        private val job = AtomicReference<Job?>()
+
+        fun attach(value: Job) {
+            check(job.compareAndSet(null, value)) { "Recursive delete Job was already attached" }
+            if (state.get() == STATE_CANCELLED) value.cancel()
+        }
+
+        fun complete(succeeded: Boolean) {
+            if (!state.compareAndSet(STATE_PENDING, STATE_COMPLETED)) return
+            runCatching {
+                receiver.send(
+                    if (succeeded) {
+                        PrivilegeFileSystemContract.RECURSIVE_DELETE_SUCCEEDED
+                    } else {
+                        PrivilegeFileSystemContract.RECURSIVE_DELETE_FAILED
+                    },
+                    null,
+                )
+            }
+        }
+
+        fun cancel() {
+            if (state.compareAndSet(STATE_PENDING, STATE_CANCELLED)) {
+                job.get()?.cancel()
+            }
+        }
+
+        private companion object {
+            const val STATE_PENDING: Int = 0
+            const val STATE_COMPLETED: Int = 1
+            const val STATE_CANCELLED: Int = 2
         }
     }
 

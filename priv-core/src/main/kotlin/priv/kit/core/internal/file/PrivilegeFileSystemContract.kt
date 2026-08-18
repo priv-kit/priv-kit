@@ -23,7 +23,11 @@ internal object PrivilegeFileSystemContract {
     const val SCAN_COMPLETE: Int = 2
     const val SCAN_ERROR: Int = 3
 
+    const val RECURSIVE_DELETE_FAILED: Int = 0
+    const val RECURSIVE_DELETE_SUCCEEDED: Int = 1
+
     const val MAX_CONCURRENT_SCANS: Int = 4
     const val MAX_CONCURRENT_TRANSFERS: Int = 4
+    const val MAX_CONCURRENT_RECURSIVE_DELETES: Int = 4
     const val CREATE_MODE: Int = 0x180 // 0600
 }

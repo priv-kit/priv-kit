@@ -2,6 +2,7 @@ package priv.kit.core.file
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.runBlocking
 import priv.kit.core.Privilege
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -105,6 +106,49 @@ class PrivilegeFileTest {
     }
 
     @Test
+    fun recursiveDeleteDelegatesAsASuspendingOperation() = runBlocking {
+        val operations = FakeOperations().apply { recursiveDeleteResult = true }
+        val file = PrivilegeFile("/directory/tree", operations)
+
+        assertTrue(file.deleteRecursively())
+        assertEquals("/directory/tree", operations.recursiveDeletePath)
+    }
+
+    @Test
+    fun recursiveDeleteNormalizesPathBeforeDelegating() = runBlocking {
+        mapOf(
+            "/directory/./child" to "/directory/child",
+            "/directory/../child" to "/child",
+            "/../../directory//child/." to "/directory/child",
+        ).forEach { (path, expected) ->
+            val operations = FakeOperations().apply { recursiveDeleteResult = true }
+
+            assertTrue(PrivilegeFile(path, operations).deleteRecursively())
+            assertEquals(expected, operations.recursiveDeletePath)
+        }
+    }
+
+    @Test
+    fun recursiveDeleteRejectsTargetsThatNormalizeToRootBeforeDelegating() {
+        val operations = FakeOperations()
+
+        listOf(
+            "/",
+            "////",
+            "/.",
+            "/directory/..",
+            "/directory/child/../..",
+            "/../../",
+        ).forEach { path ->
+            assertThrows(IllegalArgumentException::class.java) {
+                runBlocking { PrivilegeFile(path, operations).deleteRecursively() }
+            }
+        }
+
+        assertNull(operations.recursiveDeletePath)
+    }
+
+    @Test
     fun metadataIsReturnedWithoutCaching() {
         val expected = PrivilegeFileMetadata(
             absolutePath = "/entry",
@@ -199,6 +243,8 @@ class PrivilegeFileTest {
         var mkdirResult = false
         var mkdirsResult = false
         var deleteResult = false
+        var recursiveDeleteResult = false
+        var recursiveDeletePath: String? = null
         var renameResult = false
         var renamedSource: String? = null
         var renamedDestination: String? = null
@@ -251,6 +297,11 @@ class PrivilegeFileTest {
         override fun mkdirs(path: String): Boolean = mkdirsResult
 
         override fun delete(path: String): Boolean = deleteResult
+
+        override suspend fun deleteRecursively(path: String): Boolean {
+            recursiveDeletePath = path
+            return recursiveDeleteResult
+        }
 
         override fun renameTo(sourcePath: String, targetPath: String): Boolean {
             renamedSource = sourcePath

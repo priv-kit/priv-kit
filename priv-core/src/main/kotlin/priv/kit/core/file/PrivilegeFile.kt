@@ -12,10 +12,10 @@ import java.io.OutputStream
  * An absolute path whose filesystem operations execute in the connected Privileged Server.
  *
  * This is not a [java.io.File] subclass. Path composition and [isHidden] are local. Methods that
- * inspect or mutate the filesystem use synchronous Binder calls. They can run on any thread, but
- * should normally run on a worker thread while waiting for dispatch and server-side filesystem
- * I/O. Methods that share a name with [java.io.File] retain its return-value semantics. A missing
- * or dead server instead throws
+ * inspect or mutate the filesystem use synchronous Binder calls unless documented otherwise. They
+ * can run on any thread, but should normally run on a worker thread while waiting for dispatch and
+ * server-side filesystem I/O. Methods that share a name with [java.io.File] retain its return-value
+ * semantics. A missing or dead server instead throws
  * [priv.kit.core.binder.PrivilegeServerUnavailableException].
  */
 public class PrivilegeFile internal constructor(
@@ -85,6 +85,31 @@ public class PrivilegeFile internal constructor(
     public fun mkdirs(): Boolean = operations.mkdirs(absolutePath)
 
     public fun delete(): Boolean = operations.delete(absolutePath)
+
+    /**
+     * Deletes this entry and, when it is a directory, all of its descendants.
+     *
+     * The traversal runs asynchronously in the Privileged Server and does not follow symbolic
+     * links. A missing target is considered successfully deleted. A `false` result means that at
+     * least one entry could not be deleted; other entries may already have been removed. Cancelling
+     * this call is also best effort and cannot restore entries that were already deleted.
+     *
+     * This method lexically normalizes the path before contacting the Privileged Server. A target
+     * that resolves to filesystem root is rejected before the operation starts.
+     */
+    public suspend fun deleteRecursively(): Boolean {
+        val segments = ArrayList<String>()
+        absolutePath.split('/').forEach { segment ->
+            when (segment) {
+                "", "." -> Unit
+                ".." -> if (segments.isNotEmpty()) segments.removeAt(segments.lastIndex)
+                else -> segments += segment
+            }
+        }
+        val normalizedPath = segments.joinToString(separator = "/", prefix = "/")
+        require(normalizedPath != "/") { "Filesystem root cannot be deleted recursively" }
+        return operations.deleteRecursively(normalizedPath)
+    }
 
     public fun renameTo(destination: PrivilegeFile): Boolean =
         operations.renameTo(absolutePath, destination.absolutePath)
