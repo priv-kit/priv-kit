@@ -31,6 +31,12 @@ prompt, pairing input, confirmation surface, polling loop, and error state.
 is connected; `null` means it is disconnected. Every new collector immediately
 receives the current value.
 
+`PrivilegeServerInfo` is a data class with a diagnostic-friendly `toString`.
+Its `selinuxContext` contains the SELinux context read and cached once per
+server process, or `null` when the platform cannot provide it. Owner reconnects
+reuse the cached diagnostic value. Core constructs connection snapshots and
+keeps both the constructor and `copy` internal.
+
 #### Application-wide observation {#application-observation}
 
 When connection changes must trigger work for the lifetime of the application
@@ -135,9 +141,8 @@ start the server.
 When the host declares and already holds `WRITE_SECURE_SETTINGS`, the default
 `PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE` policy can temporarily
 enable Wireless Debugging, discover the connect port, and disable Wireless
-Debugging after the start attempt. Use `NEVER` when the application must not
-change this setting. Use `REQUIRE` when startup should fail if Wireless
-Debugging is off and Priv Kit cannot enable it.
+Debugging after the start attempt. `NEVER` leaves the setting untouched.
+`REQUIRE` makes managed Wireless Debugging a startup prerequisite.
 
 After the Privileged Server connects, the runtime attempts to grant
 `WRITE_SECURE_SETTINGS` to the owner app when the permission remains declared
@@ -168,8 +173,8 @@ adbManager.switchToTcp(tcpPort = tcpPort)
 
 `switchToTcp()` needs an authorized Wireless Debugging or existing TCP
 connection from which it can issue `adb tcpip`. Starting or restarting this
-endpoint affects other ADB-backed processes. `priv-core` does not present a
-confirmation surface, so the host must obtain confirmation before calling it.
+endpoint affects other ADB-backed processes, so a custom host presents its own
+confirmation before calling it.
 When the source connection port is already known, pass it through
 `options = PrivilegeAdbConnectionOptions(port = sourcePort)`.
 
@@ -223,8 +228,8 @@ YourApp.showCommandToUser("adb shell $nativeStarterCommand")
 `priv-core` returns a device-side command. On Android 10 and later it can use the
 platform linker to run the starter directly from an APK, or execute the
 installed SO when legacy packaging extracted it. The host adds `adb shell` when
-presenting the command for a development machine. The starter only runs as root
-(UID 0), system (UID 1000), or shell (UID 2000). See
+presenting the command for a development machine. The starter accepts root
+(UID 0), system (UID 1000), and shell (UID 2000). See
 [native library packaging](./getting-started#native-library-packaging) for the
 Android-version requirements. Resolve the command off the main thread because
 first access inspects the installed APKs. User 0 uses the default owner scope
@@ -237,10 +242,9 @@ server process and verifies that it exited. Its readable name ends with
 `<package>:priv-server` for user 0 and adds `-u<ownerUserId>` only for a
 non-primary user. An internal package/user token keeps discovery scoped even
 when only `/proc/<pid>/comm` is readable.
-Only then is the replacement process created. If the current root, system, or
-shell identity cannot kill the old process, the command fails and does not
-start a second server. A package installed for another Android user has a
-different scoped process name and is not selected.
+The replacement starts after that verification. A failed stop leaves the old
+server in place. Packages installed for other Android users have different
+scoped process names and stay outside the match.
 
 With modern packaging on Android 10 or later, a rendered command can look like:
 

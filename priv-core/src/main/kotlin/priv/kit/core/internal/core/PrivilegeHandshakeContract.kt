@@ -10,6 +10,7 @@ internal object PrivilegeHandshakeContract {
     const val EXTRA_SERVER_BINDER: String = "privilege_server_binder"
     const val EXTRA_SERVER_LIFECYCLE_BINDER: String = "privilege_server_lifecycle_binder"
     const val EXTRA_SERVER_SERVICE_ENDPOINTS: String = "privilege_server_service_endpoints"
+    const val EXTRA_SERVER_SELINUX_CONTEXT: String = "privilege_server_selinux_context"
     const val EXTRA_PROTOCOL_VERSION: String = "privilege_protocol_version"
     const val EXTRA_CLASSPATH_IDENTITY: String = "privilege_classpath_identity"
     const val EXTRA_FOLLOW_DEATH_DELAY_MILLIS: String = "privilege_follow_death_delay_millis"

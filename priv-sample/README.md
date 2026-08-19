@@ -1,56 +1,37 @@
 # priv-sample
 
-Sample Android app module for Priv Kit.
+`priv-sample` demonstrates the public Core and UI APIs under the `priv.kit.sample` namespace.
 
-Namespace: `priv.kit.sample`.
-
-The module builds two product flavors from the same source tree:
+## Build variants
 
 | Flavor | Minimum Android version | Native library packaging | Release application id |
 | --- | --- | --- | --- |
 | `legacy` | Android 8.0 (API 26) | `useLegacyPackaging = true` | `priv.kit.sample` |
 | `api29` | Android 10 (API 29) | AGP modern packaging | `priv.kit.sample.api29` |
 
-Use `assembleLegacyDebug` to exercise the extracted native starter path and
-`assembleApi29Debug` to exercise direct linker startup from the APK.
+Use `assembleLegacyDebug` to exercise the extracted starter and `assembleApi29Debug` to exercise
+linker startup from the APK.
 
-Source packages:
+## Source layout
 
-- `priv.kit.sample` contains the app entry point, root navigation, and app-wide theme.
-- `priv.kit.sample.common` contains the small diagnostic formatter shared by Debug and Startup integrations.
-- `priv.kit.sample.home` contains the Home page that opens Privilege UI, Debug Tools, File API
-  tests, or the device-file browser.
-- `priv.kit.sample.file` contains the File API test page, its isolated smoke-test actions, and a
-  read-only device-file browser with bounded text and hexadecimal previews.
-- `priv.kit.sample.debug` contains the Connection, Binder, and UserService debug pages together with their state, ViewModel, callbacks, runtime actions, lifecycle controller, and hidden-API probes.
-- `priv.kit.sample.userservice` contains the app-owned UserService implementations, shared state, and AIDL contracts.
-- `priv.kit.sample.startup` contains the `priv-ui` page, configuration, ViewModel, automatic recovery, notification-pairing integration, and the app-owned Shizuku external-start bridge with its AIDL contract.
-- Direct `priv.kit.ui.*` imports stay under `priv.kit.sample.startup`.
-- Debug listeners and background probes are activated only while the Debug destination remains in the root back stack.
+- `priv.kit.sample` contains the app entry point, navigation, and theme.
+- `priv.kit.sample.home` contains the Home page.
+- `priv.kit.sample.file` contains File API tests and the read-only device-file browser.
+- `priv.kit.sample.debug` contains Connection, Binder, and UserService diagnostics.
+- `priv.kit.sample.userservice` contains app-owned UserService implementations and AIDL.
+- `priv.kit.sample.startup` contains Privilege UI setup, automatic recovery, notification pairing,
+  and the app-owned Shizuku bridge.
 
-Phase 1 contents:
+## Covered flows
 
-- A Compose-only sample surface backed by a root-navigation `PrivilegeSampleViewModel`, a feature-scoped `PrivilegeSampleDebugViewModel`, and Navigation 3.
-- A Material 3 theme that follows the system light or dark mode, including the embedded `priv-ui` authorization page.
-- A Home page with Privilege UI, Debug Tools, File API test, and device-file browser destinations.
-- A read-only device-file browser that starts at `/`, supports direct absolute-directory entry,
-  parent navigation, refresh, directory-first sorting, and bounded text or hexadecimal previews
-  for regular files. Names remain visible when the server identity can enumerate an entry but
-  cannot read its metadata; those rows are marked as unavailable and re-probed when selected.
-- A File API page for inspecting paths and exercising `mkdir`, `mkdirs`, create, stream
-  write/append/read, metadata, rename, errno-preserving atomic replacement, directory walk, and
-  non-recursive cleanup against a configurable absolute test directory, with copy support for the
-  operation log.
-- Three pages inside Debug Tools: `Test Authorization`, `Test Binder`, and `Test UserService`.
-- Each page uses a Material 3 `Scaffold` container with a vertically scrolling `Column` content area.
-- Authorization tests are split into independent Root, manual shell, Shizuku-backed shell start, Wireless ADB, TCP mode, and session-log tabs.
-- Binder tests for getting and caching an `IUserManager` proxy.
-- Paired system service availability checks from the app process and Privileged Server.
-- A Binder remote transact smoke test that calls cached `IUserManager.getUsers()` through a hidden API stub.
-- UserService tests for binding and calling separate app-owned AIDL services with `Context` constructors in the default dedicated-process mode and the explicit embedded-in-server mode.
-- Display of connection state, uid, pid, and protocol version.
-- Manual command display and copy support for pasting into `adb shell` on non-root devices.
-- Binder death observation through `Privilege`.
-- A thin Shizuku UserService bridge with one app-owned AIDL: the app keeps Shizuku binding only, the privileged endpoint delegates to runtime `PrivilegeExternalStartupHost`, and the main process delegates pipe/result orchestration to `PrivilegeExternalStartup.runThroughBridge(...)` before waiting for the privileged server handoff.
+The sample includes Root, manual shell, Shizuku-backed external startup, Wireless ADB, and static
+TCP. Debug pages exercise server state, Binder death, raw system-service transactions, and both
+dedicated and embedded UserService modes.
 
-The sample demonstrates the Root runtime minimum loop, manual shell verification path, Shizuku-backed shell start path, Wireless ADB startup path, one app-owned hidden API smoke test for Binder remote transact, and two app-owned UserService AIDL smoke tests. Both sample UserServices accept `Context`; the embedded UserService omits `destroy()`, while the dedicated UserService exits from `destroy()` with `System.exit(0)`. It does not demonstrate reusable Android system service wrappers.
+File examples cover creation, streams, metadata, rename, atomic replacement, directory walking,
+recursive deletion, and bounded text or hexadecimal previews. The device browser keeps names
+visible when enumeration succeeds but metadata access is denied.
+
+The Shizuku example keeps third-party binding and AIDL in the app. Its privileged endpoint delegates
+startup execution to `PrivilegeExternalStartupHost`, while the main process uses
+`PrivilegeExternalStartup.runThroughBridge(...)` for pipes, completion, and server handoff.

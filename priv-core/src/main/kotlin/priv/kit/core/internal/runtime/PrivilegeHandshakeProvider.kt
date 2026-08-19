@@ -60,13 +60,18 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
             PrivilegeHandshakeContract.EXTRA_SERVER_LIFECYCLE_BINDER,
         )
         val serviceEndpoints = extras?.let(PrivilegeHandshakeContract::serviceEndpointsOrNull)
+        val selinuxContext = extras
+            ?.getString(PrivilegeHandshakeContract.EXTRA_SERVER_SELINUX_CONTEXT)
+            ?.trim()
+            ?.takeIf(String::isNotEmpty)
         val protocolVersion = extras?.protocolVersionOrNull()
         Log.i(
             TAG,
             "Handshake call received initial=${!ownerReconnect}, " +
                 "callingUid=$callingUid, callingPid=$callingPid, hasExtras=${extras != null}, " +
                 "hasBinder=${serverBinder != null}, hasLifecycleBinder=${lifecycleBinder != null}, " +
-                "hasServiceEndpoints=${serviceEndpoints != null}",
+                "hasServiceEndpoints=${serviceEndpoints != null}, " +
+                "hasSelinuxContext=${selinuxContext != null}",
         )
         val protocolMatches = protocolVersion == PrivilegeProtocol.VERSION
         val classpathIdentityMatches = extras?.classpathIdentityMatches() == true
@@ -104,6 +109,7 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
                     pid = callingPid,
                     protocolVersion = protocolVersion,
                     lifecycleBinder = lifecycleBinder,
+                    selinuxContext = selinuxContext,
                 ),
                 origin = origin,
                 launchCorrelationId = launchCorrelationId,

@@ -5,8 +5,8 @@ description: 使用推荐的 Compose 授权界面，并配置静默启动。
 # Privilege UI {#privilege-ui}
 
 `priv-ui` 是接入 Priv Kit 时推荐的起点。它通过 Compose 界面展示运行时授权状态、
-提供启动入口，并在静默启动时复用最近一次成功的前台启动方式。只有应用需要
-直接使用 `priv-core` 构建自定义界面时，才不必依赖该模块。
+提供启动入口，并在静默启动时复用最近一次成功的前台启动方式。自定义界面可以直接
+使用 `priv-core`。
 
 ## 常用 API {#public-entry-points}
 
@@ -16,8 +16,8 @@ description: 使用推荐的 Compose 授权界面，并配置静默启动。
 - `PrivilegeUiExternalStartProvider` 用于添加应用提供的外部启动方式。
 - `PrivilegeUi.desiredEnabled` 以只读进程级 `StateFlow<Boolean>` 公开持久化的自动恢复
   意图。
-- `PrivilegeUi.startSilently(...)` 在自动恢复开启时按上次成功的方式静默启动。只有
-  应用明确需要忽略该设置时，才传入 `ignoreAutomaticRecoverySetting = true`。
+- `PrivilegeUi.startSilently(...)` 在自动恢复开启时按上次成功的方式静默启动。
+  `ignoreAutomaticRecoverySetting = true` 会显式忽略该设置。
 
 ## 复用进程级配置 {#application-scoped-config}
 
@@ -41,8 +41,8 @@ val serverInfo = PrivilegeUi.startSilently(
 )
 ```
 
-顶层属性及其外部 Provider 不应持有 `Activity`。Provider ID 用于保存启动方式，
-应用升级后也应保持不变。
+顶层属性及其外部 Provider 使用进程安全的 Application 状态，不持有 `Activity`。
+Provider ID 用于保存启动方式，应用升级后保持不变。
 
 `startupModes` 是控制授权 Tab 顺序的有序列表，传入重复项会直接报错。存在外部
 Provider 时，`EXTERNAL` 会保留列表中的位置；如果列表中没有它，则自动追加到
@@ -93,14 +93,13 @@ Server 已连接时，点击内置的 Root、ADB 或外部启动按钮会先显�
 val desiredEnabled by PrivilegeUi.desiredEnabled.collectAsStateWithLifecycle()
 ```
 
-这个只读状态在断连和静默启动失败后仍会保留。它不表示服务端当前是否已连接，
-观察者也不能通过它修改设置。
+这个只读状态在断连和静默启动失败后仍会保留。当前连接状态由
+`Privilege.serverState` 提供。
 
 ## ADB 界面流程 {#adb-ui}
 
-`priv-ui` 不实现 ADB 协议，也不自行启动服务端。它调用 `priv-core` 提供的配对、
-发现、授权、TCP/IP 和启动 API，再通过 `PrivilegeScaffold` 展示状态并处理用户
-操作。
+`priv-core` 负责配对、发现、授权、TCP/IP 和启动，`priv-ui` 通过
+`PrivilegeScaffold` 展示这些操作及其状态。
 
 通过 `PrivilegeUiConfig` 配置由 UI 管理的 ADB 流程：
 
@@ -114,7 +113,7 @@ val config = PrivilegeUiConfig(
 
 ### 无线调试界面 {#wireless-debugging-ui}
 
-只有选中 ADB 启动方式时，ADB 面板才会定期检查无线调试和配对状态。它的前台流程
+选中 ADB 启动方式后，面板会定期检查无线调试和配对状态。它的前台流程
 可以：
 
 - 展示配对对话框，并通过 `priv-core` 提交六位配对码；
@@ -122,20 +121,20 @@ val config = PrivilegeUiConfig(
 - 在系统要求时请求 `ACCESS_LOCAL_NETWORK`；
 - 已保存的 ADB 密钥完成配对后，通过无线调试启动。
 
-通知配对服务是 `priv-ui` 的内部组件。应用只需嵌入 `PrivilegeScaffold`，不要直接
-启动 `PrivilegeAdbPairingService`。无法使用通知输入时，Scaffold 会保留前台配对
+通知配对服务是 `priv-ui` 的内部组件，应用通过 `PrivilegeScaffold` 使用它。无法使用
+通知输入时，Scaffold 会保留前台配对
 对话框，供用户与 Android 设置页配合分屏操作。权限警告会把“无通知继续”、设置中
 授权后继续或取消返回给同一个挂起的配对协程。
 
 宿主可以通过 `PrivilegeUiConfig.notificationPairingChannelId` 和
 `notificationPairingNotificationId` 预留自己的通知命名空间，默认值分别是
 `priv_ui_adb_pairing` 和 `201`。通知 ID 会连续占用两个值：配置值用于前台状态通知，
-下一个值用于输入配对码。渠道 ID 应保持稳定并专用于此流程；通知 ID 必须处于 `1`
-到 `Int.MAX_VALUE - 1`，且不能与宿主的其他通知冲突。`priv-ui` 会按需创建配置的渠道，
+下一个值用于输入配对码。渠道 ID 保持稳定并专用于此流程；通知 ID 从 `1` 到
+`Int.MAX_VALUE - 1` 中选择一个宿主尚未占用的值。`priv-ui` 会按需创建配置的渠道，
 但不会删除它。
 
-`priv-core` 可以在具备权限时临时打开和关闭无线调试。`priv-ui` 只读取状态并把
-对应配置传给 `priv-core`，不会自行写入 `Settings.Global`。
+`priv-core` 可以在具备权限时临时打开和关闭无线调试。`priv-ui` 读取状态并把
+对应配置传给 Core，由 Core 负责 `Settings.Global` 变更。
 
 ### TCP/IP 界面 {#tcp-ip-ui}
 
@@ -145,14 +144,14 @@ val config = PrivilegeUiConfig(
 
 通过界面调用 `priv-core` 执行 `adb tcpip` 时，内置 Scaffold 会先展示一次确认。
 取消后 ADB 保持不变。自定义界面调用 `PrivilegeUiViewModel.enableTcpMode()` 或
-`startStaticTcpAdb()` 时，必须监听 `staticTcpSwitchConfirmation`，展示自己的
+`startStaticTcpAdb()` 时，监听 `staticTcpSwitchConfirmation`，展示自己的
 警告，再调用 `confirmStaticTcpSwitch()` 或 `cancelStaticTcpSwitch()`。
 
 UI 可以请求本机 ADB 密钥授权，并在系统返回结果后继续之前的启动操作。仅检查状态
 不会修改 ADB 设置。
 
-静默启动不会展示上述交互。它不会发起配对、请求权限、请求 TCP 授权或创建静态
-端口；已保存的 ADB 启动方式尚未就绪时直接返回 `null`。
+静默启动要求配对、权限、TCP 授权和静态端口已经就绪，否则返回 `null`，交由前台
+流程继续处理。
 
 ## 静默启动 {#exact-replay}
 
@@ -166,18 +165,17 @@ UI 可以请求本机 ADB 密钥授权，并在系统返回结果后继续之前
 静默启动只会尝试已保存的方式，不会切换到其他方式。已保存的方式、授权或其他启动
 条件不可用时返回 `null`，权限请求、配对和外部授权仍需在前台界面中完成。
 
-前台启动和静默启动在同一进程内不会同时执行。多进程应用必须只在一个指定进程中
-初始化并调用 Priv Kit 的启动 API。静默启动期间，内置界面会暂时禁用其他启动
+前台启动和静默启动通过进程内启动门互斥。多进程应用选择一个进程初始化并调用
+Priv Kit 的启动 API。静默启动期间，内置界面会暂时禁用其他启动
 入口，并在完成后刷新运行时状态。如果 Root 管理器保存的授权已经失效，它仍可能
 展示自己的授权界面。
 
 UI 发起的前台启动成功并收到匹配的初始连接后，才会开启自动恢复。UI 前台启动
-之外的初始连接（包括执行复制的手动 Shell 命令）不会开启自动恢复。只有用户确认
-停止，或在内置提示中选择“关闭自动恢复”时才会关闭；断连、服务端死亡和静默启动
-失败不会改变它。
+之外的初始连接（包括执行复制的手动 Shell 命令）保持当前设置。用户确认停止或选择
+“关闭自动恢复”时关闭；断连、服务端死亡和静默启动失败保留原设置。
 `PrivilegeUi.desiredEnabled` 会独立于当前服务端连接状态发布这项持久化意图。
-`startSilently(...)` 默认遵循自动恢复设置。只有应用明确需要忽略该设置时，才传入
-`ignoreAutomaticRecoverySetting = true`。
+`startSilently(...)` 默认遵循自动恢复设置；
+`ignoreAutomaticRecoverySetting = true` 会显式忽略它。
 
 ## 添加 Shizuku {#shizuku}
 

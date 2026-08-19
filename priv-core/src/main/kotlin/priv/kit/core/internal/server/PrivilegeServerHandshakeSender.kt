@@ -2,6 +2,7 @@ package priv.kit.core.internal.server
 
 import android.os.Bundle
 import android.os.IBinder
+import android.os.SELinux
 import android.util.Log
 import priv.kit.core.internal.core.PrivilegeContentProviderCall
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
@@ -9,6 +10,10 @@ import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
 import java.io.File
 
 internal object PrivilegeServerHandshakeSender {
+    private val processSelinuxContext: String? by lazy {
+        readSelinuxContext { SELinux.getContext() }
+    }
+
     fun send(
         config: PrivilegeServerConfig,
         serverBinder: PrivilegeServerBinder,
@@ -34,7 +39,9 @@ internal object PrivilegeServerHandshakeSender {
             userId: Int,
         ) -> Bundle?,
         replacementStarter: (String) -> Unit,
+        selinuxContextProvider: () -> String? = { processSelinuxContext },
     ): Result {
+        val selinuxContext = readSelinuxContext(selinuxContextProvider)
         val extras = Bundle().apply {
             putBoolean(
                 PrivilegeHandshakeContract.EXTRA_OWNER_RECONNECT,
@@ -54,6 +61,9 @@ internal object PrivilegeServerHandshakeSender {
                 extras = this,
                 endpoints = serverBinder.serviceEndpoints,
             )
+            selinuxContext?.let {
+                putString(PrivilegeHandshakeContract.EXTRA_SERVER_SELINUX_CONTEXT, it)
+            }
             putInt(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION, config.protocolVersion)
             putString(
                 PrivilegeHandshakeContract.EXTRA_CLASSPATH_IDENTITY,
@@ -117,6 +127,17 @@ internal object PrivilegeServerHandshakeSender {
             replacementStarted = replacementStarted,
         )
     }
+
+    private fun readSelinuxContext(provider: () -> String?): String? =
+        try {
+            provider()?.trim()?.takeIf(String::isNotEmpty)
+        } catch (exception: RuntimeException) {
+            Log.w(TAG, "Unable to read the Privileged Server SELinux context", exception)
+            null
+        } catch (error: LinkageError) {
+            Log.w(TAG, "Unable to link the Privileged Server SELinux context API", error)
+            null
+        }
 
     data class Result(
         val accepted: Boolean,

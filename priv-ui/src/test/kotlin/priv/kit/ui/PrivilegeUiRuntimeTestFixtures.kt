@@ -17,6 +17,7 @@ private val privilegeServerInfoConstructor =
         Integer.TYPE,
         Integer.TYPE,
         IBinder::class.java,
+        String::class.java,
     ).apply {
         isAccessible = true
     }
@@ -26,12 +27,14 @@ internal fun testServerInfo(
     pid: Int,
     protocolVersion: Int = 1,
     lifecycleBinder: IBinder = Binder(),
+    selinuxContext: String? = null,
 ): PrivilegeServerInfo =
     privilegeServerInfoConstructor.newInstance(
         uid,
         pid,
         protocolVersion,
         lifecycleBinder,
+        selinuxContext,
     )
 
 internal fun PrivilegeUiRuntimeActions.runServerStart(

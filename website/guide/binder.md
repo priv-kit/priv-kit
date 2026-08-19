@@ -52,9 +52,9 @@ serverLifecycle.linkToDeath(
 The token exposes no privileged operations or custom transactions. Its Binder
 identity remains stable for one server process and changes when the server is
 replaced. It belongs to the same server snapshot as the other
-`PrivilegeServerInfo` fields. Use the new value after `Privilege.serverState`
-changes instead of caching it across connections. `Privilege.getServerInfo()`
-raises `PrivilegeServerUnavailableException` when no live server is connected.
+`PrivilegeServerInfo` fields. Refresh the value whenever `Privilege.serverState`
+changes. `Privilege.getServerInfo()` raises `PrivilegeServerUnavailableException`
+when no live server is connected.
 
 ## Understand failures {#failure-semantics}
 
@@ -72,6 +72,5 @@ a server-related or UserService Binder invocation:
   died.
 - Other exceptions retain their original semantics.
 
-Use fallbacks for recovery paths that remain safe when the remote result is
-uncertain. The remote process may have completed a mutating operation before
-dying.
+Fallback fits recovery paths that remain safe with an uncertain remote result.
+The remote process may have completed a mutating operation before dying.

@@ -10,10 +10,9 @@ Root, ADB, Manual, or an external authorization bridge. Once
 connected, the application can use explicit Binder primitives, the built-in
 file proxy, or its own UserService while keeping domain logic under its control.
 
-Most applications should start with `priv-ui`, which provides the Compose
-authorization page and uses the runtime on the application's behalf. Use
-`priv-core` directly only when the application needs a custom authorization
-interface.
+Most applications start with `priv-ui`, which provides the Compose authorization
+page and coordinates the runtime. `priv-core` is the lower-level option for a
+custom authorization interface.
 
 Want to try it? Jump to [Getting started](./getting-started).
 
@@ -40,10 +39,9 @@ without rebuilding those interactions.
 ### priv-core for custom interfaces {#priv-core}
 
 `priv-core` provides the runtime and transport APIs behind Root, wireless ADB,
-static TCP, Manual, and app-provided external bridges. It does not provide
-permission prompts, pairing input, confirmation surfaces, or error
-presentation. Applications building a custom authorization interface can read
-[startup methods](./activation) and implement those interactions themselves.
+static TCP, Manual, and app-provided external bridges. A custom interface adds
+its own permission prompts, pairing input, confirmations, and error presentation.
+See [startup methods](./activation) for the underlying flows.
 
 ### Binder building blocks {#binder}
 
@@ -70,11 +68,9 @@ an embedded or dedicated process.
 
 ## Why is the runtime app-owned? {#app-owned-runtime}
 
-Priv Kit is designed for one application to manage its own server. It is not a
-device-wide daemon, a multi-tenant registry, or a shared permission broker.
-Keeping the runtime app-owned gives the host application explicit control over
-startup, server identity, connection state, recovery, and privileged domain
-logic.
+One application owns one Privileged Server and controls its startup, identity,
+connection state, recovery, and domain logic. Shared, device-wide services sit
+outside this runtime model.
 
 Every startup method still converges on the same validated connection model.
 The runtime observes server death and connection failures instead of presenting
@@ -86,8 +82,8 @@ an uncertain result as success.
   authorization page.
 - Configure the supplied foreground and silent flows in
   [Privilege UI](./priv-ui).
-- Read [startup methods](./activation) only when building a custom interface
-  with `priv-core`.
+- Read [startup methods](./activation) when building a custom `priv-core`
+  interface.
 - Choose the [file proxy](./file-proxy) for basic filesystem access,
   [Binder](./binder) for raw transactions, or
   [UserService](./user-service) for an application-defined AIDL service.

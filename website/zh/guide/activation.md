@@ -26,6 +26,10 @@ Binder 连接。区别只在 Privileged Server 最初通过哪种方式启动。
 非 `null` 表示 Privileged Server 已连接，`null` 表示已断开。每个新的收集者
 都会立即收到当前值。
 
+`PrivilegeServerInfo` 是 data class，并提供便于诊断的 `toString`。其中的
+`selinuxContext` 在每个服务端进程中读取并缓存一次，owner reconnect 会复用该诊断值；
+平台无法提供时为 `null`。连接快照由 Core 构造，构造函数和 `copy` 都保持 internal。
+
 #### 应用级持续监听 {#application-observation}
 
 连接变化需要在应用进程存活期间持续触发工作时，在 Application 创建的协程
@@ -123,8 +127,8 @@ val serverInfo = Privilege.startAdb()
 
 如果应用仍然声明并已经持有 `WRITE_SECURE_SETTINGS`，默认值
 `PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE` 可以临时打开无线调试、发现
-连接端口，并在启动尝试结束后关闭无线调试。应用不得修改该设置时使用 `NEVER`。
-如果无线调试未开启且 Priv Kit 无法代为开启时就应终止启动，使用 `REQUIRE`。
+连接端口，并在启动尝试结束后关闭无线调试。`NEVER` 会保持设置不变，`REQUIRE` 将
+托管无线调试作为启动前提。
 
 Privileged Server 连接成功后，如果 `WRITE_SECURE_SETTINGS` 仍被声明，且服务端
 是 Root 或拥有 `android.permission.GRANT_RUNTIME_PERMISSIONS`，运行时会尝试
@@ -151,8 +155,8 @@ adbManager.switchToTcp(tcpPort = tcpPort)
 ```
 
 `switchToTcp()` 需要一条已经授权的无线调试或现有 TCP 连接，用于执行
-`adb tcpip`。打开或重启静态端口会影响其他依赖 ADB 的进程。`priv-core` 不提供
-确认界面，应用必须在调用前自行取得用户确认。
+`adb tcpip`。打开或重启静态端口会影响其他依赖 ADB 的进程，自定义界面在调用前
+展示自己的确认交互。
 已经知道当前 ADB 连接使用的端口时，通过
 `options = PrivilegeAdbConnectionOptions(port = sourcePort)` 直接传入。
 
@@ -205,20 +209,19 @@ YourApp.showCommandToUser("adb shell $nativeStarterCommand")
 
 `priv-core` 返回设备端命令。在 Android 10 及以上版本，它可以通过系统 linker
 直接执行 APK 中的 starter，也可以执行旧式打包解压出的 SO。应用向开发机器展示
-命令时，在前面添加 `adb shell`。Starter 只允许 root（UID 0）、system
-（UID 1000）或 shell（UID 2000）身份运行。不同 Android 版本的要求见
+命令时，在前面添加 `adb shell`。Starter 接受 root（UID 0）、system
+（UID 1000）和 shell（UID 2000）身份。不同 Android 版本的要求见
 [native 库打包](./getting-started#native-library-packaging)。首次读取会检查已安装的
 APK，因此需要在非主线程解析命令。User 0 使用默认 owner 作用域，不写入 userId
-环境变量；只有非 0 Android user 才显式携带 userId，因此即使应用主进程没有运行，
+环境变量；非 0 Android user 显式携带 userId，因此即使应用主进程没有运行，
 从外部执行命令也能保持正确的用户作用域。
 
 再次执行 starter 时，它会先向精确匹配 owner 作用域的服务进程发送 `SIGKILL`，
-确认旧进程退出后才创建新进程。User 0 的可读进程名以
-`<package>:priv-server` 结尾，只有非 0 user 才添加 `-u<ownerUserId>`。内部的
-package/user token 使只能读取 `/proc/<pid>/comm` 时仍能限定发现范围。如果当前
-root、system 或 shell 身份无权结束旧进程，命令会失败，
-不会并行启动第二个 server。另一 Android user 下安装的同包名应用使用不同的
-作用域进程名，不会被选中。
+确认旧进程退出后再创建新进程。User 0 的可读进程名以
+`<package>:priv-server` 结尾，非 0 user 添加 `-u<ownerUserId>`。内部的
+package/user token 在只能读取 `/proc/<pid>/comm` 时仍能限定发现范围。旧进程结束
+失败时保持原服务端，不创建替代进程。另一 Android user 下的同包名应用使用独立作用域，
+不参与匹配。
 
 Android 10 及以上版本使用现代打包时，实际命令可能如下：
 

@@ -31,6 +31,7 @@ class PrivilegeServerHandshakeSenderTest {
         var ownerReconnect = true
         var sentLifecycleBinder: android.os.IBinder? = null
         var sentServiceEndpoints: PrivilegeServerServiceEndpoints? = null
+        var sentSelinuxContext: String? = null
         val serverBinder = PrivilegeServerBinder(config)
 
         val result = PrivilegeServerHandshakeSender.send(
@@ -49,6 +50,9 @@ class PrivilegeServerHandshakeSenderTest {
                     PrivilegeHandshakeContract.EXTRA_SERVER_LIFECYCLE_BINDER,
                 )
                 sentServiceEndpoints = PrivilegeHandshakeContract.serviceEndpointsOrNull(extras)
+                sentSelinuxContext = extras.getString(
+                    PrivilegeHandshakeContract.EXTRA_SERVER_SELINUX_CONTEXT,
+                )
                 Bundle().apply {
                     putBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, true)
                     putBinder(PrivilegeHandshakeContract.RESULT_OWNER_BINDER, ownerBinder)
@@ -63,6 +67,7 @@ class PrivilegeServerHandshakeSenderTest {
                 }
             },
             replacementStarter = { error("replacement must not start") },
+            selinuxContextProvider = { "u:r:shell:s0" },
         )
 
         assertTrue(result.accepted)
@@ -78,7 +83,37 @@ class PrivilegeServerHandshakeSenderTest {
             serverBinder.serviceEndpoints.userServiceManagerBinder,
             sentServiceEndpoints?.userServiceManagerBinder,
         )
+        assertEquals("u:r:shell:s0", sentSelinuxContext)
         assertNull(result.ownerConfig.launchCorrelationId)
+    }
+
+    @Test
+    fun selinuxContextFailureDoesNotRejectHandshake() {
+        val config = PrivilegeServerConfig(
+            packageName = "priv.kit.sample",
+            classpath = "/data/app/priv.kit.sample/base.apk",
+        )
+        var contextWasSent = true
+
+        val result = PrivilegeServerHandshakeSender.send(
+            config = config,
+            serverBinder = PrivilegeServerBinder(config),
+            origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
+            providerCall = { _, _, _, extras, _ ->
+                contextWasSent = extras.containsKey(
+                    PrivilegeHandshakeContract.EXTRA_SERVER_SELINUX_CONTEXT,
+                )
+                Bundle().apply {
+                    putBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, true)
+                    putBinder(PrivilegeHandshakeContract.RESULT_OWNER_BINDER, Binder())
+                }
+            },
+            replacementStarter = { error("replacement must not start") },
+            selinuxContextProvider = { throw SecurityException("denied") },
+        )
+
+        assertTrue(result.accepted)
+        assertFalse(contextWasSent)
     }
 
     @Test

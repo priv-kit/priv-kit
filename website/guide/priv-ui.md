@@ -7,8 +7,7 @@ description: Use the recommended Compose authorization surface and configure exa
 `priv-ui` is the recommended starting point for Priv Kit integration. It
 provides runtime authorization status, startup entry points, and exact replay
 of the last successful foreground method through a Compose interface. The
-module remains optional for applications building a custom interface directly
-with `priv-core`.
+custom interfaces can use `priv-core` directly.
 
 ## Public entry points {#public-entry-points}
 
@@ -19,8 +18,8 @@ with `priv-core`.
 - `PrivilegeUi.desiredEnabled` exposes the persisted automatic-recovery intent
   as a read-only process-wide `StateFlow<Boolean>`.
 - `PrivilegeUi.startSilently(...)` replays the last successful method while
-  automatic recovery is enabled. Pass `ignoreAutomaticRecoverySetting = true`
-  only when the application intentionally needs to ignore that setting.
+  automatic recovery is enabled. `ignoreAutomaticRecoverySetting = true`
+  explicitly bypasses that setting.
 
 ## Keep one process-scoped configuration {#application-scoped-config}
 
@@ -44,9 +43,9 @@ val serverInfo = PrivilegeUi.startSilently(
 )
 ```
 
-The top-level property and its external providers must not retain an `Activity`.
-Provider identifiers are persistent keys and should remain stable across app
-upgrades.
+The top-level property and its external providers use process-safe application
+state rather than retaining an `Activity`. Provider identifiers are persistent
+keys and stay stable across app upgrades.
 
 `startupModes` is an ordered list that controls the authorization tab order,
 and duplicate modes are rejected. With configured external providers,
@@ -102,15 +101,13 @@ show whether the user still wants automatic recovery:
 val desiredEnabled by PrivilegeUi.desiredEnabled.collectAsStateWithLifecycle()
 ```
 
-This read-only state persists across disconnections and failed replay. It does
-not indicate whether a server is currently connected and cannot be changed by
-collectors.
+This read-only state persists across disconnections and failed replay. Server
+connectivity remains in `Privilege.serverState`.
 
 ## ADB UI orchestration {#adb-ui}
 
-`priv-ui` does not implement the ADB protocol or start the server by itself. It
-uses the pairing, discovery, authorization, TCP/IP, and startup APIs from
-`priv-core`, then presents their state and required user interactions through
+`priv-core` owns pairing, discovery, authorization, TCP/IP, and startup.
+`priv-ui` presents those operations and their user interactions through
 `PrivilegeScaffold`.
 
 Configure the UI-owned ADB flow through `PrivilegeUiConfig`:
@@ -133,8 +130,8 @@ selected. Its foreground flow can:
 - request `ACCESS_LOCAL_NETWORK` when the platform requires it;
 - start Wireless Debugging after the saved ADB key is paired.
 
-The notification pairing service is internal to `priv-ui`. Hosts embed
-`PrivilegeScaffold`; they do not start `PrivilegeAdbPairingService` directly.
+The notification pairing service is internal to `priv-ui`; hosts interact with
+it through `PrivilegeScaffold`.
 When notification input is unavailable, the scaffold keeps the foreground
 pairing dialog available for a split-screen flow with Android Settings. Its
 warning returns continue-without-notifications, granted-in-settings, or cancel
@@ -150,8 +147,8 @@ channel ID stable and dedicated to this flow, and choose a notification ID from
 `priv-ui` creates the configured channel on demand and does not delete it.
 
 Managed Wireless Debugging remains a `priv-core` capability. `priv-ui` reads
-its status and passes the selected policy to `priv-core`; it does not write
-`Settings.Global` itself.
+its status and passes the selected policy to Core, which owns
+`Settings.Global` changes.
 
 ### TCP/IP UI {#tcp-ip-ui}
 
@@ -163,16 +160,16 @@ Debugging is paired.
 Before the foreground flow asks `priv-core` to issue `adb tcpip`, the built-in
 scaffold shows a one-shot confirmation. Cancelling leaves ADB unchanged. A
 custom surface that calls `PrivilegeUiViewModel.enableTcpMode()` or
-`startStaticTcpAdb()` must collect `staticTcpSwitchConfirmation`, show its own
-warning, then call `confirmStaticTcpSwitch()` or `cancelStaticTcpSwitch()`.
+`startStaticTcpAdb()` collects `staticTcpSwitchConfirmation`, shows its own
+warning, then calls `confirmStaticTcpSwitch()` or `cancelStaticTcpSwitch()`.
 
 The UI can request local ADB key authorization and continue the same suspended
 foreground operation after the system result. Passive status polling does not
 change ADB settings.
 
-Silent replay does not show any of these interactions. It does not pair, request
-permissions, request TCP authorization, or create a static port. It returns
-`null` when the saved ADB method is not already ready.
+Silent replay expects pairing, permissions, TCP authorization, and the static
+port to be ready. Otherwise it returns `null` and leaves interaction to the
+foreground flow.
 
 ## Understand exact replay {#exact-replay}
 
@@ -190,7 +187,7 @@ unavailable, leaving permission prompts, pairing, and external authorization to
 the foreground flow.
 
 Foreground and silent attempts share a process-local start gate. Multi-process
-apps must designate one process to initialize and invoke Priv Kit startup.
+apps choose one process to initialize and invoke Priv Kit startup.
 Accepted foreground effects retain their interactive lease until completion.
 While a silent attempt owns the gate, the built-in UI disables side-effecting
 entries and reconciles runtime state before enabling them again. A root manager
@@ -198,15 +195,14 @@ may still show its own authorization UI when a remembered grant is no longer
 valid.
 
 A matching successful foreground launch enables automatic recovery. Initial
-connections outside a UI-owned foreground operation, including a copied manual
-shell command, do not enable it. Only a confirmed stop or the built-in "Disable
-automatic recovery" action disables it; disconnection, server death, and failed
-replay leave it unchanged.
+connections outside a UI-owned foreground operation leave it unchanged. A
+confirmed stop or the built-in "Disable automatic recovery" action clears it;
+disconnection, server death, and failed replay preserve it.
 `PrivilegeUi.desiredEnabled` publishes this persisted intent independently of
 the current server connection.
-`startSilently(...)` respects automatic recovery by default. Pass
-`ignoreAutomaticRecoverySetting = true` only when the application intentionally
-needs to replay regardless of that setting.
+`startSilently(...)` respects automatic recovery by default.
+`ignoreAutomaticRecoverySetting = true` explicitly replays regardless of that
+setting.
 
 ## Add Shizuku {#shizuku}
 

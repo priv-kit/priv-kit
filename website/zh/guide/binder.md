@@ -48,8 +48,8 @@ serverLifecycle.linkToDeath(
 
 这个 token 不提供特权操作或自定义 transaction。同一个服务端进程内，它的 Binder
 identity 保持不变；服务端被替换后，新服务端会返回不同的 token。它与
-`PrivilegeServerInfo` 的其他字段属于同一个服务端快照。应用应当在
-`Privilege.serverState` 变化后使用新值，不要跨连接缓存。服务端不存在或已经死亡时，
+`PrivilegeServerInfo` 的其他字段属于同一个服务端快照。每次
+`Privilege.serverState` 变化后更新这个值。服务端不存在或已经死亡时，
 `Privilege.getServerInfo()` 会抛出 `PrivilegeServerUnavailableException`。
 
 ## 处理调用失败 {#failure-semantics}
@@ -67,5 +67,5 @@ Priv Kit 自己的控制调用在服务端未连接或已经死亡时，都会�
 - `PrivilegeBinderCallFailure.BinderDied` 表示直接调用的 Binder 已经死亡。
 - 其他异常保持不变。
 
-只有在改用其他调用仍然安全时，才应使用 `orElse(...)`，因为应用可能无法确定
-原调用是否已经完成。服务进程可能已经完成修改后才死亡。
+`orElse(...)` 适合原调用结果未知时仍可安全恢复的场景。服务进程可能已经完成修改后
+才死亡。

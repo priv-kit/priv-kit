@@ -1,170 +1,30 @@
 # priv-ui
 
-Optional UI and UI-originated startup helper module for Priv Kit.
+`priv-ui` is the optional Compose authorization and recovery module. Its public package root is
+`priv.kit.ui`.
 
-Namespace and package root: `priv.kit.ui`.
+## Main APIs
 
-This module provides a reusable embedded page for runtime authorization status and authorization entry points, plus a headless entry point that can replay the last successful foreground start.
+- `PrivilegeScaffold` is the embedded authorization page.
+- `PrivilegeUiViewModel` is an open `AndroidViewModel` for custom hosts.
+- `PrivilegeUiConfig` configures startup modes, polling, notification pairing, and external
+  providers.
+- `PrivilegeUiExternalStartProvider` connects an app-owned authorization bridge.
+- `PrivilegeUi.desiredEnabled` exposes automatic-recovery intent as a read-only process-wide flow.
+- `PrivilegeUi.startSilently(...)` replays the last successful foreground method.
 
-Public entry points:
+Owner-death behavior belongs to Core and is configured through `PrivilegeConfig` before server
+startup.
 
-- `PrivilegeScaffold`, the root Compose page.
-- `PrivilegeUiViewModel`, an `open` `AndroidViewModel` controller that callers may subclass.
-- `PrivilegeUiConfig`, used to enable startup modes, polling intervals, notification pairing identifiers, and external start providers.
-- `PrivilegeUiExternalStartProvider`, whose suspend authorization and startup methods keep the
-  requesting ViewModel coroutine continuous across third-party prompts and callbacks.
-- `PrivilegeUi.desiredEnabled`, the read-only process-wide `StateFlow` for the persisted automatic
-  recovery intent.
-- `PrivilegeUi.startSilently(...)`, the headless recovery entry point. It respects the automatic
-  recovery setting by default and can explicitly ignore that setting when required.
+## Compose integration
 
-Process-wide owner-death behavior remains a runtime concern. Configure it through
-`PrivilegeConfig` before starting a server; `PrivilegeUiConfig` does not mirror or
-override that global runtime state.
+`PrivilegeScaffold` uses the caller's Material 3 theme and exposes the nested Scaffold slots,
+colors, and insets. Compose Foundation and Material 3 are API dependencies; apps using
+`viewModel()` declare `androidx.lifecycle:lifecycle-viewmodel-compose` themselves.
 
-Compose Foundation and Material 3 are API dependencies because `PrivilegeScaffold`
-exposes Material 3 Scaffold slots and parameters. The lifecycle Compose adapter remains
-an implementation dependency; host apps using `viewModel()` as shown below should
-declare their own `androidx.lifecycle:lifecycle-viewmodel-compose` dependency.
-
-`PrivilegeScaffold` consumes the caller's Compose `MaterialTheme` colors. Apps that need light, dark, dynamic, or branded authorization UI should wrap it in their own Material 3 theme instead of configuring colors through `PrivilegeUiConfig`.
-
-Status observation is owned internally by the ViewModel. A StateFlow-driven effect follows the selected
-startup mode, runs only the relevant ADB or external-provider polling coroutine, and cancels the
-previous mode automatically. Hosts use `PrivilegeScaffold`; they do not consume its render state
-or create and close polling handles.
-
-`PrivilegeScaffold` emits its page content immediately from the initial render state. The
-ViewModel then loads the runtime state and its permission-restriction status and manual command
-required by the configured startup modes. ADB identity is read while the ViewModel is created.
-Wireless ADB discovery, static-TCP probing, and external-provider snapshots also load
-independently. Their existing rows display a loading or unavailable status until the first
-result, so the page layout remains stable. Periodic polling keeps the last completed snapshot
-visible until a later refresh finishes.
-
-The initial authorization tab is selected while the render state is constructed. It follows the
-last successfully confirmed foreground start method when that method is still enabled by the
-current config; otherwise it falls back to ADB or the first configured method.
-`PrivilegeUiConfig.startupModes` is an ordered list, so its order controls the authorization
-tabs and duplicate modes are rejected. When external providers are configured, `EXTERNAL`
-keeps its explicit list position or is appended when omitted. Without external providers, the
-External tab is hidden even if `EXTERNAL` appears in the list.
-
-Internal Android components:
-
-- `PrivilegeAdbPairingService` is manifest-merged for the built-in notification pairing flow and is not a public app-call API.
-- Notification pairing may use Android `RemoteViews` XML layouts for notification-only controls. These layouts are not page UI and must not be inflated by app screens.
-
-`PrivilegeUiConfig.notificationPairingChannelId` selects the host application's channel for
-notification pairing and defaults to `priv_ui_adb_pairing`. `priv-ui` creates this channel on
-demand and does not delete it, so an overridden value should remain stable and be dedicated to
-this flow. `notificationPairingNotificationId` defaults to `201` and reserves two consecutive
-host notification IDs: that value for the foreground status notification and the next value for
-pairing-code input. It must be between `1` and `Int.MAX_VALUE - 1`; the host is responsible for
-avoiding collisions with its other notifications.
-
-The UI covers ordinary user-facing authorization only:
-
-- Authorization method tabs that show one method at a time.
-- Root startup.
-- Manual shell command copy.
-- ADB authorization, including Wireless ADB pairing, notification pairing, status polling, startup, and optional TCP reuse.
-- Contextual battery-optimization guidance above the ADB panel when the host app is not exempt, refreshed whenever the host returns to the foreground.
-- Managed Wireless Debugging status when runtime can temporarily enable Wireless Debugging through `WRITE_SECURE_SETTINGS`.
-- Static-TCP status that distinguishes a missing port configuration from a configured port whose ADB listener is not running.
-- External startup through app-provided `PrivilegeUiExternalStartProvider` implementations, with status refreshed on foreground resume and while the External tab is selected.
-- Realtime startup transcript for Root, ADB, and streaming external startup providers.
-- Service started/not-started status.
-- A connected-server warning above the authorization method tabs when the privileged service is subject to permission restrictions. The status is checked after each connection and whenever the host returns to the foreground; Root servers skip the permission check.
-- A restart confirmation when a built-in Root, ADB, or external start button is pressed while a server is already connected.
-
-For manual shell startup, the UI reads `Privilege.nativeStarterCommand` and prefixes it with
-`adb shell`. The command can invoke an uncompressed APK entry through the Android linker or
-execute an extracted starter file; the UI only prepares display and clipboard text.
-
-After the user confirms a connected-server restart, the selected start method invokes the
-same native starter replacement path. The old process is killed and confirmed gone before
-the new process is created. If the launching identity cannot kill the existing process, the
-attempt ends and the built-in UI shows a Snackbar that the old privileged service could not
-be stopped. Cancelling the dialog performs no startup action. Custom surfaces collect
-`PrivilegeUiViewModel.serverRestartConfirmation`, render their own confirmation UX, then
-call `confirmServerRestart()` or `cancelServerRestart()`. The requesting start coroutine remains
-suspended while the dialog is visible; those methods only return its decision, and the selected
-workflow continues in its original call context.
-
-Battery-optimization guidance directly opens Android's exemption confirmation for the
-host package and rechecks the result when the page returns to the foreground. `priv-ui`
-manifest-merges the permission required by Android for this direct confirmation:
-
-```xml
-<uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-```
-
-Apps distributed through Google Play must ensure that direct exemption is appropriate for
-their core functionality and complies with current power-management policy. A host that
-does not want the direct request can remove the merged permission in its own manifest:
-
-```xml
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-    <uses-permission
-        android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
-        tools:node="remove" />
-</manifest>
-```
-
-When the permission is removed or the direct confirmation is unavailable, the UI falls
-back to Android's battery optimization list and then the host application's details page.
-
-It does not include built-in Shizuku integration, app-owned service management, stop-service controls, package management, input injection, settings, app-ops, a general diagnostic log console, or other high-level Android system operation UI. Shizuku-style support belongs in the app or an optional integration as a `PrivilegeUiExternalStartProvider`; the external privileged process can call `PrivilegeExternalStartup.runInCurrentProcess(...)`, while the main process can bridge returned source/message pairs into the UI through `PrivilegeExternalStartup.createReceiver(...)`.
-
-`PrivilegeUiConfig.enableManagedWirelessAdb` controls whether the UI treats runtime-managed Wireless Debugging as a startup path. The UI only displays status and passes startup options; it does not write `Settings.Global` itself. If the merged app manifest no longer declares `WRITE_SECURE_SETTINGS` (for example through `tools:node="remove"`), the managed Wireless Debugging row is hidden and the UI stops passing that startup path.
-
-When the user explicitly starts a configured static-TCP endpoint whose listener is unavailable, the UI asks `priv-core` to prepare that endpoint before falling back to Wireless Debugging. The runtime writes `ADB_ENABLED=1` only when `WRITE_SECURE_SETTINGS` is declared and granted, retries the listener, and never enables `adb_wifi_enabled` for this recovery path. Passive UI polling remains read-only.
-
-Before any foreground UI path issues `adb tcpip` to create or restart a static endpoint, the built-in UI requires a one-shot confirmation that explains the ADB restart and its impact on other ADB-backed processes. Cancelling the dialog leaves ADB unchanged. A configured endpoint that can be recovered through `ADB_ENABLED=1` does not show this confirmation, and foreground fallback never enables a static endpoint without confirmation.
-
-The built-in static-TCP control dialog dismisses before dispatching its Stop or Restart action. Both actions are enabled only while an active static listener is detected; otherwise the main Start action owns recovery. Each control action first connects through the active static endpoint. If that connection fails before command dispatch on Android 11 or later, Core may retry through the Wireless Debugging connect endpoint using the configured managed-Wireless-Debugging policy. A command that may already have been sent is never replayed. Stop ends the static listener; Restart sends `tcpip:<active static port>` and keeps that port unchanged.
-
-Static-port status is stored as one UI snapshot containing the active port, configured port, authorization status, and load state, so rendering never observes a partially refreshed combination. An automatic ADB key authorization timeout always opens a persistent dialog instead of transient Snackbar feedback. Contextual system-prompt hints remain scoped to the Scaffold host that owns the request.
-
-Custom surfaces that call `PrivilegeUiViewModel.startStaticTcpAdb()` or `enableTcpMode()` must collect `staticTcpSwitchConfirmation`. When it becomes non-null, they should present the same restart warning and call `confirmStaticTcpSwitch()` or `cancelStaticTcpSwitch()`. The pending value identifies whether confirmation will continue service startup or only enable the port; observing it never performs the switch. The requesting ViewModel-owned coroutine remains suspended while the dialog is visible, so confirmation resumes the same static-TCP workflow instead of constructing a second startup attempt.
-
-The foreground service action calls `PrivilegeUiViewModel.startInteractive()` and tries configured workflows in the order supplied by the UI before reporting a generic failure. If a Root or ADB command may have created a detached server but its Binder handshake does not complete, fallback stops and reports the generic failure because that server may still arrive later. An External request remains in the same start session while the runner waits for its Binder connection or timeout; a timeout also stops fallback because the requested server may still arrive later. Every foreground start uses the same cooperative cancellation model: the first cancellation request changes the owning controls from Cancel to a disabled Cancelling state, Root and ADB observe cancellation at their internal checkpoints, and an External provider call with no checkpoints remains in Cancelling until that call returns. Other startup controls stay disabled while a start is running or cancelling.
-
-## Foreground, silent, and owner-reconnect startup
-
-When a foreground start owned by `PrivilegeUiViewModel` commits a launch method and receives the matching `INITIAL_LAUNCH` Binder connection for that runtime operation before cancellation, `priv-ui` records the exact winning method in `filesDir/.priv-kit/ui-start-method` and enables automatic recovery. The method file contains one raw UTF-8 method ID, not JSON or a preference schema:
-
-- `root`
-- `adb-wireless`
-- `adb-tcpip`
-- `external:<providerId>`
-
-Silent starts, retained-server `OWNER_RECONNECT` handshakes, already-connected servers, manual shell starts outside the matching foreground operation, cancelled starts, and failed starts do not replace this method value.
-
-Separately, `priv-ui` owns a desired-state latch in `filesDir/.priv-kit/ui-desired-enabled`. Its entire content is exactly one ASCII byte: `1` for enabled or `0` for disabled. A missing or invalid file is disabled. The same matching foreground completion that records the method writes `1`. `PrivilegeUi.desiredEnabled` exposes this persisted intent as a read-only process-wide `StateFlow<Boolean>`. It is independent of the current connection exposed by `Privilege.serverState`. `priv-ui` declares no initialization provider; its ViewModel, desired-state property, and silent entry point load this state only when used.
-
-An initial launch outside a matching UI-owned foreground operation, including a copied manual shell command, updates the Core connection state but does not enable this latch or invent a replay method. An `OWNER_RECONNECT`, server death, disconnect, or failed recovery attempt also leaves the value unchanged.
-
-There is no general-purpose switch for this latch. A confirmed stop action in the built-in UI writes `0` before asking the server to shut down. When the latch is `1` but runtime state is disconnected or failed, the top of `PrivilegeScaffold` shows a warning card whose "Disable automatic recovery" action also writes `0`. This keeps the value about user intent instead of current server liveness.
-
-`PrivilegeUi.startSilently(config)` returns `null` immediately when the desired-state latch is disabled. Callers that intentionally need to replay regardless of the latch can pass `ignoreAutomaticRecoverySetting = true`.
-
-After obtaining the process-local start gate, `PrivilegeUi.startSilently(config)` first returns an already-connected or ready server, if present. During the runtime's app-start reconciliation window it then gives a retained server time to complete owner reconnect before reading the saved method and committing a new launch. If no connection wins, it attempts only that exact method. It does not initialize Compose, create a ViewModel, require an `Activity`, fall back to another method, show a snackbar, invoke Android permission launchers, or update the saved method. Without an existing connection, missing history, an unknown or disabled method, missing authorization, startup failure, and timeout all return `null`.
-
-Foreground and silent startup are mutually exclusive through one process-local gate. Accepted foreground startup effects, including runtime start/stop, TCP changes, pairing, permission requests, and external authorization calls, retain nestable leases scoped to one foreground ViewModel owner until their owned work completes. A different ViewModel cannot join that owner's nesting, and `startSilently(...)` returns `null` while any foreground lease remains. The two UI entry points use first-acquired ownership without queuing or preemption.
-
-Owner reconnect participates through the runtime arbiter rather than the UI gate. An already-connected/ready server wins first; a retained server whose reconnect arrives during preflight wins before Root, ADB, or external launch side effects are committed. After a foreground or silent start commits its runtime lease, a late `OWNER_RECONNECT` is rejected and the new launch continues. Permission requests are additionally scoped to their active `PrivilegeScaffold` host and are discarded when the last host leaves, so a detached launcher cannot keep the gate occupied or replay a stale prompt. While silent startup owns the gate, the built-in UI disables new side-effecting entries. After silent startup releases the gate, each existing ViewModel re-reads runtime state before enabling those entries again, so a just-connected server cannot race with another foreground start. A multi-process app must initialize and invoke Priv Kit startup from only one designated app process; calling `startSilently(...)` during every process's `Application` initialization can start duplicate attempts.
-
-Silent method behavior is deliberately narrow:
-
-- Wireless ADB may temporarily enable Wireless Debugging when `enableManagedWirelessAdb` is enabled and the app already has the runtime capability required to manage it. It never starts pairing, and returns `null` when the saved ADB identity is not paired. If the platform requires `ACCESS_LOCAL_NETWORK` and it has not already been granted, the method returns `null` without requesting it.
-- Static TCP uses only the current `config.tcpPort`, with discovery and Wireless Debugging fallback disabled. An unavailable listener or unauthorized ADB key returns `null`; the authorization request flow is not invoked.
-- External startup resolves the exact saved provider ID from the supplied config, requires its current `snapshot()` to report `canStart`, and never calls `requestAuthorization()`. Provider IDs are persistent keys and should remain stable across app upgrades. The suspend snapshot and start calls share `startTimeoutMillis` and should cooperate with coroutine cancellation.
-- Root startup reuses the existing Root path. `priv-ui` does not request Android permissions, but a root manager may still display its own authorization UI if its previous grant is no longer valid.
-
-Construct external providers and `PrivilegeUiConfig` once at process scope, then pass the same config instance to both entry points:
+Create external providers and `PrivilegeUiConfig` once per process, then share the instance between
+the foreground ViewModel and silent startup. These process-scoped objects hold application data,
+not an `Activity`. Provider IDs are persistent keys and stay stable across upgrades.
 
 ```kotlin
 val privilegeUiConfig by lazy {
@@ -173,70 +33,91 @@ val privilegeUiConfig by lazy {
     )
 }
 
-// Safe to call from a background coroutine before any Activity or UI is created.
-val serverInfo = PrivilegeUi.startSilently(
-    config = privilegeUiConfig,
-)
-```
-
-The top-level property and its external providers must not retain an `Activity`. `snapshot()` should remain a read-only suspend status check. `requestAuthorization(...)` may present the third-party prompt and returns the final post-authorization snapshot; callback APIs can bridge with `suspendCancellableCoroutine` and must unregister listeners on cancellation. The UI then continues startup directly in the same ViewModel coroutine, without a foreground-resume reconciliation path.
-
-Basic usage:
-
-```kotlin
 class MyPrivilegeUiViewModel(
     application: Application,
-) : PrivilegeUiViewModel(
-    application,
-    privilegeUiConfig,
-) {
-    override fun onBackClick(): Boolean {
-        // Update app navigation state or emit a host event.
-        return true
-    }
-}
+) : PrivilegeUiViewModel(application, privilegeUiConfig)
 
 PrivilegeScaffold(
     viewModel = viewModel<MyPrivilegeUiViewModel>(),
 )
 ```
 
-`PrivilegeScaffold` exposes the nested Material 3 Scaffold's `topBar`, `bottomBar`,
-`snackbarHost`, `floatingActionButton`, `floatingActionButtonPosition`, `containerColor`,
-`contentColor`, and `contentWindowInsets` parameters. Its authorization top bar and
-snackbar host remain the defaults, while Scaffold colors and insets follow Material 3.
-A custom `snackbarHost` receives the internal `SnackbarHostState` so ViewModel feedback
-continues to use the supplied host.
+`startupModes` controls tab order. External providers keep the listed `EXTERNAL` position or append
+the tab when it is omitted. With no providers, the tab stays hidden.
 
-`PrivilegeScaffold` owns its Activity Result launchers for notification and local-network
-permissions and returns each result to the ViewModel. The corresponding ViewModel-owned
-operation stays suspended until that result arrives: notification pairing continues from its
-permission branch, while an ADB start granted local-network access retries once in the same
-startup workflow. Removing the final Scaffold host or clearing the ViewModel cancels the pending
-request and releases its interaction lease. Host subclasses may
-override `onBackClick()` and `onNotificationPermissionSettingsRequested(...)`. These hooks
-should update host navigation state or customize notification-settings navigation; a ViewModel
-must not retain the settings hook's `Context`, an `Activity`, `NavController`, Compose state
-holder, or Activity Result launcher. Returning `false` from `onBackClick()` delegates to the
-system back dispatcher. While the notification-permission warning is pending, each host
-foreground refresh checks `POST_NOTIFICATIONS` and continues notification pairing automatically
-once it is granted. This check is independent of notification-settings navigation; the settings
-hook only opens the destination. The warning also returns its result to the original pairing
-coroutine: continue without notifications, resume with notifications after settings grants the
-permission, or cancel. Hosts that need custom top-bar actions should supply their own `topBar`.
+The scaffold owns Activity Result launchers and returns results to the original suspended
+ViewModel operation. Removing the last host or clearing the ViewModel cancels pending permission
+work and releases its interaction lease.
 
-Before a foreground flow can open a supported system authorization prompt, `PrivilegeScaffold`
-arms a one-shot contextual hint. The hint stays hidden unless the owning Activity is first paused
-or loses window focus, then appears as a non-interactive card over the top of the existing Scaffold
-with the authorization name and its purpose. It is removed only after that Activity is resumed and
-has window focus again. Already-granted permissions and operations that do not open a prompt never
-show the card. Built-in hints cover notification and local-network permissions, Root and external
-provider authorization, static-TCP ADB key authorization, and managed Wireless Debugging network
-confirmation. This is an in-Activity Compose overlay, not a system overlay window.
+## Authorization surface
 
-`PrivilegeScaffold` observes runtime status internally. Hosts that need the process-wide
-connection state outside the scaffold should collect `Privilege.serverState` from a scope owned
-by the intended consumer: an application-owned scope for process-lifetime work, or a
-lifecycle-aware UI collector for screen rendering.
+The built-in page covers Root, manual shell, Wireless ADB pairing, static TCP, external providers,
+startup transcripts, connection status, and permission-restriction warnings. It also shows a
+restart confirmation when a server is connected. Confirmation resumes the original start
+coroutine; cancellation leaves the current server running.
 
-All static UI and notification text lives in `src/main/res/values/strings.xml` with the `priv_ui_` prefix so apps can override or localize it. Internally, live state and one-shot UI feedback keep resource references and formatting arguments until the text reaches Compose, a notification, or another presentation boundary. This lets retained ViewModels immediately render a newly selected application locale instead of holding strings resolved under the previous configuration. External provider messages, diagnostics, and existing startup log lines remain materialized text and are not retroactively translated.
+Battery guidance opens Android's direct exemption confirmation when the merged manifest contains
+`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. Hosts can remove that permission with manifest merge, in
+which case the page opens Android's optimization list and app details instead.
+
+The scaffold observes Core state internally. Features outside the page collect
+`Privilege.serverState`; custom automatic-recovery surfaces collect `PrivilegeUi.desiredEnabled`.
+
+## ADB UI
+
+Core owns pairing, discovery, authorization, TCP control, and startup. `priv-ui` selects those
+operations and presents their state and user interactions.
+
+The ADB panel polls while selected and keeps the latest completed snapshot visible during refresh.
+Notification pairing is implemented by the internal `PrivilegeAdbPairingService`; the foreground
+dialog remains available when notification input cannot be used.
+
+`notificationPairingChannelId` defaults to `priv_ui_adb_pairing` and stays dedicated to this flow.
+`notificationPairingNotificationId` defaults to `201` and reserves that ID plus the next one. Valid
+values are `1..Int.MAX_VALUE - 1`, chosen outside the host's other notification IDs.
+
+Managed Wireless Debugging status comes from Core. The UI passes policy and startup options while
+Core performs any permitted `Settings.Global` changes.
+
+Static-TCP creation and restart show a one-shot warning before `adb tcpip` dispatch. Custom surfaces
+collect `staticTcpSwitchConfirmation`, render the warning, and return the decision through
+`confirmStaticTcpSwitch()` or `cancelStaticTcpSwitch()`. Passive polling remains read-only.
+
+## Foreground and silent startup
+
+A successful UI-owned foreground launch stores one exact method ID:
+
+- `root`
+- `adb-wireless`
+- `adb-tcpip`
+- `external:<providerId>`
+
+The same completion enables automatic recovery. Disconnection, server death, owner reconnect, and
+failed replay keep that user choice unchanged. A confirmed Stop action or the built-in Disable
+automatic recovery action clears it.
+
+`PrivilegeUi.startSilently(config)` first accepts an already-connected or reconnecting server, then
+replays the saved method. It returns `null` when the method or its existing authorization is
+unavailable. Silent replay is headless: pairing, permission prompts, TCP creation, and external
+authorization remain foreground interactions. `ignoreAutomaticRecoverySetting = true` explicitly
+replays regardless of the saved user choice.
+
+Foreground and silent starts share one process-local gate. A retained owner reconnect can win
+during preflight; after a new start commits, that start owns the result. Multi-process apps choose
+one process for Priv Kit initialization and startup.
+
+## External providers
+
+An external provider reports status through `snapshot()`, performs authorization through
+`requestAuthorization()`, and runs the supplied command in `start()`. Suspend callbacks cooperate
+with cancellation and unregister listeners when cancelled.
+
+Shizuku integration lives in the app as a `PrivilegeUiStreamingExternalStartProvider`. Its
+UserService executes the supplied native starter through `PrivilegeExternalStartupHost`, while the
+main process bridges pipes and completion with `PrivilegeExternalStartup.runThroughBridge(...)`.
+
+## Text and localization
+
+Static UI and notification text lives in `src/main/res/values/strings.xml` with the `priv_ui_`
+prefix. Resource references stay unresolved until presentation so retained ViewModels follow the
+current application locale. External-provider messages and startup logs remain materialized text.

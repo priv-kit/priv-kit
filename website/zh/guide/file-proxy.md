@@ -28,8 +28,8 @@ Log.d("file", child.absolutePath)
 Log.d("file", child.parentFile.toString())
 ```
 
-路径必须是绝对路径，不能包含 NUL 字符，并且 UTF-8 长度不能超过 4095 字节。
-代理不会规范化 `.` 或 `..` 路径段。
+代理接受 UTF-8 长度不超过 4095 字节的绝对路径，并保留 `.`、`..` 路径段。路径中
+不含 NUL 字符。
 
 ## 调用常见文件操作 {#common-operations}
 
@@ -77,15 +77,14 @@ if (!deleted) {
 删除且不设置等待队列；达到上限后，新请求直接返回 `false`，不会开始删除。
 
 普通文件和符号链接会被直接删除。目录使用安全的描述符相对操作按“子项优先”顺序
-遍历，并且绝不跟随符号链接。客户端公开方法会在连接服务端前按词法合并重复分隔符及
+遍历，符号链接按叶子条目处理。客户端公开方法会在连接服务端前按词法合并重复分隔符及
 `.`、`..` 路径段；合并后指向文件系统根的目标会抛出 `IllegalArgumentException`，
-服务端直接使用合并结果。底层无法提供安全的相对目录操作时，该方法返回 `false`，
-不会退化为容易受到符号链接替换竞态影响的路径遍历。
+服务端直接使用合并结果。底层无法提供安全的相对目录操作时，该方法返回 `false`。
 
 目标已经不存在或所有条目均删除时返回 `true`。任一条目无法删除时返回 `false`，但
 仍会继续尝试其兄弟条目。取消、`false` 结果或 Privileged Server 死亡都可能留下已经
-部分删除的目录树；取消只能在条目边界阻止后续工作，无法恢复已经删除的内容。服务端
-死亡后无法确定已完成范围，因此不得自动重试。
+部分删除的目录树。取消在条目边界停止后续工作，已经删除的内容保持不变。服务端死亡
+后已完成范围未知，由应用决定如何继续。
 
 ## 原子替换文件 {#atomic-replacement}
 
@@ -100,8 +99,8 @@ temporary.openOutputStream(syncOnClose = true).use { output ->
 temporary.replaceAtomically(target)
 ```
 
-源和目标必须位于同一挂载文件系统。已有目标会被原子替换，该操作不会退化为复制后
-删除。失败时抛出 `IOException`，其 cause 是对应的 `ErrnoException`；跨文件系统操作
+源和目标位于同一挂载文件系统时，一次 rename 会原子替换已有目标。失败时抛出
+`IOException`，其 cause 是对应的 `ErrnoException`；跨文件系统操作
 会保留 `EXDEV`。该方法本身不会同步文件数据或父目录。示例中的 `syncOnClose` 会在
 调用 `replaceAtomically()` 前同步临时文件，但不会在重命名后同步父目录。
 
@@ -119,7 +118,7 @@ Log.d("file", "${metadata.type} ${metadata.sizeBytes} ${metadata.uid}:${metadata
 
 `metadata()` 默认使用 `lstat`，所以符号链接会报告为 `SYMBOLIC_LINK`。传入
 `followSymbolicLinks = true` 可以读取链接目标。快照还包含修改时间和原始 Unix
-mode。`PrivilegeFile` 不会缓存元数据。
+mode。每次调用都会读取新快照。
 
 ## 打开文件内容 {#open-content}
 
@@ -141,7 +140,7 @@ withContext(Dispatchers.IO) {
 `syncOnClose = true`。
 
 文件内容传输使用独立的有界执行器，同时最多执行四个且不排队；继续打开会以
-`EBUSY` 失败，因此应及时关闭流。该 API 刻意不暴露随机访问文件描述符。
+`EBUSY` 失败，因此应及时关闭流。该 API 提供顺序流，不提供随机访问文件描述符。
 
 ## 遍历目录树 {#walk-directory}
 
@@ -167,5 +166,4 @@ directory.walk(maxDepth = 2).collect { entry ->
 协程和一个并发槽位。服务端最多同时执行四个 walk 且不设置等待队列；继续发起会以
 `EBUSY` 失败。
 
-递归删除不会扩展为存储清理策略。文件代理不发现删除目标、不决定保留文件、不提供
-可配置遍历规则，也不调度持久清理任务；接入应用仍必须明确选择唯一的目标路径。
+应用为递归删除提供一个明确目标，并负责路径发现、保留规则、调度和存储清理策略。

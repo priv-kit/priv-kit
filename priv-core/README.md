@@ -1,66 +1,85 @@
 # priv-core
 
-Client-side runtime orchestration module for Priv Kit.
+`priv-core` owns the app-side privileged runtime. Its public package root is
+`priv.kit.core`.
 
-Namespace and public package root: `priv.kit.core`.
+## Main APIs
 
-Common entry points:
+- `Privilege.startRoot()` and `Privilege.startAdb()` start the Privileged Server.
+- `Privilege.createAdbManager()` handles Wireless ADB pairing, authorization, and TCP mode.
+- `Privilege.serverState` exposes the process-wide connection.
+- `Privilege.file(absolutePath)` runs basic file operations in the server.
+- UserService APIs start, bind, unbind, and stop app-defined Binder services.
+- `PrivilegeBinderWrapper` forwards raw Binder transactions to explicit endpoints.
 
-- `Privilege.startRoot()` for the minimal Root runtime loop.
-- `Privilege.startAdb()` for Wireless Debugging / TCP ADB startup, configured with `PrivilegeAdbConnectionOptions`.
-- `Privilege.createAdbManager()` for Wireless ADB pairing, TCP mode, and identity diagnostics backed by `PrivilegeAdbManager`.
-- Process-wide current Privileged Server Binder state, exposed through `Privilege` global methods.
-- `PrivilegeServerInfo.lifecycleBinder` for an inert Binder owned by the represented Privileged Server process, suitable for external owner or death-token parameters.
-- `Privilege.isPermissionRestricted()` for checking whether the connected privileged server is subject to permission restrictions. Root servers return `false` without a permission Binder call.
-- `Privilege.file(absolutePath)` for basic file operations and streaming directory walks executed directly by the Privileged Server without an app-defined UserService.
-- UserService entry points for app-defined Binder services: start, bind, unbind, and stop.
+`PrivilegeServerInfo` describes the connected server. Its lifecycle Binder is a stable death token
+for that server process. The nullable `selinuxContext` is read once per server process and reused
+across owner reconnects. It is diagnostic data. Construction and `copy` stay internal, while the
+data class provides structural equality and a useful `toString`.
 
-Advanced entry points:
+## Startup and connection
 
-- `Privilege.nativeStarterCommand` for obtaining the device-side command that a host can display or execute through its chosen shell environment. It resolves to either an Android linker command for an uncompressed APK entry or the installed `libprivkitstarter.so` path, and is cached once per application process.
-- `PrivilegeHandshakeProvider`, the app-side Binder handoff endpoint protected by `android.permission.INTERACT_ACROSS_USERS_FULL` and trusted-caller UID checks. One provider handoff installs the server control, lifecycle, file-system, and UserService-manager Binders as one connection snapshot, then returns the owner Binder and current in-memory owner-death config.
-- Ready-server connection helpers, owner-death reconnect configuration, and raw Binder bridge types for custom diagnostics or low-level Binder validation.
+Root, ADB, manual commands, and external bridges all execute the same native starter and finish
+through the same Binder handshake. The handshake installs the control, lifecycle, file-system, and
+UserService-manager Binders as one connection snapshot.
 
-Runtime owns launch correlation, internal server launch command construction, the native starter executable, Root `su` execution, ADB pairing/connect/startup, pending handshakes, protocol validation, current server Binder installation, Privileged Server entry points, and Binder death handling. Public ADB configuration and pairing types live in `priv.kit.core.adb`; raw startup transport SPI and wire protocol live under `priv.kit.core.internal.*`.
+`Privilege.nativeStarterCommand` resolves the device-side command once per app process. Android 10
+and later can run an uncompressed starter directly from the APK through the platform linker;
+legacy packaging uses the extracted file in `nativeLibraryDir`. Initial resolution inspects the
+installed APKs, so callers resolve it on a worker thread and add `adb shell` when presenting it to
+a development machine.
 
-The built-in file proxy is a narrow exception to the module's no-domain-facade boundary. Its internal Binder endpoint arrives in the server handshake instead of being fetched through a later control-Binder call. `PrivilegeFile` is an immutable absolute-path handle, not a `java.io.File` subclass. Its familiar `exists`, `isFile`, `isDirectory`, `mkdir`, `mkdirs`, `delete`, `renameTo`, and `createNewFile` methods execute in the server and retain the corresponding `java.io.File` boolean semantics. `replaceAtomically` directly uses same-filesystem `Os.rename`, never falls back to copy/delete, and preserves failures as an errno-bearing cause. The target file descriptor stays in the server; input and output streams move bytes over reliable pipes so Binder never transfers a privileged target FD into the app's SELinux domain. Output close waits for a separate server completion signal, and `syncOnClose` requests `fsync` before that signal. `walk(maxDepth)` returns a cold, unsorted, weakly-consistent depth-first pre-order `Flow<PrivilegeFileEntry>` over a pipe. It excludes the receiver, assigns depth 1 to direct children, and uses `maxDepth = 1` for a non-recursive listing. One server coroutine and one concurrency slot own the entire walk regardless of depth. Each result carries its enumerated path and depth; `metadata` is null when the server identity can see the name but `lstat` is denied by `EACCES` or `EPERM`, and such an entry is never entered.
+Each server has a package/user-scoped process token. Re-running the starter verifies and stops the
+matching old process before creating its replacement. Failures to inspect or stop that process are
+reported as `PrivilegeExistingServerStopException` by Core-managed startup.
 
-`PrivilegeFile.deleteRecursively()` is a suspending, cancellable server operation. The public client method lexically normalizes repeated separators and `.` or `..` segments, rejects a target that resolves to filesystem root, and passes the normalized path to the server. Its Binder transaction only admits and schedules the request; traversal runs in a bounded `Dispatchers.IO` scope with four active operations and no waiting queue. The server does not repeat client path validation or normalization. It deletes children before their parent, does not follow symbolic links, and uses `SecureDirectoryStream` relative operations instead of falling back to race-prone path traversal. The method returns `true` when the target is absent or every entry was deleted and `false` when the operation was rejected or any entry remains. Cancellation, server death, and a `false` result can all leave a partially deleted tree. The API continues to exclude random access, storage-cleanup policy, path discovery, and configurable destructive traversal.
+The server follows the app-side owner Binder. After owner death it waits for
+`PrivilegeConfig.followDeathDelayMillis`, which defaults to ten minutes. The normal reconnect path
+waits for the app process-start signal; `activeReconnectOnOwnerDeath` opts into direct provider
+retries that may start the app process. A multi-process app chooses one process to initialize the
+runtime and invoke startup APIs.
 
-ADB startup discovers the Wireless Debugging connect endpoint when `PrivilegeAdbConnectionOptions.port` is `null`; a non-null port connects directly and is the path used for static TCP startup. The stored ADB key is read and decoded once into process-wide RSA, certificate, public-key payload, fingerprint, and TLS material. Managers add only their normalized ADB device name to a lightweight key view. Managed ADB recovery remains an internal strategy. When `PrivilegeAdbConnectionOptions.wirelessDebuggingControl` allows it, the merged app manifest still declares `WRITE_SECURE_SETTINGS`, and the app holds that permission, the runtime enables `adb_wifi_enabled`, discovers the dynamic `_adb-tls-connect._tcp` port, starts the server, and disables Wireless Debugging after the operation by default. For an explicit static-TCP start, `PrivilegeAdbManager.prepareTcpForStart()` first probes the configured port and only writes `ADB_ENABLED=1` when the listener is unavailable; it does not enable Wireless Debugging. `stopTcp` and `restartTcp` each expose one method with optional connection options. They always try the active static endpoint first and resolve the supplied or Wireless Debugging endpoint only when that connection fails before command dispatch. Once an ADB control command may have been sent, it is never replayed through another endpoint; a transport close counts as success only after ADB accepted the command stream. After a Privileged Server connects, the runtime attempts to grant `WRITE_SECURE_SETTINGS` to the owner package when the permission is still declared and the server is root or has `android.permission.GRANT_RUNTIME_PERMISSIONS`, so later starts can use these managed ADB paths. If the permission declaration was removed with manifest merge or the permission is not granted, startup continues with the existing manual Wireless Debugging / TCP behavior.
+## ADB
 
-`Privilege.checkPermission(permName, pkgName, userId = cached current user id)`, `Privilege.grantRuntimePermission(packageName, permissionName, userId = cached current user id)`, and `Privilege.revokeRuntimePermission(packageName, permissionName, userId = cached current user id)` are thin framework pass-through calls. Runtime permission revocation uses `IPackageManager` through Android 10 and the `priv-shared` `CompatPermissionManager` wrapper on Android 11 and later. These calls do not add policy, discovery, batching, permission groups, app-ops, install flows, or package management abstractions.
+A null `PrivilegeAdbConnectionOptions.port` discovers the Wireless Debugging endpoint. A concrete
+port connects to static TCP directly. The stored ADB key is decoded once into process-wide key and
+TLS material.
 
-`Privilege.startRoot()`, `Privilege.startAdb()`, `Privilege.startUserService()`, `Privilege.bindUserService()`, `Privilege.stopUserService()`, `PrivilegeUserServiceConnection.unbind()`, external startup, ADB discovery/pairing, TCP-mode operations, and authorization checks are suspend APIs. Blocking transport work runs on the IO dispatcher. UserService start, bind, unbind, and stop use an internal bounded asynchronous Binder callback protocol; cancellation removes pending work plus any unaccepted process or connection created for that operation. Connection unbind is idempotent and runs in a non-cancellable context because resource release must not be abandoned. Other cancellation paths close the active process, socket, persistent check session, or mDNS discovery so the owning coroutine retains one continuous lifecycle across discovery, authorization, startup, and cleanup.
+With `WRITE_SECURE_SETTINGS`, managed Wireless Debugging can temporarily enable
+`adb_wifi_enabled` for discovery and restore it after startup. Static-TCP recovery probes the saved
+port and can restore the core ADB service through `ADB_ENABLED=1`; it leaves Wireless Debugging
+unchanged. Stop and restart commands try the active static endpoint first, with fallback available
+until command dispatch begins.
 
-`PrivilegeHandshakeProvider` initializes the runtime with the app `Context`, so callers use `Privilege` directly without passing `Context` into start, ADB, native-starter command, or ready-server APIs. The provider remains exported so shell/root/external privileged starters can reach it, but normal apps are stopped by the provider permission. The native starter rejects every identity except root, system, and shell before resolving the APK or spawning the server. The provider retains its owner-UID trust check as defense in depth for direct protocol calls; the protocol does not claim to distinguish or authenticate different processes sharing one of its trusted identities.
+## File proxy
 
-The runtime module carries its own `app_process` server and UserService entry points, and contributes the R8 consumer rule that keeps those `main(String[])` methods.
+`PrivilegeFile` is an immutable absolute-path handle. Familiar Boolean methods retain
+`java.io.File` semantics, while server availability failures use
+`PrivilegeServerUnavailableException`. `replaceAtomically` maps to same-filesystem `Os.rename` and
+preserves errno through the exception cause.
 
-Configure owner-death behavior through the process-wide `PrivilegeConfig` object. When the app-side owner process dies, the Privileged Server waits for `followDeathDelayMillis` before exiting. The default is 10 minutes. Use `0` to exit immediately.
+File content streams through reliable pipes while the privileged target descriptor stays in the
+server. Directory walks are cold, unsorted, weakly consistent depth-first flows. Recursive deletion
+normalizes the explicit target, rejects filesystem root, traverses with `SecureDirectoryStream`,
+and can leave a partial tree after cancellation or failure. Transfers, walks, and recursive deletes
+use bounded server-side concurrency.
 
-By default, owner-death reconnect is passive: after the initial handshake, the server registers a `ContentObserver` for the owner package's process-start signal. When the app-side handshake provider is created, it publishes that signal and the retained server retries the Binder handoff. On Android 11 and later the notification uses the no-delay flag so background observer delivery is not deferred. Continuous `/proc` scanning is not part of the normal path; the server falls back to the previous process polling only when observer registration fails.
+## Binder and UserService
 
-Set `PrivilegeConfig.activeReconnectOnOwnerDeath = true` only if the server should actively call the app handshake provider while the app process is dead, which may start the app process. This active retry behavior remains separate from the passive `ContentObserver` path and is not replaced by it.
+Permission checks and runtime permission grant/revoke methods are thin framework pass-throughs.
+Domain policy stays with the integrating app.
 
-Runtime startup coordination distinguishes a new server's `INITIAL_LAUNCH` handshake from a retained server's `OWNER_RECONNECT` handshake. During the short app-start reconciliation window, an already-connected/ready server or owner reconnect wins before a foreground or silent UI start commits any launch side effect. Once a client start commits its runtime lease, a late owner reconnect is rejected and only the matching initial-launch handshake belongs to that operation. This arbiter is process-local; a multi-process app must designate exactly one app process to initialize Priv Kit and invoke its startup entry points.
+UserService lifecycle methods are suspending operations backed by a bounded asynchronous Binder
+protocol. Cancellation removes pending work and unaccepted resources. Connection unbind is
+idempotent and completes its cleanup in a non-cancellable context.
 
-The latest owner-death configuration is held in the runtime process and returned by the app-side provider during the initial server handoff. A running server keeps the configuration it received at startup; later `PrivilegeConfig` changes affect the next server start only.
+External privileged hosts can execute the native starter through
+`PrivilegeExternalStartup.runThroughBridge(...)`. Core owns command execution, pipes, transcript,
+completion, timeout, and concurrent-call handling. Third-party binding and app AIDL remain in the
+app or an optional integration.
 
-Like shizuku-api, the runtime treats the Privileged Server connection as one process-wide snapshot. A repeated handshake for the same live control Binder keeps the current snapshot; a handshake for a replacement Binder atomically installs the new control, lifecycle, file-system, and UserService-manager endpoints.
+## Module boundary
 
-`Privilege.getServerInfo()`, project-owned server control calls, and `PrivilegeBinderWrapper` resolve the server Binder through the same global connection. A missing or dead server on a project-owned control call is normalized to `PrivilegeServerUnavailableException`. `PrivilegeBinderWrapper` keeps raw transaction failures unchanged because a forwarded failure cannot reliably identify whether the target Binder or the Privileged Server died.
-
-`PrivilegeServerInfo.lifecycleBinder` is a dedicated Binder with no privileged interface or custom transactions. The handshake carries it together with the internal control, file-system, and UserService-manager Binders, so the runtime installs one coherent endpoint snapshot without follow-up endpoint getters. Its identity is stable for one Privileged Server process and changes when that server is replaced. Callers can pass it to another process that needs to release resources when the server dies, and must use the new snapshot after `Privilege.serverState` changes. All control and service endpoints remain hidden.
-
-Hosts can wrap a server-related or UserService Binder invocation with `PrivilegeBinderCall.orElse(...)`. Its fallback receives `PrivilegeBinderCallFailure.ServerUnavailable` for the normalized Privileged Server failure or `PrivilegeBinderCallFailure.BinderDied` for a directly called dead endpoint. Other exceptions propagate unchanged. A fallback means that the result is unknown; mutating calls are not retried automatically because the remote side may have completed the operation before dying.
-
-If a server reports a different protocol or APK classpath identity than the current app runtime, the runtime rejects that Binder handoff. When the caller is a trusted existing server, the app returns the current native starter command so the stale server can replace itself from the current install.
-
-`Privilege.nativeStarterCommand` returns the executable device-side starter command and caches it for the current application process. User 0 uses the starter's default owner scope and omits the owner-user environment variable; only a non-primary Android user is rendered explicitly, so a copied command remains scoped correctly even when the app process is not running. On Android 10 and later, when application install metadata says native libraries are not extracted, the runtime scans the base APK and sorted splits for an uncompressed `lib/<abi>/libprivkitstarter.so` entry and invokes it through `/system/bin/linker` or `/system/bin/linker64`. When extraction is enabled, it uses the installed file in `nativeLibraryDir`. Applications with `minSdk < 29` require that extracted file and report a packaging error when it is missing. First resolution performs APK I/O and must run on a worker thread. Executing the command enters the same Binder handoff path; the app observes the eventual handoff through `Privilege.serverState` or claims a retained handoff with `connectReadyServer()`. UI modules and host apps add an `adb shell` prefix when they present a development-machine command.
-
-Each server process uses an internal package/user scope token. Its readable suffix is `<package>:priv-server` for user 0 and adds `-u<ownerUserId>` only for a non-primary Android user. Running the starter again finds that exact scoped process, sends `SIGKILL`, verifies that the old process disappeared, and only then forks the replacement. When full `/proc/<pid>/cmdline` data is unavailable, the starter accepts only the matching scope token from `/proc/<pid>/comm` and verifies that the process uses a supported privileged UID; if identity cannot be inspected, startup fails closed. A starter running under the same UID or root can normally replace the process. If Linux denies the kill, `/proc` cannot be inspected, or exit cannot be confirmed, the starter exits without creating a new server. Core-managed Root, ADB, and external bridge starts preserve that failure as `PrivilegeExistingServerStopException`. Processes for the same package under other Android users use different tokens and are not selected.
-
-External privileged hosts execute the same native starter. UI-managed external starts receive an internally coordinated native starter command from `priv-ui`; callers outside that flow pass `Privilege.nativeStarterCommand` to their shell runner. For an app-owned Binder bridge, the main process calls `PrivilegeExternalStartup.runThroughBridge(...)` and the privileged endpoint delegates its one start method to `PrivilegeExternalStartupHost`. The runtime owns the `ParcelFileDescriptor` stdout/stderr pipes, bounded transcript, live log forwarding, terminal `ResultReceiver`, timeout, and concurrent-call rejection. `runInCurrentProcess(...)` and `createReceiver(...)` remain lower-level helpers. Shizuku binding and the AIDL declaration stay in the app; the app must keep that Binder endpoint private to trusted callers.
-
-This module does not expose typed Android system service wrappers, UI, Compose, package/input/settings/app-ops/activity facades, or app-defined UserService business methods. UserService bind returns a raw Binder for the app's own AIDL Stub, and system-service access is limited to explicit-name raw Binder transaction bridges plus a small number of explicit framework pass-through calls.
+This module contains runtime infrastructure and low-level Binder/file primitives. Android
+system-service domain APIs, app-owned AIDL behavior, and authorization UI live in the integrating
+app or `priv-ui`.

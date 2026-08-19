@@ -97,6 +97,12 @@ class PrivilegeHandshakeProviderTest {
             assertTrue(response!!.getBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, false))
             assertSame(serverBinder, received.get()?.serverBinder)
             assertSame(lifecycleBinder, received.get()?.serverInfo?.lifecycleBinder)
+            assertEquals("u:r:shell:s0", received.get()?.serverInfo?.selinuxContext)
+            assertTrue(
+                received.get()?.serverInfo.toString().contains(
+                    "selinuxContext=u:r:shell:s0",
+                ),
+            )
             assertSame(fileSystemBinder, received.get()?.serviceEndpoints?.fileSystemBinder)
             assertSame(
                 userServiceManagerBinder,
@@ -106,6 +112,33 @@ class PrivilegeHandshakeProviderTest {
                 PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
                 received.get()?.origin,
             )
+        } finally {
+            listener.close()
+        }
+    }
+
+    @Test
+    fun handshakeWithoutSelinuxContextRemainsUsable() {
+        prepareRuntimeApplication()
+        val received = AtomicReference<PrivilegeServerHandshakeResult?>()
+        val listener = PrivilegeServerHandshakeRegistry.addReadyListener { result ->
+            received.set(result)
+            true
+        }
+
+        try {
+            val response = PrivilegeHandshakeProvider().call(
+                PrivilegeHandshakeContract.METHOD_SERVER_READY,
+                null,
+                currentHandshakeExtras(
+                    serverBinder = Binder(),
+                    selinuxContext = null,
+                ),
+            )
+
+            assertNotNull(response)
+            assertTrue(response!!.getBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, false))
+            assertNull(received.get()?.serverInfo?.selinuxContext)
         } finally {
             listener.close()
         }
@@ -275,6 +308,7 @@ class PrivilegeHandshakeProviderTest {
         lifecycleBinder: IBinder = Binder(),
         fileSystemBinder: IBinder = Binder(),
         userServiceManagerBinder: IBinder = Binder(),
+        selinuxContext: String? = "u:r:shell:s0",
     ): Bundle =
         Bundle().apply {
             putBinder(PrivilegeHandshakeContract.EXTRA_SERVER_BINDER, serverBinder)
@@ -289,6 +323,9 @@ class PrivilegeHandshakeProviderTest {
                     userServiceManagerBinder = userServiceManagerBinder,
                 ),
             )
+            selinuxContext?.let {
+                putString(PrivilegeHandshakeContract.EXTRA_SERVER_SELINUX_CONTEXT, it)
+            }
             putInt(PrivilegeHandshakeContract.EXTRA_PROTOCOL_VERSION, PrivilegeProtocol.VERSION)
             putString(
                 PrivilegeHandshakeContract.EXTRA_CLASSPATH_IDENTITY,

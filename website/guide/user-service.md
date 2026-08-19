@@ -54,12 +54,10 @@ when the service is embedded in the Privileged Server process and `false` when
 the service runs in its own dedicated `app_process` child. The value is stable
 for the lifetime of the process and is cached after its first read.
 
-Use it before process-wide actions such as terminating the process or cleaning
-up global state. In the implementation above, `destroy()` may call
-`exitProcess(0)` for a dedicated child, but it must not do so for an embedded
-service because that would terminate the Privileged Server and every other
-component hosted in that process. This property is intended for code executing
-inside a UserService; the host selects the mode with
+Use it before process-wide actions such as termination or global cleanup. In
+the implementation above, a dedicated child exits from `destroy()`, while an
+embedded service limits cleanup to its own resources because it shares the
+Privileged Server process. The host selects the mode with
 `PrivilegeUserServiceSpec.embedded`.
 
 ## Use a dedicated process {#dedicated-process}
@@ -89,8 +87,8 @@ lifecycleScope.launch {
 ```
 
 `startUserService`, `bindUserService`, and `stopUserService` are suspending,
-cancellable operations. They do not block the caller thread while waiting for
-a service lock or a dedicated process to start. If the coroutine is cancelled
+cancellable operations. Service-lock waits and dedicated-process startup run
+outside the caller thread. If the coroutine is cancelled
 before an operation is accepted, the runtime removes pending work and disposes
 of a process or connection created only for that cancelled operation.
 `connection.unbind()` is an idempotent suspending operation. Once invoked, it
@@ -99,9 +97,8 @@ while the server performs the work through the same bounded asynchronous protoco
 outside Binder threads.
 
 Each instance is identified by `serviceClassName + tag`. The `version` value
-shown above only controls whether the same instance can be reused or must be
-replaced. Change it when an existing instance is no longer compatible with the
-current service implementation.
+expresses whether the runtime can reuse the instance or replaces it. Change the
+value when the implementation becomes incompatible.
 
 ## Use an embedded service {#embedded-service}
 
@@ -116,8 +113,7 @@ val spec = PrivilegeUserServiceSpec(
 )
 ```
 
-Embedded mode avoids an extra process and suits small, low-risk work. Its
-`destroy()` implementation should clean up only service-owned resources;
-calling `exitProcess(0)` would terminate the complete Privileged Server.
-Binding is usually faster because it does not launch and claim a child process,
-but service construction still runs asynchronously and remains cancellable.
+Embedded mode avoids an extra process and suits small, low-risk work.
+`destroy()` cleans up service-owned resources and leaves the shared Privileged
+Server running. Binding is usually faster because it skips child-process launch
+and claim, while construction remains asynchronous and cancellable.

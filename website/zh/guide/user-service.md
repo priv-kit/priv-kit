@@ -51,10 +51,9 @@ class MyPrivilegeService private constructor(
 Privileged Server 进程中。直接运行时返回 `true`，运行在独立的 `app_process`
 子进程时返回 `false`。该值在进程生命周期内保持不变，并会在首次读取后缓存。
 
-调用 `exitProcess()` 或清理全局状态前，应先检查这个属性。上面的实现允许独立
-子进程在 `destroy()` 中调用 `exitProcess(0)`，但嵌入式服务不能这样做，否则会
-终止整个 Privileged Server 以及其中运行的其他组件。该属性只应由 UserService
-内部代码读取；应用通过 `PrivilegeUserServiceSpec.embedded` 选择进程模式。
+执行进程退出或全局清理前，先检查这个属性。上面的独立子进程会在 `destroy()` 中
+调用 `exitProcess(0)`；嵌入式服务与 Privileged Server 共享进程，只清理自身资源。
+应用通过 `PrivilegeUserServiceSpec.embedded` 选择进程模式。
 
 ## 使用独立进程 {#dedicated-process}
 
@@ -88,8 +87,8 @@ lifecycleScope.launch {
 `connection.unbind()` 是幂等的挂起函数。调用一旦进入，就会在不可取消上下文中完成，
 避免丢弃必要的资源清理；server 仍通过同一套有界异步协议在 Binder 线程之外执行。
 
-每个实例由 `serviceClassName + tag` 标识。上面示例中的 `version` 只控制同一实例
-能否复用，或是否必须替换。当已有实例与当前服务实现不再兼容时，应修改该值。
+每个实例由 `serviceClassName + tag` 标识。`version` 表达同一实例能否复用；实现不再
+兼容时修改该值，运行时会替换实例。
 
 ## 使用嵌入式服务 {#embedded-service}
 
@@ -104,6 +103,6 @@ val spec = PrivilegeUserServiceSpec(
 )
 ```
 
-嵌入式模式省去额外进程，适合简单且风险较低的服务。它的 `destroy()` 只清理服务
-自身资源；调用 `exitProcess(0)` 会终止整个 Privileged Server。
-绑定通常更快，因为不需要启动和认领子进程；服务构造仍会异步执行，并支持取消。
+嵌入式模式省去额外进程，适合简单且风险较低的服务。它的 `destroy()` 清理服务
+自身资源并保留共享的 Privileged Server。绑定通常更快，因为省去了子进程启动和认领；
+服务构造仍会异步执行，并支持取消。

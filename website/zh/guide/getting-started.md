@@ -21,7 +21,7 @@ dependencies {
 }
 ```
 
-只有应用需要自定义授权界面时，才直接依赖 `priv-core`：
+自定义授权界面可以直接依赖 `priv-core`：
 
 ```kotlin
 dependencies {
@@ -31,7 +31,7 @@ dependencies {
 
 ## 配置 native 库打包 {#native-library-packaging}
 
-支持 Android 10 以下版本的应用必须将 `useLegacyPackaging` 设置为 `true`：
+支持 Android 10 以下版本时，将 `useLegacyPackaging` 设置为 `true`：
 
 ```kotlin
 android {
@@ -62,7 +62,7 @@ adb shell /system/bin/linker64 '/data/app/.../base.apk!/lib/arm64-v8a/libprivkit
 
 ## 配置 hidden API 访问 {#hidden-api-access}
 
-应用必须配置
+在应用中配置
 [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass)：
 
 ```kotlin
@@ -90,7 +90,7 @@ PrivilegeScaffold()
 
 ## 使用 priv-core 自定义界面 {#custom-interface}
 
-只有应用需要替换自带授权界面时，才直接使用 `priv-core`。此时应用需要自行处理
+使用 `priv-core` 替换自带授权界面时，应用自行处理
 权限请求、配对码输入、确认界面、定期检查状态和错误展示。
 
 最短的 Root 与无线调试调用如下：

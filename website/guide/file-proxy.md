@@ -33,8 +33,8 @@ Log.d("file", child.absolutePath)
 Log.d("file", child.parentFile.toString())
 ```
 
-Paths must be absolute, contain no NUL character, and fit within 4095 UTF-8
-bytes. The proxy does not canonicalize `.` or `..` segments.
+The proxy accepts absolute, NUL-free paths up to 4095 UTF-8 bytes. It preserves
+`.` and `..` segments.
 
 ## Use familiar file operations {#common-operations}
 
@@ -86,22 +86,20 @@ Server on a bounded IO coroutine dispatcher. The server accepts at most four
 recursive deletes at once and has no waiting queue. A request rejected at that
 limit returns `false` without starting.
 
-A regular file or symbolic link is deleted directly. A directory is traversed
-children-first with secure descriptor-relative directory operations, and
-symbolic links are never followed. The public client method lexically normalizes
+A regular file or symbolic link is deleted directly. Directories use secure,
+descriptor-relative, children-first traversal, with symbolic links treated as
+leaf entries. The public client method lexically normalizes
 repeated separators and `.` or `..` segments before contacting the server. A
 target that resolves to filesystem root is rejected with
 `IllegalArgumentException`. The server uses the resulting path directly. If
-safe relative directory operations are unavailable, the method returns `false`
-instead of falling back to a traversal vulnerable to symbolic-link replacement
-races.
+safe relative directory operations are unavailable, the method returns `false`.
 
 The method returns `true` when the target is already absent or every entry was
 deleted. It returns `false` if any entry remains, but continues attempting its
 siblings. Cancellation, a `false` result, or Privileged Server death can leave a
-partially deleted tree. Cancellation stops at an entry boundary and cannot
-restore prior deletions. Do not automatically retry after server death because
-the completed portion is unknown.
+partially deleted tree. Cancellation stops at an entry boundary and leaves prior
+deletions in place. After server death, the application decides how to continue
+because the completed portion is unknown.
 
 ## Replace a file atomically {#atomic-replacement}
 
@@ -116,9 +114,8 @@ temporary.openOutputStream(syncOnClose = true).use { output ->
 temporary.replaceAtomically(target)
 ```
 
-The source and destination must be on the same mounted filesystem. An existing
-destination is replaced atomically; the operation never falls back to copy and
-delete. Failure raises `IOException` whose cause is the corresponding
+The source and destination share one mounted filesystem. One rename atomically
+replaces an existing destination. Failure raises `IOException` whose cause is the corresponding
 `ErrnoException`, including `EXDEV` for a cross-filesystem attempt. The method
 does not synchronize file data or the parent directory by itself. In the example,
 `syncOnClose` synchronizes the temporary file before `replaceAtomically()` runs;
@@ -138,8 +135,8 @@ Log.d("file", "${metadata.type} ${metadata.sizeBytes} ${metadata.uid}:${metadata
 
 `metadata()` uses `lstat` by default, so a symbolic link is reported as
 `SYMBOLIC_LINK`. Pass `followSymbolicLinks = true` to inspect its target. The
-snapshot also contains modification time and the raw Unix mode. It is never
-cached by `PrivilegeFile`.
+snapshot also contains modification time and the raw Unix mode. Each call reads
+a fresh snapshot.
 
 ## Open file contents {#open-content}
 
@@ -153,17 +150,18 @@ withContext(Dispatchers.IO) {
 }
 ```
 
-The target file descriptor remains in the Privileged Server because Android can
-reject transferring a descriptor when the application SELinux domain cannot
-access the underlying target. Bytes instead stream through reliable pipes; this
+The target file descriptor remains in the Privileged Server because Android may
+reject a transfer when the application SELinux domain lacks access to the
+underlying target. Bytes instead stream through reliable pipes; this
 still avoids one Binder call per chunk. Input errors propagate when the reader
 reaches EOF. Closing an output stream waits for the server to consume all bytes
 and close the target, and reports a server write failure as `IOException`.
 Pass `syncOnClose = true` when close must also wait for `fsync(2)`.
 
 File content transfers use a separate bounded executor. Four transfers may be
-active at once without a waiting queue; another open fails with `EBUSY`. Always
-close streams promptly. Random-access descriptors are intentionally not exposed.
+active at once without a waiting queue; another open fails with `EBUSY`. Close
+streams promptly. This API provides sequential streams rather than random-access
+descriptors.
 
 ## Walk a directory tree {#walk-directory}
 
@@ -182,7 +180,7 @@ Binder response or buffered as a complete tree.
 
 Every `PrivilegeFileEntry` contains its enumerated absolute path, relative
 depth, and metadata snapshot. The server uses `lstat`, so symbolic links are
-emitted but never entered. `metadata` is null when the server identity can see
+emitted as leaf entries. `metadata` is null when the server identity can see
 the name but receives `EACCES` or `EPERM` for its attributes; such an entry is
 also not entered. An entry that disappears before `lstat` is skipped. Failure
 to open or iterate the starting directory or any entered descendant terminates
@@ -193,7 +191,5 @@ uses one server coroutine and one concurrency slot regardless of depth. The
 server permits four active walks without a waiting queue; another walk fails
 with `EBUSY`.
 
-The proxy does not turn recursive deletion into a storage-cleanup policy. It
-does not discover targets, select retained files, expose configurable traversal
-rules, or schedule persistent cleanup work; the application must still choose
-the one explicit path to delete.
+The application supplies one explicit deletion target and owns discovery,
+retention, scheduling, and storage-cleanup policy.

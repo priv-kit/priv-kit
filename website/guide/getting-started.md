@@ -23,8 +23,7 @@ dependencies {
 }
 ```
 
-Depend on `priv-core` directly only when the application is building its own
-authorization interface:
+Choose `priv-core` directly for an application-owned authorization interface:
 
 ```kotlin
 dependencies {
@@ -66,8 +65,8 @@ adb shell /system/bin/linker64 '/data/app/.../base.apk!/lib/arm64-v8a/libprivkit
 
 ## Configure hidden API access {#hidden-api-access}
 
-The host app must configure
-[HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass):
+Configure [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass)
+in the host app:
 
 ```kotlin
 class App : Application() {
