@@ -6,3 +6,5 @@ Replace the content when preparing the next release; release history is preserve
 -->
 
 - Add cancellable, bounded `PrivilegeFile.deleteRecursively()` execution without blocking Binder threads or following symbolic links.
+- Replace `PrivilegeFile.scanDirectory()` with a server-side, depth-first `walk(maxDepth)` cold Flow that uses one bounded walk slot at any depth.
+- Restrict construction and copying of Core result snapshots to the library while keeping configuration and input models caller-constructible.
