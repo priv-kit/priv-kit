@@ -33,7 +33,8 @@ public class PrivilegeAdbIdentity private constructor(
     }
 }
 
-public data class PrivilegeAdbIdentityInfo public constructor(
+@ConsistentCopyVisibility
+public data class PrivilegeAdbIdentityInfo internal constructor(
     public val identity: PrivilegeAdbIdentity,
     public val publicKeyFingerprint: String,
 )
@@ -92,13 +93,15 @@ internal data class PrivilegeAdbStartResult(
         get() = endpoint.port
 }
 
-public data class PrivilegeAdbPairingResult public constructor(
+@ConsistentCopyVisibility
+public data class PrivilegeAdbPairingResult internal constructor(
     public val port: Int,
     public val identity: PrivilegeAdbIdentity,
     public val publicKeyFingerprint: String = "",
 )
 
-public data class PrivilegeAdbPairingCheckResult public constructor(
+@ConsistentCopyVisibility
+public data class PrivilegeAdbPairingCheckResult internal constructor(
     public val port: Int?,
     public val paired: Boolean,
     public val outputText: String,
@@ -116,7 +119,8 @@ public enum class PrivilegeAdbPairingCheckStatus {
     ERROR,
 }
 
-public data class PrivilegeAdbTcpResult public constructor(
+@ConsistentCopyVisibility
+public data class PrivilegeAdbTcpResult internal constructor(
     public val port: Int,
     public val outputText: String,
     public val identity: PrivilegeAdbIdentity,
@@ -130,7 +134,8 @@ public enum class PrivilegeAdbAuthorizationStatus {
     ERROR,
 }
 
-public data class PrivilegeAdbAuthorizationCheckResult public constructor(
+@ConsistentCopyVisibility
+public data class PrivilegeAdbAuthorizationCheckResult internal constructor(
     public val status: PrivilegeAdbAuthorizationStatus,
     public val outputText: String,
     public val identity: PrivilegeAdbIdentity,
@@ -143,7 +148,8 @@ public enum class PrivilegeAdbAuthorizationEndReason {
     FAILED,
 }
 
-public data class PrivilegeAdbAuthorizationRequestResult public constructor(
+@ConsistentCopyVisibility
+public data class PrivilegeAdbAuthorizationRequestResult internal constructor(
     public val authorized: Boolean,
     public val endReason: PrivilegeAdbAuthorizationEndReason? = null,
     public val outputText: String = "",

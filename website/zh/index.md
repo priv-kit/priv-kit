@@ -30,7 +30,7 @@ features:
     details: 连接系统服务并执行底层 Binder 调用，调用格式和失败处理由应用决定。
     link: /zh/guide/binder
   - title: 内置文件代理
-    details: 无需定义 UserService，直接在特权进程中访问文件并流式扫描目录。
+    details: 无需定义 UserService，直接在特权进程中访问文件并流式遍历目录树。
     link: /zh/guide/file-proxy
   - title: 应用自定义 UserService
     details: 在嵌入式或独立进程中运行应用自己的特权服务。

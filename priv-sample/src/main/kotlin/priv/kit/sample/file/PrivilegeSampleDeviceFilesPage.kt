@@ -56,7 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import priv.kit.core.file.PrivilegeFileDirectoryEntry
+import priv.kit.core.file.PrivilegeFileEntry
 import priv.kit.core.file.PrivilegeFileMetadata
 import priv.kit.core.file.PrivilegeFileType
 import priv.kit.sample.R
@@ -159,7 +159,7 @@ private fun DeviceDirectoryContent(
     onDirectoryTextChanged: (String) -> Unit,
     onSubmitDirectory: () -> Unit,
     onOpenParent: () -> Unit,
-    onOpenEntry: (PrivilegeFileDirectoryEntry) -> Unit,
+    onOpenEntry: (PrivilegeFileEntry) -> Unit,
     onRetry: () -> Unit,
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -267,7 +267,7 @@ private fun DeviceDirectoryList(
     modifier: Modifier,
     interactionsEnabled: Boolean,
     onOpenParent: () -> Unit,
-    onOpenEntry: (PrivilegeFileDirectoryEntry) -> Unit,
+    onOpenEntry: (PrivilegeFileEntry) -> Unit,
 ) {
     val context = LocalContext.current
     val dateFormat = remember {
@@ -298,7 +298,7 @@ private fun DeviceDirectoryList(
                         )
                         .padding(12.dp),
                     text = "This directory has more than 20,000 entries. Only the first " +
-                        "20,000 scanned entries are shown.",
+                        "20,000 walked entries are shown.",
                     color = MaterialTheme.colorScheme.onTertiaryContainer,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -318,7 +318,7 @@ private fun DeviceDirectoryList(
         }
         items(
             items = state.entries,
-            key = PrivilegeFileDirectoryEntry::absolutePath,
+            key = PrivilegeFileEntry::absolutePath,
             contentType = { entry -> entry.metadata?.type },
         ) { entry ->
             DeviceFileRow(
@@ -607,7 +607,7 @@ private fun DeviceFilesStatusPanel(
     }
 }
 
-private fun PrivilegeFileDirectoryEntry.toDetails(
+private fun PrivilegeFileEntry.toDetails(
     context: Context,
     dateFormat: DateFormat,
 ): DeviceFileDetails {

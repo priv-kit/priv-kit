@@ -126,7 +126,7 @@ class PrivilegeFileSystemClientTest {
 
         override fun replaceAtomically(sourcePath: String, targetPath: String): Int = 0
 
-        override fun scanDirectory(path: String, sink: ParcelFileDescriptor): Int = 0
+        override fun walk(path: String, maxDepth: Int, sink: ParcelFileDescriptor): Int = 0
 
         override fun startDeleteRecursively(
             operationId: String,

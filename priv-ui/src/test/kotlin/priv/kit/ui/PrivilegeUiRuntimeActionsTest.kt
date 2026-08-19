@@ -100,11 +100,9 @@ class PrivilegeUiRuntimeActionsTest {
         try {
             RuntimeActionsFixture(context = context).use { (_, actions) ->
                 actions.handleServerConnected(
-                    PrivilegeRuntimeConnectionEvent(
+                    runtimeConnectionEvent(
                         serverInfo = shellServerInfo(),
                         origin = PrivilegeRuntimeConnectionOrigin.INITIAL_LAUNCH,
-                        clientStartOperationId = null,
-                        launchCorrelationId = null,
                     ),
                 )
 
@@ -1526,14 +1524,25 @@ class PrivilegeUiRuntimeActionsTest {
 
     private fun PrivilegeUiRuntimeActions.connectForTest(serverInfo: PrivilegeServerInfo) {
         handleServerConnected(
-            PrivilegeRuntimeConnectionEvent(
+            runtimeConnectionEvent(
                 serverInfo = serverInfo,
                 origin = PrivilegeRuntimeConnectionOrigin.OWNER_RECONNECT,
-                clientStartOperationId = null,
-                launchCorrelationId = null,
             ),
         )
     }
+
+    private fun runtimeConnectionEvent(
+        serverInfo: PrivilegeServerInfo,
+        origin: PrivilegeRuntimeConnectionOrigin,
+        clientStartOperationId: Long? = null,
+        launchCorrelationId: String? = null,
+    ): PrivilegeRuntimeConnectionEvent =
+        PrivilegeRuntimeConnectionEvent::class.java.getDeclaredConstructor(
+            PrivilegeServerInfo::class.java,
+            PrivilegeRuntimeConnectionOrigin::class.java,
+            Long::class.javaObjectType,
+            String::class.java,
+        ).newInstance(serverInfo, origin, clientStartOperationId, launchCorrelationId)
 
     private fun PrivilegeUiRuntimeActions.disconnectForTest() {
         val method = PrivilegeUiRuntimeActions::class.java.getDeclaredMethod("handleServerDisconnected")

@@ -16,8 +16,8 @@ caller waits for Binder dispatch and server-side filesystem I/O. The
 file-service Binder is installed with the server handshake, so a filesystem
 method normally adds one Binder round trip to the corresponding filesystem call.
 
-`scanDirectory()` and `deleteRecursively()` are different. Directory scanning
-runs its Binder request and pipe reader on `Dispatchers.IO`.
+`walk()` and `deleteRecursively()` are different. Directory walking runs its
+Binder request and pipe reader on `Dispatchers.IO`.
 `deleteRecursively()` suspends while a bounded server-side coroutine performs
 the traversal, so neither operation blocks the caller's thread. Opening file
 content requires a synchronous Binder handoff, but the content then moves
@@ -165,24 +165,33 @@ File content transfers use a separate bounded executor. Four transfers may be
 active at once without a waiting queue; another open fails with `EBUSY`. Always
 close streams promptly. Random-access descriptors are intentionally not exposed.
 
-## Stream a directory scan {#scan-directory}
+## Walk a directory tree {#walk-directory}
 
 ```kotlin
-directory.scanDirectory().collect { entry ->
+directory.walk(maxDepth = 2).collect { entry ->
     val type = entry.metadata?.type?.name ?: "METADATA_UNAVAILABLE"
-    Log.d("file", "$type: ${entry.absolutePath}")
+    Log.d("file", "depth=${entry.depth} $type: ${entry.absolutePath}")
 }
 ```
 
-Each collection starts a new unsorted, non-recursive, weakly-consistent scan.
-Entries stream over a pipe instead of being packed into one Binder response.
-Every `PrivilegeFileDirectoryEntry` contains its enumerated absolute path. The
-server then attempts `lstat`; `metadata` is null when its Linux identity can see
-the name but receives `EACCES` or `EPERM` for the attributes. An entry that
-disappears before `lstat` is skipped. Opening or iterating the target directory
-itself still fails the scan. Cancelling collection closes the pipe. The server
-allows four active scans without a waiting queue; another scan fails with
-`EBUSY`.
+Each collection starts a new unsorted, weakly-consistent depth-first pre-order
+walk. The receiving directory is not emitted; direct children have depth 1.
+The default maximum depth is `Int.MAX_VALUE`, while `maxDepth = 1` lists only
+direct children. Entries stream over a pipe instead of being packed into one
+Binder response or buffered as a complete tree.
+
+Every `PrivilegeFileEntry` contains its enumerated absolute path, relative
+depth, and metadata snapshot. The server uses `lstat`, so symbolic links are
+emitted but never entered. `metadata` is null when the server identity can see
+the name but receives `EACCES` or `EPERM` for its attributes; such an entry is
+also not entered. An entry that disappears before `lstat` is skipped. Failure
+to open or iterate the starting directory or any entered descendant terminates
+the flow and preserves the Linux error.
+
+Cancelling collection closes the pipe and the open directory streams. One walk
+uses one server coroutine and one concurrency slot regardless of depth. The
+server permits four active walks without a waiting queue; another walk fails
+with `EBUSY`.
 
 The proxy does not turn recursive deletion into a storage-cleanup policy. It
 does not discover targets, select retained files, expose configurable traversal

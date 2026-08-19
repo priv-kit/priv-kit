@@ -1,7 +1,9 @@
 package priv.kit.core.internal.file
 
 import android.os.Bundle
+import android.os.ParcelFileDescriptor
 import android.os.ResultReceiver
+import android.system.OsConstants
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
@@ -20,6 +22,72 @@ import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(RobolectricTestRunner::class)
 class PrivilegeFileSystemBinderTest {
+    @Test
+    fun walkHasFourActiveSlotsWithoutAQueueAndForwardsDepth() = runBlocking {
+        val startedCount = AtomicInteger()
+        val allStarted = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val received = LinkedBlockingQueue<Pair<String, Int>>()
+        val sources = mutableListOf<ParcelFileDescriptor>()
+        val binder = PrivilegeFileSystemBinder(
+            walkAction = { path, maxDepth, _ ->
+                received += path to maxDepth
+                if (
+                    startedCount.incrementAndGet() ==
+                    PrivilegeFileSystemContract.MAX_CONCURRENT_WALKS
+                ) {
+                    allStarted.complete(Unit)
+                }
+                release.await()
+            },
+            walkDispatcher = Dispatchers.IO,
+        )
+        try {
+            repeat(PrivilegeFileSystemContract.MAX_CONCURRENT_WALKS) { index ->
+                val pipe = ParcelFileDescriptor.createPipe()
+                sources += pipe[0]
+                assertEquals(0, binder.walk("/tree-$index", index + 1, pipe[1]))
+            }
+            withTimeout(TEST_TIMEOUT_MILLIS) { allStarted.await() }
+
+            val rejectedPipe = ParcelFileDescriptor.createPipe()
+            sources += rejectedPipe[0]
+            assertEquals(
+                OsConstants.EBUSY,
+                binder.walk("/tree-over-capacity", 1, rejectedPipe[1]),
+            )
+            assertEquals(
+                setOf(
+                    "/tree-0" to 1,
+                    "/tree-1" to 2,
+                    "/tree-2" to 3,
+                    "/tree-3" to 4,
+                ),
+                List(PrivilegeFileSystemContract.MAX_CONCURRENT_WALKS) {
+                    requireNotNull(received.poll(TEST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS))
+                }.toSet(),
+            )
+        } finally {
+            release.complete(Unit)
+            sources.forEach { source -> runCatching(source::close) }
+            binder.shutdown()
+        }
+    }
+
+    @Test
+    fun walkRejectsNonPositiveDepthBeforeStarting() {
+        val pipe = ParcelFileDescriptor.createPipe()
+        val binder = PrivilegeFileSystemBinder()
+        try {
+            org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+                binder.walk("/tree", 0, pipe[1])
+            }
+        } finally {
+            pipe.forEach { descriptor -> runCatching(descriptor::close) }
+            binder.shutdown()
+        }
+    }
+
     @Test
     fun recursiveDeletePassesTargetUnchangedToOperation() = runBlocking {
         val receivedPath = CompletableDeferred<String>()

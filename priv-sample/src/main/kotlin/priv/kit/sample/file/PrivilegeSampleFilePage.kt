@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -173,8 +174,8 @@ internal fun PrivilegeSampleFilePage(
             FileActionButton("Rename payload.txt ↔ renamed.txt", actionsEnabled) {
                 runOperation("Rename", ::renamePayload)
             }
-            FileActionButton("Scan Directory", actionsEnabled) {
-                runOperation("Directory scan", ::scanDirectory)
+            FileActionButton("Walk Directory", actionsEnabled) {
+                runOperation("Directory walk", ::walkDirectory)
             }
             OutlinedButton(
                 modifier = Modifier.fillMaxWidth(),
@@ -333,20 +334,25 @@ private fun renamePayload(directoryPath: String): String {
     return "source=$source\ndestination=$destination\nrenameTo=$renamedSuccessfully"
 }
 
-private suspend fun scanDirectory(directoryPath: String): String {
+private suspend fun walkDirectory(directoryPath: String): String {
     val directory = Privilege.file(directoryPath)
-    val entries = directory.scanDirectory().toList()
+    val entries = directory.walk(maxDepth = SAMPLE_WALK_MAX_DEPTH)
+        .take(MAX_DISPLAYED_ENTRIES + 1)
+        .toList()
     return buildString {
         appendLine("path=$directory")
-        appendLine("entries=${entries.size}")
+        appendLine("maxDepth=$SAMPLE_WALK_MAX_DEPTH")
+        appendLine("entries=${entries.size.coerceAtMost(MAX_DISPLAYED_ENTRIES)}")
         entries.take(MAX_DISPLAYED_ENTRIES).forEach { entry ->
             appendLine(
-                entry.metadata?.toDisplayText()
-                    ?: "${entry.absolutePath} metadata=unavailable",
+                "depth=${entry.depth} " + (
+                    entry.metadata?.toDisplayText()
+                        ?: "${entry.absolutePath} metadata=unavailable"
+                    ),
             )
         }
         if (entries.size > MAX_DISPLAYED_ENTRIES) {
-            append("… ${entries.size - MAX_DISPLAYED_ENTRIES} more entries")
+            append("… walk stopped after $MAX_DISPLAYED_ENTRIES entries")
         }
     }.trimEnd()
 }
@@ -425,11 +431,17 @@ private suspend fun runFullSmokeTest(directoryPath: String): String {
         check(replacedText == replacementText) { "atomic replacement content mismatch" }
         lines += "PASS replaceAtomically: $renamed"
 
-        val entries = directory.scanDirectory().toList()
+        val entries = directory.walk(maxDepth = 1).toList()
         check(entries.any { it.absolutePath == renamed.absolutePath }) {
-            "scanDirectory did not return $renamed"
+            "walk(maxDepth = 1) did not return $renamed"
         }
-        lines += "PASS scanDirectory: ${entries.size} entries"
+        val recursiveEntries = directory.walk(maxDepth = 2).toList()
+        check(
+            recursiveEntries.any {
+                it.absolutePath == nestedDirectory.absolutePath && it.depth == 2
+            },
+        ) { "walk(maxDepth = 2) did not return $nestedDirectory at depth 2" }
+        lines += "PASS walk: ${recursiveEntries.size} entries"
 
         check(renamed.delete()) { "delete failed for $renamed" }
         check(nestedDirectory.delete()) { "delete failed for $nestedDirectory" }
@@ -498,5 +510,6 @@ private fun deleteIfPresent(file: PrivilegeFile): Boolean =
 private const val DEFAULT_TEST_DIRECTORY = "/data/local/tmp/priv-kit-file-api"
 private const val PAYLOAD_FILE_NAME = "payload.txt"
 private const val RENAMED_FILE_NAME = "renamed.txt"
+private const val SAMPLE_WALK_MAX_DEPTH = 8
 private const val MAX_DISPLAYED_ENTRIES = 200
 private const val MAX_OUTPUT_CHARS = 24_000

@@ -1,7 +1,7 @@
 package priv.kit.core.internal.file
 
 import android.system.StructStat
-import priv.kit.core.file.PrivilegeFileDirectoryEntry
+import priv.kit.core.file.PrivilegeFileEntry
 import priv.kit.core.file.PrivilegeFileMetadata
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -37,18 +37,21 @@ internal object PrivilegeFileWire {
     fun writeEntry(
         output: DataOutputStream,
         path: String,
+        depth: Int,
         stat: StructStat?,
     ) {
-        output.writeByte(PrivilegeFileSystemContract.SCAN_ENTRY)
+        output.writeByte(PrivilegeFileSystemContract.WALK_ENTRY)
         output.writeUTF(path)
+        output.writeInt(depth)
         output.writeBoolean(stat != null)
         if (stat != null) {
             statToArray(stat).forEach(output::writeLong)
         }
     }
 
-    fun readEntry(input: DataInputStream): PrivilegeFileDirectoryEntry {
+    fun readEntry(input: DataInputStream): PrivilegeFileEntry {
         val path = input.readUTF()
+        val depth = input.readInt()
         val metadata = if (input.readBoolean()) {
             val values = LongArray(PrivilegeFileSystemContract.STAT_FIELD_COUNT) {
                 input.readLong()
@@ -57,6 +60,6 @@ internal object PrivilegeFileWire {
         } else {
             null
         }
-        return PrivilegeFileDirectoryEntry(path, metadata)
+        return PrivilegeFileEntry(path, depth, metadata)
     }
 }

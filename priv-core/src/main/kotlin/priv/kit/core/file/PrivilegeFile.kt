@@ -22,10 +22,6 @@ public class PrivilegeFile internal constructor(
     public val absolutePath: String,
     private val operations: PrivilegeFileOperations = PrivilegeFileSystemClient,
 ) {
-    init {
-        PrivilegeFilePath.validateAbsolute(absolutePath)
-    }
-
     public val name: String
         get() = PrivilegeFilePath.name(absolutePath)
 
@@ -151,15 +147,20 @@ public class PrivilegeFile internal constructor(
         )
 
     /**
-     * Streams an unsorted, non-recursive and weakly-consistent directory scan.
+     * Streams this directory's descendants in unsorted depth-first pre-order.
      *
-     * Each collection starts a new scan. An entry can have null
-     * [PrivilegeFileDirectoryEntry.metadata] when its name is enumerable but the server identity
-     * cannot read its attributes. Cancelling collection closes its pipe and stops the corresponding
-     * server-side writer. Binder setup and pipe reading run on [kotlinx.coroutines.Dispatchers.IO].
+     * This directory itself is not emitted. Direct children have depth 1, so [maxDepth] 1 performs
+     * a non-recursive directory listing. Symbolic links and entries with unavailable metadata are
+     * emitted but never entered. Each collection starts a new weakly-consistent walk in the
+     * Privileged Server. Cancelling collection closes its pipe and stops that walk. Binder setup
+     * and pipe reading run on [kotlinx.coroutines.Dispatchers.IO].
+     *
+     * @param maxDepth maximum descendant depth to emit; must be positive.
      */
-    public fun scanDirectory(): Flow<PrivilegeFileDirectoryEntry> =
-        operations.scanDirectory(absolutePath)
+    public fun walk(maxDepth: Int = Int.MAX_VALUE): Flow<PrivilegeFileEntry> {
+        require(maxDepth >= 1) { "Maximum walk depth must be positive: $maxDepth" }
+        return operations.walk(absolutePath, maxDepth)
+    }
 
     override fun equals(other: Any?): Boolean =
         other is PrivilegeFile && absolutePath == other.absolutePath

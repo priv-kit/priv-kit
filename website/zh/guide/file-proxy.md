@@ -13,7 +13,7 @@ Binder 调用，可以在任意线程调用，但调用方需要等待 Binder �
 I/O，通常应放在工作线程执行。文件服务 Binder 已随服务端握手安装，因此一次文件系统
 方法通常只增加一次到对应文件操作的 Binder 往返。
 
-`scanDirectory()` 和 `deleteRecursively()` 不同。目录扫描会在 `Dispatchers.IO` 中
+`walk()` 和 `deleteRecursively()` 不同。目录遍历会在 `Dispatchers.IO` 中
 发起 Binder 请求并读取 pipe；`deleteRecursively()` 会挂起调用方，并由服务端有界
 协程执行遍历，因此两者都不会阻塞调用方线程。打开文件内容时仍需要同步完成 Binder
 交接，之后的内容通过 pipe 传输，不会为每个数据块发起一次 Binder transaction。
@@ -143,21 +143,29 @@ withContext(Dispatchers.IO) {
 文件内容传输使用独立的有界执行器，同时最多执行四个且不排队；继续打开会以
 `EBUSY` 失败，因此应及时关闭流。该 API 刻意不暴露随机访问文件描述符。
 
-## 流式扫描目录 {#scan-directory}
+## 遍历目录树 {#walk-directory}
 
 ```kotlin
-directory.scanDirectory().collect { entry ->
+directory.walk(maxDepth = 2).collect { entry ->
     val type = entry.metadata?.type?.name ?: "METADATA_UNAVAILABLE"
-    Log.d("file", "$type: ${entry.absolutePath}")
+    Log.d("file", "depth=${entry.depth} $type: ${entry.absolutePath}")
 }
 ```
 
-每次收集都会启动一次新的无排序、非递归、弱一致扫描。目录项通过 pipe 流式返回，
-不会装进一个 Binder 响应。每个 `PrivilegeFileDirectoryEntry` 都包含已枚举到的绝对
-路径，服务端随后尝试 `lstat`；服务端 Linux 身份能看到名称、但读取属性返回
-`EACCES` 或 `EPERM` 时，`metadata` 为 null。条目在读取属性前消失时会跳过；目标目录
-本身无法打开或迭代仍会让扫描失败。取消收集会关闭 pipe。服务端最多同时执行四个
-扫描且不设置等待队列；继续发起扫描会以 `EBUSY` 失败。
+每次收集都会启动一次新的无排序、弱一致、深度优先先序遍历。接收者目录本身不会
+输出，直接子项的深度为 1。默认最大深度为 `Int.MAX_VALUE`；传入 `maxDepth = 1` 时
+只列出直接子项。条目通过 pipe 流式返回，不会装进一个 Binder 响应，也不会在内存中
+缓存完整目录树。
+
+每个 `PrivilegeFileEntry` 都包含已枚举到的绝对路径、相对深度和元数据快照。服务端
+使用 `lstat`，所以符号链接会输出但不会进入。服务端 Linux 身份能看到名称、但读取
+属性返回 `EACCES` 或 `EPERM` 时，`metadata` 为 null，这类条目同样不会进入。条目在
+读取属性前消失时会跳过；起始目录或任一已进入的后代目录无法打开或迭代时，Flow 会
+终止并保留对应 Linux 错误。
+
+取消收集会关闭 pipe 和所有已打开的目录流。一次 walk 无论深度只使用一个服务端
+协程和一个并发槽位。服务端最多同时执行四个 walk 且不设置等待队列；继续发起会以
+`EBUSY` 失败。
 
 递归删除不会扩展为存储清理策略。文件代理不发现删除目标、不决定保留文件、不提供
 可配置遍历规则，也不调度持久清理任务；接入应用仍必须明确选择唯一的目标路径。

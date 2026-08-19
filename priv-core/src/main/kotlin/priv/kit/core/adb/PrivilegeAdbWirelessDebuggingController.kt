@@ -12,7 +12,8 @@ public enum class PrivilegeAdbWirelessDebuggingControl {
     REQUIRE,
 }
 
-public data class PrivilegeAdbWirelessDebuggingControlStatus public constructor(
+@ConsistentCopyVisibility
+public data class PrivilegeAdbWirelessDebuggingControlStatus internal constructor(
     public val supported: Boolean,
     public val permissionDeclared: Boolean,
     public val permissionGranted: Boolean,

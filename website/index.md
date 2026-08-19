@@ -30,7 +30,7 @@ features:
     details: Connect to explicit system services while preserving raw Binder contracts and failure semantics.
     link: /guide/binder
   - title: Built-in file proxy
-    details: Access files and stream directory scans in the privileged process without defining a UserService.
+    details: Access files and stream directory walks in the privileged process without defining a UserService.
     link: /guide/file-proxy
   - title: App-defined UserService
     details: Run application-owned privileged work in an embedded or dedicated process.

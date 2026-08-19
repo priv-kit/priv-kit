@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
-import priv.kit.core.file.PrivilegeFileDirectoryEntry
+import priv.kit.core.file.PrivilegeFileEntry
 import priv.kit.core.file.PrivilegeFileMetadata
 import priv.kit.core.file.PrivilegeFileType
 import java.nio.ByteBuffer
@@ -85,7 +85,7 @@ internal class PrivilegeSampleDeviceFilesViewModel : ViewModel() {
         return true
     }
 
-    fun openEntry(entry: PrivilegeFileDirectoryEntry) {
+    fun openEntry(entry: PrivilegeFileEntry) {
         if (!state.serverRunning || state.isLoadingDirectory) return
         operationJob?.cancel()
         operationJob = viewModelScope.launch {
@@ -188,14 +188,14 @@ internal class PrivilegeSampleDeviceFilesViewModel : ViewModel() {
                 check(directory.metadata(followSymbolicLinks = true).type == PrivilegeFileType.DIRECTORY) {
                     "$path is not a directory."
                 }
-                val scanned = directory.scanDirectory()
+                val walked = directory.walk(maxDepth = 1)
                     .take(MAX_DIRECTORY_ENTRIES + 1)
                     .toList()
                 DirectoryLoadResult(
-                    entries = scanned
+                    entries = walked
                         .take(MAX_DIRECTORY_ENTRIES)
                         .sortedWith(DIRECTORY_ENTRY_COMPARATOR),
-                    truncated = scanned.size > MAX_DIRECTORY_ENTRIES,
+                    truncated = walked.size > MAX_DIRECTORY_ENTRIES,
                 )
             }
             state = state.copy(
@@ -313,7 +313,7 @@ internal data class PrivilegeSampleDeviceFilesState(
     val serverRunning: Boolean = false,
     val currentDirectory: String = ROOT_DIRECTORY,
     val directoryText: String = ROOT_DIRECTORY,
-    val entries: List<PrivilegeFileDirectoryEntry> = emptyList(),
+    val entries: List<PrivilegeFileEntry> = emptyList(),
     val directoryTruncated: Boolean = false,
     val hasDirectorySnapshot: Boolean = false,
     val pendingDirectory: String? = null,
@@ -367,7 +367,7 @@ private enum class DirectoryLoadReason {
 }
 
 private data class DirectoryLoadResult(
-    val entries: List<PrivilegeFileDirectoryEntry>,
+    val entries: List<PrivilegeFileEntry>,
     val truncated: Boolean,
 )
 
@@ -402,7 +402,7 @@ private fun ByteArray.defaultPreviewMode(): PrivilegeSampleFilePreviewMode {
 private fun Throwable.toDisplayMessage(): String =
     message?.takeIf(String::isNotBlank) ?: javaClass.simpleName
 
-private val DIRECTORY_ENTRY_COMPARATOR = Comparator<PrivilegeFileDirectoryEntry> { first, second ->
+private val DIRECTORY_ENTRY_COMPARATOR = Comparator<PrivilegeFileEntry> { first, second ->
     val firstGroup = if (first.metadata?.type == PrivilegeFileType.DIRECTORY) 0 else 1
     val secondGroup = if (second.metadata?.type == PrivilegeFileType.DIRECTORY) 0 else 1
     if (firstGroup != secondGroup) {

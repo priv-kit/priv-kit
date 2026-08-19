@@ -19,6 +19,7 @@ import priv.kit.core.internal.core.PrivilegePendingHandshake
 import priv.kit.core.internal.core.PrivilegeServerHandshakeRegistry
 import priv.kit.core.internal.core.PrivilegeServerHandshakeResult
 import priv.kit.core.file.PrivilegeFile
+import priv.kit.core.file.PrivilegeFilePath
 import priv.kit.core.internal.file.IPrivilegeFileSystem
 import priv.kit.core.internal.runtime.PrivilegeRootProcess
 import priv.kit.core.internal.runtime.PrivilegeRootStarter
@@ -70,7 +71,10 @@ public object Privilege {
     private val userServiceClient = PrivilegeUserServiceClient(::requireUserServiceManagerBinder)
 
     /** Creates an absolute file handle whose I/O runs in the connected Privileged Server. */
-    public fun file(absolutePath: String): PrivilegeFile = PrivilegeFile(absolutePath)
+    public fun file(absolutePath: String): PrivilegeFile {
+        PrivilegeFilePath.validateAbsolute(absolutePath)
+        return PrivilegeFile(absolutePath)
+    }
 
     @Throws(PrivilegeStartupException::class)
     public suspend fun startRoot(

@@ -38,7 +38,7 @@ class PrivilegeUiAdbTcpActionsTest {
     @Test
     fun automaticTimeoutUsesPersistentDialog() = runBlocking {
         assertAuthorizationFailureBoundary(
-            result = PrivilegeAdbAuthorizationRequestResult(
+            result = authorizationRequestResult(
                 authorized = false,
                 endReason = PrivilegeAdbAuthorizationEndReason.AUTOMATIC_TIMEOUT,
             ),
@@ -51,7 +51,7 @@ class PrivilegeUiAdbTcpActionsTest {
     @Test
     fun failedAuthorizationUsesLocalizedSnackbarAndKeepsDiagnosticLog() = runBlocking {
         assertAuthorizationFailureBoundary(
-            result = PrivilegeAdbAuthorizationRequestResult(
+            result = authorizationRequestResult(
                 authorized = false,
                 endReason = PrivilegeAdbAuthorizationEndReason.FAILED,
                 failureMessage = "Connection refused",
@@ -114,6 +114,19 @@ class PrivilegeUiAdbTcpActionsTest {
             store.close()
         }
     }
+
+    private fun authorizationRequestResult(
+        authorized: Boolean,
+        endReason: PrivilegeAdbAuthorizationEndReason?,
+        outputText: String = "",
+        failureMessage: String? = null,
+    ): PrivilegeAdbAuthorizationRequestResult =
+        PrivilegeAdbAuthorizationRequestResult::class.java.getDeclaredConstructor(
+            Boolean::class.javaPrimitiveType,
+            PrivilegeAdbAuthorizationEndReason::class.java,
+            String::class.java,
+            String::class.java,
+        ).newInstance(authorized, endReason, outputText, failureMessage)
 
     private fun PrivilegeUiAdbTcpActions.applyAuthorizationResultForTest(
         session: PrivilegeUiRuntimeStartSession,

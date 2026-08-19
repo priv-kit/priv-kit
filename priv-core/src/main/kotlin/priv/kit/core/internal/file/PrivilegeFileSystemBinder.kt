@@ -22,11 +22,6 @@ import java.io.FileDescriptor
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
-import java.nio.file.AccessDeniedException
-import java.nio.file.DirectoryIteratorException
-import java.nio.file.Files
-import java.nio.file.NoSuchFileException
-import java.nio.file.NotDirectoryException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.Semaphore
@@ -39,6 +34,12 @@ import java.util.concurrent.atomic.AtomicReference
 import priv.kit.core.file.PrivilegeFilePath
 
 internal class PrivilegeFileSystemBinder(
+    private val walkAction: suspend (String, Int, ParcelFileDescriptor) -> Unit =
+        PrivilegeFileTreeWalker::write,
+    walkDispatcher: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(
+        PrivilegeFileSystemContract.MAX_CONCURRENT_WALKS,
+        "priv-kit-file-walk",
+    ),
     private val recursiveDeleteAction: suspend (String) -> Boolean =
         PrivilegeFileRecursiveDelete::delete,
     recursiveDeleteDispatcher: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(
@@ -46,26 +47,23 @@ internal class PrivilegeFileSystemBinder(
         "priv-kit-file-recursive-delete",
     ),
 ) : IPrivilegeFileSystem.Stub() {
-    private val activeScans = ConcurrentHashMap<ParcelFileDescriptor, Unit>()
+    private val activeWalks = ConcurrentHashMap<ParcelFileDescriptor, Job>()
     private val activeTransfers = ConcurrentHashMap<ActiveTransfer, Unit>()
     private val activeRecursiveDeletes = ConcurrentHashMap<String, ActiveRecursiveDelete>()
+    private val walkSlots = Semaphore(PrivilegeFileSystemContract.MAX_CONCURRENT_WALKS)
     private val transferSlots = Semaphore(PrivilegeFileSystemContract.MAX_CONCURRENT_TRANSFERS)
     private val recursiveDeleteSlots = Semaphore(
         PrivilegeFileSystemContract.MAX_CONCURRENT_RECURSIVE_DELETES,
     )
-    private val recursiveDeleteAdmissionLock = Any()
+    private val operationAdmissionLock = Any()
+    private val walkJob = SupervisorJob()
+    private val walkScope = CoroutineScope(
+        walkJob + walkDispatcher + CoroutineName("priv-kit-file-walk"),
+    )
     private val recursiveDeleteJob = SupervisorJob()
     private val recursiveDeleteScope = CoroutineScope(
         recursiveDeleteJob + recursiveDeleteDispatcher +
             CoroutineName("priv-kit-file-recursive-delete"),
-    )
-    private val scanExecutor = ThreadPoolExecutor(
-        0,
-        PrivilegeFileSystemContract.MAX_CONCURRENT_SCANS,
-        SCAN_THREAD_KEEP_ALIVE_SECONDS,
-        TimeUnit.SECONDS,
-        SynchronousQueue(),
-        ScanThreadFactory(),
     )
     private val transferExecutor = ThreadPoolExecutor(
         0,
@@ -301,7 +299,7 @@ internal class PrivilegeFileSystemBinder(
     ): Boolean {
         if (operationId.isBlank() || receiver == null) return false
 
-        val operation = synchronized(recursiveDeleteAdmissionLock) {
+        val operation = synchronized(operationAdmissionLock) {
             if (closed || !recursiveDeleteSlots.tryAcquire()) return false
             val candidate = ActiveRecursiveDelete(receiver)
             if (activeRecursiveDeletes.putIfAbsent(operationId, candidate) != null) {
@@ -351,51 +349,63 @@ internal class PrivilegeFileSystemBinder(
         }
     }
 
-    override fun scanDirectory(
+    override fun walk(
         path: String,
+        maxDepth: Int,
         sink: ParcelFileDescriptor,
     ): Int {
         validatePath(path)
-        if (closed) {
-            sink.close()
-            return OsConstants.EPIPE
-        }
+        require(maxDepth >= 1) { "Maximum walk depth must be positive: $maxDepth" }
 
-        activeScans[sink] = Unit
-        try {
-            scanExecutor.execute {
-                try {
-                    writeDirectory(path, sink)
-                } finally {
-                    activeScans.remove(sink)
-                    runCatching(sink::close)
-                }
+        val job = walkScope.launch(start = CoroutineStart.LAZY) {
+            walkAction(path, maxDepth, sink)
+        }
+        val accepted = synchronized(operationAdmissionLock) {
+            if (closed || !walkSlots.tryAcquire()) {
+                false
+            } else if (activeWalks.putIfAbsent(sink, job) != null) {
+                walkSlots.release()
+                false
+            } else {
+                true
             }
-            return 0
-        } catch (_: RejectedExecutionException) {
-            activeScans.remove(sink)
+        }
+        if (!accepted) {
+            job.cancel()
             sink.close()
             return if (closed) OsConstants.EPIPE else OsConstants.EBUSY
         }
+
+        job.invokeOnCompletion {
+            if (activeWalks.remove(sink, job)) {
+                runCatching(sink::close)
+                walkSlots.release()
+            }
+        }
+        job.start()
+        return 0
     }
 
-    fun cancelActiveScans() {
-        activeScans.keys.forEach { sink -> runCatching(sink::close) }
+    fun cancelActiveWalks() {
+        activeWalks.forEach { (sink, job) ->
+            runCatching(sink::close)
+            job.cancel()
+        }
     }
 
     fun cancelActiveOperations() {
-        cancelActiveScans()
+        cancelActiveWalks()
         activeTransfers.keys.forEach(ActiveTransfer::cancel)
         activeRecursiveDeletes.values.forEach(ActiveRecursiveDelete::cancel)
     }
 
     fun shutdown() {
-        synchronized(recursiveDeleteAdmissionLock) {
+        synchronized(operationAdmissionLock) {
             closed = true
         }
         cancelActiveOperations()
+        walkJob.cancel()
         recursiveDeleteJob.cancel()
-        scanExecutor.shutdownNow()
         transferExecutor.shutdownNow()
     }
 
@@ -481,52 +491,6 @@ internal class PrivilegeFileSystemBinder(
         transferSlots.release()
     }
 
-    private fun writeDirectory(
-        path: String,
-        sink: ParcelFileDescriptor,
-    ) {
-        val output = DataOutputStream(
-            BufferedOutputStream(ParcelFileDescriptor.AutoCloseOutputStream(sink)),
-        )
-        try {
-            Files.newDirectoryStream(File(path).toPath()).use { entries ->
-                for (entry in entries) {
-                    val entryPath = entry.toAbsolutePath().toString()
-                    val stat = try {
-                        Os.lstat(entryPath)
-                    } catch (exception: ErrnoException) {
-                        when (
-                            classifyPrivilegeFileScanStatFailure(
-                                errno = exception.errno,
-                                noEntryErrno = OsConstants.ENOENT,
-                                accessDeniedErrno = OsConstants.EACCES,
-                                operationNotPermittedErrno = OsConstants.EPERM,
-                            )
-                        ) {
-                            PrivilegeFileScanStatFailureAction.SKIP_ENTRY -> continue
-                            PrivilegeFileScanStatFailureAction.EMIT_NAME_ONLY -> null
-                            PrivilegeFileScanStatFailureAction.FAIL_SCAN -> throw exception
-                        }
-                    }
-                    PrivilegeFileWire.writeEntry(output, entryPath, stat)
-                    output.flush()
-                }
-            }
-            output.writeByte(PrivilegeFileSystemContract.SCAN_COMPLETE)
-            output.flush()
-        } catch (throwable: Throwable) {
-            val failure = throwable.toScanFailure()
-            runCatching {
-                output.writeByte(PrivilegeFileSystemContract.SCAN_ERROR)
-                output.writeInt(failure.errno)
-                output.writeUTF(failure.message)
-                output.flush()
-            }
-        } finally {
-            runCatching(output::close)
-        }
-    }
-
     private fun isSymbolicLink(path: String): Boolean = try {
         OsConstants.S_ISLNK(Os.lstat(path).st_mode)
     } catch (_: ErrnoException) {
@@ -535,18 +499,6 @@ internal class PrivilegeFileSystemBinder(
 
     private fun validatePath(path: String) {
         PrivilegeFilePath.validateAbsolute(path)
-    }
-
-    private fun Throwable.toScanFailure(): ScanFailure {
-        val actual = if (this is DirectoryIteratorException) cause ?: this else this
-        return when (actual) {
-            is ErrnoException -> ScanFailure(actual.errno, actual.message.orEmpty())
-            is NoSuchFileException -> ScanFailure(OsConstants.ENOENT, actual.message.orEmpty())
-            is NotDirectoryException -> ScanFailure(OsConstants.ENOTDIR, actual.message.orEmpty())
-            is AccessDeniedException -> ScanFailure(OsConstants.EACCES, actual.message.orEmpty())
-            is IOException -> ScanFailure(OsConstants.EIO, actual.message.orEmpty())
-            else -> ScanFailure(OsConstants.EIO, actual.message.orEmpty())
-        }
     }
 
     private fun Throwable.errnoOrEio(): Int {
@@ -562,22 +514,6 @@ internal class PrivilegeFileSystemBinder(
         val throwable = this
         return throwable?.message?.take(MAX_TRANSFER_ERROR_CHARS).orEmpty().ifBlank {
             throwable?.javaClass?.simpleName ?: "File transfer failed"
-        }
-    }
-
-    private data class ScanFailure(
-        val errno: Int,
-        val message: String,
-    )
-
-    private class ScanThreadFactory : ThreadFactory {
-        private val sequence = AtomicInteger()
-
-        override fun newThread(runnable: Runnable): Thread = Thread(
-            runnable,
-            "priv-kit-file-scan-${sequence.incrementAndGet()}",
-        ).apply {
-            isDaemon = true
         }
     }
 
@@ -655,7 +591,6 @@ internal class PrivilegeFileSystemBinder(
     }
 
     private companion object {
-        const val SCAN_THREAD_KEEP_ALIVE_SECONDS: Long = 30L
         const val TRANSFER_THREAD_KEEP_ALIVE_SECONDS: Long = 30L
         const val MAX_TRANSFER_ERROR_CHARS: Int = 2_048
     }

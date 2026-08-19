@@ -13,7 +13,8 @@ public enum class PrivilegeFileType {
 }
 
 /** A single, uncached metadata snapshot read by the Privileged Server. */
-public data class PrivilegeFileMetadata public constructor(
+@ConsistentCopyVisibility
+public data class PrivilegeFileMetadata internal constructor(
     public val absolutePath: String,
     public val sizeBytes: Long,
     public val lastModifiedMillis: Long,

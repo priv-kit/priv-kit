@@ -15,7 +15,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
 import priv.kit.core.binder.PrivilegeServerUnavailableException
-import priv.kit.core.file.PrivilegeFileDirectoryEntry
+import priv.kit.core.file.PrivilegeFileEntry
 import priv.kit.core.file.PrivilegeFileMetadata
 import priv.kit.core.file.PrivilegeFileOperations
 import java.io.BufferedInputStream
@@ -126,15 +126,15 @@ internal object PrivilegeFileSystemClient : PrivilegeFileOperations {
         }
     }
 
-    override fun scanDirectory(path: String): Flow<PrivilegeFileDirectoryEntry> = callbackFlow {
+    override fun walk(path: String, maxDepth: Int): Flow<PrivilegeFileEntry> = callbackFlow {
         val pipe = ParcelFileDescriptor.createPipe()
         val source = pipe[0]
         val sink = pipe[1]
         val reader = launch(Dispatchers.IO) {
             try {
                 sink.use { sink ->
-                    val errno = call { fileSystem -> fileSystem.scanDirectory(path, sink) }
-                    if (errno != 0) throw errnoException("scanDirectory($path)", errno)
+                    val errno = call { fileSystem -> fileSystem.walk(path, maxDepth, sink) }
+                    if (errno != 0) throw errnoException("walk($path)", errno)
                 }
 
                 DataInputStream(
@@ -142,28 +142,28 @@ internal object PrivilegeFileSystemClient : PrivilegeFileOperations {
                 ).use { input ->
                     while (true) {
                         when (val frame = input.readUnsignedByte()) {
-                            PrivilegeFileSystemContract.SCAN_ENTRY ->
+                            PrivilegeFileSystemContract.WALK_ENTRY ->
                                 send(PrivilegeFileWire.readEntry(input))
 
-                            PrivilegeFileSystemContract.SCAN_COMPLETE -> {
+                            PrivilegeFileSystemContract.WALK_COMPLETE -> {
                                 close()
                                 return@launch
                             }
-                            PrivilegeFileSystemContract.SCAN_ERROR -> {
+                            PrivilegeFileSystemContract.WALK_ERROR -> {
                                 val errno = input.readInt()
                                 val message = input.readUTF()
                                 throw ErrnoException(
-                                    "scanDirectory($path): $message",
+                                    "walk($path): $message",
                                     errno,
                                 )
                             }
 
-                            else -> throw IOException("Unknown directory scan frame: $frame")
+                            else -> throw IOException("Unknown directory walk frame: $frame")
                         }
                     }
                 }
             } catch (exception: EOFException) {
-                close(IOException("Directory scan ended before completion: $path", exception))
+                close(IOException("Directory walk ended before completion: $path", exception))
             } catch (_: CancellationException) {
             } catch (throwable: Throwable) {
                 close(throwable)

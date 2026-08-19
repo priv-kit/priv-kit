@@ -14,7 +14,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.withContext
 
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
-public data class PrivilegeRuntimeConnectionEvent public constructor(
+@ConsistentCopyVisibility
+public data class PrivilegeRuntimeConnectionEvent internal constructor(
     public val serverInfo: PrivilegeServerInfo,
     public val origin: PrivilegeRuntimeConnectionOrigin,
     public val clientStartOperationId: Long?,

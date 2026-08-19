@@ -3,12 +3,12 @@ package priv.kit.core.internal.file
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class PrivilegeFileScanPolicyTest {
+class PrivilegeFileWalkPolicyTest {
     @Test
-    fun permissionDeniedMetadataEmitsNameOnlyWithoutFailingTheScan() {
+    fun permissionDeniedMetadataEmitsNameOnlyWithoutFailingTheWalk() {
         assertEquals(
-            PrivilegeFileScanStatFailureAction.EMIT_NAME_ONLY,
-            classifyPrivilegeFileScanStatFailure(
+            PrivilegeFileWalkStatFailureAction.EMIT_NAME_ONLY,
+            classifyPrivilegeFileWalkStatFailure(
                 errno = EACCES,
                 noEntryErrno = ENOENT,
                 accessDeniedErrno = EACCES,
@@ -16,8 +16,8 @@ class PrivilegeFileScanPolicyTest {
             ),
         )
         assertEquals(
-            PrivilegeFileScanStatFailureAction.EMIT_NAME_ONLY,
-            classifyPrivilegeFileScanStatFailure(
+            PrivilegeFileWalkStatFailureAction.EMIT_NAME_ONLY,
+            classifyPrivilegeFileWalkStatFailure(
                 errno = EPERM,
                 noEntryErrno = ENOENT,
                 accessDeniedErrno = EACCES,
@@ -27,10 +27,10 @@ class PrivilegeFileScanPolicyTest {
     }
 
     @Test
-    fun disappearedEntriesAreSkippedAndUnexpectedErrorsFailTheScan() {
+    fun disappearedEntriesAreSkippedAndUnexpectedErrorsFailTheWalk() {
         assertEquals(
-            PrivilegeFileScanStatFailureAction.SKIP_ENTRY,
-            classifyPrivilegeFileScanStatFailure(
+            PrivilegeFileWalkStatFailureAction.SKIP_ENTRY,
+            classifyPrivilegeFileWalkStatFailure(
                 errno = ENOENT,
                 noEntryErrno = ENOENT,
                 accessDeniedErrno = EACCES,
@@ -38,8 +38,8 @@ class PrivilegeFileScanPolicyTest {
             ),
         )
         assertEquals(
-            PrivilegeFileScanStatFailureAction.FAIL_SCAN,
-            classifyPrivilegeFileScanStatFailure(
+            PrivilegeFileWalkStatFailureAction.FAIL_WALK,
+            classifyPrivilegeFileWalkStatFailure(
                 errno = EIO,
                 noEntryErrno = ENOENT,
                 accessDeniedErrno = EACCES,

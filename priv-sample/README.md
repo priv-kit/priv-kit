@@ -38,7 +38,7 @@ Phase 1 contents:
   for regular files. Names remain visible when the server identity can enumerate an entry but
   cannot read its metadata; those rows are marked as unavailable and re-probed when selected.
 - A File API page for inspecting paths and exercising `mkdir`, `mkdirs`, create, stream
-  write/append/read, metadata, rename, errno-preserving atomic replacement, directory scan, and
+  write/append/read, metadata, rename, errno-preserving atomic replacement, directory walk, and
   non-recursive cleanup against a configurable absolute test directory, with copy support for the
   operation log.
 - Three pages inside Debug Tools: `Test Authorization`, `Test Binder`, and `Test UserService`.

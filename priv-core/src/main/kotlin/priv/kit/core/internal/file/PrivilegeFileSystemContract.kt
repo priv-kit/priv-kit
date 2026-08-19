@@ -19,14 +19,14 @@ internal object PrivilegeFileSystemContract {
     const val STAT_GID: Int = 4
     const val STAT_FIELD_COUNT: Int = 5
 
-    const val SCAN_ENTRY: Int = 1
-    const val SCAN_COMPLETE: Int = 2
-    const val SCAN_ERROR: Int = 3
+    const val WALK_ENTRY: Int = 1
+    const val WALK_COMPLETE: Int = 2
+    const val WALK_ERROR: Int = 3
 
     const val RECURSIVE_DELETE_FAILED: Int = 0
     const val RECURSIVE_DELETE_SUCCEEDED: Int = 1
 
-    const val MAX_CONCURRENT_SCANS: Int = 4
+    const val MAX_CONCURRENT_WALKS: Int = 4
     const val MAX_CONCURRENT_TRANSFERS: Int = 4
     const val MAX_CONCURRENT_RECURSIVE_DELETES: Int = 4
     const val CREATE_MODE: Int = 0x180 // 0600

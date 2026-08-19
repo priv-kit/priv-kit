@@ -53,10 +53,10 @@ class PrivilegeFileTest {
         assertNull(root.parent)
         assertNull(root.parentFile)
         assertThrows(IllegalArgumentException::class.java) {
-            PrivilegeFile("relative/path", operations)
+            Privilege.file("relative/path")
         }
         assertThrows(IllegalArgumentException::class.java) {
-            PrivilegeFile("/bad\u0000path", operations)
+            Privilege.file("/bad\u0000path")
         }
         assertThrows(IllegalArgumentException::class.java) {
             root.resolve("/absolute")
@@ -65,15 +65,13 @@ class PrivilegeFileTest {
 
     @Test
     fun pathLengthLimitUsesUtf8Bytes() {
-        val operations = FakeOperations()
-
-        PrivilegeFile("/" + "a".repeat(4_094), operations)
-        PrivilegeFile("/aa" + "\u754c".repeat(1_364), operations)
+        Privilege.file("/" + "a".repeat(4_094))
+        Privilege.file("/aa" + "\u754c".repeat(1_364))
         assertThrows(IllegalArgumentException::class.java) {
-            PrivilegeFile("/" + "a".repeat(4_095), operations)
+            Privilege.file("/" + "a".repeat(4_095))
         }
         assertThrows(IllegalArgumentException::class.java) {
-            PrivilegeFile("/" + "\u754c".repeat(1_365), operations)
+            Privilege.file("/" + "\u754c".repeat(1_365))
         }
     }
 
@@ -213,26 +211,28 @@ class PrivilegeFileTest {
     }
 
     @Test
-    fun directoryEntryKeepsItsNameWhenMetadataIsUnavailable() {
-        val entry = PrivilegeFileDirectoryEntry(
+    fun fileEntryKeepsItsNameAndDepthWhenMetadataIsUnavailable() {
+        val entry = PrivilegeFileEntry(
             absolutePath = "/directory/restricted",
+            depth = 2,
             metadata = null,
         )
 
         assertEquals("restricted", entry.name)
+        assertEquals(2, entry.depth)
         assertNull(entry.metadata)
+    }
+
+    @Test
+    fun walkDelegatesPathAndDepthAndRejectsNonPositiveDepth() {
+        val operations = FakeOperations()
+        val directory = PrivilegeFile("/directory", operations)
+
+        assertSame(operations.walkResult, directory.walk(maxDepth = 3))
+        assertEquals("/directory", operations.walkPath)
+        assertEquals(3, operations.walkMaxDepth)
         assertThrows(IllegalArgumentException::class.java) {
-            PrivilegeFileDirectoryEntry(
-                absolutePath = "/directory/first",
-                metadata = PrivilegeFileMetadata(
-                    absolutePath = "/directory/second",
-                    sizeBytes = 0L,
-                    lastModifiedMillis = 0L,
-                    unixMode = 0x8000,
-                    uid = 0,
-                    gid = 0,
-                ),
-            )
+            directory.walk(maxDepth = 0)
         }
     }
 
@@ -258,6 +258,9 @@ class PrivilegeFileTest {
         var queryCalls = 0
         var metadataCalls = 0
         lateinit var metadataResult: PrivilegeFileMetadata
+        val walkResult: Flow<PrivilegeFileEntry> = emptyFlow()
+        var walkPath: String? = null
+        var walkMaxDepth: Int? = null
 
         override fun query(path: String, kind: Int): Boolean {
             queryCalls += 1
@@ -314,6 +317,10 @@ class PrivilegeFileTest {
             atomicReplaceDestination = targetPath
         }
 
-        override fun scanDirectory(path: String): Flow<PrivilegeFileDirectoryEntry> = emptyFlow()
+        override fun walk(path: String, maxDepth: Int): Flow<PrivilegeFileEntry> {
+            walkPath = path
+            walkMaxDepth = maxDepth
+            return walkResult
+        }
     }
 }
