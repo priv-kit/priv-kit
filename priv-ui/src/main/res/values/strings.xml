@@ -58,8 +58,8 @@
     <string name="priv_ui_manual_command_copied">Manual command copied</string>
     <string name="priv_ui_manual_command_clip_label">Manual command</string>
     <string name="priv_ui_pairing_default_message">Searching for the pairing service...</string>
-    <string name="priv_ui_pairing_input_hint">Use the notification shade or split screen to enter it</string>
-    <string name="priv_ui_pairing_split_screen_hint">Use split screen to enter it</string>
+    <string name="priv_ui_pairing_input_hint">Use the notification shade, split screen, or a floating window to enter it</string>
+    <string name="priv_ui_pairing_split_screen_hint">Use split screen or a floating window to enter it</string>
     <string name="priv_ui_pairing_code">Pairing code</string>
     <string name="priv_ui_adb_authorization_action">Start</string>
     <string name="priv_ui_adb_key_fingerprint">Device fingerprint</string>
@@ -147,7 +147,7 @@
     <string name="priv_ui_tcp_authorization_failed">ADB authorization failed. Try again</string>
     <string name="priv_ui_notification_permission_required">Notification permission required</string>
     <string name="priv_ui_notification_permission_unavailable_title">Notification permission is off</string>
-    <string name="priv_ui_notification_permission_unavailable_message">Turn on notification permission to enter the pairing code from the notification shade. If you continue without it, manually place this app and the Wireless debugging settings page in split screen, then enter the code in this app.</string>
+    <string name="priv_ui_notification_permission_unavailable_message">Turn on notification permission to enter the pairing code from the notification shade. If you continue without it, open this app and the Wireless debugging settings page together using split screen or a floating window, then enter the code in this app.</string>
     <string name="priv_ui_notification_permission_settings_action">Notification settings</string>
     <string name="priv_ui_local_network_permission_required">Local network permission required</string>
     <string name="priv_ui_local_network_permission_missing">Allow local network access so Wireless debugging can connect to this device</string>

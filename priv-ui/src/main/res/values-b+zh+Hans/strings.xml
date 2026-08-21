@@ -58,8 +58,8 @@
     <string name="priv_ui_manual_command_copied">已复制手动命令</string>
     <string name="priv_ui_manual_command_clip_label">手动命令</string>
     <string name="priv_ui_pairing_default_message">正在搜索配对服务...</string>
-    <string name="priv_ui_pairing_input_hint">可从通知栏输入，或使用分屏输入</string>
-    <string name="priv_ui_pairing_split_screen_hint">请使用分屏输入</string>
+    <string name="priv_ui_pairing_input_hint">可从通知栏输入，也可使用分屏或小窗输入</string>
+    <string name="priv_ui_pairing_split_screen_hint">请使用分屏或小窗输入</string>
     <string name="priv_ui_pairing_code">配对码</string>
     <string name="priv_ui_adb_authorization_action">启动</string>
     <string name="priv_ui_adb_key_fingerprint">设备指纹</string>
@@ -147,7 +147,7 @@
     <string name="priv_ui_tcp_authorization_failed">ADB 授权失败，请重试</string>
     <string name="priv_ui_notification_permission_required">需要通知权限</string>
     <string name="priv_ui_notification_permission_unavailable_title">通知权限未开启</string>
-    <string name="priv_ui_notification_permission_unavailable_message">开启通知权限后，可以从通知栏输入配对码。若继续无通知配对，需要手动将本应用与“无线调试”设置页置于分屏，并在本应用中输入配对码。</string>
+    <string name="priv_ui_notification_permission_unavailable_message">开启通知权限后，可以从通知栏输入配对码。若继续无通知配对，请通过分屏或小窗同时打开本应用与“无线调试”设置页，并在本应用中输入配对码。</string>
     <string name="priv_ui_notification_permission_settings_action">通知设置</string>
     <string name="priv_ui_local_network_permission_required">需要本地网络权限</string>
     <string name="priv_ui_local_network_permission_missing">需要允许本地网络访问，才能连接本机无线调试</string>
