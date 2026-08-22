@@ -36,8 +36,10 @@ reported as `PrivilegeExistingServerStopException` by Core-managed startup.
 The server follows the app-side owner Binder. After owner death it waits for
 `PrivilegeConfig.followDeathDelayMillis`, which defaults to ten minutes. The normal reconnect path
 waits for the app process-start signal; `activeReconnectOnOwnerDeath` opts into direct provider
-retries that may start the app process. A multi-process app chooses one process to initialize the
-runtime and invoke startup APIs.
+retries that may start the app process. Three owner deaths within sixty seconds open an internal
+crash-loop circuit and downgrade active retries to the normal passive path. A manually restarted
+owner can still reconnect, and a sixty-second stable owner session resets the circuit. A
+multi-process app chooses one process to initialize the runtime and invoke startup APIs.
 
 ## ADB
 

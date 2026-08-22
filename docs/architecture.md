@@ -84,6 +84,8 @@ classpath 和本次启动关联。
 - 初始连接同时匹配 operation 和 `launchCorrelationId`。
 - 连接锁内只更新状态，不执行可能回调应用或发起 IPC 的工作。
 - Binder 死亡、连接失败和恢复失败进入可观察状态。
+- 主动 owner reconnect 在六十秒内观察到三次 owner 死亡后熔断并降级为被动重连；手动
+  启动仍可接管原服务端，owner 稳定存活六十秒后恢复主动能力。
 
 多进程应用自行保证跨进程互斥。
 
