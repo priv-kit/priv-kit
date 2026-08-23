@@ -26,13 +26,14 @@ internal object PrivilegeFileTreeWalker {
     suspend fun write(
         path: String,
         maxDepth: Int,
+        skipDirectoryGlobs: List<String>,
         sink: ParcelFileDescriptor,
     ) {
         val output = DataOutputStream(
             BufferedOutputStream(ParcelFileDescriptor.AutoCloseOutputStream(sink)),
         )
         try {
-            walk(path, maxDepth).collect { entry ->
+            walk(path, maxDepth, skipDirectoryGlobs).collect { entry ->
                 PrivilegeFileWire.writeEntry(
                     output = output,
                     path = entry.absolutePath,
@@ -58,14 +59,20 @@ internal object PrivilegeFileTreeWalker {
         }
     }
 
-    fun walk(path: String, maxDepth: Int): Flow<PrivilegeFileWalkRecord> =
-        PrivilegeFileDepthFirstWalk.walk(
+    fun walk(
+        path: String,
+        maxDepth: Int,
+        skipDirectoryGlobs: List<String> = emptyList(),
+    ): Flow<PrivilegeFileWalkRecord> {
+        val globs = PrivilegeFileNameGlobs.compile(skipDirectoryGlobs)
+        return PrivilegeFileDepthFirstWalk.walk(
             maxDepth = maxDepth,
             openRoot = { openWalkRoot(path) },
             nextNode = WalkDirectory::next,
             isDirectory = { node ->
                 node.stat != null && OsConstants.S_ISDIR(node.stat.st_mode)
             },
+            shouldEnter = { node -> !globs.matches(node.name.toString()) },
             openDirectory = { directory, node -> directory.open(node) },
         ).map { entry ->
             PrivilegeFileWalkRecord(
@@ -74,6 +81,7 @@ internal object PrivilegeFileTreeWalker {
                 stat = entry.node.stat,
             )
         }
+    }
 
     private fun openWalkRoot(path: String): WalkDirectory {
         val rootStat = Os.lstat(path)

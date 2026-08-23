@@ -2,6 +2,7 @@ package priv.kit.core.file
 
 import android.system.ErrnoException
 import kotlinx.coroutines.flow.Flow
+import priv.kit.core.internal.file.PrivilegeFileNameGlobs
 import priv.kit.core.internal.file.PrivilegeFileSystemClient
 import priv.kit.core.internal.file.PrivilegeFileSystemContract
 import java.io.IOException
@@ -159,7 +160,29 @@ public class PrivilegeFile internal constructor(
      */
     public fun walk(maxDepth: Int = Int.MAX_VALUE): Flow<PrivilegeFileEntry> {
         require(maxDepth >= 1) { "Maximum walk depth must be positive: $maxDepth" }
-        return operations.walk(absolutePath, maxDepth)
+        return operations.walk(absolutePath, maxDepth, emptyList())
+    }
+
+    /**
+     * Streams this directory's descendants while pruning matching directory names.
+     *
+     * Each glob is matched case-sensitively against a directory's complete name. `*` matches zero
+     * or more characters, `?` matches one character, and `\\` escapes `*`, `?`, or `\\`. A glob
+     * cannot contain `/`. A matching directory is emitted but never entered.
+     *
+     * The remaining traversal behavior is the same as [walk].
+     *
+     * @param skipDirectoryGlobs directory-name globs whose descendants must not be walked.
+     * @param maxDepth maximum descendant depth to emit; must be positive.
+     */
+    public fun walk(
+        skipDirectoryGlobs: List<String>,
+        maxDepth: Int = Int.MAX_VALUE,
+    ): Flow<PrivilegeFileEntry> {
+        require(maxDepth >= 1) { "Maximum walk depth must be positive: $maxDepth" }
+        val globs = skipDirectoryGlobs.toList()
+        PrivilegeFileNameGlobs.validate(globs)
+        return operations.walk(absolutePath, maxDepth, globs)
     }
 
     override fun equals(other: Any?): Boolean =

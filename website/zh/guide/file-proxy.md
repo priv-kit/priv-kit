@@ -151,10 +151,26 @@ directory.walk(maxDepth = 2).collect { entry ->
 }
 ```
 
+如果需要在服务端剪枝常见的依赖或生成目录：
+
+```kotlin
+directory.walk(
+    maxDepth = 8,
+    skipDirectoryGlobs = listOf("node_modules", ".git", "build-*"),
+).collect { entry ->
+    Log.d("file", "depth=${entry.depth}: ${entry.absolutePath}")
+}
+```
+
 每次收集都会启动一次新的无排序、弱一致、深度优先先序遍历。接收者目录本身不会
 输出，直接子项的深度为 1。默认最大深度为 `Int.MAX_VALUE`；传入 `maxDepth = 1` 时
 只列出直接子项。条目通过 pipe 流式返回，不会装进一个 Binder 响应，也不会在内存中
 缓存完整目录树。
+
+跳过规则会区分大小写地匹配目录的完整 basename。`*` 匹配零个或多个字符，`?` 匹配
+一个字符，`\` 用于转义 `*`、`?` 或 `\`，且规则不能包含 `/`。命中的目录本身仍会
+输出，但服务端不会打开或枚举其后代。需要根据路径、元数据或动态业务规则剪枝时，应由
+应用自行遍历或使用自定义 UserService。
 
 每个 `PrivilegeFileEntry` 都包含已枚举到的绝对路径、相对深度和元数据快照。服务端
 使用 `lstat`，所以符号链接会输出但不会进入。服务端 Linux 身份能看到名称、但读取

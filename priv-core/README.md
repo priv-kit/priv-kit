@@ -63,8 +63,10 @@ preserves errno through the exception cause.
 File content streams through reliable pipes while the privileged target descriptor stays in the
 server. Directory walks are cold, unsorted, weakly consistent depth-first flows. Recursive deletion
 normalizes the explicit target, rejects filesystem root, traverses with `SecureDirectoryStream`,
-and can leave a partial tree after cancellation or failure. Transfers, walks, and recursive deletes
-use bounded server-side concurrency.
+and can leave a partial tree after cancellation or failure. Walks can prune directory subtrees with
+case-sensitive basename globs; matching directories remain in the flow. Dynamic traversal policy
+belongs in the app or a UserService. Transfers, walks, and recursive deletes use bounded server-side
+concurrency.
 
 ## Binder and UserService
 

@@ -29,5 +29,9 @@ internal interface PrivilegeFileOperations {
 
     fun replaceAtomically(sourcePath: String, targetPath: String)
 
-    fun walk(path: String, maxDepth: Int): Flow<PrivilegeFileEntry>
+    fun walk(
+        path: String,
+        maxDepth: Int,
+        skipDirectoryGlobs: List<String>,
+    ): Flow<PrivilegeFileEntry>
 }

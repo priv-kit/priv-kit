@@ -13,6 +13,7 @@ internal object PrivilegeFileDepthFirstWalk {
         openRoot: () -> Directory,
         nextNode: (Directory) -> Node?,
         isDirectory: (Node) -> Boolean,
+        shouldEnter: (Node) -> Boolean = { true },
         openDirectory: (Directory, Node) -> Directory,
     ): Flow<PrivilegeFileDepthFirstEntry<Node>> = flow {
         val frames = ArrayDeque<DirectoryFrame<Directory>>()
@@ -28,7 +29,11 @@ internal object PrivilegeFileDepthFirstWalk {
                 }
 
                 emit(PrivilegeFileDepthFirstEntry(node, frame.childDepth))
-                if (isDirectory(node) && frame.childDepth < maxDepth) {
+                if (
+                    isDirectory(node) &&
+                    frame.childDepth < maxDepth &&
+                    shouldEnter(node)
+                ) {
                     currentCoroutineContext().ensureActive()
                     frames.addLast(
                         DirectoryFrame(

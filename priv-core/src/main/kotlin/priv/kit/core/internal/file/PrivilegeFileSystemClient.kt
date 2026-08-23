@@ -126,14 +126,25 @@ internal object PrivilegeFileSystemClient : PrivilegeFileOperations {
         }
     }
 
-    override fun walk(path: String, maxDepth: Int): Flow<PrivilegeFileEntry> = callbackFlow {
+    override fun walk(
+        path: String,
+        maxDepth: Int,
+        skipDirectoryGlobs: List<String>,
+    ): Flow<PrivilegeFileEntry> = callbackFlow {
         val pipe = ParcelFileDescriptor.createPipe()
         val source = pipe[0]
         val sink = pipe[1]
         val reader = launch(Dispatchers.IO) {
             try {
                 sink.use { sink ->
-                    val errno = call { fileSystem -> fileSystem.walk(path, maxDepth, sink) }
+                    val errno = call { fileSystem ->
+                        fileSystem.walk(
+                            path,
+                            maxDepth,
+                            skipDirectoryGlobs.toTypedArray(),
+                            sink,
+                        )
+                    }
                     if (errno != 0) throw errnoException("walk($path)", errno)
                 }
 

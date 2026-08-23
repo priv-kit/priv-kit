@@ -231,8 +231,24 @@ class PrivilegeFileTest {
         assertSame(operations.walkResult, directory.walk(maxDepth = 3))
         assertEquals("/directory", operations.walkPath)
         assertEquals(3, operations.walkMaxDepth)
+        assertEquals(emptyList<String>(), operations.walkSkipDirectoryGlobs)
+
+        val globs = mutableListOf("node_modules", "build-*")
+        assertSame(
+            operations.walkResult,
+            directory.walk(maxDepth = 4, skipDirectoryGlobs = globs),
+        )
+        globs += ".git"
+        assertEquals(4, operations.walkMaxDepth)
+        assertEquals(
+            listOf("node_modules", "build-*"),
+            operations.walkSkipDirectoryGlobs,
+        )
         assertThrows(IllegalArgumentException::class.java) {
             directory.walk(maxDepth = 0)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            directory.walk(skipDirectoryGlobs = listOf("parent/child"))
         }
     }
 
@@ -261,6 +277,7 @@ class PrivilegeFileTest {
         val walkResult: Flow<PrivilegeFileEntry> = emptyFlow()
         var walkPath: String? = null
         var walkMaxDepth: Int? = null
+        var walkSkipDirectoryGlobs: List<String>? = null
 
         override fun query(path: String, kind: Int): Boolean {
             queryCalls += 1
@@ -317,9 +334,14 @@ class PrivilegeFileTest {
             atomicReplaceDestination = targetPath
         }
 
-        override fun walk(path: String, maxDepth: Int): Flow<PrivilegeFileEntry> {
+        override fun walk(
+            path: String,
+            maxDepth: Int,
+            skipDirectoryGlobs: List<String>,
+        ): Flow<PrivilegeFileEntry> {
             walkPath = path
             walkMaxDepth = maxDepth
+            walkSkipDirectoryGlobs = skipDirectoryGlobs
             return walkResult
         }
     }

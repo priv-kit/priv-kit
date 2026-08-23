@@ -75,6 +75,33 @@ class PrivilegeFileTreeWalkerTest {
     }
 
     @Test
+    fun walkEmitsButDoesNotEnterDirectoriesMatchingNameGlobs() = runBlocking {
+        val root = temporaryFolder.newFolder("root-with-skipped-directories")
+        val nodeModules = root.resolve("node_modules").apply { mkdir() }
+        val dependency = nodeModules.resolve("dependency.js").apply { writeText("dependency") }
+        val buildCache = root.resolve("build-cache").apply { mkdir() }
+        val cached = buildCache.resolve("cached.bin").apply { writeText("cached") }
+        val source = root.resolve("source").apply { mkdir() }
+        val sourceFile = source.resolve("main.kt").apply { writeText("source") }
+        Files.newDirectoryStream(root.toPath()).use { stream ->
+            assumeTrue(stream is SecureDirectoryStream<*>)
+        }
+
+        val entries = PrivilegeFileTreeWalker.walk(
+            path = root.absolutePath,
+            maxDepth = 3,
+            skipDirectoryGlobs = listOf("node_modules", "build-*"),
+        ).toList()
+        val paths = entries.map { it.absolutePath }.toSet()
+
+        assertTrue(nodeModules.absolutePath in paths)
+        assertTrue(buildCache.absolutePath in paths)
+        assertTrue(sourceFile.absolutePath in paths)
+        assertFalse(dependency.absolutePath in paths)
+        assertFalse(cached.absolutePath in paths)
+    }
+
+    @Test
     fun walkRejectsARegularFileAsTheRoot() = runBlocking {
         val file = temporaryFolder.newFile("root-file")
 

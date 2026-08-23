@@ -172,11 +172,28 @@ directory.walk(maxDepth = 2).collect { entry ->
 }
 ```
 
+To prune common generated or dependency directories on the server:
+
+```kotlin
+directory.walk(
+    maxDepth = 8,
+    skipDirectoryGlobs = listOf("node_modules", ".git", "build-*"),
+).collect { entry ->
+    Log.d("file", "depth=${entry.depth}: ${entry.absolutePath}")
+}
+```
+
 Each collection starts a new unsorted, weakly-consistent depth-first pre-order
 walk. The receiving directory is not emitted; direct children have depth 1.
 The default maximum depth is `Int.MAX_VALUE`, while `maxDepth = 1` lists only
 direct children. Entries stream over a pipe instead of being packed into one
 Binder response or buffered as a complete tree.
+
+Skip globs match a directory's complete basename case-sensitively. `*` matches
+zero or more characters, `?` matches one character, and `\` escapes `*`, `?`,
+or `\`; `/` is not accepted. A matching directory is emitted, but the server
+does not open or enumerate its descendants. Use app-side traversal or a custom
+UserService when pruning depends on paths, metadata, or dynamic business rules.
 
 Every `PrivilegeFileEntry` contains its enumerated absolute path, relative
 depth, and metadata snapshot. The server uses `lstat`, so symbolic links are

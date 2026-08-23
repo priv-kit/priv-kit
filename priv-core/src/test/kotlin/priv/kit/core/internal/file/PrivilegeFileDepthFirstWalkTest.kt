@@ -59,12 +59,43 @@ class PrivilegeFileDepthFirstWalkTest {
         assertFalse(branch.closed)
     }
 
+    @Test
+    fun prunedDirectoryIsEmittedWithoutBeingOpenedAndWalkContinues() = runBlocking {
+        val skipped = FakeDirectory(FakeNode("hidden"))
+        val entered = FakeDirectory(FakeNode("visible"))
+        val root = FakeDirectory(
+            FakeNode("skip", skipped),
+            FakeNode("enter", entered),
+            FakeNode("sibling"),
+        )
+
+        val entries = flow(
+            root = root,
+            maxDepth = Int.MAX_VALUE,
+            shouldEnter = { node -> node.name != "skip" },
+        ).toList()
+
+        assertEquals(
+            listOf("skip", "enter", "visible", "sibling"),
+            entries.map { it.node.name },
+        )
+        assertFalse(skipped.opened)
+        assertFalse(skipped.closed)
+        assertTrue(entered.opened)
+        assertTrue(entered.closed)
+        assertTrue(root.closed)
+    }
+
     private suspend fun walk(
         root: FakeDirectory,
         maxDepth: Int,
     ): List<PrivilegeFileDepthFirstEntry<FakeNode>> = flow(root, maxDepth).toList()
 
-    private fun flow(root: FakeDirectory, maxDepth: Int) =
+    private fun flow(
+        root: FakeDirectory,
+        maxDepth: Int,
+        shouldEnter: (FakeNode) -> Boolean = { true },
+    ) =
         PrivilegeFileDepthFirstWalk.walk(
             maxDepth = maxDepth,
             openRoot = {
@@ -73,6 +104,7 @@ class PrivilegeFileDepthFirstWalkTest {
             },
             nextNode = FakeDirectory::next,
             isDirectory = { node -> node.directory != null },
+            shouldEnter = shouldEnter,
             openDirectory = { _, node ->
                 requireNotNull(node.directory).also { it.opened = true }
             },

@@ -16,7 +16,12 @@ interface IPrivilegeFileSystem {
     boolean delete(String path);
     boolean renameTo(String sourcePath, String targetPath);
     int replaceAtomically(String sourcePath, String targetPath);
-    int walk(String path, int maxDepth, in ParcelFileDescriptor sink);
+    int walk(
+        String path,
+        int maxDepth,
+        in String[] skipDirectoryGlobs,
+        in ParcelFileDescriptor sink
+    );
     boolean startDeleteRecursively(
         String operationId,
         String path,
