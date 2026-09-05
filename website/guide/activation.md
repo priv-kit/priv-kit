@@ -71,6 +71,27 @@ lifecycle-aware collector:
 val serverInfo by Privilege.serverState.collectAsStateWithLifecycle()
 ```
 
+### Inspect denied server permissions {#denied-server-permissions}
+
+After the server connects, a custom host can inspect permissions declared by
+packages associated with the server UID but denied to the server process:
+
+```kotlin
+val deniedPermissions = withContext(Dispatchers.IO) {
+    Privilege.getDeniedServerPermissions()
+}
+```
+
+The result is a distinct list sorted by permission name. Root servers return an
+empty list. Failure to resolve package metadata for a non-root server is
+reported instead of being treated as an unrestricted result.
+
+This inventory covers Android permission grants only. It does not inspect
+AppOps, SELinux policy, or authorization enforced inside individual system
+services, so an empty list does not guarantee that every operation will
+succeed. Use `Privilege.checkServerPermission(permission)` when the host needs
+to test one known permission directly.
+
 ### Root {#root}
 
 ```kotlin

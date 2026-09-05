@@ -486,6 +486,66 @@ class PrivilegeTest {
     }
 
     @Test
+    fun deniedServerPermissionsReturnsServerSnapshot() {
+        val server = FakePrivilegeServer(
+            deniedServerPermissions = arrayOf(
+                "android.permission.GRANT_RUNTIME_PERMISSIONS",
+                "android.permission.INJECT_EVENTS",
+            ),
+        )
+        Privilege.connectHandshake(
+            handshakeResult = testHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
+                ),
+                serverBinder = server.asBinder(),
+            ),
+            startupLogListener = null,
+        )
+
+        assertEquals(
+            listOf(
+                "android.permission.GRANT_RUNTIME_PERMISSIONS",
+                "android.permission.INJECT_EVENTS",
+            ),
+            Privilege.getDeniedServerPermissions(),
+        )
+        assertEquals(1, server.deniedServerPermissionQueries)
+    }
+
+    @Test
+    fun rootServerHasNoDeniedPermissionsWithoutServerQuery() {
+        val server = FakePrivilegeServer(
+            deniedServerPermissions = arrayOf("permission.SHOULD_NOT_BE_RETURNED"),
+        )
+        Privilege.connectHandshake(
+            handshakeResult = testHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 0,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = android.os.Binder(),
+                ),
+                serverBinder = server.asBinder(),
+            ),
+            startupLogListener = null,
+        )
+
+        assertEquals(emptyList<String>(), Privilege.getDeniedServerPermissions())
+        assertEquals(0, server.deniedServerPermissionQueries)
+    }
+
+    @Test
+    fun deniedServerPermissionsWithoutConnectionThrowsDisconnectedException() {
+        assertThrows(PrivilegeServerUnavailableException::class.java) {
+            Privilege.getDeniedServerPermissions()
+        }
+    }
+
+    @Test
     fun checkPermissionReturnsPackageManagerResult() {
         val server = FakePrivilegeServer(
             permissionResult = PackageManager.PERMISSION_GRANTED,
@@ -662,12 +722,15 @@ class PrivilegeTest {
     private class FakePrivilegeServer(
         private val permissionResult: Int = PackageManager.PERMISSION_DENIED,
         private val checkServerPermissionCall: ((String) -> Int)? = null,
+        private val deniedServerPermissions: Array<String> = emptyArray(),
     ) : IPrivilegeServer {
         private val binder = TestBinder(localInterface = this)
         val serverPermissionChecks = mutableListOf<String>()
         val packagePermissionChecks = mutableListOf<PackagePermissionCheck>()
         val runtimePermissionGrants = mutableListOf<RuntimePermissionGrant>()
         val runtimePermissionRevokes = mutableListOf<RuntimePermissionRevoke>()
+        var deniedServerPermissionQueries = 0
+            private set
         val deathRecipientCount: Int
             get() = binder.deathRecipientCount
 
@@ -684,6 +747,11 @@ class PrivilegeTest {
         override fun checkServerPermission(permission: String): Int {
             serverPermissionChecks += permission
             return checkServerPermissionCall?.invoke(permission) ?: permissionResult
+        }
+
+        override fun getDeniedServerPermissions(): Array<String> {
+            deniedServerPermissionQueries += 1
+            return deniedServerPermissions.copyOf()
         }
 
         override fun checkPermission(

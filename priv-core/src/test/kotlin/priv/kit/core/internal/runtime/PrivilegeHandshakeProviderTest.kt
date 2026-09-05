@@ -365,6 +365,8 @@ class PrivilegeHandshakeProviderTest {
         override fun checkServerPermission(permission: String): Int =
             PackageManager.PERMISSION_GRANTED
 
+        override fun getDeniedServerPermissions(): Array<String> = emptyArray()
+
         override fun checkPermission(
             permName: String,
             pkgName: String,

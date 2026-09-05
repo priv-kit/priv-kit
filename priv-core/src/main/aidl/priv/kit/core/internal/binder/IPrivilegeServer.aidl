@@ -4,6 +4,7 @@ interface IPrivilegeServer {
     void shutdown();
     boolean hasSystemService(String serviceName);
     int checkServerPermission(String permission);
+    String[] getDeniedServerPermissions();
     int checkPermission(String permName, String pkgName, int userId);
     void grantRuntimePermission(String packageName, String permissionName, int userId);
     void revokeRuntimePermission(String packageName, String permissionName, int userId);

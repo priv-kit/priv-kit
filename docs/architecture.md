@@ -131,7 +131,9 @@ UserService-manager Binder 在同一次 handshake 中组成一个不可变快照
 包含 lifecycle Binder。
 
 Package permission 相关公开方法是 `checkPermission`、`grantRuntimePermission` 和
-`revokeRuntimePermission` 三个 framework pass-through。权限策略和更高层流程由应用定义。
+`revokeRuntimePermission` 三个 framework pass-through。`getDeniedServerPermissions` 在服务端
+枚举其 UID 关联包声明的权限，并返回按服务端 PID/UID 检查为 denied 的权限名；结果不包含
+AppOps、SELinux 或系统服务内部策略。权限策略和更高层流程由应用定义。
 
 Fallback 保留远端结果的不确定性。具有副作用的调用在连接中断后由应用根据幂等性决定
 恢复方式。

@@ -412,6 +412,8 @@ class PrivilegeBinderWrapperTest {
         override fun checkServerPermission(permission: String): Int =
             android.content.pm.PackageManager.PERMISSION_DENIED
 
+        override fun getDeniedServerPermissions(): Array<String> = emptyArray()
+
         override fun checkPermission(
             permName: String,
             pkgName: String,

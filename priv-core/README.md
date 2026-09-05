@@ -71,7 +71,10 @@ concurrency.
 ## Binder and UserService
 
 Permission checks and runtime permission grant/revoke methods are thin framework pass-throughs.
-Domain policy stays with the integrating app.
+`Privilege.getDeniedServerPermissions()` returns the distinct, sorted manifest permissions that
+packages associated with the server UID declare but the server PID/UID is denied. It does not
+inspect AppOps, SELinux, or service-specific authorization, and an empty result is not a general
+capability guarantee. Domain policy stays with the integrating app.
 
 UserService lifecycle methods are suspending operations backed by a bounded asynchronous Binder
 protocol. Cancellation removes pending work and unaccepted resources. Connection unbind is

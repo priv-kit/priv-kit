@@ -288,7 +288,7 @@ public object Privilege {
         requireServerConnection().serverInfo
 
     /**
-     * Returns whether the connected privileged server is subject to permission restrictions.
+     * Returns whether the connected privileged server cannot grant runtime permissions.
      *
      * Root servers are always treated as unrestricted without making a permission Binder call.
      */
@@ -297,6 +297,25 @@ public object Privilege {
         if (connection.serverInfo.uid == PRIVILEGE_INTERNAL_ROOT_UID) return false
         return callServer(connection) { server ->
             !server.canGrantRuntimePermissions()
+        }
+    }
+
+    /**
+     * Returns permissions declared by packages associated with the connected server's UID that
+     * are denied to the server process.
+     *
+     * The returned snapshot is distinct and sorted by permission name. It does not inspect
+     * AppOps, SELinux policy, or service-specific authorization, so an empty result does not
+     * guarantee that every privileged operation is available.
+     *
+     * Root servers return an empty list. This call fails if package metadata for a non-root
+     * server UID cannot be resolved.
+     */
+    public fun getDeniedServerPermissions(): List<String> {
+        val connection = requireServerConnection()
+        if (connection.serverInfo.uid == PRIVILEGE_INTERNAL_ROOT_UID) return emptyList()
+        return callServer(connection) { server ->
+            server.getDeniedServerPermissions().toList()
         }
     }
 

@@ -86,6 +86,12 @@ internal class PrivilegeServerBinder(
         )
     }
 
+    override fun getDeniedServerPermissions(): Array<String> =
+        PrivilegeServerPermissionReader.from(packageContextRuntime.context).getDeniedPermissions(
+            pid = AndroidProcess.myPid(),
+            uid = AndroidProcess.myUid(),
+        ).toTypedArray()
+
     override fun checkPermission(
         permName: String,
         pkgName: String,

@@ -63,6 +63,24 @@ Compose 页面只需展示当前状态时，使用生命周期感知的收集方
 val serverInfo by Privilege.serverState.collectAsStateWithLifecycle()
 ```
 
+### 检查服务端被拒绝的权限 {#denied-server-permissions}
+
+服务端连接后，自定义界面可以读取其 UID 关联包已经声明、但服务端进程实际未获授予的
+权限：
+
+```kotlin
+val deniedPermissions = withContext(Dispatchers.IO) {
+    Privilege.getDeniedServerPermissions()
+}
+```
+
+返回结果会去重并按权限名排序。Root 服务端返回空列表；非 Root 服务端无法解析关联包
+元数据时会报告失败，不会将其误判为不受限制。
+
+该清单只覆盖 Android permission grant，不检查 AppOps、SELinux 策略或各系统服务内部
+执行的授权，因此空列表不保证所有操作都能成功。如果应用只需确认一个已知权限，请直接
+调用 `Privilege.checkServerPermission(permission)`。
+
 ### Root {#root}
 
 ```kotlin
