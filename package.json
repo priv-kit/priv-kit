@@ -1,0 +1,30 @@
+{
+  "name": "priv-kit-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r --sort build",
+    "check": "pnpm -r --sort check",
+    "dev": "pnpm --filter @priv-kit/website dev",
+    "preview": "pnpm --filter @priv-kit/website preview"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitepress": "catalog:"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=24.15",
+      "onFail": "error"
+    },
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.17.0",
+      "onFail": "error"
+    }
+  }
+}

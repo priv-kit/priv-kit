@@ -8,6 +8,9 @@ on:
       - main
     paths:
       - 'website/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/website.yml'
 
 concurrency:
@@ -17,28 +20,19 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: website
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: website/package.json
-
-      - uses: pnpm/action-setup@v6
-        with:
-          package_json_file: website/package.json
-
-      - run: pnpm install
+      - uses: pnpm/setup@v2
 
       - run: pnpm build
 
-      - uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy website/.vitepress/dist --project-name=priv-kit
+      - name: Deploy website
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: >-
+          pnpm dlx --allow-build=sharp --allow-build=workerd wrangler@4
+          pages deploy website/.vitepress/dist --project-name=priv-kit

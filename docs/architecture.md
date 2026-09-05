@@ -197,10 +197,17 @@ Gradle 产品模块使用 Kotlin。Java 保留给 hidden API stub、framework mi
 
 Node.js、TypeScript 和 SVG 用于文档、仓库检查和 CI。可执行工具源码使用 `.ts`。
 
+仓库根目录同时是 Gradle 项目和 pnpm workspace。Gradle 管理 Android/JVM 模块；
+pnpm workspace 仅包含 `website`，它不属于 Gradle 模块。根目录的 `package.json`
+统一声明 Node.js 与 pnpm 版本，`pnpm-workspace.yaml` 管理包列表和依赖 catalog，
+`pnpm-lock.yaml` 锁定依赖。在根目录执行 `pnpm install --frozen-lockfile` 安装依赖，
+`pnpm dev`、`pnpm check`、`pnpm build` 和 `pnpm preview` 分别用于站点开发、检查、
+构建和预览；Android/JVM 构建继续使用 Gradle Wrapper。
+
 VitePress 根目录和公开源目录都是 `website`。每个英文 Markdown 页面在 `website/zh`
 有路径等价的简体中文页。维护文档位于 `docs`。站点使用 VitePress 默认主题。
 
-`.github/workflows/website.yml` 通过 Cloudflare Wrangler Action 部署到
+`.github/workflows/website.yml` 通过 `pnpm dlx` 运行 Wrangler CLI 部署到
 `https://priv-kit.pages.dev`，使用 `CLOUDFLARE_API_TOKEN` 和
 `CLOUDFLARE_ACCOUNT_ID` 两个仓库 Secret。
 
