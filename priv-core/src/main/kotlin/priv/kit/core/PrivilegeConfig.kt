@@ -6,36 +6,44 @@ public object PrivilegeConfig {
     private val lock = Any()
     private var current = PrivilegeConfigSnapshot()
 
+    /**
+     * How long the server remains alive while waiting for its owner process to reconnect.
+     *
+     * Changes are sent to the connected server and apply to the next owner death. A reconnect
+     * flow that has already started continues with the snapshot it captured when the owner died.
+     */
     public var followDeathDelayMillis: Long
         get() = snapshot().followDeathDelayMillis
         set(value) {
-            val activeReconnect = activeReconnectOnOwnerDeath
-            configure(
-                followDeathDelayMillis = value,
-                activeReconnectOnOwnerDeath = activeReconnect,
-            )
+            update { current ->
+                current.copy(followDeathDelayMillis = value)
+            }
         }
 
+    /**
+     * Whether the server directly retries its owner provider after the owner process dies.
+     *
+     * Changes are sent to the connected server and apply to the next owner death. A reconnect
+     * flow that has already started continues with the snapshot it captured when the owner died.
+     */
     public var activeReconnectOnOwnerDeath: Boolean
         get() = snapshot().activeReconnectOnOwnerDeath
         set(value) {
-            val followDeathDelay = followDeathDelayMillis
-            configure(
-                followDeathDelayMillis = followDeathDelay,
-                activeReconnectOnOwnerDeath = value,
-            )
+            update { current ->
+                current.copy(activeReconnectOnOwnerDeath = value)
+            }
         }
 
+    /** Atomically replaces and publishes the complete owner-death configuration. */
     public fun configure(
         followDeathDelayMillis: Long,
         activeReconnectOnOwnerDeath: Boolean,
     ) {
-        val next = PrivilegeConfigSnapshot(
-            followDeathDelayMillis = followDeathDelayMillis,
-            activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
-        )
-        synchronized(lock) {
-            current = next
+        update {
+            PrivilegeConfigSnapshot(
+                followDeathDelayMillis = followDeathDelayMillis,
+                activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
+            )
         }
     }
 
@@ -43,6 +51,15 @@ public object PrivilegeConfig {
         synchronized(lock) {
             current
         }
+
+    private inline fun update(
+        transform: (PrivilegeConfigSnapshot) -> PrivilegeConfigSnapshot,
+    ) {
+        synchronized(lock) {
+            current = transform(current)
+        }
+        Privilege.updateRuntimeConfig()
+    }
 }
 
 internal data class PrivilegeConfigSnapshot(

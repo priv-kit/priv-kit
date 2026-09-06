@@ -54,6 +54,7 @@ public object Privilege {
     private const val TAG = "PrivKit"
 
     private val serverLock = Any()
+    private val runtimeConfigUpdateLock = Any()
     private val currentUserId: Int by lazy {
         Process.myUserHandle().hashCode()
     }
@@ -389,6 +390,30 @@ public object Privilege {
         }
     }
 
+    /**
+     * Tells the connected server that this owner process is about to restart itself.
+     *
+     * If the owner dies within the server's short arming window, the server waits passively for
+     * up to [passiveReconnectTimeoutMillis] before resuming its configured active reconnect
+     * policy. Call this only after the application's own restart trigger has been scheduled and
+     * immediately before terminating the owner process. The call returns after the server has
+     * acknowledged the plan.
+     *
+     * The passive interval remains bounded by [PrivilegeConfig.followDeathDelayMillis].
+     *
+     * @throws IllegalArgumentException if [passiveReconnectTimeoutMillis] is not positive.
+     * @throws priv.kit.core.binder.PrivilegeServerUnavailableException if no live server is
+     * connected.
+     */
+    public fun prepareOwnerRestart(passiveReconnectTimeoutMillis: Long) {
+        require(passiveReconnectTimeoutMillis > 0L) {
+            "passiveReconnectTimeoutMillis must be positive"
+        }
+        callServer { server ->
+            server.prepareOwnerRestart(passiveReconnectTimeoutMillis)
+        }
+    }
+
     public suspend fun startUserService(spec: PrivilegeUserServiceSpec) {
         userServiceClient.start(spec)
     }
@@ -467,7 +492,7 @@ public object Privilege {
         }
 
         grantOwnerStartupPermissions(serverInfo, server, startupLogListener)
-        return installCurrentServer(
+        val installedServerInfo = installCurrentServer(
             serverInfo = serverInfo,
             server = server,
             serviceEndpoints = ConnectedServiceEndpoints(
@@ -475,6 +500,8 @@ public object Privilege {
                 userServiceManagerBinder = serviceEndpoints.userServiceManagerBinder,
             ),
         )
+        updateRuntimeConfig()
+        return installedServerInfo
     }
 
     private fun grantOwnerStartupPermissions(
@@ -635,6 +662,25 @@ public object Privilege {
 
     internal fun runtimeConfig(): PrivilegeConfigSnapshot =
         PrivilegeConfig.snapshot()
+
+    internal fun updateRuntimeConfig() {
+        synchronized(runtimeConfigUpdateLock) {
+            val config = runtimeConfig()
+            val connection = synchronized(serverLock) {
+                currentServer
+            } ?: return
+            try {
+                callServer(connection) { server ->
+                    server.updateRuntimeConfig(
+                        config.followDeathDelayMillis,
+                        config.activeReconnectOnOwnerDeath,
+                    )
+                }
+            } catch (exception: Exception) {
+                Log.w(TAG, "Unable to update Privileged Server runtime config", exception)
+            }
+        }
+    }
 
     private fun markServerDisconnected(connection: ServerConnection) {
         val notify = synchronized(serverLock) {

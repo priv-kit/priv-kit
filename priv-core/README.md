@@ -8,6 +8,7 @@
 - `Privilege.startRoot()` and `Privilege.startAdb()` start the Privileged Server.
 - `Privilege.createAdbManager()` handles Wireless ADB pairing, authorization, and TCP mode.
 - `Privilege.serverState` exposes the process-wide connection.
+- `Privilege.prepareOwnerRestart(...)` coordinates an application-managed owner-process restart.
 - `Privilege.file(absolutePath)` runs basic file operations in the server.
 - UserService APIs start, bind, unbind, and stop app-defined Binder services.
 - `PrivilegeBinderWrapper` forwards raw Binder transactions to explicit endpoints.
@@ -39,7 +40,13 @@ waits for the app process-start signal; `activeReconnectOnOwnerDeath` opts into 
 retries that may start the app process. Three owner deaths within sixty seconds open an internal
 crash-loop circuit and downgrade active retries to the normal passive path. A manually restarted
 owner can still reconnect, and a sixty-second stable owner session resets the circuit. A
-multi-process app chooses one process to initialize the runtime and invoke startup APIs.
+multi-process app chooses one process to initialize the runtime and invoke startup APIs. Changes to
+either owner-death setting are pushed to a connected server as one snapshot and apply to the next
+owner death; an already-running reconnect flow keeps the snapshot captured when it started. Before
+an application-managed process restart, `Privilege.prepareOwnerRestart(...)` arms a five-second
+one-shot plan. A matching owner death is excluded from crash-loop counting and starts with the
+requested passive reconnect interval. If the owner does not return in that interval, configured
+active reconnect resumes for the remainder of the original follow-death deadline.
 
 ## ADB
 

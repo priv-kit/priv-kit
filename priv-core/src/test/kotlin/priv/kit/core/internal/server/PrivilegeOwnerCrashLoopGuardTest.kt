@@ -68,6 +68,36 @@ class PrivilegeOwnerCrashLoopGuardTest {
         assertTrue(decision.circuitReset)
     }
 
+    @Test
+    fun plannedOwnerDeathDoesNotCountTowardCircuit() {
+        val guard = guard()
+
+        ownerSession(guard, linkedAtMillis = 0L, diedAtMillis = 1_000L)
+        ownerSession(guard, linkedAtMillis = 10_000L, diedAtMillis = 11_000L)
+        guard.onOwnerLinked(20_000L)
+        val plannedDecision = guard.onPlannedOwnerDeath(21_000L)
+        val nextDecision = ownerSession(
+            guard,
+            linkedAtMillis = 30_000L,
+            diedAtMillis = 31_000L,
+        )
+
+        assertFalse(plannedDecision.circuitOpen)
+        assertTrue(nextDecision.circuitOpen)
+    }
+
+    @Test
+    fun stablePlannedOwnerDeathResetsOpenCircuit() {
+        val guard = openCircuit()
+        guard.onOwnerLinked(30_000L)
+
+        val decision = guard.onPlannedOwnerDeath(90_000L)
+
+        assertFalse(decision.circuitOpen)
+        assertFalse(decision.circuitOpened)
+        assertTrue(decision.circuitReset)
+    }
+
     private fun guard(): PrivilegeOwnerCrashLoopGuard =
         PrivilegeOwnerCrashLoopGuard(
             windowMillis = 60_000L,

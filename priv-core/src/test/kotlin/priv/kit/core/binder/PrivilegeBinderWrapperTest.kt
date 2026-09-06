@@ -431,6 +431,13 @@ class PrivilegeBinderWrapperTest {
             permissionName: String,
             userId: Int,
         ) = Unit
+
+        override fun updateRuntimeConfig(
+            followDeathDelayMillis: Long,
+            activeReconnectOnOwnerDeath: Boolean,
+        ) = Unit
+
+        override fun prepareOwnerRestart(passiveReconnectTimeoutMillis: Long) = Unit
     }
 
     private class FakeBinder(

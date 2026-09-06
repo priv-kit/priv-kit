@@ -22,8 +22,13 @@ public object PrivilegeServerMain {
         windowMillis = OWNER_CRASH_LOOP_WINDOW_MILLIS,
         deathThreshold = OWNER_CRASH_LOOP_THRESHOLD,
     )
+    private val ownerRestartPlanner = PrivilegeOwnerRestartPlanner(
+        armingWindowMillis = OWNER_RESTART_ARM_WINDOW_MILLIS,
+        elapsedRealtime = SystemClock::elapsedRealtime,
+    )
     private var ownerBinder: IBinder? = null
     private var activeConfig: PrivilegeServerConfig? = null
+    private var pendingRuntimeConfig: RuntimeConfig? = null
     private var activeServerBinder: PrivilegeServerBinder? = null
     private var ownerProcessObserver: PrivilegeOwnerProcessObserver? = null
     private var ownerProcessObserverRegistered = false
@@ -31,15 +36,17 @@ public object PrivilegeServerMain {
 
     private val ownerDeathRecipient = IBinder.DeathRecipient {
         val state = synchronized(lock) {
+            val deadOwnerBinder = ownerBinder
             ownerBinder = null
             val config = activeConfig
             val serverBinder = activeServerBinder
-            if (config == null || serverBinder == null) {
+            if (deadOwnerBinder == null || config == null || serverBinder == null) {
                 null
             } else {
                 createOwnerReconnectStateLocked(
                     config = config,
                     serverBinder = serverBinder,
+                    deadOwnerBinder = deadOwnerBinder,
                 )
             }
         }
@@ -77,6 +84,8 @@ public object PrivilegeServerMain {
             val binder = PrivilegeServerBinder(
                 config = config,
                 onShutdown = ::closeOwnerProcessObserver,
+                onRuntimeConfigChanged = ::updateRuntimeConfig,
+                onOwnerRestartPrepared = ::prepareOwnerRestart,
             )
             Log.i(TAG, "Sending handshake uid=${android.os.Process.myUid()}, pid=${android.os.Process.myPid()}")
             val handshakeResult = PrivilegeServerHandshakeSender.send(
@@ -93,20 +102,30 @@ public object PrivilegeServerMain {
                 System.err.println("Privileged Server handshake was rejected")
                 exitServer(2)
             }
-            val ownerConfig = handshakeResult.ownerConfig
+            val ownerConfig = synchronized(lock) {
+                val initialConfig = handshakeResult.ownerConfig
+                val runtimeConfig = pendingRuntimeConfig
+                pendingRuntimeConfig = null
+                val effectiveConfig = if (runtimeConfig == null) {
+                    initialConfig
+                } else {
+                    initialConfig.copy(
+                        followDeathDelayMillis = runtimeConfig.followDeathDelayMillis,
+                        activeReconnectOnOwnerDeath = runtimeConfig.activeReconnectOnOwnerDeath,
+                    )
+                }
+                activeConfig = effectiveConfig
+                activeServerBinder = binder
+                effectiveConfig
+            }
             Log.i(
                 TAG,
                 "Owner config received followDeathDelayMillis=${ownerConfig.followDeathDelayMillis}, " +
                     "activeReconnectOnOwnerDeath=${ownerConfig.activeReconnectOnOwnerDeath}",
             )
-            synchronized(lock) {
-                activeConfig = ownerConfig
-                activeServerBinder = binder
-            }
             registerOwnerProcessObserver(config)
             watchOwner(
                 binder = handshakeResult.ownerBinder,
-                config = ownerConfig,
                 serverBinder = binder,
             )
             keepAlive()
@@ -140,9 +159,62 @@ public object PrivilegeServerMain {
         }
     }
 
+    private fun updateRuntimeConfig(
+        followDeathDelayMillis: Long,
+        activeReconnectOnOwnerDeath: Boolean,
+    ) {
+        val updated = synchronized(lock) {
+            val runtimeConfig = RuntimeConfig(
+                followDeathDelayMillis = followDeathDelayMillis,
+                activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
+            )
+            val current = activeConfig
+            if (current == null) {
+                pendingRuntimeConfig = runtimeConfig
+                null
+            } else {
+                if (
+                    !current.activeReconnectOnOwnerDeath &&
+                    activeReconnectOnOwnerDeath &&
+                    ownerBinder != null
+                ) {
+                    ownerCrashLoopGuard.onOwnerLinked(SystemClock.elapsedRealtime())
+                }
+                current.copy(
+                    followDeathDelayMillis = followDeathDelayMillis,
+                    activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
+                ).also { activeConfig = it }
+            }
+        }
+        if (updated != null) {
+            Log.i(
+                TAG,
+                "Runtime config updated followDeathDelayMillis=${updated.followDeathDelayMillis}, " +
+                    "activeReconnectOnOwnerDeath=${updated.activeReconnectOnOwnerDeath}",
+            )
+        }
+    }
+
+    private fun prepareOwnerRestart(
+        passiveReconnectTimeoutMillis: Long,
+        ownerPid: Int,
+    ) {
+        synchronized(lock) {
+            ownerRestartPlanner.prepare(
+                ownerBinder = ownerBinder,
+                ownerPid = ownerPid,
+                passiveReconnectTimeoutMillis = passiveReconnectTimeoutMillis,
+            )
+        }
+        Log.i(
+            TAG,
+            "Owner restart prepared ownerPid=$ownerPid, " +
+                "passiveReconnectTimeoutMillis=$passiveReconnectTimeoutMillis",
+        )
+    }
+
     private fun watchOwner(
         binder: IBinder?,
-        config: PrivilegeServerConfig,
         serverBinder: PrivilegeServerBinder,
     ) {
         if (binder == null) {
@@ -152,7 +224,11 @@ public object PrivilegeServerMain {
         try {
             synchronized(lock) {
                 ownerBinder = binder
-                if (config.activeReconnectOnOwnerDeath) {
+                ownerRestartPlanner.bindOwner(binder)
+                val currentConfig = checkNotNull(activeConfig) {
+                    "Owner config must be initialized before linking its Binder"
+                }
+                if (currentConfig.activeReconnectOnOwnerDeath) {
                     ownerCrashLoopGuard.onOwnerLinked(SystemClock.elapsedRealtime())
                 }
             }
@@ -173,11 +249,13 @@ public object PrivilegeServerMain {
                 if (ownerBinder !== binder) {
                     null
                 } else {
-                    ownerBinder = null
-                    createOwnerReconnectStateLocked(
-                        config = config,
+                    val reconnectState = createOwnerReconnectStateLocked(
+                        config = checkNotNull(activeConfig),
                         serverBinder = serverBinder,
+                        deadOwnerBinder = binder,
                     )
+                    ownerBinder = null
+                    reconnectState
                 }
             }
             if (reconnectState != null) {
@@ -200,6 +278,7 @@ public object PrivilegeServerMain {
             exitServer(0)
         }
 
+        val reconnectStartedAtMillis = SystemClock.elapsedRealtime()
         val generation = synchronized(lock) {
             reconnectGeneration += 1
             reconnectGeneration
@@ -207,34 +286,49 @@ public object PrivilegeServerMain {
         logOwnerCrashLoopDecision(state.crashLoopDecision)
         val activeReconnect =
             config.activeReconnectOnOwnerDeath && !state.crashLoopDecision.circuitOpen
+        val reconnectPhases = planOwnerReconnectPhases(
+            startedAtMillis = reconnectStartedAtMillis,
+            followDeathDelayMillis = delayMillis,
+            activeReconnect = activeReconnect,
+            plannedPassiveReconnectTimeoutMillis =
+                state.plannedOwnerRestart?.passiveReconnectTimeoutMillis,
+        )
         Log.i(
             TAG,
             "$reason; waiting ${delayMillis}ms for owner reconnect, " +
-                "activeReconnect=$activeReconnect",
+                "activeReconnect=$activeReconnect, " +
+                "plannedRestart=${state.plannedOwnerRestart != null}",
         )
         Thread {
-            if (activeReconnect) {
-                reconnectOwnerUntilDeadline(
-                    config = config,
-                    serverBinder = state.serverBinder,
-                    generation = generation,
-                    delayMillis = delayMillis,
-                )
-            } else if (state.ownerProcessObserverRegistered) {
-                reconnectOwnerWhenAppStarts(
-                    config = config,
-                    serverBinder = state.serverBinder,
-                    generation = generation,
-                    delayMillis = delayMillis,
-                    startAfterSignalSequence = state.startAfterSignalSequence,
-                )
-            } else {
-                reconnectOwnerWithProcessPollingFallback(
-                    config = config,
-                    serverBinder = state.serverBinder,
-                    generation = generation,
-                    delayMillis = delayMillis,
-                )
+            reconnectPhases.forEachIndexed { index, phase ->
+                if (!isCurrentReconnect(generation) || Thread.currentThread().isInterrupted) {
+                    return@Thread
+                }
+                if (index > 0 && phase.mode == PrivilegeOwnerReconnectMode.ACTIVE) {
+                    Log.i(TAG, "Planned owner restart grace expired; resuming active reconnect")
+                }
+                when (phase.mode) {
+                    PrivilegeOwnerReconnectMode.PASSIVE -> reconnectOwnerPassivelyUntil(
+                        config = config,
+                        serverBinder = state.serverBinder,
+                        generation = generation,
+                        deadlineMillis = phase.deadlineMillis,
+                        startAfterSignalSequence = state.startAfterSignalSequence,
+                        ownerProcessObserverRegistered = state.ownerProcessObserverRegistered,
+                        excludedOwnerPid = state.plannedOwnerRestart?.ownerPid,
+                    )
+                    PrivilegeOwnerReconnectMode.ACTIVE -> reconnectOwnerActivelyUntil(
+                        config = config,
+                        serverBinder = state.serverBinder,
+                        generation = generation,
+                        deadlineMillis = phase.deadlineMillis,
+                    )
+                }
+            }
+
+            if (isCurrentReconnect(generation) && !Thread.currentThread().isInterrupted) {
+                Log.i(TAG, "Owner did not reconnect within ${delayMillis}ms; exiting Privileged Server")
+                exitServer(0)
             }
         }.apply {
             name = "priv-kit-owner-reconnect"
@@ -243,13 +337,12 @@ public object PrivilegeServerMain {
         }
     }
 
-    private fun reconnectOwnerUntilDeadline(
+    private fun reconnectOwnerActivelyUntil(
         config: PrivilegeServerConfig,
         serverBinder: PrivilegeServerBinder,
         generation: Int,
-        delayMillis: Long,
+        deadlineMillis: Long,
     ) {
-        val deadlineMillis = SystemClock.elapsedRealtime() + delayMillis
         var attempt = 0
         while (isCurrentReconnect(generation)) {
             val remainingMillis = deadlineMillis - SystemClock.elapsedRealtime()
@@ -265,31 +358,45 @@ public object PrivilegeServerMain {
                 return
             }
 
-            val sleepMillis = minOf(
-                OWNER_RECONNECT_RETRY_DELAY_MILLIS,
-                deadlineMillis - SystemClock.elapsedRealtime(),
-            )
-            if (sleepMillis > 0L) {
-                runCatching {
-                    Thread.sleep(sleepMillis)
-                }
-            }
-        }
-
-        if (isCurrentReconnect(generation)) {
-            Log.i(TAG, "Owner did not reconnect within ${delayMillis}ms; exiting Privileged Server")
-            exitServer(0)
+            sleepUntilNextReconnectAttempt(deadlineMillis)
         }
     }
 
-    private fun reconnectOwnerWhenAppStarts(
+    private fun reconnectOwnerPassivelyUntil(
         config: PrivilegeServerConfig,
         serverBinder: PrivilegeServerBinder,
         generation: Int,
-        delayMillis: Long,
+        deadlineMillis: Long,
+        startAfterSignalSequence: Long,
+        ownerProcessObserverRegistered: Boolean,
+        excludedOwnerPid: Int?,
+    ) {
+        if (ownerProcessObserverRegistered) {
+            reconnectOwnerWhenAppStartsUntil(
+                config = config,
+                serverBinder = serverBinder,
+                generation = generation,
+                deadlineMillis = deadlineMillis,
+                startAfterSignalSequence = startAfterSignalSequence,
+            )
+        } else {
+            reconnectOwnerWithProcessPollingUntil(
+                config = config,
+                serverBinder = serverBinder,
+                generation = generation,
+                deadlineMillis = deadlineMillis,
+                excludedOwnerPid = excludedOwnerPid,
+            )
+        }
+    }
+
+    private fun reconnectOwnerWhenAppStartsUntil(
+        config: PrivilegeServerConfig,
+        serverBinder: PrivilegeServerBinder,
+        generation: Int,
+        deadlineMillis: Long,
         startAfterSignalSequence: Long,
     ) {
-        val deadlineMillis = SystemClock.elapsedRealtime() + delayMillis
         var signalSequence = startAfterSignalSequence
         var attempt = 0
         while (isCurrentReconnect(generation)) {
@@ -318,20 +425,15 @@ public object PrivilegeServerMain {
                 return
             }
         }
-
-        if (isCurrentReconnect(generation)) {
-            Log.i(TAG, "Owner did not restart within ${delayMillis}ms; exiting Privileged Server")
-            exitServer(0)
-        }
     }
 
-    private fun reconnectOwnerWithProcessPollingFallback(
+    private fun reconnectOwnerWithProcessPollingUntil(
         config: PrivilegeServerConfig,
         serverBinder: PrivilegeServerBinder,
         generation: Int,
-        delayMillis: Long,
+        deadlineMillis: Long,
+        excludedOwnerPid: Int?,
     ) {
-        val deadlineMillis = SystemClock.elapsedRealtime() + delayMillis
         var attempt = 0
         var appWasMissing = false
         while (isCurrentReconnect(generation)) {
@@ -340,7 +442,7 @@ public object PrivilegeServerMain {
                 break
             }
 
-            if (isOwnerAppProcessRunning(config.packageName)) {
+            if (isOwnerAppProcessRunning(config.packageName, excludedOwnerPid)) {
                 if (appWasMissing || attempt == 0) {
                     Log.i(TAG, "Owner app process is running; attempting passive reconnect")
                 }
@@ -359,20 +461,19 @@ public object PrivilegeServerMain {
                 }
             }
 
-            val sleepMillis = minOf(
-                OWNER_RECONNECT_RETRY_DELAY_MILLIS,
-                deadlineMillis - SystemClock.elapsedRealtime(),
-            )
-            if (sleepMillis > 0L) {
-                runCatching {
-                    Thread.sleep(sleepMillis)
-                }
-            }
+            sleepUntilNextReconnectAttempt(deadlineMillis)
         }
+    }
 
-        if (isCurrentReconnect(generation)) {
-            Log.i(TAG, "Owner did not restart within ${delayMillis}ms; exiting Privileged Server")
-            exitServer(0)
+    private fun sleepUntilNextReconnectAttempt(deadlineMillis: Long) {
+        val sleepMillis = minOf(
+            OWNER_RECONNECT_RETRY_DELAY_MILLIS,
+            deadlineMillis - SystemClock.elapsedRealtime(),
+        )
+        if (sleepMillis > 0L) {
+            runCatching {
+                Thread.sleep(sleepMillis)
+            }
         }
     }
 
@@ -400,15 +501,17 @@ public object PrivilegeServerMain {
                 newOwnerBinder != null && relinkOwner(
                     binder = newOwnerBinder,
                     generation = generation,
-                    ownerConfig = result.ownerConfig,
                     serverBinder = serverBinder,
                 )
             ) {
+                val currentConfig = synchronized(lock) {
+                    checkNotNull(activeConfig)
+                }
                 Log.i(
                     TAG,
                     "Owner reconnect accepted on attempt $attempt, " +
-                        "followDeathDelayMillis=${result.ownerConfig.followDeathDelayMillis}, " +
-                        "activeReconnectOnOwnerDeath=${result.ownerConfig.activeReconnectOnOwnerDeath}",
+                        "followDeathDelayMillis=${currentConfig.followDeathDelayMillis}, " +
+                        "activeReconnectOnOwnerDeath=${currentConfig.activeReconnectOnOwnerDeath}",
                 )
                 return true
             }
@@ -424,7 +527,6 @@ public object PrivilegeServerMain {
     private fun relinkOwner(
         binder: IBinder,
         generation: Int,
-        ownerConfig: PrivilegeServerConfig,
         serverBinder: PrivilegeServerBinder,
     ): Boolean {
         synchronized(lock) {
@@ -432,8 +534,11 @@ public object PrivilegeServerMain {
                 return false
             }
             ownerBinder = binder
-            activeConfig = ownerConfig
-            if (ownerConfig.activeReconnectOnOwnerDeath) {
+            ownerRestartPlanner.bindOwner(binder)
+            val currentConfig = checkNotNull(activeConfig) {
+                "Owner config must remain initialized during reconnect"
+            }
+            if (currentConfig.activeReconnectOnOwnerDeath) {
                 ownerCrashLoopGuard.onOwnerLinked(SystemClock.elapsedRealtime())
             }
         }
@@ -452,11 +557,13 @@ public object PrivilegeServerMain {
         } catch (_: RemoteException) {
             val reconnectState = synchronized(lock) {
                 if (ownerBinder === binder) {
-                    ownerBinder = null
-                    createOwnerReconnectStateLocked(
-                        config = ownerConfig,
+                    val state = createOwnerReconnectStateLocked(
+                        config = checkNotNull(activeConfig),
                         serverBinder = serverBinder,
+                        deadOwnerBinder = binder,
                     )
+                    ownerBinder = null
+                    state
                 } else {
                     null
                 }
@@ -474,22 +581,30 @@ public object PrivilegeServerMain {
     private fun createOwnerReconnectStateLocked(
         config: PrivilegeServerConfig,
         serverBinder: PrivilegeServerBinder,
+        deadOwnerBinder: IBinder,
     ): OwnerReconnectState {
-        val crashLoopDecision = if (config.activeReconnectOnOwnerDeath) {
-            ownerCrashLoopGuard.onOwnerDied(SystemClock.elapsedRealtime())
-        } else {
-            PrivilegeOwnerCrashLoopDecision.CLOSED
+        val nowMillis = SystemClock.elapsedRealtime()
+        val plannedOwnerRestart =
+            ownerRestartPlanner.consume(deadOwnerBinder)
+        val crashLoopDecision = when {
+            plannedOwnerRestart != null ->
+                ownerCrashLoopGuard.onPlannedOwnerDeath(nowMillis)
+            config.activeReconnectOnOwnerDeath -> ownerCrashLoopGuard.onOwnerDied(nowMillis)
+            else -> PrivilegeOwnerCrashLoopDecision.CLOSED
         }
         return OwnerReconnectState(
             config = config,
             serverBinder = serverBinder,
-            startAfterSignalSequence = if (crashLoopDecision.circuitOpen) {
+            startAfterSignalSequence = if (
+                plannedOwnerRestart != null || crashLoopDecision.circuitOpen
+            ) {
                 ownerProcessSignal.snapshot()
             } else {
                 ownerProcessSignal.acknowledgedSnapshot()
             },
             ownerProcessObserverRegistered = ownerProcessObserverRegistered,
             crashLoopDecision = crashLoopDecision,
+            plannedOwnerRestart = plannedOwnerRestart,
         )
     }
 
@@ -512,10 +627,17 @@ public object PrivilegeServerMain {
             generation == reconnectGeneration && ownerBinder == null
         }
 
-    private fun isOwnerAppProcessRunning(packageName: String): Boolean =
+    private fun isOwnerAppProcessRunning(
+        packageName: String,
+        excludedOwnerPid: Int?,
+    ): Boolean =
         File("/proc").listFiles()?.any { processDirectory ->
             val pid = processDirectory.name.toIntOrNull() ?: return@any false
-            if (pid == android.os.Process.myPid()) {
+            if (!isOwnerReconnectCandidatePid(
+                processPid = pid,
+                serverPid = android.os.Process.myPid(),
+                excludedOwnerPid = excludedOwnerPid,
+            )) {
                 return@any false
             }
             readProcessName(pid) == packageName
@@ -569,10 +691,17 @@ public object PrivilegeServerMain {
         val startAfterSignalSequence: Long,
         val ownerProcessObserverRegistered: Boolean,
         val crashLoopDecision: PrivilegeOwnerCrashLoopDecision,
+        val plannedOwnerRestart: PrivilegePlannedOwnerRestart?,
+    )
+
+    private data class RuntimeConfig(
+        val followDeathDelayMillis: Long,
+        val activeReconnectOnOwnerDeath: Boolean,
     )
 
     private const val TAG = "PrivKitServer"
     private const val OWNER_RECONNECT_RETRY_DELAY_MILLIS = 1_000L
+    private const val OWNER_RESTART_ARM_WINDOW_MILLIS = 5_000L
     private const val OWNER_CRASH_LOOP_WINDOW_MILLIS = 60_000L
     private const val OWNER_CRASH_LOOP_THRESHOLD = 3
 }

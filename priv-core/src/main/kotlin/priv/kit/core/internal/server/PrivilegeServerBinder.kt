@@ -20,6 +20,9 @@ import kotlin.system.exitProcess
 internal class PrivilegeServerBinder(
     config: PrivilegeServerConfig,
     private val onShutdown: () -> Unit = {},
+    private val onRuntimeConfigChanged: (Long, Boolean) -> Unit = { _, _ -> },
+    private val onOwnerRestartPrepared: (Long, Int) -> Unit = { _, _ -> },
+    private val callingPidProvider: () -> Int = Binder::getCallingPid,
 ) : IPrivilegeServer.Stub() {
     init {
         PrivilegeUserServiceLoader.prepareContextRuntime()
@@ -116,6 +119,23 @@ internal class PrivilegeServerBinder(
             permissionName,
             userId,
         ) ?: packageManager.revokeRuntimePermission(packageName, permissionName, userId)
+    }
+
+    override fun updateRuntimeConfig(
+        followDeathDelayMillis: Long,
+        activeReconnectOnOwnerDeath: Boolean,
+    ) {
+        require(followDeathDelayMillis >= 0L) { "followDeathDelayMillis must not be negative" }
+        onRuntimeConfigChanged(followDeathDelayMillis, activeReconnectOnOwnerDeath)
+    }
+
+    override fun prepareOwnerRestart(passiveReconnectTimeoutMillis: Long) {
+        require(passiveReconnectTimeoutMillis > 0L) {
+            "passiveReconnectTimeoutMillis must be positive"
+        }
+        val ownerPid = callingPidProvider()
+        require(ownerPid > 0) { "Owner process PID must be positive" }
+        onOwnerRestartPrepared(passiveReconnectTimeoutMillis, ownerPid)
     }
 
     override fun shutdown() {

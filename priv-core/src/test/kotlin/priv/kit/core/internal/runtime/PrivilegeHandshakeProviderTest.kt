@@ -385,6 +385,13 @@ class PrivilegeHandshakeProviderTest {
             userId: Int,
         ) = Unit
 
+        override fun updateRuntimeConfig(
+            followDeathDelayMillis: Long,
+            activeReconnectOnOwnerDeath: Boolean,
+        ) = Unit
+
+        override fun prepareOwnerRestart(passiveReconnectTimeoutMillis: Long) = Unit
+
         fun killBinder() {
             binder.killBinder(notifyDeathRecipients = false)
         }

@@ -13,8 +13,8 @@
 - `PrivilegeUi.desiredEnabled` exposes automatic-recovery intent as a read-only process-wide flow.
 - `PrivilegeUi.startSilently(...)` replays the last successful foreground method.
 
-Owner-death behavior belongs to Core and is configured through `PrivilegeConfig` before server
-startup.
+Owner-death behavior belongs to Core and is configured through `PrivilegeConfig`. Updates are
+pushed to a connected server and apply to the next owner death.
 
 ## Compose integration
 

@@ -35,6 +35,11 @@ class PrivilegeTest {
     @After
     fun clearServer() {
         runCatching { Privilege.shutdownServer() }
+        PrivilegeConfig.configure(
+            followDeathDelayMillis = PrivilegeProtocol.DEFAULT_FOLLOW_DEATH_DELAY_MILLIS,
+            activeReconnectOnOwnerDeath =
+                PrivilegeProtocol.DEFAULT_ACTIVE_RECONNECT_ON_OWNER_DEATH,
+        )
         resetRuntimeConnectionListener()
     }
 
@@ -143,6 +148,99 @@ class PrivilegeTest {
 
         assertSame(replacementLifecycleBinder, Privilege.getServerInfo().lifecycleBinder)
         assertNotSame(firstLifecycleBinder, Privilege.getServerInfo().lifecycleBinder)
+    }
+
+    @Test
+    fun connectedServerReceivesCompleteRuntimeConfigForPropertyUpdates() {
+        val server = FakePrivilegeServer()
+        Privilege.connectHandshake(
+            handshakeResult = testHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = TestBinder(),
+                ),
+                serverBinder = server.asBinder(),
+            ),
+            startupLogListener = null,
+        )
+        server.runtimeConfigUpdates.clear()
+
+        PrivilegeConfig.followDeathDelayMillis = 12_345L
+        PrivilegeConfig.activeReconnectOnOwnerDeath = true
+
+        assertEquals(
+            listOf(
+                RuntimeConfigUpdate(
+                    followDeathDelayMillis = 12_345L,
+                    activeReconnectOnOwnerDeath = false,
+                ),
+                RuntimeConfigUpdate(
+                    followDeathDelayMillis = 12_345L,
+                    activeReconnectOnOwnerDeath = true,
+                ),
+            ),
+            server.runtimeConfigUpdates,
+        )
+    }
+
+    @Test
+    fun connectionSynchronizesLatestRuntimeConfig() {
+        PrivilegeConfig.configure(
+            followDeathDelayMillis = 54_321L,
+            activeReconnectOnOwnerDeath = true,
+        )
+        val server = FakePrivilegeServer()
+
+        Privilege.connectHandshake(
+            handshakeResult = testHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = TestBinder(),
+                ),
+                serverBinder = server.asBinder(),
+            ),
+            startupLogListener = null,
+        )
+
+        assertEquals(
+            RuntimeConfigUpdate(
+                followDeathDelayMillis = 54_321L,
+                activeReconnectOnOwnerDeath = true,
+            ),
+            server.runtimeConfigUpdates.last(),
+        )
+    }
+
+    @Test
+    fun prepareOwnerRestartForwardsPassiveReconnectTimeout() {
+        val server = FakePrivilegeServer()
+        Privilege.connectHandshake(
+            handshakeResult = testHandshakeResult(
+                serverInfo = PrivilegeServerInfo(
+                    uid = 2000,
+                    pid = 1234,
+                    protocolVersion = PrivilegeProtocol.VERSION,
+                    lifecycleBinder = TestBinder(),
+                ),
+                serverBinder = server.asBinder(),
+            ),
+            startupLogListener = null,
+        )
+
+        Privilege.prepareOwnerRestart(passiveReconnectTimeoutMillis = 7_500L)
+
+        assertEquals(listOf(7_500L), server.ownerRestartTimeouts)
+    }
+
+    @Test
+    fun prepareOwnerRestartRejectsNonPositiveTimeout() {
+        assertThrows(IllegalArgumentException::class.java) {
+            Privilege.prepareOwnerRestart(passiveReconnectTimeoutMillis = 0L)
+        }
     }
 
     @Test
@@ -729,6 +827,8 @@ class PrivilegeTest {
         val packagePermissionChecks = mutableListOf<PackagePermissionCheck>()
         val runtimePermissionGrants = mutableListOf<RuntimePermissionGrant>()
         val runtimePermissionRevokes = mutableListOf<RuntimePermissionRevoke>()
+        val runtimeConfigUpdates = mutableListOf<RuntimeConfigUpdate>()
+        val ownerRestartTimeouts = mutableListOf<Long>()
         var deniedServerPermissionQueries = 0
             private set
         val deathRecipientCount: Int
@@ -790,6 +890,20 @@ class PrivilegeTest {
                 userId = userId,
             )
         }
+
+        override fun updateRuntimeConfig(
+            followDeathDelayMillis: Long,
+            activeReconnectOnOwnerDeath: Boolean,
+        ) {
+            runtimeConfigUpdates += RuntimeConfigUpdate(
+                followDeathDelayMillis = followDeathDelayMillis,
+                activeReconnectOnOwnerDeath = activeReconnectOnOwnerDeath,
+            )
+        }
+
+        override fun prepareOwnerRestart(passiveReconnectTimeoutMillis: Long) {
+            ownerRestartTimeouts += passiveReconnectTimeoutMillis
+        }
     }
 
     private data class PackagePermissionCheck(
@@ -810,4 +924,8 @@ class PrivilegeTest {
         val userId: Int,
     )
 
+    private data class RuntimeConfigUpdate(
+        val followDeathDelayMillis: Long,
+        val activeReconnectOnOwnerDeath: Boolean,
+    )
 }

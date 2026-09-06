@@ -71,6 +71,26 @@ lifecycle-aware collector:
 val serverInfo by Privilege.serverState.collectAsStateWithLifecycle()
 ```
 
+### Coordinate an owner-process restart {#owner-process-restart}
+
+When the application deliberately restarts its owner process, schedule that restart first and
+then notify the connected server immediately before terminating the process:
+
+```kotlin
+scheduleApplicationRestart()
+Privilege.prepareOwnerRestart(
+    passiveReconnectTimeoutMillis = 10_000,
+)
+Process.killProcess(Process.myPid())
+```
+
+The call returns after the server acknowledges the plan. If the owner dies within five seconds,
+the server waits passively for the requested interval so the application's restart policy remains
+the only process-start source. Give the interval enough headroom for the scheduled restart. If the
+owner does not reconnect before it expires, configured active reconnect resumes for the remainder
+of `PrivilegeConfig.followDeathDelayMillis`. A plan expires without effect when the owner does not
+die within five seconds, and a matched planned restart does not count toward the crash-loop circuit.
+
 ### Inspect denied server permissions {#denied-server-permissions}
 
 After the server connects, a custom host can inspect permissions declared by

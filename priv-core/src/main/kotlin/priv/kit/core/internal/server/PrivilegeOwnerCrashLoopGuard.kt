@@ -20,6 +20,23 @@ internal class PrivilegeOwnerCrashLoopGuard(
     }
 
     fun onOwnerDied(elapsedRealtimeMillis: Long): PrivilegeOwnerCrashLoopDecision {
+        return finishOwnerSession(
+            elapsedRealtimeMillis = elapsedRealtimeMillis,
+            countDeath = true,
+        )
+    }
+
+    fun onPlannedOwnerDeath(elapsedRealtimeMillis: Long): PrivilegeOwnerCrashLoopDecision {
+        return finishOwnerSession(
+            elapsedRealtimeMillis = elapsedRealtimeMillis,
+            countDeath = false,
+        )
+    }
+
+    private fun finishOwnerSession(
+        elapsedRealtimeMillis: Long,
+        countDeath: Boolean,
+    ): PrivilegeOwnerCrashLoopDecision {
         val wasOpen = circuitOpen
         val stableOwnerSession = ownerLinkedAtMillis?.let { linkedAtMillis ->
             elapsedRealtimeMillis - linkedAtMillis >= windowMillis
@@ -36,9 +53,11 @@ internal class PrivilegeOwnerCrashLoopGuard(
         ) {
             deathTimestamps.removeFirst()
         }
-        deathTimestamps.addLast(elapsedRealtimeMillis)
-        if (deathTimestamps.size >= deathThreshold) {
-            circuitOpen = true
+        if (countDeath) {
+            deathTimestamps.addLast(elapsedRealtimeMillis)
+            if (deathTimestamps.size >= deathThreshold) {
+                circuitOpen = true
+            }
         }
 
         return PrivilegeOwnerCrashLoopDecision(

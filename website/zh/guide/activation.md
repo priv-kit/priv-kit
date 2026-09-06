@@ -63,6 +63,25 @@ Compose 页面只需展示当前状态时，使用生命周期感知的收集方
 val serverInfo by Privilege.serverState.collectAsStateWithLifecycle()
 ```
 
+### 协调 owner 进程重启 {#owner-process-restart}
+
+应用主动重启 owner 进程时，先安排自己的重启任务，再在结束进程前立即通知已经连接的
+服务端：
+
+```kotlin
+scheduleApplicationRestart()
+Privilege.prepareOwnerRestart(
+    passiveReconnectTimeoutMillis = 10_000,
+)
+Process.killProcess(Process.myPid())
+```
+
+调用会在服务端确认计划后返回。如果 owner 在五秒内死亡，服务端会在指定时间内保持
+被动等待，让应用自己的重启策略成为唯一的进程启动来源。指定时间应为计划重启预留足够
+余量；到期仍未重连时，服务端会在 `PrivilegeConfig.followDeathDelayMillis` 原总截止时间
+剩余的范围内恢复既定的主动重连。owner 未在五秒内死亡时计划自动失效；命中的计划重启
+不会计入 crash-loop 熔断统计。
+
 ### 检查服务端被拒绝的权限 {#denied-server-permissions}
 
 服务端连接后，自定义界面可以读取其 UID 关联包已经声明、但服务端进程实际未获授予的
