@@ -83,6 +83,10 @@ class PrivilegeServerHandshakeSenderTest {
             serverBinder.serviceEndpoints.userServiceManagerBinder,
             sentServiceEndpoints?.userServiceManagerBinder,
         )
+        assertSame(
+            serverBinder.serviceEndpoints.commandExecutorBinder,
+            sentServiceEndpoints?.commandExecutorBinder,
+        )
         assertEquals("u:r:shell:s0", sentSelinuxContext)
         assertNull(result.ownerConfig.launchCorrelationId)
     }

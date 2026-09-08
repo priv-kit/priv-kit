@@ -17,6 +17,7 @@ linker startup from the APK.
 - `priv.kit.sample` contains the app entry point, navigation, and theme.
 - `priv.kit.sample.home` contains the Home page.
 - `priv.kit.sample.file` contains File API tests and the read-only device-file browser.
+- `priv.kit.sample.command` contains streaming and captured command-execution tests.
 - `priv.kit.sample.debug` contains Connection, Binder, and UserService diagnostics.
 - `priv.kit.sample.userservice` contains app-owned UserService implementations and AIDL.
 - `priv.kit.sample.startup` contains Privilege UI setup, automatic recovery, notification pairing,
@@ -31,6 +32,10 @@ dedicated and embedded UserService modes.
 File examples cover creation, streams, metadata, rename, atomic replacement, directory walking,
 recursive deletion, and bounded text or hexadecimal previews. The device browser keeps names
 visible when enumeration succeeds but metadata access is denied.
+
+The command page starts shell text explicitly through `/system/bin/sh -c`. It exercises the
+single-use process handle through both live stdout/stderr events and a bounded final result, and
+exposes timeout and cancellation controls.
 
 The Shizuku example keeps third-party binding and AIDL in the app. Its privileged endpoint delegates
 startup execution to `PrivilegeExternalStartupHost`, while the main process uses

@@ -10,6 +10,7 @@ internal fun testHandshakeResult(
     serverBinder: IBinder,
     fileSystemBinder: IBinder = TestBinder(),
     userServiceManagerBinder: IBinder = TestBinder(),
+    commandExecutorBinder: IBinder = TestBinder(),
 ): PrivilegeServerHandshakeResult =
     PrivilegeServerHandshakeResult(
         serverInfo = serverInfo,
@@ -17,5 +18,6 @@ internal fun testHandshakeResult(
         serviceEndpoints = PrivilegeServerServiceEndpoints(
             fileSystemBinder = fileSystemBinder,
             userServiceManagerBinder = userServiceManagerBinder,
+            commandExecutorBinder = commandExecutorBinder,
         ),
     )

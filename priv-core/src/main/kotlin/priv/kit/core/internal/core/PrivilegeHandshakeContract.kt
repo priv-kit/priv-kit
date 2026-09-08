@@ -29,6 +29,8 @@ internal object PrivilegeHandshakeContract {
         "privilege_file_system_binder"
     private const val SERVICE_ENDPOINT_USER_SERVICE_MANAGER_BINDER: String =
         "privilege_user_service_manager_binder"
+    private const val SERVICE_ENDPOINT_COMMAND_EXECUTOR_BINDER: String =
+        "privilege_command_executor_binder"
 
     fun putServiceEndpoints(
         extras: Bundle,
@@ -40,6 +42,7 @@ internal object PrivilegeHandshakeContract {
                 SERVICE_ENDPOINT_USER_SERVICE_MANAGER_BINDER,
                 endpoints.userServiceManagerBinder,
             )
+            putBinder(SERVICE_ENDPOINT_COMMAND_EXECUTOR_BINDER, endpoints.commandExecutorBinder)
         }
         extras.putBundle(EXTRA_SERVER_SERVICE_ENDPOINTS, endpointExtras)
     }
@@ -50,9 +53,12 @@ internal object PrivilegeHandshakeContract {
             endpointExtras.getBinder(SERVICE_ENDPOINT_FILE_SYSTEM_BINDER) ?: return null
         val userServiceManagerBinder =
             endpointExtras.getBinder(SERVICE_ENDPOINT_USER_SERVICE_MANAGER_BINDER) ?: return null
+        val commandExecutorBinder =
+            endpointExtras.getBinder(SERVICE_ENDPOINT_COMMAND_EXECUTOR_BINDER) ?: return null
         return PrivilegeServerServiceEndpoints(
             fileSystemBinder = fileSystemBinder,
             userServiceManagerBinder = userServiceManagerBinder,
+            commandExecutorBinder = commandExecutorBinder,
         )
     }
 

@@ -108,6 +108,7 @@ val adbServer = Privilege.startAdb()
 
 - 使用 [Binder](./binder) 访问系统服务或执行底层 Binder 调用。
 - 使用[文件代理](./file-proxy)执行基础的绝对路径文件操作，无需定义 UserService。
+- 使用[命令执行](./commands)启动有界的非交互进程，并流式读取或汇总输出。
 - 使用 [UserService](./user-service) 运行应用自定义 AIDL 服务。
 - 使用 [Privilege UI](./priv-ui) 接入自带授权页面。
 - 需要用 `priv-core` 替换该页面时阅读[启动方式](./activation)。

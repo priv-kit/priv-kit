@@ -9,6 +9,7 @@ import android.os.ServiceManager
 import android.util.Log
 import priv.kit.core.binder.PrivilegeBinderWrapper
 import priv.kit.core.internal.binder.IPrivilegeServer
+import priv.kit.core.internal.command.PrivilegeCommandExecutorBinder
 import priv.kit.core.internal.core.PrivilegeServerServiceEndpoints
 import priv.kit.core.internal.file.PrivilegeFileSystemBinder
 import priv.kit.core.internal.userservice.PrivilegeUserServiceLoader
@@ -54,12 +55,14 @@ internal class PrivilegeServerBinder(
     }
     internal val lifecycleBinder: IBinder = Binder()
     private val fileSystem = PrivilegeFileSystemBinder()
+    private val commandExecutor = PrivilegeCommandExecutorBinder()
     private val systemServiceCache = HashMap<String, IBinder>()
 
     internal val serviceEndpoints: PrivilegeServerServiceEndpoints by lazy {
         PrivilegeServerServiceEndpoints(
             fileSystemBinder = fileSystem.asBinder(),
             userServiceManagerBinder = userServiceManager.value.asBinder(),
+            commandExecutorBinder = commandExecutor.asBinder(),
         )
     }
 
@@ -141,6 +144,7 @@ internal class PrivilegeServerBinder(
     override fun shutdown() {
         Log.i(TAG, "Shutdown requested by client")
         fileSystem.shutdown()
+        commandExecutor.shutdown()
         if (userServiceManager.isInitialized()) {
             userServiceManager.value.destroyAll()
         }
@@ -153,6 +157,7 @@ internal class PrivilegeServerBinder(
 
     fun releaseOwnerResourcesOnDeath() {
         fileSystem.cancelActiveOperations()
+        commandExecutor.cancelActiveOperations()
         if (userServiceManager.isInitialized()) {
             userServiceManager.value.destroyOnOwnerDeath()
         }

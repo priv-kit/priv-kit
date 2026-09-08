@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -34,6 +36,7 @@ internal fun PrivilegeSampleHomePage(
     onOpenDebug: () -> Unit,
     onOpenDeviceFiles: () -> Unit,
     onOpenFileApi: () -> Unit,
+    onOpenCommandApi: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     Scaffold(
@@ -57,6 +60,7 @@ internal fun PrivilegeSampleHomePage(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -90,6 +94,12 @@ internal fun PrivilegeSampleHomePage(
                 onClick = onOpenDeviceFiles,
             ) {
                 Text("Browse Device Files")
+            }
+            FilledTonalButton(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onOpenCommandApi,
+            ) {
+                Text("Test Command API")
             }
         }
     }

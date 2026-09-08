@@ -11,6 +11,7 @@ Privileged Server。公开能力集中在以下范围：
 - 服务端生命周期、连接、重连和状态观察
 - 显式 Binder 端点与系统服务名的 raw transaction
 - 绝对路径上的基础文件操作和目录遍历
+- 非交互式命令的启动、流式输出与有界结果收集
 - 应用自定义 UserService 的生命周期与 Binder handoff
 - 围绕这些能力的可选 Compose UI
 
@@ -38,7 +39,7 @@ Framework mirror 与 stub 位于 `:hidden-api`，其余源码 package 使用 `pr
 | 模块 | 发布名称 | 职责 |
 | --- | --- | --- |
 | `:priv-shared` | `priv-shared` | Android/JDK 底层原语、不变量和 hidden API 兼容 |
-| `:priv-core` | `priv-core` | Runtime、启动、server、Binder、文件代理和 UserService |
+| `:priv-core` | `priv-core` | Runtime、启动、server、Binder、文件代理、命令和 UserService |
 | `:priv-adb-crypto` | `priv-adb-crypto` | ADB 证书和 Wireless Debugging pairing 加密 |
 | `:priv-ui` | `priv-ui` | Compose 生命周期 UI 和精确静默恢复 |
 | `:priv-sample` | 不发布 | 公开能力示例 |
@@ -126,9 +127,9 @@ transaction、内部控制契约以及文件代理契约。Android 系统服务�
 应用。
 
 Server lifecycle Binder 是独立的跨进程 death token，没有业务 transaction。它在同一
-服务端进程内保持 identity，服务端替换后生成新 token。控制、lifecycle、文件代理和
-UserService-manager Binder 在同一次 handshake 中组成一个不可变快照，客户端按快照整体
-安装。
+服务端进程内保持 identity，服务端替换后生成新 token。控制、lifecycle、文件代理、命令
+执行器和 UserService-manager Binder 在同一次 handshake 中组成一个不可变快照，客户端按
+快照整体安装。
 
 `PrivilegeServerInfo` 由 Core 根据已验证的 handshake 构造。它使用
 `@ConsistentCopyVisibility` data class，主构造函数和 `copy` 为 internal；结构化相等性
@@ -179,6 +180,28 @@ Fallback 保留远端结果的不确定性。具有副作用的调用在连接�
 
 嵌入式实例清理自己的资源，独立进程实例可在销毁后退出。反射入口和构造函数保留可见性
 与混淆规则，应用业务 AIDL 留在应用模块。
+
+## 命令执行
+
+命令执行器是随 handshake 交付的独立 Binder 端点。公开入口
+`Privilege.startCommand(...)` 在服务端成功创建非交互式 `Process` 后返回一次性
+`PrivilegeCommandProcess` 句柄。命令参数按 argv 直接交给 `ProcessBuilder`，Core 不隐式
+增加 shell；需要 shell 语义时由调用方明确传入 `/system/bin/sh -c`。
+
+句柄只允许选择一次输出消费方式。`stream()` 合并两条并发读取链路，按读取结果发出
+stdout、stderr 字节块，并在进程退出且两条管道 EOF 后发出最终退出事件；
+`awaitResult()` 同时排空两条管道并分别保留有界结果。字节块不承诺文本、行或 UTF-8
+字符边界，单条流保持顺序，两个流之间没有全局时序承诺。
+
+IPC 请求与控制只使用 `Bundle`、`IBinder`、`ResultReceiver` 和基础值；stdout、stderr
+分别通过 reliable `ParcelFileDescriptor` pipe 传输。服务端为每个进程同时运行两条输出
+pump，客户端消费时也同时读取两条 pipe，避免任一有限缓冲区写满造成死锁。最多四个命令
+并发执行，无等待队列。总超时从进程成功启动后计算，不因输出刷新而重置；取消、owner
+死亡和服务端关闭会终止进程并关闭两条输出链路。
+
+该能力不接受 stdin，不提供 PTY、终端尺寸、信号快捷操作、ANSI 模拟、交互式 shell 或
+后台 daemon 管理。输出是否及时刷新仍由目标进程决定；针对 pipe 自行缓存的程序可能在
+退出前批量输出。
 
 ## UI 和恢复
 

@@ -375,6 +375,7 @@ class PrivilegeServerHandshakeRegistryTest {
             serviceEndpoints = PrivilegeServerServiceEndpoints(
                 fileSystemBinder = fakeBinder(),
                 userServiceManagerBinder = fakeBinder(),
+                commandExecutorBinder = fakeBinder(),
             ),
             serverInfo = serverInfo,
             origin = origin,

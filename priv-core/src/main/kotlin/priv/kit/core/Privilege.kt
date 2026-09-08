@@ -12,7 +12,11 @@ import priv.kit.core.adb.PrivilegeAdbConnectionOptions
 import priv.kit.core.adb.PrivilegeAdbStartResult
 import priv.kit.core.adb.PrivilegeAdbManager
 import priv.kit.core.binder.serverUnavailable
+import priv.kit.core.command.PrivilegeCommand
+import priv.kit.core.command.PrivilegeCommandProcess
 import priv.kit.core.internal.binder.IPrivilegeServer
+import priv.kit.core.internal.command.IPrivilegeCommandExecutor
+import priv.kit.core.internal.command.PrivilegeCommandClient
 import priv.kit.core.internal.core.PrivilegeAndroidUsers
 import priv.kit.core.internal.core.PrivilegeProtocol
 import priv.kit.core.internal.core.PrivilegePendingHandshake
@@ -70,12 +74,25 @@ public object Privilege {
     private val runtimeConnectionListenerLock = Any()
     private var runtimeConnectionListener: Closeable? = null
     private val userServiceClient = PrivilegeUserServiceClient(::requireUserServiceManagerBinder)
+    private val commandClient = PrivilegeCommandClient(::requireCommandExecutor)
 
     /** Creates an absolute file handle whose I/O runs in the connected Privileged Server. */
     public fun file(absolutePath: String): PrivilegeFile {
         PrivilegeFilePath.validateAbsolute(absolutePath)
         return PrivilegeFile(absolutePath)
     }
+
+    /**
+     * Starts one non-interactive command in the connected privileged server.
+     *
+     * The returned process must consume its output exactly once through either
+     * [PrivilegeCommandProcess.stream] or [PrivilegeCommandProcess.awaitResult]. A null timeout
+     * disables the execution deadline; cancellation and owner death still terminate the command.
+     */
+    public suspend fun startCommand(
+        command: PrivilegeCommand,
+        timeoutMillis: Long? = DEFAULT_COMMAND_TIMEOUT_MILLIS,
+    ): PrivilegeCommandProcess = commandClient.start(command, timeoutMillis)
 
     @Throws(PrivilegeStartupException::class)
     public suspend fun startRoot(
@@ -482,6 +499,11 @@ public object Privilege {
             ?: throw PrivilegeStartupException(
                 "Privileged Server returned an invalid file-system Binder",
             )
+        val commandExecutor = IPrivilegeCommandExecutor.Stub.asInterface(
+            serviceEndpoints.commandExecutorBinder,
+        ) ?: throw PrivilegeStartupException(
+            "Privileged Server returned an invalid command-executor Binder",
+        )
         val serverInfo = handshakeResult.serverInfo
 
         if (!serverInfo.matchesCurrentRuntime()) {
@@ -498,6 +520,7 @@ public object Privilege {
             serviceEndpoints = ConnectedServiceEndpoints(
                 fileSystem = fileSystem,
                 userServiceManagerBinder = serviceEndpoints.userServiceManagerBinder,
+                commandExecutor = commandExecutor,
             ),
         )
         updateRuntimeConfig()
@@ -660,6 +683,9 @@ public object Privilege {
     private fun requireUserServiceManagerBinder(): IBinder =
         requireServerConnection().serviceEndpoints.userServiceManagerBinder
 
+    private fun requireCommandExecutor(): IPrivilegeCommandExecutor =
+        requireServerConnection().serviceEndpoints.commandExecutor
+
     internal fun runtimeConfig(): PrivilegeConfigSnapshot =
         PrivilegeConfig.snapshot()
 
@@ -796,7 +822,10 @@ public object Privilege {
     private data class ConnectedServiceEndpoints(
         val fileSystem: IPrivilegeFileSystem,
         val userServiceManagerBinder: IBinder,
+        val commandExecutor: IPrivilegeCommandExecutor,
     )
+
+    private const val DEFAULT_COMMAND_TIMEOUT_MILLIS: Long = 30_000L
 }
 
 internal fun rootServerLaunchMayHaveCompleted(

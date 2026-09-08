@@ -20,6 +20,7 @@ const englishSidebar = [
     items: [
       { text: 'Binder', link: '/guide/binder' },
       { text: 'File proxy', link: '/guide/file-proxy' },
+      { text: 'Commands', link: '/guide/commands' },
       { text: 'UserService', link: '/guide/user-service' },
     ],
   },
@@ -40,6 +41,7 @@ const chineseSidebar = [
     items: [
       { text: 'Binder', link: '/zh/guide/binder' },
       { text: '文件代理', link: '/zh/guide/file-proxy' },
+      { text: '命令执行', link: '/zh/guide/commands' },
       { text: 'UserService', link: '/zh/guide/user-service' },
     ],
   },

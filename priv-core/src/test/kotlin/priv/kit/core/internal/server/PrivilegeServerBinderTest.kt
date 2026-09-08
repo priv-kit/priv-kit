@@ -30,6 +30,7 @@ class PrivilegeServerBinderTest {
         assertNotSame(server.asBinder(), lifecycleBinder)
         assertNotSame(server.asBinder(), serviceEndpoints.fileSystemBinder)
         assertNotSame(server.asBinder(), serviceEndpoints.userServiceManagerBinder)
+        assertNotSame(server.asBinder(), serviceEndpoints.commandExecutorBinder)
         assertNull(
             lifecycleBinder.queryLocalInterface(
                 "priv.kit.core.internal.binder.IPrivilegeServer",

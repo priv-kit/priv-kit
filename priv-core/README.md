@@ -10,6 +10,8 @@
 - `Privilege.serverState` exposes the process-wide connection.
 - `Privilege.prepareOwnerRestart(...)` coordinates an application-managed owner-process restart.
 - `Privilege.file(absolutePath)` runs basic file operations in the server.
+- `Privilege.startCommand(...)` starts a bounded, non-interactive server-side process whose
+  stdout and stderr can be streamed or captured once.
 - UserService APIs start, bind, unbind, and stop app-defined Binder services.
 - `PrivilegeBinderWrapper` forwards raw Binder transactions to explicit endpoints.
 
@@ -21,8 +23,8 @@ data class provides structural equality and a useful `toString`.
 ## Startup and connection
 
 Root, ADB, manual commands, and external bridges all execute the same native starter and finish
-through the same Binder handshake. The handshake installs the control, lifecycle, file-system, and
-UserService-manager Binders as one connection snapshot.
+through the same Binder handshake. The handshake installs the control, lifecycle, file-system,
+command-executor, and UserService-manager Binders as one connection snapshot.
 
 `Privilege.nativeStarterCommand` resolves the device-side command once per app process. Android 10
 and later can run an uncompressed starter directly from the APK through the platform linker;
@@ -91,6 +93,20 @@ External privileged hosts can execute the native starter through
 `PrivilegeExternalStartup.runThroughBridge(...)`. Core owns command execution, pipes, transcript,
 completion, timeout, and concurrent-call handling. Third-party binding and app AIDL remain in the
 app or an optional integration.
+
+## Command execution
+
+`Privilege.startCommand(...)` executes an argument list directly with `ProcessBuilder`; it never
+adds a shell. The suspending start call returns only after the process has started. Its
+`PrivilegeCommandProcess` then permits exactly one consumption path: `stream()` emits distinct
+stdout and stderr byte chunks followed by one exit event, while `awaitResult()` drains both streams
+and returns bounded captures. Both paths read stdout and stderr concurrently.
+
+The internal command Binder exchanges only framework values. Requests and completion metadata use
+`Bundle`, `IBinder`, and `ResultReceiver`; stdout and stderr use separate reliable
+`ParcelFileDescriptor` pipes. Four commands may run concurrently with no waiting queue. Timeout,
+explicit cancellation, owner death, and server shutdown terminate active processes and close both
+output paths. The API has no stdin, PTY, terminal emulation, or daemon management.
 
 ## Module boundary
 

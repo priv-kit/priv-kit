@@ -114,6 +114,8 @@ the complete `priv-core` flows.
 - Use [Binder](./binder) for explicit raw Binder access.
 - Use the [file proxy](./file-proxy) for basic absolute-path file access without
   defining a UserService.
+- Use [commands](./commands) for a bounded non-interactive process with streaming
+  or captured output.
 - Use [UserService](./user-service) for an app-defined AIDL service.
 - Use [Privilege UI](./priv-ui) for the supplied authorization page.
 - Read [startup methods](./activation) before replacing that page with a custom

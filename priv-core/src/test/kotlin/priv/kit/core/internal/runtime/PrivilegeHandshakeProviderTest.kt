@@ -75,6 +75,7 @@ class PrivilegeHandshakeProviderTest {
         val lifecycleBinder = Binder()
         val fileSystemBinder = Binder()
         val userServiceManagerBinder = Binder()
+        val commandExecutorBinder = Binder()
         val received = AtomicReference<PrivilegeServerHandshakeResult?>()
         val listener = PrivilegeServerHandshakeRegistry.addReadyListener { result ->
             received.set(result)
@@ -90,6 +91,7 @@ class PrivilegeHandshakeProviderTest {
                     lifecycleBinder = lifecycleBinder,
                     fileSystemBinder = fileSystemBinder,
                     userServiceManagerBinder = userServiceManagerBinder,
+                    commandExecutorBinder = commandExecutorBinder,
                 ),
             )
 
@@ -107,6 +109,10 @@ class PrivilegeHandshakeProviderTest {
             assertSame(
                 userServiceManagerBinder,
                 received.get()?.serviceEndpoints?.userServiceManagerBinder,
+            )
+            assertSame(
+                commandExecutorBinder,
+                received.get()?.serviceEndpoints?.commandExecutorBinder,
             )
             assertEquals(
                 PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
@@ -308,6 +314,7 @@ class PrivilegeHandshakeProviderTest {
         lifecycleBinder: IBinder = Binder(),
         fileSystemBinder: IBinder = Binder(),
         userServiceManagerBinder: IBinder = Binder(),
+        commandExecutorBinder: IBinder = Binder(),
         selinuxContext: String? = "u:r:shell:s0",
     ): Bundle =
         Bundle().apply {
@@ -321,6 +328,7 @@ class PrivilegeHandshakeProviderTest {
                 endpoints = PrivilegeServerServiceEndpoints(
                     fileSystemBinder = fileSystemBinder,
                     userServiceManagerBinder = userServiceManagerBinder,
+                    commandExecutorBinder = commandExecutorBinder,
                 ),
             )
             selinuxContext?.let {
