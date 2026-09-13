@@ -2,14 +2,21 @@
   "name": "priv-playground",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build:wasm": "node scripts/build-playground.ts",
+    "check": "tsc --noEmit && node --test scripts/font-characters.test.ts"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./wasm-assets": {
+      "types": "./dist/wasm-assets.d.mts",
+      "import": "./dist/wasm-assets.mjs"
     }
   },
-  "files": ["dist"],
-  "dependencies": {
-    "@js-joda/core": "3.2.0"
-  }
+  "files": [
+    "dist"
+  ]
 }

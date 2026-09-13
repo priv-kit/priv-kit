@@ -224,10 +224,18 @@ pump，客户端消费时也同时读取两条 pipe，避免任一有限缓冲�
 接收容器的挂载函数；`priv-website/playground` 提供 Vue + Tailwind 展示组件，在客户端按需加载，
 离开页面或切换语言时清理容器。主题切换通过挂载函数返回的更新回调保留当前模拟状态。
 它的页面专属样式不进入 VitePress 文档页面。
+构建生成独立的 `priv-playground/wasm-assets` 文件大小清单，Vue 在动态导入前临时跟踪
+Wasm 下载流，按累计字节展示进度，再切换到启动状态；页面就绪、失败或卸载时恢复 fetch。
 网站构建先通过 TypeScript 工具调用 Gradle，然后收集 Wasm、Skiko 和 Compose 资源到
 忽略的 `priv-playground/dist`，作为私有 workspace 包由页面 `import('priv-playground')`。
 包入口将 Compose 资源映射为静态 `new URL(..., import.meta.url)`，交给 Vite 处理资源路径和哈希。
-工具源码位于网站，不进入产品模块。
+构建工具源码位于 `priv-playground/scripts`，由展示宿主的私有 pnpm 包管理，网站调用
+该包的 `build:wasm` 命令；工具不进入 Gradle 产品源码或 Android 运行时产物。
+浏览器构建在复制 Gradle 资源时读取源字体，将裁剪结果直接写入 `dist`，
+字符集包含全部 ASCII（`U+0000–U+007F`）和
+仓库内 `.kt`、`.xml` 文件全文中的字符。扫描遵循 Git 标准忽略规则，包含未跟踪文件，
+排除被忽略的文件（包括已跟踪的文件）。逐文件先过滤 ASCII 并去重，再合并到默认包含
+全部 ASCII 的字符集；不解码 Kotlin 转义或 XML 实体。原始字体保持完整。
 
 静默恢复重放 UI 最近一次成功确认的精确启动方式。它使用现有授权，不发起新的用户交互，
 也不跨方式 fallback。匹配当前 UI operation 与 `launchCorrelationId` 的初始连接会保存
@@ -249,10 +257,15 @@ Node.js、TypeScript 和 SVG 用于文档、仓库检查和 CI。可执行工具
 仓库根目录同时是 Gradle 项目和 pnpm workspace。Gradle 管理 Android/JVM/WasmJS 模块；
 pnpm workspace 包含 `priv-website` 和仅用于浏览器构建的私有 `priv-playground` 包。
 `priv-website` 不属于 Gradle 模块；`priv-playground` 的 Kotlin 源码仍由 Gradle 编译。根目录的 `package.json`
-统一声明 Node.js 与 pnpm 版本，`pnpm-workspace.yaml` 管理包列表和依赖 catalog，
+统一声明 Node.js 与 pnpm 版本，并在 `devDependencies` 中集中声明全部 npm 依赖，
+包括网站与浏览器代码使用的库和 `workspace:*` 包链接。子包不声明依赖，
+外部依赖统一使用 `catalog:`，版本在 `pnpm-workspace.yaml` 的默认 `catalog` 中以 `^` 范围维护；
+内部包链接保留 `workspace:*`。`pnpm-workspace.yaml` 同时管理包列表。
 `pnpm-lock.yaml` 锁定依赖。在根目录执行 `pnpm install --frozen-lockfile` 安装依赖，
 `pnpm dev`、`pnpm check`、`pnpm build` 和 `pnpm preview` 分别用于站点开发、检查、
 构建和预览；产品和展示宿主构建继续使用 Gradle Wrapper。
+根 `pnpm build` 只调用网站的 `build`，由网站统一编排 Wasm 构建和站点打包，
+不递归运行所有 workspace 包的 `build`，避免重复调度 playground 构建。
 
 Maven 发布使用 `publishedModuleNames` 白名单，仅包含 `priv-shared`、`priv-core`、
 `priv-adb-crypto`、`priv-ui`；新增模块默认不发布。

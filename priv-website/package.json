@@ -5,19 +5,9 @@
   "scripts": {
     "type-check": "pnpm build:wasm && vue-tsc --noEmit",
     "dev": "pnpm build:wasm && vitepress dev .",
-    "check": "pnpm type-check && node --test .vitepress/theme/language-preference.test.ts && node scripts/check-docs.ts",
+    "check": "pnpm type-check && node --test .vitepress/theme/language-preference.test.ts playground/wasmDownloadProgress.test.ts && node scripts/check-docs.ts",
     "build": "pnpm check && vitepress build .",
     "preview": "vitepress preview .",
-    "build:wasm": "node scripts/build-playground.ts"
-  },
-  "dependencies": {
-    "priv-playground": "workspace:*",
-    "vue": "^3.5.40"
-  },
-  "devDependencies": {
-    "@tailwindcss/vite": "^4.3.3",
-    "es-module-lexer": "^2.0.0",
-    "tailwindcss": "^4.3.3",
-    "vue-tsc": "^3.3.11"
+    "build:wasm": "pnpm --filter priv-playground build:wasm"
   }
 }
