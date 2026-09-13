@@ -3,6 +3,7 @@
 .cxx/
 .kotlin/
 build/
+*.apk
 local.properties
 node_modules/
 

@@ -36,8 +36,6 @@ jobs:
 
       - uses: android-actions/setup-android@v4
 
-      - run: chmod +x ./gradlew
-
       - uses: pnpm/setup@v2
 
       - run: pnpm build

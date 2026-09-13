@@ -32,8 +32,6 @@ jobs:
 
       - uses: android-actions/setup-android@v4
 
-      - run: chmod 777 ./gradlew
-
       - run: ./gradlew publishToMavenLocal
 
       - run: ./gradlew :priv-ui:jvmTest :priv-ui:testAndroidHostTest :priv-playground:desktopTest
