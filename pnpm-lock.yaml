@@ -195,9 +195,27 @@ settings:
 
 catalogs:
   default:
+    '@js-joda/core':
+      specifier: ^3.2.0
+      version: 3.2.0
+    '@tailwindcss/vite':
+      specifier: ^4.3.3
+      version: 4.3.3
     '@types/node':
       specifier: ^25.9.3
       version: 25.9.5
+    '@types/subset-font':
+      specifier: ^2.3.0
+      version: 2.3.0
+    es-module-lexer:
+      specifier: ^2.3.2
+      version: 2.3.2
+    subset-font:
+      specifier: ^2.7.0
+      version: 2.7.0
+    tailwindcss:
+      specifier: ^4.3.3
+      version: 4.3.3
     typescript:
       specifier: ^6.0.3
       version: 6.0.3
@@ -205,16 +223,43 @@ catalogs:
       specifier: ^8.0.16
       version: 8.1.5
     vitepress:
-      specifier: 2.0.0-alpha.18
+      specifier: ^2.0.0-alpha.18
       version: 2.0.0-alpha.18
+    vue:
+      specifier: ^3.5.40
+      version: 3.5.40
+    vue-tsc:
+      specifier: ^3.3.11
+      version: 3.3.11
 
 importers:
 
   .:
     devDependencies:
+      '@js-joda/core':
+        specifier: 'catalog:'
+        version: 3.2.0
+      '@tailwindcss/vite':
+        specifier: 'catalog:'
+        version: 4.3.3(vite@8.1.5(@types/node@25.9.5)(jiti@2.7.0))
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.5
+      '@types/subset-font':
+        specifier: 'catalog:'
+        version: 2.3.0
+      es-module-lexer:
+        specifier: 'catalog:'
+        version: 2.3.2
+      priv-playground:
+        specifier: workspace:*
+        version: link:priv-playground
+      subset-font:
+        specifier: 'catalog:'
+        version: 2.7.0
+      tailwindcss:
+        specifier: 'catalog:'
+        version: 4.3.3
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -224,34 +269,16 @@ importers:
       vitepress:
         specifier: 'catalog:'
         version: 2.0.0-alpha.18(@types/node@25.9.5)(jiti@2.7.0)(postcss@8.5.22)(typescript@6.0.3)
-
-  priv-playground:
-    dependencies:
-      '@js-joda/core':
-        specifier: 3.2.0
-        version: 3.2.0
-
-  priv-website:
-    dependencies:
-      priv-playground:
-        specifier: workspace:*
-        version: link:../priv-playground
       vue:
-        specifier: ^3.5.40
+        specifier: 'catalog:'
         version: 3.5.40(typescript@6.0.3)
-    devDependencies:
-      '@tailwindcss/vite':
-        specifier: ^4.3.3
-        version: 4.3.3(vite@8.1.5(@types/node@25.9.5)(jiti@2.7.0))
-      es-module-lexer:
-        specifier: ^2.0.0
-        version: 2.3.2
-      tailwindcss:
-        specifier: ^4.3.3
-        version: 4.3.3
       vue-tsc:
-        specifier: ^3.3.11
+        specifier: 'catalog:'
         version: 3.3.11(typescript@6.0.3)
+
+  priv-playground: {}
+
+  priv-website: {}
 
 packages:
 
@@ -577,6 +604,9 @@ packages:
   '@types/node@25.9.5':
     resolution: {integrity: sha512-OScDchr2fwuUmWdf4kZ9h7PcJiYDVInhJizG/biAq3cAvqwYktuy/TYGGdZNMtNTFUP7rnb0NU4TUdm82kt4Rg==}
 
+  '@types/subset-font@2.3.0':
+    resolution: {integrity: sha512-+u2CzLEE7ZReuBP0Mfz0tBydVZvWESmZpBbL7sc+J+qB9ImNp1QmOptMe28uXj2aRPDoQhQF3dubXMgwo56gIg==}
+
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
 
@@ -699,6 +729,9 @@ packages:
   alien-signals@3.2.1:
     resolution: {integrity: sha512-I8FjmltrfnDFoZedi5CG8DghVYNhzb/Ijluz7tCSJH0xpd0484Kowhbb1XDYOxfJpU1p5wnM2X54dA+IfGyD1g==}
 
+  argparse@2.0.1:
+    resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
+
   birpc@2.6.1:
     resolution: {integrity: sha512-LPnFhlDpdSH6FJhJyn4M0kFO7vtQ5iPw24FnG0y21q09xC7e8+1LeR31S1MAIrDAHp4m7aas4bEkTDTvMAtebQ==}
 
@@ -754,6 +787,9 @@ packages:
   focus-trap@8.2.2:
     resolution: {integrity: sha512-qV0g8hRYBqgACcFOH3f9wXc4zPKhr/0z9RI2a6ZijZ72EeBi4g8oBy8zAWuUR1TsMpOzwpUMFvjdasrC41Joug==}
 
+  fontverter@2.0.0:
+    resolution: {integrity: sha512-DFVX5hvXuhi1Jven1tbpebYTCT9XYnvx6/Z+HFUPb7ZRMCW+pj2clU9VMhoTPgWKPhAs7JJDSk3CW1jNUvKCZQ==}
+
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -761,6 +797,9 @@ packages:
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
+
+  harfbuzzjs@0.10.3:
+    resolution: {integrity: sha512-GJnLUrgLMadlMYrBGEXwYEimObbysy3prWT4HyPpFQERvgTU/OZ+ReUlEPOum6w4RBtFXzXiCCmECOr4sz3qwQ==}
 
   hast-util-to-html@9.0.5:
     resolution: {integrity: sha512-OguPdidb+fbHQSU4Q4ZiLKnzWo8Wwsf5bZfbvu7//a9oTYoqD/fWpe96NuHkoS9h0ccGOTe0C4NGXdtS0iObOw==}
@@ -967,6 +1006,13 @@ packages:
   oniguruma-to-es@4.3.6:
     resolution: {integrity: sha512-csuQ9x3Yr0cEIs/Zgx/OEt9iBw9vqIunAPQkx19R/fiMq2oGVTgcMqO/V3Ybqefr1TBvosI6jU539ksaBULJyA==}
 
+  p-limit@3.1.0:
+    resolution: {integrity: sha512-TYOanM3wGwNGsZN2cVTYPArw454xnXj5qmWF1bEoAc4+cU/ol7GVh7odevjp1FNHduHc3KZMcFduxU5Xc6uJRQ==}
+    engines: {node: '>=10'}
+
+  pako@1.0.7:
+    resolution: {integrity: sha512-3HNK5tW4x8o5mO8RuHZp3Ydw9icZXx0RANAOMzlMzx7LVXhMJ4mo3MOBpzyd7r/+RUu8BmndP47LXT+vzjtWcQ==}
+
   path-browserify@1.0.1:
     resolution: {integrity: sha512-b7uo2UCUOYZcnF/3ID0lulOJi/bafxa1xPe7ZPsammBSpjSWQkjNxlt635YGS2MiR9GjvuXCtz2emr3jbsz98g==}
 
@@ -1014,6 +1060,9 @@ packages:
 
   stringify-entities@4.0.4:
     resolution: {integrity: sha512-IwfBptatlO+QCJUo19AqvrPNqlVMpW9YEL2LIVY+Rpv2qsjCGxaDLNRgeGsQWJhfItebuJhsGSLjaBbNSQ+ieg==}
+
+  subset-font@2.7.0:
+    resolution: {integrity: sha512-KoBEshkhodCspvR8DweQFkxRB0OxLmXiWV49y8O5fksD9gf/qBK8gcLwUOlGP4ktm55t2Ot0gLRsVQLT4391QQ==}
 
   tabbable@6.5.0:
     resolution: {integrity: sha512-wieBHXygIm7OyQOu5hQlkk62/WyCFYGlWg7L6/ZCUZwx0o398Zkn4pVmMyfYhfMG8kGrj/Krt8eIk6UKC6VzwA==}
@@ -1135,6 +1184,17 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  wawoff2@2.0.1:
+    resolution: {integrity: sha512-r0CEmvpH63r4T15ebFqeOjGqU4+EgTx4I510NtK35EMciSdcTxCw3Byy3JnBonz7iyIFZ0AbVo0bbFpEVuhCYA==}
+    hasBin: true
+
+  woff2sfnt-sfnt2woff@1.0.0:
+    resolution: {integrity: sha512-edK4COc1c1EpRfMqCZO1xJOvdUtM5dbVb9iz97rScvnTevqEB3GllnLWCmMVp1MfQBdF1DFg/11I0rSyAdS4qQ==}
+
+  yocto-queue@0.1.0:
+    resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
+    engines: {node: '>=10'}
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
@@ -1405,6 +1465,10 @@ snapshots:
     dependencies:
       undici-types: 7.24.6
 
+  '@types/subset-font@2.3.0':
+    dependencies:
+      '@types/node': 25.9.5
+
   '@types/unist@3.0.3': {}
 
   '@types/web-bluetooth@0.0.21': {}
@@ -1529,6 +1593,8 @@ snapshots:
 
   alien-signals@3.2.1: {}
 
+  argparse@2.0.1: {}
+
   birpc@2.6.1: {}
 
   ccount@2.0.1: {}
@@ -1568,10 +1634,17 @@ snapshots:
     dependencies:
       tabbable: 6.5.0
 
+  fontverter@2.0.0:
+    dependencies:
+      wawoff2: 2.0.1
+      woff2sfnt-sfnt2woff: 1.0.0
+
   fsevents@2.3.3:
     optional: true
 
   graceful-fs@4.2.11: {}
+
+  harfbuzzjs@0.10.3: {}
 
   hast-util-to-html@9.0.5:
     dependencies:
@@ -1744,6 +1817,12 @@ snapshots:
       regex: 6.1.0
       regex-recursion: 6.0.2
 
+  p-limit@3.1.0:
+    dependencies:
+      yocto-queue: 0.1.0
+
+  pako@1.0.7: {}
+
   path-browserify@1.0.1: {}
 
   perfect-debounce@2.1.0: {}
@@ -1810,6 +1889,12 @@ snapshots:
     dependencies:
       character-entities-html4: 2.1.0
       character-entities-legacy: 3.0.0
+
+  subset-font@2.7.0:
+    dependencies:
+      fontverter: 2.0.0
+      harfbuzzjs: 0.10.3
+      p-limit: 3.1.0
 
   tabbable@6.5.0: {}
 
@@ -1942,5 +2027,15 @@ snapshots:
       '@vue/shared': 3.5.40
     optionalDependencies:
       typescript: 6.0.3
+
+  wawoff2@2.0.1:
+    dependencies:
+      argparse: 2.0.1
+
+  woff2sfnt-sfnt2woff@1.0.0:
+    dependencies:
+      pako: 1.0.7
+
+  yocto-queue@0.1.0: {}
 
   zwitch@2.0.4: {}

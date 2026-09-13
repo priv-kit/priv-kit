@@ -1,22 +1,77 @@
+<script lang="ts">
+// Dynamic imports survive route changes, including their in-flight downloads.
+let runtimeLoadStarted = false;
+let runtimeMounted = false;
+</script>
+
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useData, withBase } from 'vitepress';
+import { wasmAssets } from 'priv-playground/wasm-assets';
+import { createTrackedWasmFetch, type WasmDownloadProgress } from './wasmDownloadProgress.ts';
 
 const { lang, isDark: dark } = useData();
 const host = ref<HTMLElement>();
 const useLegacyPackaging = ref(true);
 const status = ref<'loading' | 'ready' | 'error'>('loading');
+const loadingPhase = ref<'downloading' | 'starting'>('downloading');
+const downloadProgress = ref<WasmDownloadProgress>({
+  loadedBytes: 0,
+  totalBytes: wasmAssets.reduce((total, asset) => total + asset.byteLength, 0),
+  ratio: 0,
+  complete: false,
+  determinate: true,
+});
 const chinese = computed(() => lang.value.startsWith('zh'));
 const docsHref = computed(() => chinese.value ? '/zh/' : '/');
 const languageHref = computed(() => withBase(chinese.value ? '/playground/' : '/zh/playground/'));
+const progressPercent = computed(() => downloadProgress.value.complete
+  ? 100 : Math.min(99, Math.floor(downloadProgress.value.ratio * 100)));
+const loadingMessage = computed(() => {
+  if (loadingPhase.value === 'starting') return chinese.value ? '正在启动展示页面…' : 'Starting the playground…';
+  const message = chinese.value ? '正在下载运行时' : 'Downloading the runtime';
+  return downloadProgress.value.determinate ? `${message} · ${progressPercent.value}%` : `${message}…`;
+});
+const downloadedBytesLabel = computed(() =>
+  `${formatBytes(downloadProgress.value.loadedBytes)} / ${formatBytes(downloadProgress.value.totalBytes)}`);
 let generation = 0;
 let observer: MutationObserver | undefined;
 let timeout: ReturnType<typeof setTimeout> | undefined;
 let updateOptions: ((dark: boolean, useLegacyPackaging: boolean) => void) | undefined;
+let nativeFetch: typeof window.fetch | undefined;
+let trackedFetch: typeof window.fetch | undefined;
+let progressFrame = 0;
+let pendingProgress: WasmDownloadProgress | undefined;
 const originalLanguages = Object.getOwnPropertyDescriptor(navigator, 'languages');
+
+function stopTracking() {
+  if (nativeFetch && trackedFetch && window.fetch === trackedFetch) window.fetch = nativeFetch;
+  nativeFetch = undefined;
+  trackedFetch = undefined;
+  cancelAnimationFrame(progressFrame);
+  progressFrame = 0;
+  pendingProgress = undefined;
+}
+
+function scheduleProgressUpdate(progress: WasmDownloadProgress) {
+  pendingProgress = progress;
+  if (progressFrame) return;
+  progressFrame = requestAnimationFrame(() => {
+    progressFrame = 0;
+    if (!pendingProgress) return;
+    downloadProgress.value = pendingProgress;
+    if (pendingProgress.complete) loadingPhase.value = 'starting';
+    pendingProgress = undefined;
+  });
+}
+
+function formatBytes(bytes: number) {
+  return `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
+}
 
 function clear() {
   generation++;
+  stopTracking();
   observer?.disconnect();
   observer = undefined;
   clearTimeout(timeout);
@@ -30,6 +85,7 @@ async function mount() {
   if (!container) return;
   const current = generation;
   status.value = 'loading';
+  loadingPhase.value = 'downloading';
   // Compose reads navigator.languages; restore it when returning to the documentation.
   Object.defineProperty(navigator, 'languages', {
     configurable: true,
@@ -43,11 +99,23 @@ async function mount() {
   };
   timeout = setTimeout(fail, 60_000);
   try {
+    const reuseRuntime = runtimeLoadStarted;
+    runtimeLoadStarted = true;
+    nativeFetch = window.fetch;
+    trackedFetch = createTrackedWasmFetch(nativeFetch.bind(window), wasmAssets, (progress) => {
+      if (generation !== current || status.value !== 'loading') return;
+      // Existing requests belong to the previous mount and cannot be counted here.
+      scheduleProgressUpdate(reuseRuntime ? { ...progress, determinate: false } : progress);
+    });
+    window.fetch = trackedFetch;
     const { renderPrivilegePlayground } = await import('priv-playground');
     if (generation !== current) return;
+    if (reuseRuntime && runtimeMounted) loadingPhase.value = 'starting';
     observer = new MutationObserver(() => {
-      if (!container.hasChildNodes()) return;
+      if (generation !== current || !container.hasChildNodes()) return;
       status.value = 'ready';
+      runtimeMounted = true;
+      stopTracking();
       clearTimeout(timeout);
       observer?.disconnect();
     });
@@ -138,7 +206,24 @@ onBeforeUnmount(() => {
           <div v-if="status !== 'ready'" class="absolute inset-0 grid place-content-center gap-4 bg-white px-8 text-center dark:bg-stone-900" role="status">
             <template v-if="status === 'loading'">
               <div class="mx-auto size-7 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
-              <p class="text-sm font-medium">{{ chinese ? '正在加载展示页面…' : 'Loading the playground…' }}</p>
+              <p class="text-sm font-medium">{{ loadingMessage }}</p>
+              <div
+                class="mx-auto h-1.5 w-64 max-w-full overflow-hidden rounded-full bg-violet-100 dark:bg-stone-700"
+                role="progressbar"
+                :aria-label="loadingMessage"
+                :aria-valuenow="loadingPhase === 'downloading' && downloadProgress.determinate ? progressPercent : undefined"
+                :aria-valuemin="0"
+                :aria-valuemax="100"
+              >
+                <div
+                  class="h-full origin-left rounded-full bg-violet-600 transition-transform duration-150 ease-out motion-reduce:transition-none dark:bg-violet-400"
+                  :class="{ 'animate-pulse motion-reduce:animate-none': !downloadProgress.determinate || loadingPhase === 'starting' }"
+                  :style="{ transform: `scaleX(${loadingPhase === 'starting' || !downloadProgress.determinate ? 1 : downloadProgress.ratio})` }"
+                />
+              </div>
+              <p v-if="downloadProgress.determinate && loadingPhase === 'downloading'" class="text-xs tabular-nums text-stone-500 dark:text-stone-400">
+                {{ downloadedBytesLabel }}
+              </p>
               <p class="max-w-xs text-xs leading-5 text-stone-500">{{ chinese ? '首次打开需要下载运行时与中文字体。' : 'The first visit downloads the runtime and Chinese font.' }}</p>
             </template>
             <template v-else>

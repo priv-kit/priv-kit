@@ -3,11 +3,12 @@ import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promi
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { init, parse } from 'es-module-lexer';
+import subsetFont from 'subset-font';
+import { collectFontCharacters } from './font-characters.ts';
 
-const websiteRoot = fileURLToPath(new URL('..', import.meta.url));
-const repositoryRoot = path.resolve(websiteRoot, '..');
-const playgroundBuild = path.join(repositoryRoot, 'priv-playground', 'build');
-const playgroundRoot = path.join(repositoryRoot, 'priv-playground');
+const playgroundRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
+const repositoryRoot = path.resolve(playgroundRoot, '..');
+const playgroundBuild = path.join(playgroundRoot, 'build');
 const destination = path.resolve(playgroundRoot, 'dist');
 const windows = process.platform === 'win32';
 const wrapper = path.join(repositoryRoot, windows ? 'gradlew.bat' : 'gradlew');
@@ -40,7 +41,23 @@ await cp(
 for (const file of ['skiko.mjs', 'skiko.wasm']) {
   await cp(path.join(playgroundBuild, 'compose', 'skiko-runtime-processed-wasmjs', file), path.join(destination, file));
 }
-await cp(path.join(playgroundBuild, 'processedResources', 'wasmJs', 'main'), destination, { recursive: true });
+let fontCopied = false;
+await cp(path.join(playgroundBuild, 'processedResources', 'wasmJs', 'main'), destination, {
+  recursive: true,
+  async filter(source, target) {
+    if (path.basename(source) !== 'noto_sans_sc.ttf' || path.basename(path.dirname(source)) !== 'font') return true;
+    const characters = await collectFontCharacters(repositoryRoot);
+    const originalFont = await readFile(source);
+    const subset = await subsetFont(originalFont, characters, { targetFormat: 'sfnt' });
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, subset);
+    fontCopied = true;
+    console.log(`Playground font: ${originalFont.length} → ${subset.length} bytes (${[...characters].length} requested code points)`);
+    // The transformed font is already written; skip copying the full source font.
+    return false;
+  },
+});
+if (!fontCopied) throw new Error('Missing playground font');
 
 // Keep Kotlin's optional Node/Deno branches out of the browser bundle.
 await init;
@@ -84,6 +101,13 @@ await writeFile(path.join(destination, 'index.d.mts'),
 for (const file of ['priv-playground.mjs', 'priv-playground.wasm', 'skiko.mjs', 'skiko.wasm']) {
   if (!(await stat(path.join(destination, file))).isFile()) throw new Error(`Missing playground asset: ${file}`);
 }
+const wasmAssets = await Promise.all(['priv-playground.wasm', 'skiko.wasm'].map(async (fileName) => ({
+  fileName,
+  byteLength: (await stat(path.join(destination, fileName))).size,
+})));
+await writeFile(path.join(destination, 'wasm-assets.mjs'), `export const wasmAssets = ${JSON.stringify(wasmAssets)};\n`);
+await writeFile(path.join(destination, 'wasm-assets.d.mts'),
+  'export declare const wasmAssets: readonly Readonly<{ fileName: string; byteLength: number }>[];\n');
 if ((await readdir(path.join(destination, 'composeResources'))).length === 0) {
   throw new Error('Missing Compose resources');
 }

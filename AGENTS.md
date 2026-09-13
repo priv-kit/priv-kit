@@ -65,3 +65,12 @@ styles scoped to those components. Thin English and Chinese Markdown pages may
 mount it through `ClientOnly` with `layout: false`; VitePress builds all pages.
 These technologies must not be added to Gradle product
 modules, Android runtime artifacts, or public Android APIs.
+
+Declare all npm dependencies only in the repository root `package.json` under
+`devDependencies`, including dependencies used by website/browser code and
+`workspace:*` package links. Workspace package manifests must not declare their
+own dependency sections. Use `catalog:` for all external dependencies, with
+their versions declared as caret (`^`) ranges in the default `catalog` in
+`pnpm-workspace.yaml`. Keep internal package links as `workspace:*`.
+Update the root manifest, catalog, and `pnpm-lock.yaml` together when changing
+dependencies.

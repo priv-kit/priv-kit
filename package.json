@@ -4,16 +4,25 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm -r --sort build",
+    "build": "pnpm --filter @priv-kit/website build",
     "check": "pnpm -r --sort check",
     "dev": "pnpm --filter @priv-kit/website dev",
     "preview": "pnpm --filter @priv-kit/website preview"
   },
   "devDependencies": {
+    "@js-joda/core": "catalog:",
+    "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
+    "@types/subset-font": "catalog:",
+    "es-module-lexer": "catalog:",
+    "priv-playground": "workspace:*",
+    "subset-font": "catalog:",
+    "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitepress": "catalog:"
+    "vitepress": "catalog:",
+    "vue": "catalog:",
+    "vue-tsc": "catalog:"
   },
   "devEngines": {
     "runtime": {
