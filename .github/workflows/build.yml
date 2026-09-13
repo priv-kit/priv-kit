@@ -11,7 +11,7 @@ on:
       - '*.md'
       - '.github/**'
       - 'docs/**'
-      - 'website/**'
+      - 'priv-website/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -35,6 +35,8 @@ jobs:
       - run: chmod 777 ./gradlew
 
       - run: ./gradlew publishToMavenLocal
+
+      - run: ./gradlew :priv-ui:jvmTest :priv-ui:testAndroidHostTest :priv-playground:desktopTest
 
       - run: ./gradlew :priv-sample:assembleRelease
 

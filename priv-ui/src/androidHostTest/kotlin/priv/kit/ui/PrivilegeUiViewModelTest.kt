@@ -1,0 +1,986 @@
+package priv.kit.ui
+
+import priv.kit.core.internal.runtime.PrivilegeContext
+import priv.kit.ui.adb.*
+import priv.kit.ui.runtime.*
+import priv.kit.ui.state.*
+
+import android.Manifest
+import android.app.Application
+import android.content.Context
+import android.os.Looper
+import android.os.PowerManager
+import android.provider.Settings
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
+import org.junit.After
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
+class PrivilegeUiViewModelTest {
+    @After
+    fun noInteractiveGateLeaseLeaksBetweenViewModels() {
+        assertNull(PrivilegeUiStartGate.state.value.owner)
+    }
+
+    @Test
+    fun silentOwnerBlocksInteractiveEntryUntilRuntimeIsReconciled() = runBlocking {
+        var silentPermit: AutoCloseable? = PrivilegeUiStartGate.tryAcquireSilent()!!
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
+        try {
+            assertFalse(viewModel.uiInteractionsEnabled)
+            viewModel.startInteractive()
+            assertFalse(viewModel.state.value.busy)
+            assertEquals(PrivilegeUiRuntimeStartPhase.IDLE, viewModel.state.value.runtimeStartPhase)
+
+            silentPermit?.close()
+            silentPermit = null
+            withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+                while (!viewModel.uiEffectsEnabled.value) {
+                    shadowOf(Looper.getMainLooper()).idle()
+                    delay(1)
+                }
+            }
+
+            assertTrue(viewModel.uiInteractionsEnabled)
+        } finally {
+            silentPermit?.close()
+        }
+    }
+
+    @Test
+    fun fastSilentCompletionIsEventuallyReconciled() = runBlocking {
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
+
+        val previousCompletionSerial =
+            PrivilegeUiStartGate.state.value.silentCompletionSerial
+        val silentPermit = PrivilegeUiStartGate.tryAcquireSilent()!!
+        silentPermit.close()
+        assertTrue(
+            PrivilegeUiStartGate.state.value.silentCompletionSerial > previousCompletionSerial,
+        )
+
+        withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+            while (
+                !viewModel.uiEffectsEnabled.value ||
+                !viewModel.uiInteractionsEnabled
+            ) {
+                shadowOf(Looper.getMainLooper()).idle()
+                delay(1)
+            }
+        }
+        assertTrue(viewModel.uiInteractionsEnabled)
+    }
+
+    @Test
+    fun autoRecoveryWarningRequiresInteractions() {
+        val state = PrivilegeUiState(
+            desiredEnabled = true,
+            runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+            runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
+        )
+
+        assertTrue(
+            privilegeUiAutoRecoveryWarningVisible(
+                state = state.toScreenState { it.asString(application()) },
+                interactionEnabled = true,
+            ),
+        )
+        assertFalse(
+            privilegeUiAutoRecoveryWarningVisible(
+                state = state.toScreenState { it.asString(application()) },
+                interactionEnabled = false,
+            ),
+        )
+    }
+
+    @Test
+    fun initialLoadDoesNotDisableInteractions() = runBlocking {
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
+
+        assertTrue(viewModel.uiInteractionsEnabled)
+
+        withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+            while (!viewModel.uiEffectsEnabled.value) {
+                shadowOf(Looper.getMainLooper()).idle()
+                delay(1)
+            }
+        }
+
+        assertTrue(viewModel.uiEffectsEnabled.value)
+        assertTrue(viewModel.uiInteractionsEnabled)
+    }
+
+    @Test
+    fun slowExternalSnapshotDoesNotDelayPageInitialization() = runBlocking {
+        val snapshotStarted = CompletableDeferred<Unit>()
+        val releaseSnapshot = CompletableDeferred<Unit>()
+        val provider = object : PrivilegeUiExternalStartProvider {
+            override val id: String = "slow"
+            override val label: CharSequence = "Slow"
+
+            override suspend fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot {
+                snapshotStarted.complete(Unit)
+                releaseSnapshot.await()
+                return PrivilegeUiExternalStartSnapshot(
+                    available = true,
+                    authorized = true,
+                )
+            }
+
+            override suspend fun start(
+                context: Context,
+                commandLine: String,
+            ) = Unit
+        }
+        val viewModel = configuredViewModel(
+            PrivilegeUiConfig(
+                startupModes = listOf(
+                    PrivilegeUiStartupMode.ROOT,
+                    PrivilegeUiStartupMode.EXTERNAL,
+                ),
+                adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+                externalStartProviders = listOf(provider),
+            ),
+        )
+
+        viewModel.awaitEffectsEnabled()
+        withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+            snapshotStarted.await()
+        }
+
+        assertTrue(viewModel.uiInteractionsEnabled)
+        assertFalse(viewModel.state.value.externalStartItems.single().statusLoaded)
+
+        releaseSnapshot.complete(Unit)
+        withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+            while (!viewModel.state.value.externalStartItems.single().statusLoaded) {
+                shadowOf(Looper.getMainLooper()).idle()
+                delay(1)
+            }
+        }
+
+        assertTrue(viewModel.state.value.externalStartItems.single().snapshot.canStart)
+    }
+
+    @Test
+    fun clearStartupLogRemovesVisibleLogContent() = runBlocking {
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
+        viewModel.awaitEffectsEnabled()
+        viewModel.storeForTest().appendStartupLog("diagnostic")
+
+        viewModel.clearStartupLog()
+
+        assertTrue(viewModel.state.value.startupLogLines.isEmpty())
+    }
+
+    @Test
+    fun connectedBuiltInStartRequestsConfirmationAndCancelKeepsServerState() {
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
+        viewModel.storeForTest().updateState {
+            it.copy(runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED)
+        }
+
+        viewModel.startRoot()
+
+        assertEquals(
+            PrivilegeUiServerRestartRequest.Root,
+            viewModel.state.value.restartConfirmationTarget,
+        )
+        assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, viewModel.state.value.runtimeStatus)
+        assertEquals(PrivilegeUiRuntimeStartPhase.IDLE, viewModel.state.value.runtimeStartPhase)
+
+        viewModel.cancelServerRestart()
+
+        assertNull(viewModel.state.value.restartConfirmationTarget)
+        assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, viewModel.state.value.runtimeStatus)
+
+        viewModel.startRoot()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(
+            PrivilegeUiServerRestartRequest.Root,
+            viewModel.serverRestartConfirmation.value,
+        )
+    }
+
+    @Test
+    fun connectedStartConfirmationRetainsTheRequestedMethod() {
+        val viewModel = configuredViewModel(
+            PrivilegeUiConfig(
+                startupModes = listOf(
+                    PrivilegeUiStartupMode.ADB,
+                    PrivilegeUiStartupMode.EXTERNAL,
+                ),
+                adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+                externalStartProviders = listOf(TestExternalStartProvider),
+            ),
+        )
+        viewModel.storeForTest().updateState {
+            it.copy(runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED)
+        }
+
+        viewModel.startWirelessAdb()
+        assertEquals(
+            PrivilegeUiServerRestartRequest.WirelessAdb,
+            viewModel.state.value.restartConfirmationTarget,
+        )
+        viewModel.cancelServerRestart()
+
+        viewModel.startStaticTcpAdb()
+        assertEquals(
+            PrivilegeUiServerRestartRequest.StaticTcpAdb,
+            viewModel.state.value.restartConfirmationTarget,
+        )
+        viewModel.cancelServerRestart()
+
+        viewModel.authorizeOrStartExternal(TestExternalStartProvider.id)
+        assertEquals(
+            PrivilegeUiServerRestartRequest.External(TestExternalStartProvider.id),
+            viewModel.state.value.restartConfirmationTarget,
+        )
+    }
+
+    @Test
+    fun defaultConfigOrdersTabsButSelectsAdb() {
+        val viewModel = configuredViewModel(
+            PrivilegeUiConfig(
+                adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+            ),
+        )
+
+        val state = viewModel.state.value
+
+        assertEquals(
+            listOf(
+                PrivilegeUiStartupMode.ROOT,
+                PrivilegeUiStartupMode.ADB,
+                PrivilegeUiStartupMode.MANUAL_SHELL,
+            ),
+            state.startupModes,
+        )
+        assertEquals(PrivilegeUiStartupMode.ADB, state.selectedStartupMode)
+    }
+
+    @Test
+    fun adbIdentityLoadFinishesBeforeViewModelConstructionReturns() {
+        val viewModel = configuredViewModel(
+            PrivilegeUiConfig(
+                startupModes = listOf(PrivilegeUiStartupMode.ADB),
+                adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+            ),
+        )
+
+        val state = viewModel.state.value
+        assertTrue(
+            state.adbKeyFingerprint != null ||
+                state.startupLogLines.isNotEmpty(),
+        )
+    }
+
+    @Test
+    fun externalModeIsLastAndAdbRemainsSelected() {
+        val viewModel = configuredViewModel(
+            PrivilegeUiConfig(
+                adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+                externalStartProviders = listOf(TestExternalStartProvider),
+            ),
+        )
+
+        val state = viewModel.state.value
+
+        assertEquals(
+            listOf(
+                PrivilegeUiStartupMode.ROOT,
+                PrivilegeUiStartupMode.ADB,
+                PrivilegeUiStartupMode.MANUAL_SHELL,
+                PrivilegeUiStartupMode.EXTERNAL,
+            ),
+            state.startupModes,
+        )
+        assertEquals(PrivilegeUiStartupMode.ADB, state.selectedStartupMode)
+    }
+
+    @Test
+    fun constructorConfigInitializesState() {
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
+
+        val state = viewModel.state.value
+
+        assertEquals(listOf(PrivilegeUiStartupMode.ROOT), state.startupModes)
+        assertEquals(PrivilegeUiStartupMode.ROOT, state.selectedStartupMode)
+    }
+
+    @Test
+    fun directAdbStartIncludesWirelessWithoutCachedReadiness() {
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
+        val store = viewModel.storeForTest()
+        store.updateState {
+            it.copy(
+                wifiConnected = false,
+                wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
+                wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+                managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
+            )
+        }
+
+        assertEquals(
+            PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
+            viewModel.adbActionsForTest().directStartAttempts().single().runtimeStartSource,
+        )
+    }
+
+    @Test
+    fun directAdbStartUsesConfiguredTcpWithoutCachedAuthorization() {
+        val viewModel = ConfiguredPrivilegeUiViewModel(
+            application = application(),
+            config = PrivilegeUiConfig(adbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING),
+        )
+        val store = viewModel.storeForTest()
+        val adbActions = viewModel.adbActionsForTest()
+        store.updateState {
+            it.copy(
+                wifiConnected = false,
+                staticTcp = it.staticTcp.copy(
+                    authorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,
+                ),
+            )
+        }
+
+        val attempts = adbActions.directStartAttempts()
+
+        assertTrue(attempts.first() is PrivilegeUiRuntimeStartAttempt.Workflow)
+        assertEquals(
+            listOf(
+                PrivilegeUiRuntimeStartSource.ADB_STATIC_TCP,
+                PrivilegeUiRuntimeStartSource.ADB_WIRELESS,
+            ),
+            attempts.map { it.runtimeStartSource },
+        )
+    }
+
+    @Test
+    fun publicStartAndCancelCommandsAreIgnoredWhileCancelling() = runBlocking {
+        val viewModel = configuredViewModel(
+            PrivilegeUiConfig(
+                startupModes = listOf(PrivilegeUiStartupMode.ROOT),
+                adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+                startTimeoutMillis = 250L,
+            ),
+        )
+        viewModel.awaitEffectsEnabled()
+        val actions = viewModel.runtimeActionsForTest()
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val startCount = AtomicInteger(0)
+        try {
+            actions.runServerStartRequest(
+                PrivilegeUiRuntimeStartAttempt.Request(
+                    progressText = PrivilegeUiText.Literal("external"),
+                    startedText = PrivilegeUiText.Literal("external requested"),
+                    startupSource = null,
+                    runtimeStartSource = PrivilegeUiRuntimeStartSource.EXTERNAL,
+                ) {
+                    addCloseable(
+                        AutoCloseable { release.await(30, TimeUnit.SECONDS) },
+                    )
+                    startCount.incrementAndGet()
+                    started.countDown()
+                    awaitCancellation()
+                },
+            )
+
+            assertTrue(started.await(2, TimeUnit.SECONDS))
+            assertEquals(1, startCount.get())
+            assertEquals(PrivilegeUiRuntimeStartPhase.RUNNING, viewModel.state.value.runtimeStartPhase)
+
+            viewModel.stopCurrentStart()
+
+            assertEquals(PrivilegeUiRuntimeStartPhase.CANCELLING, viewModel.state.value.runtimeStartPhase)
+
+            viewModel.startInteractive()
+            viewModel.stopCurrentStart()
+
+            assertEquals(1, startCount.get())
+            assertEquals(PrivilegeUiRuntimeStartPhase.CANCELLING, viewModel.state.value.runtimeStartPhase)
+
+            release.countDown()
+            assertTrue(
+                withTimeoutOrNull(TimeUnit.SECONDS.toMillis(2)) {
+                    while (
+                        viewModel.state.value.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE ||
+                        viewModel.state.value.busy
+                    ) {
+                        shadowOf(Looper.getMainLooper()).idle()
+                        delay(10L)
+                    }
+                    true
+                } == true,
+            )
+        } finally {
+            release.countDown()
+            actions.close()
+        }
+    }
+
+    @Test
+    fun hostResumeRefreshesBatteryOptimizationPromptVisibility() {
+        val application = application()
+        val powerManager = application.getSystemService(PowerManager::class.java)
+        val shadowPowerManager = shadowOf(powerManager)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, false)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+
+        assertTrue(viewModel.batteryOptimizationPromptVisible.value)
+
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, true)
+        viewModel.dispatchHostResume()
+
+        assertFalse(viewModel.batteryOptimizationPromptVisible.value)
+
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, false)
+        viewModel.dispatchHostResume()
+
+        assertTrue(viewModel.batteryOptimizationPromptVisible.value)
+    }
+
+    @Test
+    fun foregroundDispatchRefreshesBatteryOptimizationBeforeCallingHostOverride() {
+        val application = application()
+        val powerManager = application.getSystemService(PowerManager::class.java)
+        val shadowPowerManager = shadowOf(powerManager)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, true)
+        val viewModel = HostResumePrivilegeUiViewModel(application)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, false)
+
+        viewModel.dispatchHostResume()
+
+        assertTrue(viewModel.batteryOptimizationPromptVisible.value)
+        assertEquals(1, viewModel.hostResumeCount)
+        assertEquals(true, viewModel.promptVisibleDuringHostResume)
+    }
+
+    @Test
+    fun windowFocusDispatchRefreshesWithoutCallingHostResumeOverride() {
+        val application = application()
+        val powerManager = application.getSystemService(PowerManager::class.java)
+        val shadowPowerManager = shadowOf(powerManager)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, true)
+        val viewModel = HostResumePrivilegeUiViewModel(application)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, false)
+
+        viewModel.dispatchHostWindowFocus()
+
+        assertTrue(viewModel.batteryOptimizationPromptVisible.value)
+        assertEquals(0, viewModel.hostResumeCount)
+    }
+
+    @Test
+    fun hostRefreshRechecksBatteryOptimizationAfterOemAsyncUpdate() {
+        val application = application()
+        val powerManager = application.getSystemService(PowerManager::class.java)
+        val shadowPowerManager = shadowOf(powerManager)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, false)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+
+        viewModel.dispatchHostWindowFocus()
+        assertTrue(viewModel.batteryOptimizationPromptVisible.value)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, true)
+
+        shadowOf(Looper.getMainLooper()).idleFor(3, TimeUnit.SECONDS)
+
+        assertFalse(viewModel.batteryOptimizationPromptVisible.value)
+    }
+
+    @Test
+    fun hostRefreshRechecksBatteryOptimizationAfterOemAsyncRevocation() {
+        val application = application()
+        val powerManager = application.getSystemService(PowerManager::class.java)
+        val shadowPowerManager = shadowOf(powerManager)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, true)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+
+        viewModel.dispatchHostWindowFocus()
+        assertFalse(viewModel.batteryOptimizationPromptVisible.value)
+        shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, false)
+
+        shadowOf(Looper.getMainLooper()).idleFor(3, TimeUnit.SECONDS)
+
+        assertTrue(viewModel.batteryOptimizationPromptVisible.value)
+    }
+
+    @Test
+    fun backHostEventIsOverridable() {
+        val viewModel = HostEventPrivilegeUiViewModel(application())
+
+        assertTrue(viewModel.dispatchBackClick())
+
+        assertEquals(1, viewModel.backClickCount)
+    }
+
+    @Test
+    fun baseBackEventUsesSystemBack() {
+        val viewModel = RootOnlyPrivilegeUiViewModel(application())
+
+        assertFalse(viewModel.dispatchBackClick())
+    }
+
+    @Test
+    fun notificationPermissionSettingsRequestKeepsWarningAndOpensCurrentAppSettings() = runBlocking {
+        val application = application()
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitEffectsEnabled()
+        val store = viewModel.storeForTest()
+        store.updateState {
+            it.copy(pairingNotificationPermissionWarningVisible = true)
+        }
+        val startedMessage = application.getString(R.string.priv_ui_notification_pairing_started)
+        val startedLogCountBefore = viewModel.state.value.startupLogLines.count {
+            it == startedMessage
+        }
+
+        viewModel.dispatchNotificationPermissionSettingsRequest(application)
+
+        val intent = shadowOf(application).nextStartedActivity
+        assertEquals(Settings.ACTION_APP_NOTIFICATION_SETTINGS, intent.action)
+        assertEquals(
+            application.packageName,
+            intent.getStringExtra(Settings.EXTRA_APP_PACKAGE),
+        )
+        assertTrue(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+        assertFalse(viewModel.state.value.pairingDialogVisible)
+        assertEquals(PrivilegeUiAdbPairingStatus.NOT_PAIRED, viewModel.state.value.pairingStatus)
+        assertFalse(viewModel.state.value.notificationPairingRunning)
+        assertEquals(
+            startedLogCountBefore,
+            viewModel.state.value.startupLogLines.count { it == startedMessage },
+        )
+    }
+
+    @Test
+    fun notificationPermissionSettingsRequestIsOverridable() = runBlocking {
+        val application = application()
+        val viewModel = NotificationSettingsPrivilegeUiViewModel(application)
+        viewModel.awaitEffectsEnabled()
+        viewModel.storeForTest().updateState {
+            it.copy(pairingNotificationPermissionWarningVisible = true)
+        }
+
+        viewModel.dispatchNotificationPermissionSettingsRequest(application)
+
+        assertSame(application, viewModel.openedContext)
+        assertNull(shadowOf(application).nextStartedActivity)
+        assertTrue(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+    }
+
+    @Test
+    fun hostResumeContinuesPendingPairingWithNotificationAfterPermissionIsGranted() = runBlocking {
+        val application = application()
+        val shadowApplication = shadowOf(application)
+        shadowApplication.denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitEffectsEnabled()
+        val pendingStart = async(start = CoroutineStart.UNDISPATCHED) {
+            viewModel.adbActionsForTest().startNotificationPairing {
+                PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
+            }
+        }
+        assertTrue(pendingStart.isActive)
+        assertTrue(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+        shadowApplication.grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+
+        try {
+            viewModel.dispatchHostResume()
+            pendingStart.await()
+
+            val startedMessage = application.getString(R.string.priv_ui_notification_pairing_started)
+            assertFalse(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+            assertEquals(
+                PrivilegeUiAdbPairingStatus.SEARCHING,
+                viewModel.state.value.pairingStatus,
+            )
+            assertTrue(viewModel.state.value.pairingDialogVisible)
+            assertTrue(viewModel.state.value.notificationPairingRunning)
+            assertEquals(1, viewModel.state.value.startupLogLines.count { it == startedMessage })
+
+            viewModel.dispatchHostWindowFocus()
+
+            assertEquals(1, viewModel.state.value.startupLogLines.count { it == startedMessage })
+        } finally {
+            pendingStart.cancel()
+            viewModel.stopNotificationPairing()
+        }
+        withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+            while (PrivilegeUiStartGate.state.value.owner != null) delay(10L)
+        }
+    }
+
+    @Test
+    fun hostResumeKeepsWarningWhenNotificationPermissionRemainsUnavailable() {
+        val application = application()
+        shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.storeForTest().updateState {
+            it.copy(pairingNotificationPermissionWarningVisible = true)
+        }
+        val startedMessage = application.getString(R.string.priv_ui_notification_pairing_started)
+        val startedLogCountBefore = viewModel.state.value.startupLogLines.count {
+            it == startedMessage
+        }
+
+        viewModel.dispatchHostResume()
+
+        assertTrue(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+        assertFalse(viewModel.state.value.pairingDialogVisible)
+        assertEquals(PrivilegeUiAdbPairingStatus.NOT_PAIRED, viewModel.state.value.pairingStatus)
+        assertFalse(viewModel.state.value.notificationPairingRunning)
+        assertEquals(
+            startedLogCountBefore,
+            viewModel.state.value.startupLogLines.count { it == startedMessage },
+        )
+    }
+
+    @Test
+    fun hostResumeDoesNotStartPairingWithoutPendingWarning() {
+        val application = application()
+        shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        val startedMessage = application.getString(R.string.priv_ui_notification_pairing_started)
+        val startedLogCountBefore = viewModel.state.value.startupLogLines.count {
+            it == startedMessage
+        }
+
+        viewModel.dispatchHostResume()
+
+        assertFalse(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+        assertFalse(viewModel.state.value.pairingDialogVisible)
+        assertEquals(PrivilegeUiAdbPairingStatus.NOT_PAIRED, viewModel.state.value.pairingStatus)
+        assertFalse(viewModel.state.value.notificationPairingRunning)
+        assertEquals(
+            startedLogCountBefore,
+            viewModel.state.value.startupLogLines.count { it == startedMessage },
+        )
+    }
+
+    @Test
+    fun permanentlyDeniedNotificationPermissionShowsWarningBeforePairingSessionStarts() = runBlocking {
+        val application = application()
+        shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitEffectsEnabled()
+        val hostId = "permission-host"
+        viewModel.registerPermissionHost(hostId)
+        var permissionRequest: PrivilegeUiPermissionRequest? = null
+        try {
+            viewModel.startNotificationPairing()
+
+            permissionRequest = withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+                viewModel.permissionRequests.first()
+            }
+            assertTrue(permissionRequest is PrivilegeUiPermissionRequest.Notification)
+            assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+            assertFalse(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+            assertFalse(viewModel.state.value.pairingDialogVisible)
+            assertEquals(PrivilegeUiAdbPairingStatus.NOT_PAIRED, viewModel.state.value.pairingStatus)
+            assertFalse(viewModel.state.value.notificationPairingRunning)
+
+            viewModel.completeUnlaunchedNotificationPermissionRequest(
+                hostId,
+                checkNotNull(permissionRequest) as PrivilegeUiPermissionRequest.Notification,
+                PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
+            )
+            assertTrue(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+            assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+            assertFalse(viewModel.state.value.pairingDialogVisible)
+            assertEquals(PrivilegeUiAdbPairingStatus.NOT_PAIRED, viewModel.state.value.pairingStatus)
+            assertFalse(viewModel.state.value.notificationPairingRunning)
+
+            viewModel.unregisterPermissionHost(hostId, changingConfigurations = false)
+            assertFalse(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+            PrivilegeUiStartGate.tryAcquireSilent()!!.close()
+        } finally {
+            permissionRequest?.close()
+            viewModel.cancelPendingPairingStart()
+            viewModel.unregisterPermissionHost(hostId, changingConfigurations = false)
+        }
+        PrivilegeUiStartGate.tryAcquireSilent()!!.close()
+    }
+
+    @Test
+    fun configurationDetachPreservesCompletedPermissionWarning() = runBlocking {
+        val application = application()
+        shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitEffectsEnabled()
+        val hostId = "permission-host"
+        viewModel.registerPermissionHost(hostId)
+        viewModel.startNotificationPairing()
+        val request = withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+            viewModel.permissionRequests.first()
+        } as PrivilegeUiPermissionRequest.Notification
+        viewModel.completeUnlaunchedNotificationPermissionRequest(
+            hostId,
+            request,
+            PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
+        )
+        assertTrue(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+        assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+
+        viewModel.unregisterPermissionHost(hostId, changingConfigurations = true)
+        shadowOf(Looper.getMainLooper()).idleFor(11, TimeUnit.SECONDS)
+
+        assertTrue(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+        assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+        viewModel.registerPermissionHost(hostId)
+        viewModel.unregisterPermissionHost(hostId, changingConfigurations = false)
+        assertFalse(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+        PrivilegeUiStartGate.tryAcquireSilent()!!.close()
+    }
+
+    @Test
+    fun launchedPermissionRequestSurvivesCollectorRecreationUntilResult() = runBlocking {
+        val application = application()
+        shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitEffectsEnabled()
+        val hostId = "permission-host"
+        viewModel.registerPermissionHost(hostId)
+        var request: PrivilegeUiPermissionRequest? = null
+        try {
+            viewModel.startNotificationPairing()
+            request = withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+                viewModel.permissionRequests.first()
+            }
+            assertTrue(request is PrivilegeUiPermissionRequest.Notification)
+            assertTrue(checkNotNull(request).tryMarkLaunched(hostId))
+
+            viewModel.unregisterPermissionHost(hostId, changingConfigurations = true)
+            viewModel.registerPermissionHost(hostId)
+
+            val reboundRequest = withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+                viewModel.permissionRequests.first()
+            }
+
+            assertSame(request, reboundRequest)
+            assertTrue(reboundRequest.wasLaunched)
+            assertFalse(reboundRequest.tryMarkLaunched("other-host"))
+            assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+
+            viewModel.completeNotificationPermissionRequest(
+                hostId,
+                PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
+            )
+            assertTrue(viewModel.state.value.pairingNotificationPermissionWarningVisible)
+            assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+        } finally {
+            request?.close()
+            viewModel.cancelPendingPairingStart()
+            viewModel.unregisterPermissionHost(hostId, changingConfigurations = false)
+        }
+        PrivilegeUiStartGate.tryAcquireSilent()!!.close()
+    }
+
+    @Test
+    fun configurationDetachedHostDoesNotAcceptNewPermissionRequest() = runBlocking {
+        val application = application()
+        shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitEffectsEnabled()
+        val hostId = "permission-host"
+        viewModel.registerPermissionHost(hostId)
+        viewModel.unregisterPermissionHost(hostId, changingConfigurations = true)
+
+        viewModel.startNotificationPairing()
+
+        val silentPermit = PrivilegeUiStartGate.tryAcquireSilent()
+        assertNotNull(silentPermit)
+        silentPermit!!.close()
+        viewModel.registerPermissionHost(hostId)
+        viewModel.unregisterPermissionHost(hostId, changingConfigurations = false)
+    }
+
+    @Test
+    fun onlyOwningPermissionHostUnbindCancelsLaunchedRequest() = runBlocking {
+        val application = application()
+        shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitEffectsEnabled()
+        val ownerHostId = "owner-host"
+        val observerHostId = "observer-host"
+        viewModel.registerPermissionHost(ownerHostId)
+        viewModel.registerPermissionHost(observerHostId)
+
+        viewModel.startNotificationPairing()
+        val request = withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+            viewModel.permissionRequests.first()
+        }
+        assertTrue(request.tryMarkLaunched(ownerHostId))
+        assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+
+        viewModel.unregisterPermissionHost(observerHostId, changingConfigurations = false)
+        assertNull(PrivilegeUiStartGate.tryAcquireSilent())
+
+        viewModel.unregisterPermissionHost(ownerHostId, changingConfigurations = false)
+
+        val silentPermit = PrivilegeUiStartGate.tryAcquireSilent()
+        assertNotNull(silentPermit)
+        silentPermit!!.close()
+    }
+
+    @Test
+    fun permissionRequestIsRejectedAfterLastHostUnbinds() = runBlocking {
+        val application = application()
+        shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        viewModel.awaitEffectsEnabled()
+        val hostId = "permission-host"
+        viewModel.registerPermissionHost(hostId)
+        viewModel.unregisterPermissionHost(hostId, changingConfigurations = false)
+
+        viewModel.startNotificationPairing()
+
+        val silentPermit = PrivilegeUiStartGate.tryAcquireSilent()
+        assertNotNull(silentPermit)
+        silentPermit!!.close()
+    }
+
+    private class RootOnlyPrivilegeUiViewModel(
+        application: Application,
+    ) : PrivilegeUiViewModel(
+        application = application,
+        config = PrivilegeUiConfig(
+            startupModes = listOf(PrivilegeUiStartupMode.ROOT),
+            adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+        ),
+    )
+
+    private class ConfiguredPrivilegeUiViewModel(
+        application: Application,
+        config: PrivilegeUiConfig,
+    ) : PrivilegeUiViewModel(
+        application = application,
+        config = config,
+    )
+
+    private class HostEventPrivilegeUiViewModel(
+        application: Application,
+    ) : PrivilegeUiViewModel(
+        application = application,
+        config = PrivilegeUiConfig(
+            startupModes = listOf(PrivilegeUiStartupMode.ROOT),
+            adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+        ),
+    ) {
+        var backClickCount = 0
+            private set
+
+        override fun onBackClick(): Boolean {
+            backClickCount += 1
+            return true
+        }
+    }
+
+    private class HostResumePrivilegeUiViewModel(
+        application: Application,
+    ) : PrivilegeUiViewModel(
+        application = application,
+        config = PrivilegeUiConfig(
+            startupModes = listOf(PrivilegeUiStartupMode.ROOT),
+            adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+        ),
+    ) {
+        var hostResumeCount = 0
+            private set
+        var promptVisibleDuringHostResume: Boolean? = null
+            private set
+
+        override fun onHostResume() {
+            hostResumeCount += 1
+            promptVisibleDuringHostResume = batteryOptimizationPromptVisible.value
+        }
+    }
+
+    private class NotificationSettingsPrivilegeUiViewModel(
+        application: Application,
+    ) : PrivilegeUiViewModel(
+        application = application,
+        config = PrivilegeUiConfig(
+            startupModes = listOf(PrivilegeUiStartupMode.ROOT),
+            adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
+        ),
+    ) {
+        var openedContext: Context? = null
+            private set
+
+        override fun onNotificationPermissionSettingsRequested(context: Context) {
+            openedContext = context
+        }
+    }
+
+    private object TestExternalStartProvider : PrivilegeUiExternalStartProvider {
+        override val id: String = "test"
+        override val label: CharSequence = "Test"
+
+        override suspend fun start(
+            context: Context,
+            commandLine: String,
+        ) = Unit
+    }
+
+    private fun configuredViewModel(config: PrivilegeUiConfig): ConfiguredPrivilegeUiViewModel =
+        ConfiguredPrivilegeUiViewModel(
+            application = application(),
+            config = config,
+        )
+
+    private fun application(): Application =
+        (RuntimeEnvironment.getApplication() as Application).also(PrivilegeContext::install)
+
+    private suspend fun PrivilegeUiViewModel.awaitEffectsEnabled() {
+        withTimeout(TimeUnit.SECONDS.toMillis(2)) {
+            while (!uiEffectsEnabled.value) {
+                shadowOf(Looper.getMainLooper()).idle()
+                delay(1)
+            }
+        }
+    }
+
+    private fun PrivilegeUiViewModel.storeForTest(): PrivilegeUiViewModelStore {
+        val field = PrivilegeUiViewModel::class.java.getDeclaredField("store")
+        field.isAccessible = true
+        return field.get(this) as PrivilegeUiViewModelStore
+    }
+
+    private fun PrivilegeUiViewModel.adbActionsForTest(): PrivilegeUiAdbActions {
+        val field = PrivilegeUiViewModel::class.java.getDeclaredField("adbActions")
+        field.isAccessible = true
+        return field.get(this) as PrivilegeUiAdbActions
+    }
+
+    private fun PrivilegeUiViewModel.runtimeActionsForTest(): PrivilegeUiRuntimeActions {
+        val field = PrivilegeUiViewModel::class.java.getDeclaredField("runtimeActions")
+        field.isAccessible = true
+        return field.get(this) as PrivilegeUiRuntimeActions
+    }
+}

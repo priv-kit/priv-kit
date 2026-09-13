@@ -7,7 +7,8 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    // Kotlin/Wasm adds repositories for its Node.js and Binaryen build tools.
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
     repositories {
         google()
         mavenCentral()
@@ -21,6 +22,7 @@ include(
     ":priv-core",
     ":priv-adb-crypto",
     ":priv-ui",
+    ":priv-playground",
     ":priv-sample",
     ":hidden-api",
 )

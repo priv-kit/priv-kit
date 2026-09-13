@@ -41,7 +41,8 @@ Framework mirror 与 stub 位于 `:hidden-api`，其余源码 package 使用 `pr
 | `:priv-shared` | `priv-shared` | Android/JDK 底层原语、不变量和 hidden API 兼容 |
 | `:priv-core` | `priv-core` | Runtime、启动、server、Binder、文件代理、命令和 UserService |
 | `:priv-adb-crypto` | `priv-adb-crypto` | ADB 证书和 Wireless Debugging pairing 加密 |
-| `:priv-ui` | `priv-ui` | Compose 生命周期 UI 和精确静默恢复 |
+| `:priv-ui` | `priv-ui` | Android/JVM/WasmJS 共享页面与 Android 生命周期、恢复 |
+| `:priv-playground` | 不发布 | JVM 桌面与 WasmJS 浏览器展示宿主 |
 | `:priv-sample` | 不发布 | 公开能力示例 |
 | `:hidden-api` | 不发布 | 编译期 framework mirror 和 stub |
 
@@ -51,9 +52,12 @@ Framework mirror 与 stub 位于 `:hidden-api`，其余源码 package 使用 `pr
     -> implementation(:priv-adb-crypto)
     -> compileOnly(:hidden-api)
 
-:priv-ui
+:priv-ui (androidMain only)
     -> api(:priv-core)
     -> implementation(:priv-shared)
+
+:priv-playground
+    -> implementation(:priv-ui)
 
 :priv-shared
     -> compileOnly(:hidden-api)
@@ -205,7 +209,25 @@ pump，客户端消费时也同时读取两条 pipe，避免任一有限缓冲�
 
 ## UI 和恢复
 
-页面 UI 使用 Jetpack Compose。Notification pairing 的 `RemoteViews` XML 只用于通知。
+页面 UI 使用 Compose Multiplatform，布局、展示状态和操作回调位于 `:priv-ui/commonMain`。
+`androidMain` 将 Core 与 ViewModel 状态映射为纯展示数据，保留权限、生命周期和恢复处理。
+`PrivilegeScaffold` 保持 Android 接入方式；`PrivilegePreviewScaffold` 在三端共用布局，
+统一由 `PrivilegeUiSimulation` 内存状态驱动，复用相同页面、文案、配对和确认弹窗，
+不再维护静态禁用预览分支。Root、无线 ADB、静态
+端口与外部授权在可取消的延时后默认成功；手动页按会话生成随机安装路径，包名固定为
+`priv.kit.sample`，通过 `useLegacyPackaging` 切换解压库与 APK 内库的命令格式，顶部启动操作模拟执行。
+模拟不创建运行时、网络请求或系统权限操作；复制按钮只复制示例文本，宿主销毁会取消任务。
+中英文字符串以 `commonMain/composeResources` 为唯一源，同时生成 Compose 资源与 Android
+资源 ID，保留通知的同步解析路径。Notification pairing 的 `RemoteViews` XML 只用于通知。
+
+`:priv-playground` 是不发布的 JVM/WasmJS 展示工具。桌面入口创建窗口，浏览器入口导出
+接收容器的挂载函数；`priv-website/playground` 提供 Vue + Tailwind 展示组件，在客户端按需加载，
+离开页面或切换语言时清理容器。主题切换通过挂载函数返回的更新回调保留当前模拟状态。
+它的页面专属样式不进入 VitePress 文档页面。
+网站构建先通过 TypeScript 工具调用 Gradle，然后收集 Wasm、Skiko 和 Compose 资源到
+忽略的 `priv-playground/dist`，作为私有 workspace 包由页面 `import('priv-playground')`。
+包入口将 Compose 资源映射为静态 `new URL(..., import.meta.url)`，交给 Vite 处理资源路径和哈希。
+工具源码位于网站，不进入产品模块。
 
 静默恢复重放 UI 最近一次成功确认的精确启动方式。它使用现有授权，不发起新的用户交互，
 也不跨方式 fallback。匹配当前 UI operation 与 `launchCorrelationId` 的初始连接会保存
@@ -224,15 +246,25 @@ Gradle 产品模块使用 Kotlin。Java 保留给 hidden API stub、framework mi
 
 Node.js、TypeScript 和 SVG 用于文档、仓库检查和 CI。可执行工具源码使用 `.ts`。
 
-仓库根目录同时是 Gradle 项目和 pnpm workspace。Gradle 管理 Android/JVM 模块；
-pnpm workspace 仅包含 `website`，它不属于 Gradle 模块。根目录的 `package.json`
+仓库根目录同时是 Gradle 项目和 pnpm workspace。Gradle 管理 Android/JVM/WasmJS 模块；
+pnpm workspace 包含 `priv-website` 和仅用于浏览器构建的私有 `priv-playground` 包。
+`priv-website` 不属于 Gradle 模块；`priv-playground` 的 Kotlin 源码仍由 Gradle 编译。根目录的 `package.json`
 统一声明 Node.js 与 pnpm 版本，`pnpm-workspace.yaml` 管理包列表和依赖 catalog，
 `pnpm-lock.yaml` 锁定依赖。在根目录执行 `pnpm install --frozen-lockfile` 安装依赖，
 `pnpm dev`、`pnpm check`、`pnpm build` 和 `pnpm preview` 分别用于站点开发、检查、
-构建和预览；Android/JVM 构建继续使用 Gradle Wrapper。
+构建和预览；产品和展示宿主构建继续使用 Gradle Wrapper。
 
-VitePress 根目录和公开源目录都是 `website`。每个英文 Markdown 页面在 `website/zh`
-有路径等价的简体中文页。维护文档位于 `docs`。站点使用 VitePress 默认主题。
+Maven 发布使用 `publishedModuleNames` 白名单，仅包含 `priv-shared`、`priv-core`、
+`priv-adb-crypto`、`priv-ui`；新增模块默认不发布。
+
+VitePress 根目录和公开源目录都是 `priv-website`。每个英文 Markdown 页面在 `priv-website/zh`
+有路径等价的简体中文页。维护文档位于 `docs`。文档页面使用 VitePress 默认主题。
+`/playground/` 和 `/zh/playground/` 使用薄 Markdown 路由入口，通过 `layout: false` 和
+`ClientOnly` 挂载共享 Vue 组件。路径决定展示语言，直接访问时不按浏览器偏好重定向，
+语言切换沿用网站的偏好记录，外观共用网站主题状态；离开页面时恢复浏览器语言设置。
+Tailwind 接入网站主 Vite 配置，所有页面共用 `priv-website/tailwind.css`，不加载 Preflight。
+展示组件的局部样式不覆盖文档主题。Gradle 先编译 Wasm 包，然后由 VitePress 统一构建
+所有页面及资源到 `.vitepress/dist`，不再使用独立 Vite 构建、开发端口或 public 中转目录。
 
 `.github/workflows/website.yml` 通过 `pnpm dlx` 运行 Wrangler CLI 部署到
 `https://priv-kit.pages.dev`，使用 `CLOUDFLARE_API_TOKEN` 和
@@ -257,7 +289,7 @@ VitePress 根目录和公开源目录都是 `website`。每个英文 Markdown �
 ./gradlew :priv-sample:assembleRelease
 ```
 
-在 `website` 目录执行：
+在 `priv-website` 目录执行：
 
 ```shell
 pnpm check

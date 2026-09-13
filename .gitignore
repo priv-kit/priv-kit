@@ -9,5 +9,8 @@ node_modules/
 **/build/
 **/.cxx/
 
-website/.vitepress/cache/
-website/.vitepress/dist/
+priv-website/.vitepress/cache/
+priv-website/.vitepress/dist/
+
+priv-playground/dist/
+kotlin-js-store/
