@@ -12,6 +12,8 @@ Priv Kit 提供特权运行时基础设施，不封装 Android 系统操作的�
 
 [阅读完整文档](https://priv-kit.pages.dev/zh/)
 
+[在线体验 priv-playground](https://priv-kit.pages.dev/zh/playground/)
+
 <table>
   <tr>
     <td><img width="320" height="714" src="https://camo.githubusercontent.com/a22e4d6fa31e9e938bfe9a648f24dc0ddb2afa592fdad852dc4b8df953ad648a/687474703a2f2f652e676b642e6c692f32333461313665302d333463362d346364342d623631632d663632646332653761303838" /></td>
