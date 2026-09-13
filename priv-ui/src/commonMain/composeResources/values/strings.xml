@@ -89,7 +89,7 @@
     <string name="priv_ui_adb_static_control_action">Control</string>
     <string name="priv_ui_adb_static_control_dialog_title">Control static port</string>
     <string name="priv_ui_adb_connection_warning_title">ADB will restart</string>
-    <string name="priv_ui_adb_connection_warning_message">Starting or stopping the static port will restart ADB. All privileged processes started through ADB, including this app and other authorization services, will stop.</string>
+    <string name="priv_ui_adb_connection_warning_message">Starting or stopping the static port will restart ADB and stop the privileged subprocesses that this app and other authorization services started through ADB. The apps themselves can still run, but affected privileged features will be unavailable until the corresponding services restart.</string>
     <string name="priv_ui_adb_static_control_stop_action">Stop</string>
     <string name="priv_ui_adb_static_control_restart_action">Restart</string>
     <string name="priv_ui_adb_static_command_copied">Static port command copied</string>

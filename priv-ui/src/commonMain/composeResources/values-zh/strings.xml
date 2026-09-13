@@ -89,7 +89,7 @@
     <string name="priv_ui_adb_static_control_action">控制</string>
     <string name="priv_ui_adb_static_control_dialog_title">控制静态端口</string>
     <string name="priv_ui_adb_connection_warning_title">ADB 将重启</string>
-    <string name="priv_ui_adb_connection_warning_message">启动或关闭静态端口将导致 ADB 重启，所有通过 ADB 启动的特权进程（包括本应用和其他授权器）将停止运行。</string>
+    <string name="priv_ui_adb_connection_warning_message">启动或关闭静态端口会重启 ADB，并终止本应用及其他授权器通过 ADB 启动的特权子进程。应用本身仍可运行，但相关特权功能需在对应服务重新启动后才能恢复。</string>
     <string name="priv_ui_adb_static_control_stop_action">停止</string>
     <string name="priv_ui_adb_static_control_restart_action">重启</string>
     <string name="priv_ui_adb_static_command_copied">已复制静态端口命令</string>
