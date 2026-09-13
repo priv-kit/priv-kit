@@ -1,0 +1,234 @@
+---
+description: Use the recommended Compose authorization surface and configure exact silent replay.
+---
+
+# Privilege UI {#privilege-ui}
+
+`priv-ui` is the recommended starting point for Priv Kit integration. It
+provides runtime authorization status, startup entry points, and exact replay
+of the last successful foreground method through a Compose interface. The
+custom interfaces can use `priv-core` directly.
+
+## Public entry points {#public-entry-points}
+
+- `PrivilegeScaffold` provides the embedded Compose page.
+- `PrivilegeUiViewModel` is an open `AndroidViewModel` controller.
+- `PrivilegeUiConfig` enables startup modes and external providers.
+- `PrivilegeUiExternalStartProvider` integrates an app-owned external path.
+- `PrivilegeUi.desiredEnabled` exposes the persisted automatic-recovery intent
+  as a read-only process-wide `StateFlow<Boolean>`.
+- `PrivilegeUi.startSilently(...)` replays the last successful method while
+  automatic recovery is enabled. `ignoreAutomaticRecoverySetting = true`
+  explicitly bypasses that setting.
+
+## Keep one process-scoped configuration {#application-scoped-config}
+
+Create external providers and `PrivilegeUiConfig` once at process scope, then
+pass the same instance to the foreground ViewModel and the headless entry point:
+
+```kotlin
+val privilegeUiConfig by lazy {
+    PrivilegeUiConfig(
+        startupModes = listOf(
+            PrivilegeUiStartupMode.ROOT,
+            PrivilegeUiStartupMode.ADB,
+            PrivilegeUiStartupMode.MANUAL_SHELL,
+        ),
+        externalStartProviders = listOf(shizukuProvider),
+    )
+}
+
+val serverInfo = PrivilegeUi.startSilently(
+    config = privilegeUiConfig,
+)
+```
+
+The top-level property and its external providers use process-safe application
+state rather than retaining an `Activity`. Provider identifiers are persistent
+keys and stay stable across app upgrades.
+
+`startupModes` is an ordered list that controls the authorization tab order,
+and duplicate modes are rejected. With configured external providers,
+`EXTERNAL` keeps its listed position or is appended when omitted. With no
+external providers, the External tab is hidden even when `EXTERNAL` is listed.
+
+## Embed the scaffold {#embed-scaffold}
+
+```kotlin
+class MyPrivilegeUiViewModel(
+    application: Application,
+) : PrivilegeUiViewModel(
+    application,
+    privilegeUiConfig,
+) {
+    override fun onBackClick(): Boolean {
+        return true
+    }
+}
+
+PrivilegeScaffold(
+    viewModel = viewModel<MyPrivilegeUiViewModel>(),
+)
+```
+
+The scaffold owns its Activity Result launchers and returns permission results
+to the same suspended ViewModel operation.
+
+When a server is already connected, pressing a built-in Root, ADB, or external
+start button opens a restart confirmation. Cancelling leaves the current server
+untouched. Continuing asks the selected starter identity to kill the old
+process before starting its replacement. If that identity lacks permission to
+kill the old process, the attempt stops and the scaffold reports the failure in
+a Snackbar. Custom surfaces collect `serverRestartConfirmation`, render their
+own confirmation UX, then call `confirmServerRestart()` or `cancelServerRestart()`.
+The requesting start operation stays suspended until that decision returns, so
+the selected workflow continues in its original coroutine.
+
+## Observe the server state {#server-state}
+
+`PrivilegeScaffold` already observes the runtime internally to render its
+status. When other application features depend on the connection, observe the
+process-wide `Privilege.serverState` instead of a UI-specific callback.
+
+The state remains available whether or not `PrivilegeScaffold` is currently
+composed. [Startup methods](./activation#connection-state) shows
+both application-wide collection and screen-local rendering.
+
+Observe `PrivilegeUi.desiredEnabled` separately when a custom surface needs to
+show whether the user still wants automatic recovery:
+
+```kotlin
+val desiredEnabled by PrivilegeUi.desiredEnabled.collectAsStateWithLifecycle()
+```
+
+This read-only state persists across disconnections and failed replay. Server
+connectivity remains in `Privilege.serverState`.
+
+## ADB UI orchestration {#adb-ui}
+
+`priv-core` owns pairing, discovery, authorization, TCP/IP, and startup.
+`priv-ui` presents those operations and their user interactions through
+`PrivilegeScaffold`.
+
+Configure the UI-owned ADB flow through `PrivilegeUiConfig`:
+
+```kotlin
+val config = PrivilegeUiConfig(
+    tcpPort = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
+    adbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
+    enableManagedWirelessAdb = true,
+)
+```
+
+### Wireless Debugging UI {#wireless-debugging-ui}
+
+The ADB panel polls Wireless Debugging and pairing state only while that mode is
+selected. Its foreground flow can:
+
+- show the pairing dialog and submit the six-digit code through `priv-core`;
+- accept the code through the optional notification pairing flow;
+- request `ACCESS_LOCAL_NETWORK` when the platform requires it;
+- start Wireless Debugging after the saved ADB key is paired.
+
+The notification pairing service is internal to `priv-ui`; hosts interact with
+it through `PrivilegeScaffold`.
+When notification input is unavailable, the scaffold keeps the foreground
+pairing dialog available for a split-screen flow with Android Settings. Its
+warning returns continue-without-notifications, granted-in-settings, or cancel
+to the same suspended pairing operation.
+
+Hosts can reserve their own notification namespace through
+`PrivilegeUiConfig.notificationPairingChannelId` and
+`notificationPairingNotificationId`. The defaults are `priv_ui_adb_pairing`
+and `201`. The notification ID reserves two consecutive values: the configured
+value for foreground status and the next value for pairing-code input. Keep the
+channel ID stable and dedicated to this flow, and choose a notification ID from
+`1` through `Int.MAX_VALUE - 1` that does not collide with host notifications.
+`priv-ui` creates the configured channel on demand and does not delete it.
+
+Managed Wireless Debugging remains a `priv-core` capability. `priv-ui` reads
+its status and passes the selected policy to Core, which owns
+`Settings.Global` changes.
+
+### TCP/IP UI {#tcp-ip-ui}
+
+`PrivilegeUiConfig.tcpPort` selects the static port.
+`PrivilegeUiConfig.adbTcpPolicy` controls whether the UI disables TCP/IP,
+prefers an existing static endpoint, or offers to create one after Wireless
+Debugging is paired.
+
+Before the foreground flow asks `priv-core` to issue `adb tcpip`, the built-in
+scaffold shows a one-shot confirmation. Cancelling leaves ADB unchanged. A
+custom surface that calls `PrivilegeUiViewModel.enableTcpMode()` or
+`startStaticTcpAdb()` collects `staticTcpSwitchConfirmation`, shows its own
+warning, then calls `confirmStaticTcpSwitch()` or `cancelStaticTcpSwitch()`.
+
+The UI can request local ADB key authorization and continue the same suspended
+foreground operation after the system result. Passive status polling does not
+change ADB settings.
+
+Silent replay expects pairing, permissions, TCP authorization, and the static
+port to be ready. Otherwise it returns `null` and leaves interaction to the
+foreground flow.
+
+## Understand exact replay {#exact-replay}
+
+After a matching foreground operation receives its initial Binder connection,
+the UI stores one method identifier:
+
+- `root`
+- `adb-wireless`
+- `adb-tcpip`
+- `external:<providerId>`
+
+Silent replay is a headless, method-exact operation. It uses the saved method
+and returns `null` when history, authorization, or startup prerequisites are
+unavailable, leaving permission prompts, pairing, and external authorization to
+the foreground flow.
+
+Foreground and silent attempts share a process-local start gate. Multi-process
+apps choose one process to initialize and invoke Priv Kit startup.
+Accepted foreground effects retain their interactive lease until completion.
+While a silent attempt owns the gate, the built-in UI disables side-effecting
+entries and reconciles runtime state before enabling them again. A root manager
+may still show its own authorization UI when a remembered grant is no longer
+valid.
+
+A matching successful foreground launch enables automatic recovery. Initial
+connections outside a UI-owned foreground operation leave it unchanged. A
+confirmed stop or the built-in "Disable automatic recovery" action clears it;
+disconnection, server death, and failed replay preserve it.
+`PrivilegeUi.desiredEnabled` publishes this persisted intent independently of
+the current server connection.
+`startSilently(...)` respects automatic recovery by default.
+`ignoreAutomaticRecoverySetting = true` explicitly replays regardless of that
+setting.
+
+## Add Shizuku {#shizuku}
+
+`priv-ui` displays Shizuku through an application-owned
+`PrivilegeUiStreamingExternalStartProvider`. Its implementation should:
+
+- return Shizuku availability and permission state from `snapshot()`;
+- request permission and resume with the final state from
+  `requestAuthorization()`;
+- bind the Shizuku UserService in `start()` and pass the supplied
+  `commandLine` to `PrivilegeExternalStartup.runThroughBridge(...)`;
+- keep the provider ID stable so exact silent replay can find it after an app
+  upgrade.
+
+Register the provider in `PrivilegeUiConfig.externalStartProviders`, as shown
+above. The [external startup example](./activation#external) explains the
+Shizuku UserService AIDL, privileged endpoint, and binding. The sample contains
+a complete
+[Privilege UI provider](https://github.com/priv-kit/priv-kit/blob/main/priv-sample/src/main/kotlin/priv/kit/sample/startup/PrivilegeSampleUiIntegration.kt).
+
+## Multiplatform preview {#multiplatform-preview}
+
+`PrivilegePreviewScaffold()` displays the same page on Android, JVM, and WasmJS inside the host's Material 3 theme. In-memory simulation drives its normal states, buttons, and dialogs. It does not initialize a runtime or request permissions. Use `PrivilegeScaffold` for real Android integration.
+
+Startup, pairing, external authorization, and confirmation dialogs are interactive by default. Operations simulate success; pairing accepts any six digits. The manual tab provides a sample command, and the top Start service action simulates its execution. Copy buttons use the host clipboard, but no commands or system operations run. Closing the host discards the session. Try it in the [UI playground](/playground/).
+
+The manual command uses a randomly generated installation path for `priv.kit.sample`. Set `useLegacyPackaging = false` to show the `linker64` command for the library inside the APK; the default `true` shows the extracted library path. The playground provides this switch outside the canvas. Switching formats preserves the path and simulation state.
+
+Open the independent Vue playground using the **UI playground** navigation link.

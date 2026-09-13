@@ -1,0 +1,15 @@
+{
+  "name": "priv-playground",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": ["dist"],
+  "dependencies": {
+    "@js-joda/core": "3.2.0"
+  }
+}

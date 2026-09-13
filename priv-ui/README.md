@@ -1,11 +1,12 @@
 # priv-ui
 
-`priv-ui` is the optional Compose authorization and recovery module. Its public package root is
+`priv-ui` is the optional Compose Multiplatform authorization page and Android recovery module. Its public package root is
 `priv.kit.ui`.
 
 ## Main APIs
 
-- `PrivilegeScaffold` is the embedded authorization page.
+- `PrivilegeScaffold` is the Android authorization page with real runtime integration.
+- `PrivilegePreviewScaffold` displays the same page on Android, JVM, and WasmJS with in-memory simulated startup and dialogs.
 - `PrivilegeUiViewModel` is an open `AndroidViewModel` for custom hosts.
 - `PrivilegeUiConfig` configures startup modes, polling, notification pairing, and external
   providers.
@@ -118,6 +119,30 @@ main process bridges pipes and completion with `PrivilegeExternalStartup.runThro
 
 ## Text and localization
 
-Static UI and notification text lives in `src/main/res/values/strings.xml` with the `priv_ui_`
+Static UI and notification text shares `src/commonMain/composeResources/values/strings.xml` with the `priv_ui_
 prefix. Resource references stay unresolved until presentation so retained ViewModels follow the
 current application locale. External-provider messages and startup logs remain materialized text.
+
+## Multiplatform boundaries
+
+`commonMain` owns components, presentation models, callbacks, and English/Simplified Chinese resources.
+`androidMain` owns the existing ViewModel, Core integration, permission hosts, system prompts,
+notifications, and recovery. Only the Android variant depends on Core and Shared. Runtime objects
+are mapped to presentation values at the Android composition boundary; retained resource text is
+resolved against the current Android locale. Notification strings use Android IDs generated from
+the same XML source as Compose resources. Notification layouts remain Android-only.
+
+Wrap `PrivilegePreviewScaffold()` in the host's Material 3 theme. This entry point creates no
+ViewModel, Core runtime, polling job, permission request, or external provider. Its session-local
+simulation drives the shared page's normal states and actions. Root, Wireless ADB,
+static TCP, and external authorization default to success after a short cancellable delay. Any six
+digits complete pairing. Existing restart, stop, pairing, and TCP confirmation dialogs remain usable.
+The manual tab supplies a command with a randomly generated installation path for `priv.kit.sample`;
+the top Start service action simulates its execution. `useLegacyPackaging` (default `true`) selects
+the extracted library or in-APK linker command without resetting the simulated session.
+Copy actions use the host clipboard, but commands are never executed. Host disposal cancels pending work.
+The simulation shares presentation models and components with Android, not Android runtime operations.
+
+`:priv-playground` is the unpublished Desktop/Wasm host. `priv-website` embeds its Wasm output.
+Run `./gradlew :priv-ui:jvmTest :priv-ui:testAndroidHostTest` for shared presentation tests and
+the existing Android regression suite.

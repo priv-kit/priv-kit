@@ -1,5 +1,6 @@
 packages:
-  - website
+  - priv-playground
+  - priv-website
 
 catalog:
   '@types/node': ^25.9.3
