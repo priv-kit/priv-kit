@@ -15,6 +15,8 @@ for Android system operations.
 
 [Read the documentation](https://priv-kit.pages.dev)
 
+[Try priv-playground online](https://priv-kit.pages.dev/playground/)
+
 <table>
   <tr>
     <td><img width="320" height="714" src="https://camo.githubusercontent.com/d04f3d204dc5988ddfa12855265b6b7d1aea3f96719327f6b450482c7f7aa530/687474703a2f2f652e676b642e6c692f65343762366337642d366137612d346264392d383631342d666565336661303266656339" /></td>
