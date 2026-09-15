@@ -24,6 +24,10 @@ const englishSidebar = [
       { text: 'UserService', link: '/guide/user-service' },
     ],
   },
+  {
+    text: 'Community',
+    items: [{ text: 'Ecosystem', link: '/ecosystem' }],
+  },
 ];
 
 const chineseSidebar = [
@@ -44,6 +48,10 @@ const chineseSidebar = [
       { text: '命令执行', link: '/zh/guide/commands' },
       { text: 'UserService', link: '/zh/guide/user-service' },
     ],
+  },
+  {
+    text: '社区',
+    items: [{ text: '社区生态', link: '/zh/ecosystem' }],
   },
 ];
 
