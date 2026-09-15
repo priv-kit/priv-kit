@@ -1,5 +1,5 @@
 {
-  "name": "priv-kit-workspace",
+  "name": "@priv-kit/workspace",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,6 @@
     "@types/node": "catalog:",
     "@types/subset-font": "catalog:",
     "es-module-lexer": "catalog:",
-    "priv-playground": "workspace:*",
     "subset-font": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
