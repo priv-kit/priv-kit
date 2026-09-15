@@ -2,12 +2,15 @@
   "name": "@priv-kit/website",
   "private": true,
   "type": "module",
+  "dependencies": {
+    "@priv-kit/playground": "workspace:*"
+  },
   "scripts": {
     "type-check": "pnpm build:wasm && vue-tsc --noEmit",
     "dev": "pnpm build:wasm && vitepress dev .",
     "check": "pnpm type-check && node --test .vitepress/theme/language-preference.test.ts playground/wasmDownloadProgress.test.ts && node scripts/check-docs.ts",
     "build": "pnpm check && vitepress build .",
     "preview": "vitepress preview .",
-    "build:wasm": "pnpm --filter priv-playground build:wasm"
+    "build:wasm": "pnpm --filter @priv-kit/playground build:wasm"
   }
 }

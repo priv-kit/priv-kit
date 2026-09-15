@@ -1,5 +1,5 @@
 {
-  "name": "priv-playground",
+  "name": "@priv-kit/playground",
   "private": true,
   "type": "module",
   "scripts": {
@@ -7,14 +7,8 @@
     "check": "tsc --noEmit && node --test scripts/font-characters.test.ts"
   },
   "exports": {
-    ".": {
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
-    },
-    "./wasm-assets": {
-      "types": "./dist/wasm-assets.d.mts",
-      "import": "./dist/wasm-assets.mjs"
-    }
+    ".": "./dist/index.mjs",
+    "./wasm-assets": "./dist/wasm-assets.mjs"
   },
   "files": [
     "dist"

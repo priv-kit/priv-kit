@@ -7,7 +7,7 @@ let runtimeMounted = false;
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useData, withBase } from 'vitepress';
-import { wasmAssets } from 'priv-playground/wasm-assets';
+import { wasmAssets } from '@priv-kit/playground/wasm-assets';
 import { createTrackedWasmFetch, type WasmDownloadProgress } from './wasmDownloadProgress.ts';
 
 const { lang, isDark: dark } = useData();
@@ -108,7 +108,7 @@ async function mount() {
       scheduleProgressUpdate(reuseRuntime ? { ...progress, determinate: false } : progress);
     });
     window.fetch = trackedFetch;
-    const { renderPrivilegePlayground } = await import('priv-playground');
+    const { renderPrivilegePlayground } = await import('@priv-kit/playground');
     if (generation !== current) return;
     if (reuseRuntime && runtimeMounted) loadingPhase.value = 'starting';
     observer = new MutationObserver(() => {

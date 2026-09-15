@@ -251,9 +251,6 @@ importers:
       es-module-lexer:
         specifier: 'catalog:'
         version: 2.3.2
-      priv-playground:
-        specifier: workspace:*
-        version: link:priv-playground
       subset-font:
         specifier: 'catalog:'
         version: 2.7.0
@@ -278,7 +275,11 @@ importers:
 
   priv-playground: {}
 
-  priv-website: {}
+  priv-website:
+    dependencies:
+      '@priv-kit/playground':
+        specifier: workspace:*
+        version: link:../priv-playground
 
 packages:
 

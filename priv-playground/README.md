@@ -27,9 +27,9 @@ Open `/playground/` or `/zh/playground/`. The Vue page provides
 language, appearance, and `useLegacyPackaging` controls outside the canvas. `priv-playground/scripts/build-playground.ts` builds the Wasm executable and assembles
 the entry module, Wasm, Skiko, and Compose resources in the ignored `priv-playground/dist` directory.
 The private workspace package exposes `renderPrivilegePlayground(container, dark, useLegacyPackaging)` with its resource resolver
-already configured. The Vue page loads it with `import('priv-playground')`; Vite bundles its dependencies and
+already configured. The Vue page loads it with `import('@priv-kit/playground')`; Vite bundles its dependencies and
 fingerprints the Wasm, font, and string resources into `priv-website/.vitepress/dist/assets`.
-The `priv-playground/wasm-assets` export contains build-time Wasm sizes without loading the runtime.
+The `@priv-kit/playground/wasm-assets` export contains build-time Wasm sizes without loading the runtime.
 The Vue loading overlay tracks streamed Wasm response bytes to show download progress, then switches
 to startup status. Fetch tracking is removed on readiness, failure, or unmount.
 Thin localized Markdown pages mount the component through `ClientOnly` with `layout: false`.
@@ -41,7 +41,7 @@ The manual command uses a session-local installation path with two URL-safe Base
 and the fixed package name `priv.kit.sample`. Packaging defaults to `true` (extracted ARM64 library); `false`
 shows the `linker64` command for the library inside `base.apk`. Switching formats retains the installation path.
 Changing the language opens a new localized page session.
-Build the package with `pnpm --filter priv-playground build:wasm` before importing it outside the website scripts.
+Build the package with `pnpm --filter @priv-kit/playground build:wasm` before importing it outside the website scripts.
 No npm or Maven artifact is published for this module.
 
 The playground bundles Noto Sans SC from the Google Fonts repository to render Chinese in Wasm.
@@ -55,4 +55,4 @@ Git's standard ignore rules apply, including nested `.gitignore` files; untracke
 are included, while ignored files are excluded even when tracked. Source text is scanned
 literally, without decoding Kotlin escapes or XML entities. Characters absent from the original
 font cannot be added by subsetting, and arbitrary user input may still need font fallback.
-Run `pnpm --filter priv-playground check` to check the TypeScript tooling and scan behavior.
+Run `pnpm --filter @priv-kit/playground check` to check the TypeScript tooling and scan behavior.

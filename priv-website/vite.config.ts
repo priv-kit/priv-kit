@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   plugins: [tailwindcss()],
   build: { chunkSizeWarningLimit: 1000 },
-  optimizeDeps: { exclude: ['priv-playground'] },
+  optimizeDeps: { exclude: ['@priv-kit/playground'] },
   server: {
     host: '127.0.0.1',
     port: 8020,
