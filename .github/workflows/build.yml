@@ -29,6 +29,8 @@ jobs:
           java-version: '21'
 
       - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
 
       - run: ./gradlew publishToMavenLocal
 
