@@ -24,6 +24,8 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      PRIV_KIT_SKIP_ANDROID: 'true'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -33,10 +35,6 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
-
-      - uses: android-actions/setup-android@v4
-        with:
-          packages: platform-tools
 
       - uses: pnpm/setup@v2
 

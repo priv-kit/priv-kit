@@ -1,14 +1,21 @@
+import com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryTarget
+import com.android.build.api.variant.KotlinMultiplatformAndroidComponentsExtension
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.android.kotlin.multiplatform.library)
+    alias(libs.plugins.android.kotlin.multiplatform.library) apply false
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.kotlin.compose)
 }
 
+val skipAndroid = providers.environmentVariable("PRIV_KIT_SKIP_ANDROID").isPresent
+if (!skipAndroid) {
+    pluginManager.apply("com.android.kotlin.multiplatform.library")
+}
+
 kotlin {
-    android {
+    targets.withType<KotlinMultiplatformAndroidLibraryTarget>().configureEach {
         namespace = "priv.kit.ui"
         androidResources.enable = true
         withHostTest { isIncludeAndroidResources = true }
@@ -32,22 +39,24 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
             runtimeOnly(compose.desktop.currentOs)
         }
-        androidMain.dependencies {
-            api(project(":priv-core"))
-            implementation(project(":priv-shared"))
-            implementation(libs.androidx.activity.compose)
-            implementation(libs.androidx.core.ktx)
-            api(libs.androidx.lifecycle.viewmodel)
-            implementation(libs.androidx.lifecycle.runtime.compose)
-            implementation(libs.androidx.lifecycle.runtime.ktx)
-            implementation(libs.androidx.lifecycle.viewmodel.compose)
-            api(libs.androidx.lifecycle.service)
-            compileOnly(libs.androidx.annotation)
-        }
-        getByName("androidHostTest").dependencies {
-            implementation(libs.junit)
-            implementation(libs.kotlinx.coroutines.test)
-            implementation(libs.robolectric)
+        if (!skipAndroid) {
+            getByName("androidMain").dependencies {
+                api(project(":priv-core"))
+                implementation(project(":priv-shared"))
+                implementation(libs.androidx.activity.compose)
+                implementation(libs.androidx.core.ktx)
+                api(libs.androidx.lifecycle.viewmodel)
+                implementation(libs.androidx.lifecycle.runtime.compose)
+                implementation(libs.androidx.lifecycle.runtime.ktx)
+                implementation(libs.androidx.lifecycle.viewmodel.compose)
+                api(libs.androidx.lifecycle.service)
+                compileOnly(libs.androidx.annotation)
+            }
+            getByName("androidHostTest").dependencies {
+                implementation(libs.junit)
+                implementation(libs.kotlinx.coroutines.test)
+                implementation(libs.robolectric)
+            }
         }
     }
 }
@@ -57,8 +66,10 @@ compose.resources {
 }
 
 // The same XML strings serve Compose resources and Android's synchronous notification text.
-androidComponents {
-    onVariants { variant ->
-        variant.sources.res?.addStaticSourceDirectory("src/commonMain/composeResources")
+pluginManager.withPlugin("com.android.kotlin.multiplatform.library") {
+    extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
+        onVariants { variant ->
+            variant.sources.res?.addStaticSourceDirectory("src/commonMain/composeResources")
+        }
     }
 }
