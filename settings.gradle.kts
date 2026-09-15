@@ -17,12 +17,14 @@ dependencyResolutionManagement {
 
 rootProject.name = "priv-kit"
 
-include(
-    ":priv-shared",
-    ":priv-core",
-    ":priv-adb-crypto",
-    ":priv-ui",
-    ":priv-playground",
-    ":priv-sample",
-    ":hidden-api",
-)
+include(":priv-ui", ":priv-playground")
+
+if (!providers.environmentVariable("PRIV_KIT_SKIP_ANDROID").isPresent) {
+    include(
+        ":priv-shared",
+        ":priv-core",
+        ":priv-adb-crypto",
+        ":priv-sample",
+        ":hidden-api",
+    )
+}

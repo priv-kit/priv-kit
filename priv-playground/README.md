@@ -23,6 +23,12 @@ Run the website from the repository root:
 pnpm dev
 ```
 
+Set the `PRIV_KIT_SKIP_ANDROID` environment variable to build or run the website without an
+Android SDK or NDK. Only its presence matters; its value is ignored.
+This mode loads only `:priv-ui` and `:priv-playground` and disables the UI module's Android
+target. Java is still required for Gradle. The website workflow enables this mode; leave
+the variable unset for Android builds and publishing.
+
 Open `/playground/` or `/zh/playground/`. The Vue page provides
 language, appearance, and `useLegacyPackaging` controls outside the canvas. `priv-playground/scripts/build-playground.ts` builds the Wasm executable and assembles
 the entry module, Wasm, Skiko, and Compose resources in the ignored `priv-playground/dist` directory.
