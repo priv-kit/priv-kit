@@ -6,11 +6,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import priv.kit.core.Privilege
+import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeUserServiceConnection
 import priv.kit.sample.startup.PrivilegeSampleShizukuExternalStarter
 import priv.kit.sample.userservice.IPrivilegeSampleDedicatedUserService
@@ -24,6 +29,49 @@ internal class PrivilegeSampleDebugViewModel : ViewModel() {
     )
     var selectedStartupTab by mutableStateOf<PrivilegeStartupTab>(PrivilegeStartupTab.Root)
     var serverWatcherJob: Job? = null
+    private var deniedPermissionsJob: Job? = null
+    private var deniedPermissionsServer: PrivilegeServerInfo? = null
+
+    fun updateDeniedPermissionsServer(serverInfo: PrivilegeServerInfo?) {
+        if (deniedPermissionsServer == serverInfo) return
+        deniedPermissionsServer = serverInfo
+        deniedPermissionsJob?.cancel()
+        deniedPermissionsJob = null
+        screenState = screenState.copy(
+            deniedPermissionsLoading = false,
+            deniedPermissions = null,
+            deniedPermissionsError = null,
+        )
+        if (selectedDebugDestination == PrivilegeSampleDebugDestination.Permissions) refreshDeniedPermissions()
+    }
+
+    fun refreshDeniedPermissions() {
+        val server = deniedPermissionsServer ?: return
+        if (screenState.deniedPermissionsLoading || Privilege.serverState.value != server) return
+        screenState = screenState.copy(
+            deniedPermissionsLoading = true,
+            deniedPermissions = null,
+            deniedPermissionsError = null,
+        )
+        deniedPermissionsJob = viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    check(Privilege.serverState.value == server) { "Server connection changed" }
+                    Result.success(Privilege.getDeniedServerPermissions())
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (exception: Exception) {
+                    Result.failure(exception)
+                }
+            }
+            if (deniedPermissionsServer != server || Privilege.serverState.value != server) return@launch
+            screenState = screenState.copy(
+                deniedPermissionsLoading = false,
+                deniedPermissions = result.getOrNull(),
+                deniedPermissionsError = result.exceptionOrNull()?.let { it.message ?: it.javaClass.name },
+            )
+        }
+    }
     var sampleMqsNativeBinder: IBinder? = null
     var sampleUserManager: PrivilegeSampleUserManagerProxy? = null
     var dedicatedUserServiceConnection: PrivilegeUserServiceConnection? = null
@@ -38,6 +86,11 @@ internal class PrivilegeSampleDebugViewModel : ViewModel() {
 
     fun selectDebugDestination(destination: PrivilegeSampleDebugDestination) {
         selectedDebugDestination = destination
+        if (destination == PrivilegeSampleDebugDestination.Permissions && screenState.deniedPermissions == null &&
+            screenState.deniedPermissionsError == null
+        ) {
+            refreshDeniedPermissions()
+        }
     }
 
     fun selectStartupTab(tab: PrivilegeStartupTab) {

@@ -29,6 +29,13 @@ The sample includes Root, manual shell, Shizuku-backed external startup, Wireles
 TCP. Debug pages exercise server state, Binder death, raw system-service transactions, and both
 dedicated and embedded UserService modes.
 
+The horizontally scrollable debug tabs include Test Permissions after Test UserService. Open it to
+query denied server permissions, select and copy permission names, or refresh the snapshot.
+Connection changes clear the result; the Permissions page reloads for the new server while selected.
+Root returns an empty list.
+The query covers denied manifest permissions of packages associated with the server UID, not
+AppOps, SELinux, or service-specific restrictions; an empty list is not a capability guarantee.
+
 File examples cover creation, streams, metadata, rename, atomic replacement, directory walking,
 recursive deletion, and bounded text or hexadecimal previews. The device browser keeps names
 visible when enumeration succeeds but metadata access is denied.

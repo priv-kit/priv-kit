@@ -18,8 +18,12 @@ internal sealed interface PrivilegeSampleDebugDestination {
         override val title: String = "Test UserService"
     }
 
+    data object Permissions : PrivilegeSampleDebugDestination {
+        override val title: String = "Test Permissions"
+    }
+
     companion object {
-        val entries: List<PrivilegeSampleDebugDestination> = listOf(Connection, Binder, UserService)
+        val entries: List<PrivilegeSampleDebugDestination> = listOf(Connection, Binder, UserService, Permissions)
     }
 }
 
@@ -93,6 +97,9 @@ internal data class PrivilegeSampleScreenState(
     val busy: Boolean = false,
     val status: PrivilegeSampleStatus = PrivilegeSampleStatus.DISCONNECTED,
     val serverInfo: PrivilegeServerInfo? = null,
+    val deniedPermissionsLoading: Boolean = false,
+    val deniedPermissions: List<String>? = null,
+    val deniedPermissionsError: String? = null,
     val manualShellCommandLine: String? = null,
     val adbDeviceNameText: String = "",
     val adbDeviceName: String = "",

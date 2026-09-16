@@ -144,6 +144,10 @@ Package permission 相关公开方法是 `checkPermission`、`grantRuntimePermis
 枚举其 UID 关联包声明的权限，并返回按服务端 PID/UID 检查为 denied 的权限名；结果不包含
 AppOps、SELinux 或系统服务内部策略。权限策略和更高层流程由应用定义。
 
+服务端 PID/UID 权限检查统一通过 `:priv-shared` 直接调用 ActivityManager，绕过
+Context 的进程内权限缓存，避免厂商 Shell 限制开关未触发缓存失效时返回旧结果。
+该路径同时用于拒绝权限列表、单项服务端权限检查及 `isPermissionRestricted`。
+
 Fallback 保留远端结果的不确定性。具有副作用的调用在连接中断后由应用根据幂等性决定
 恢复方式。
 

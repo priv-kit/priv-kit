@@ -8,7 +8,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
@@ -105,9 +104,10 @@ internal fun PrivilegeSampleDebugHost.clearLog() {
 internal fun PrivilegeSampleDebugHost.watchServerState() {
     sampleViewModel.serverWatcherJob?.cancel()
     sampleViewModel.serverWatcherJob = sampleViewModel.viewModelScope.launch {
-        Privilege.serverState.dropWhile { it == null }.collect { serverInfo ->
+        Privilege.serverState.collect { serverInfo ->
+            sampleViewModel.updateDeniedPermissionsServer(serverInfo)
             if (serverInfo == null) {
-                handleServerDisconnected()
+                if (screenState.serverInfo != null) handleServerDisconnected()
             } else {
             connectServer(serverInfo, commandLine = null)
             appendLog(

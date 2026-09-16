@@ -88,6 +88,7 @@ internal class PrivilegeSampleDebugController(
             destinationSelected = debugViewModel::selectDebugDestination,
             startupTabSelected = debugViewModel::selectStartupTab,
             connection = PrivilegeSampleConnectionCallbacks(
+                refreshDeniedPermissions = debugViewModel::refreshDeniedPermissions,
                 adbDeviceNameChanged = { updateAdbDeviceName(it) },
                 refreshAdbFingerprint = { refreshAdbFingerprint() },
                 checkAdbPairing = { checkWirelessAdbPairing(showBusy = true) },
