@@ -100,6 +100,68 @@ val deniedPermissions = withContext(Dispatchers.IO) {
 执行的授权，因此空列表不保证所有操作都能成功。如果应用只需确认一个已知权限，请直接
 调用 `Privilege.checkServerPermission(permission)`。
 
+#### Redmi K40 实测示例 {#denied-permissions-device-example}
+
+以下结果来自同一台设备，以 Shell 身份（UID `2000`）运行服务端：
+
+| 项目 | 实测环境 |
+| --- | --- |
+| 设备市场名 | Redmi K40（型号 `M2012K11AC`） |
+| 系统名称与版本 | Xiaomi HyperOS 1.0（小米澎湃 OS），`OS1.0.10.0.TKHCNXM` |
+| Android 版本 | Android 13（API 33） |
+
+连接服务端后，在协程中调用并按行输出：
+
+```kotlin
+val deniedPermissions = withContext(Dispatchers.IO) {
+    Privilege.getDeniedServerPermissions()
+}
+println(deniedPermissions.joinToString("\n"))
+```
+
+以下两组结果分别对应这个开关的开启和关闭：
+
+**开发者选项 - USB调试（安全设置） / 允许通过USB调试修改权限或模拟点击**。
+
+切换开关后，再次调用即可读取当前结果，无需重启特权进程。
+
+**“USB调试（安全设置）”开启时：仍有 5 项权限被拒绝。**
+
+```text
+android.permission.DEBUG_VIRTUAL_MACHINE
+android.permission.MANAGE_VIRTUAL_MACHINE
+android.permission.MANAGE_WIFI_WHEN_WIRELESS_CONSENT_REQUIRED
+com.android.providers.tv.permission.ACCESS_WATCHED_PROGRAMS
+com.android.providers.tv.permission.WRITE_EPG_DATA
+```
+
+**“USB调试（安全设置）”关闭时：有 19 项权限被拒绝。**
+
+```text
+android.permission.CALL_PHONE
+android.permission.CLEAR_APP_USER_DATA
+android.permission.DEBUG_VIRTUAL_MACHINE
+android.permission.GRANT_RUNTIME_PERMISSIONS
+android.permission.INJECT_EVENTS
+android.permission.INSTALL_GRANT_RUNTIME_PERMISSIONS
+android.permission.MANAGE_DEVICE_ADMINS
+android.permission.MANAGE_VIRTUAL_MACHINE
+android.permission.MANAGE_WIFI_WHEN_WIRELESS_CONSENT_REQUIRED
+android.permission.READ_CONTACTS
+android.permission.REVOKE_RUNTIME_PERMISSIONS
+android.permission.SEND_SMS
+android.permission.SET_PREFERRED_APPLICATIONS
+android.permission.UPDATE_APP_OPS_STATS
+android.permission.WRITE_CONTACTS
+android.permission.WRITE_SECURE_SETTINGS
+android.permission.WRITE_SETTINGS
+com.android.providers.tv.permission.ACCESS_WATCHED_PROGRAMS
+com.android.providers.tv.permission.WRITE_EPG_DATA
+```
+
+两组输出都是**被拒绝的权限**，不是已授予的权限列表。这些结果只代表上述设备和系统
+版本，不应作为其他设备的固定预期值；应用应以每次调用的实际返回值为准。
+
 ### Root {#root}
 
 ```kotlin
