@@ -3,6 +3,7 @@ package priv.kit.core.internal.server
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import priv.kit.shared.PrivilegeProcessPermissions
 
 internal class PrivilegeServerPermissionReader private constructor(
     private val packagesForUid: (Int) -> Array<String>?,
@@ -56,7 +57,7 @@ internal class PrivilegeServerPermissionReader private constructor(
                     }
                     packageInfo.requestedPermissions
                 },
-                checkPermission = context::checkPermission,
+                checkPermission = PrivilegeProcessPermissions::check,
             )
         }
 

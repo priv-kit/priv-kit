@@ -12,6 +12,7 @@ internal data class PrivilegeSampleDebugCallbacks(
 )
 
 internal data class PrivilegeSampleConnectionCallbacks(
+    val refreshDeniedPermissions: () -> Unit,
     val adbDeviceNameChanged: (String) -> Unit,
     val refreshAdbFingerprint: () -> Unit,
     val checkAdbPairing: () -> Unit,

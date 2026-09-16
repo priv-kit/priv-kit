@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -29,6 +32,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -116,16 +120,39 @@ private fun DestinationTabs(
     busy: Boolean,
     onDestinationSelected: (PrivilegeSampleDebugDestination) -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        PrivilegeSampleDebugDestination.entries.forEach { destination ->
+    val selectedIndex = PrivilegeSampleDebugDestination.entries.indexOf(selectedDestination)
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex)
+    LaunchedEffect(selectedIndex) {
+        listState.animateScrollToItem(selectedIndex)
+    }
+    val colors = MaterialTheme.colorScheme
+    LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(PrivilegeSampleDebugDestination.entries, key = { it.title }) { destination ->
             val selected = destination == selectedDestination
-            SampleAction(
-                label = destination.title,
-                enabled = !busy || selected,
-                tone = if (selected) SampleActionTone.Primary else SampleActionTone.Neutral,
-                modifier = Modifier.weight(1f),
+            Box(
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (selected) colors.primary else colors.surfaceContainerHighest)
+                    .clickable(enabled = !busy || selected, role = Role.Tab) {
+                        onDestinationSelected(destination)
+                    }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                onDestinationSelected(destination)
+                BasicText(
+                    text = destination.title,
+                    maxLines = 1,
+                    style = TextStyle(
+                        color = when {
+                            selected -> colors.onPrimary
+                            busy -> colors.onSurface.copy(alpha = 0.38f)
+                            else -> colors.onSurface
+                        },
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                )
             }
         }
     }

@@ -85,6 +85,11 @@ packages associated with the server UID declare but the server PID/UID is denied
 inspect AppOps, SELinux, or service-specific authorization, and an empty result is not a general
 capability guarantee. Domain policy stays with the integrating app.
 
+Server PID/UID permission checks, including `checkServerPermission()` and
+`isPermissionRestricted()`, query ActivityManager directly. They bypass the process-local
+Context permission cache so vendor shell restrictions can be refreshed without restarting
+the server even when the vendor setting does not invalidate that cache.
+
 UserService lifecycle methods are suspending operations backed by a bounded asynchronous Binder
 protocol. Cancellation removes pending work and unaccepted resources. Connection unbind is
 idempotent and completes its cleanup in a non-cancellable context.

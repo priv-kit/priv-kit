@@ -9,6 +9,8 @@ import androidx.annotation.DeprecatedSinceApi;
 import androidx.annotation.RequiresApi;
 
 public interface IActivityManager extends IInterface {
+    int checkPermission(String permission, int pid, int uid);
+
     @DeprecatedSinceApi(api = Build.VERSION_CODES.Q)
     ContentProviderHolder getContentProviderExternal(String name, int userId, IBinder token);
 
