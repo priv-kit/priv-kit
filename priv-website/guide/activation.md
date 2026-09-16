@@ -112,6 +112,72 @@ services, so an empty list does not guarantee that every operation will
 succeed. Use `Privilege.checkServerPermission(permission)` when the host needs
 to test one known permission directly.
 
+#### Redmi K40 example {#denied-permissions-device-example}
+
+These results were captured on the same device with the server running as Shell (UID `2000`):
+
+| Item | Test environment |
+| --- | --- |
+| Device market name | Redmi K40 (model `M2012K11AC`) |
+| System name and version | Xiaomi HyperOS 1.0, `OS1.0.10.0.TKHCNXM` |
+| Android version | Android 13 (API 33) |
+
+After connecting the server, call the method from a coroutine and print one permission per line:
+
+```kotlin
+val deniedPermissions = withContext(Dispatchers.IO) {
+    Privilege.getDeniedServerPermissions()
+}
+println(deniedPermissions.joinToString("\n"))
+```
+
+The two outputs below correspond to enabling and disabling this switch:
+
+**Developer options - USB debugging (Security settings) / Allow modifying permissions or simulating
+input via USB debugging**. On the tested device, its Chinese label and description are
+**开发者选项 - USB调试（安全设置） / 允许通过USB调试修改权限或模拟点击**.
+
+After changing the switch, call the method again for the current result; the privileged process
+does not need to restart.
+
+**USB debugging (Security settings) enabled: 5 permissions are still denied.**
+
+```text
+android.permission.DEBUG_VIRTUAL_MACHINE
+android.permission.MANAGE_VIRTUAL_MACHINE
+android.permission.MANAGE_WIFI_WHEN_WIRELESS_CONSENT_REQUIRED
+com.android.providers.tv.permission.ACCESS_WATCHED_PROGRAMS
+com.android.providers.tv.permission.WRITE_EPG_DATA
+```
+
+**USB debugging (Security settings) disabled: 19 permissions are denied.**
+
+```text
+android.permission.CALL_PHONE
+android.permission.CLEAR_APP_USER_DATA
+android.permission.DEBUG_VIRTUAL_MACHINE
+android.permission.GRANT_RUNTIME_PERMISSIONS
+android.permission.INJECT_EVENTS
+android.permission.INSTALL_GRANT_RUNTIME_PERMISSIONS
+android.permission.MANAGE_DEVICE_ADMINS
+android.permission.MANAGE_VIRTUAL_MACHINE
+android.permission.MANAGE_WIFI_WHEN_WIRELESS_CONSENT_REQUIRED
+android.permission.READ_CONTACTS
+android.permission.REVOKE_RUNTIME_PERMISSIONS
+android.permission.SEND_SMS
+android.permission.SET_PREFERRED_APPLICATIONS
+android.permission.UPDATE_APP_OPS_STATS
+android.permission.WRITE_CONTACTS
+android.permission.WRITE_SECURE_SETTINGS
+android.permission.WRITE_SETTINGS
+com.android.providers.tv.permission.ACCESS_WATCHED_PROGRAMS
+com.android.providers.tv.permission.WRITE_EPG_DATA
+```
+
+Both outputs list **denied permissions**, not granted permissions. They describe only the device
+and system version above and are not fixed expectations for other devices. Use the actual result
+of each call in your application.
+
 ### Root {#root}
 
 ```kotlin
