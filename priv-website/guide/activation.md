@@ -174,6 +174,10 @@ com.android.providers.tv.permission.ACCESS_WATCHED_PROGRAMS
 com.android.providers.tv.permission.WRITE_EPG_DATA
 ```
 
+On this device, disabling the setting prevents the privileged process running as Shell from
+performing operations protected by these permissions, such as simulating screen taps, changing
+system settings, or granting and revoking app permissions.
+
 Both outputs list **denied permissions**, not granted permissions. They describe only the device
 and system version above and are not fixed expectations for other devices. Use the actual result
 of each call in your application.

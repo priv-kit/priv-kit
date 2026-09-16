@@ -159,6 +159,9 @@ com.android.providers.tv.permission.ACCESS_WATCHED_PROGRAMS
 com.android.providers.tv.permission.WRITE_EPG_DATA
 ```
 
+这意味着，在上述设备上关闭此设置后，以 Shell 身份运行的特权进程无法执行模拟点击
+屏幕、修改系统设置、授予或撤销应用权限等受这些权限保护的操作。
+
 两组输出都是**被拒绝的权限**，不是已授予的权限列表。这些结果只代表上述设备和系统
 版本，不应作为其他设备的固定预期值；应用应以每次调用的实际返回值为准。
 
