@@ -5,8 +5,8 @@ Keep only the changes for the current release in this file.
 Replace the content when preparing the next release; release history is preserved by GitHub Releases.
 -->
 
-- Add a Compose Multiplatform UI playground for desktop and browser with simulated authorization
-  and startup flows, linked from the READMEs.
-- Reduce browser playground font downloads with font subsetting and show Wasm loading progress.
-- Clarify in English and Simplified Chinese that restarting ADB stops privileged subprocesses,
-  while the apps themselves can still run.
+- Fix stale server permission results after changing vendor USB debugging security settings.
+  Permission checks and denied-permission lists now update without restarting the privileged server.
+- Add a Test Permissions page to the sample app with refreshable denied-permission diagnostics
+  and horizontally scrollable debug tabs.
+- Add a community ecosystem documentation page and improve website build and release workflows.
