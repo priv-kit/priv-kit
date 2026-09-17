@@ -1,9 +1,10 @@
 package priv.kit.sample.command
 
+import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
@@ -16,16 +17,17 @@ import priv.kit.core.Privilege
 import priv.kit.core.command.PrivilegeCommand
 import priv.kit.core.command.PrivilegeCommandEvent
 import priv.kit.core.command.PrivilegeCommandProcess
+import priv.kit.sample.R
 import priv.kit.sample.common.toDiagnosticString
 
-internal class PrivilegeSampleCommandViewModel : ViewModel() {
-    var state by mutableStateOf(PrivilegeSampleCommandState())
+internal class PrivilegeSampleCommandViewModel(application: Application) : AndroidViewModel(application) {
+    var state by mutableStateOf(PrivilegeSampleCommandState(status = application.getString(R.string.sample_ready_status)))
         private set
 
     private var operationJob: Job? = null
 
     fun onServerDisconnected() {
-        cancel("Server disconnected")
+        cancel(getApplication<Application>().getString(R.string.sample_server_disconnected))
     }
 
     fun updateCommand(value: String) {
@@ -49,7 +51,7 @@ internal class PrivilegeSampleCommandViewModel : ViewModel() {
         runCommand(streaming = false)
     }
 
-    fun cancel(status: String = "Cancelled") {
+    fun cancel(status: String = getApplication<Application>().getString(R.string.sample_cancelled)) {
         val job = operationJob ?: return
         operationJob = null
         job.cancel()
@@ -66,7 +68,7 @@ internal class PrivilegeSampleCommandViewModel : ViewModel() {
             stderr = "",
             stdoutTruncated = false,
             stderrTruncated = false,
-            status = "Ready",
+            status = getApplication<Application>().getString(R.string.sample_ready_status),
         )
     }
 
@@ -74,7 +76,7 @@ internal class PrivilegeSampleCommandViewModel : ViewModel() {
         if (state.isRunning) return
         val commandText = state.commandText.trim()
         if (commandText.isEmpty()) {
-            state = state.copy(inputError = "Enter a shell command.")
+            state = state.copy(inputError = getApplication<Application>().getString(R.string.sample_enter_command))
             return
         }
         val parsedTimeout = parseTimeout() ?: return
@@ -86,7 +88,7 @@ internal class PrivilegeSampleCommandViewModel : ViewModel() {
             stderr = "",
             stdoutTruncated = false,
             stderrTruncated = false,
-            status = if (streaming) "Starting stream…" else "Waiting for result…",
+            status = if (streaming) getApplication<Application>().getString(R.string.sample_starting_stream) else getApplication<Application>().getString(R.string.sample_waiting_result),
         )
 
         operationJob = viewModelScope.launch {
@@ -110,7 +112,7 @@ internal class PrivilegeSampleCommandViewModel : ViewModel() {
                 if (operationJob === runningJob) {
                     state = state.copy(
                         isRunning = false,
-                        status = "Failed: ${throwable.toDiagnosticString()}",
+                        status = getApplication<Application>().getString(R.string.sample_command_failed, throwable.toDiagnosticString()),
                     )
                 }
             } finally {
@@ -126,7 +128,7 @@ internal class PrivilegeSampleCommandViewModel : ViewModel() {
     private suspend fun collectStreaming(process: PrivilegeCommandProcess) {
         val stdoutDecoder = IncrementalUtf8Decoder()
         val stderrDecoder = IncrementalUtf8Decoder()
-        state = state.copy(status = "Streaming")
+        state = state.copy(status = getApplication<Application>().getString(R.string.sample_streaming))
         process.stream().collect { event ->
             when (event) {
                 is PrivilegeCommandEvent.Stdout -> appendStdout(stdoutDecoder.decode(event.bytes))
@@ -134,7 +136,7 @@ internal class PrivilegeSampleCommandViewModel : ViewModel() {
                 is PrivilegeCommandEvent.Exited -> {
                     appendStdout(stdoutDecoder.finish())
                     appendStderr(stderrDecoder.finish())
-                    state = state.copy(status = "Exited with code ${event.exitCode}")
+                    state = state.copy(status = getApplication<Application>().getString(R.string.sample_command_exited, event.exitCode))
                 }
             }
         }
@@ -149,7 +151,7 @@ internal class PrivilegeSampleCommandViewModel : ViewModel() {
             stderr = stderrText.takeLast(MAX_TRANSCRIPT_CHARS),
             stdoutTruncated = result.stdoutTruncated || stdoutText.length > MAX_TRANSCRIPT_CHARS,
             stderrTruncated = result.stderrTruncated || stderrText.length > MAX_TRANSCRIPT_CHARS,
-            status = "Exited with code ${result.exitCode}",
+            status = getApplication<Application>().getString(R.string.sample_command_exited, result.exitCode),
         )
     }
 
@@ -157,7 +159,7 @@ internal class PrivilegeSampleCommandViewModel : ViewModel() {
         val text = state.timeoutText.trim()
         val value = text.toLongOrNull()
         if (value == null || value < 0L) {
-            state = state.copy(inputError = "Timeout must be 0 or a positive millisecond value.")
+            state = state.copy(inputError = getApplication<Application>().getString(R.string.sample_invalid_timeout))
             return null
         }
         return ParsedTimeout(value.takeUnless { it == 0L })
@@ -190,7 +192,7 @@ internal data class PrivilegeSampleCommandState(
     val stderr: String = "",
     val stdoutTruncated: Boolean = false,
     val stderrTruncated: Boolean = false,
-    val status: String = "Ready",
+    val status: String = "",
     val inputError: String? = null,
 )
 

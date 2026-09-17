@@ -22,8 +22,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -41,7 +41,7 @@ internal fun ConnectionTestPage(
     callbacks: PrivilegeSampleDebugCallbacks,
 ) {
     SamplePageScaffold(
-        title = "Test Authorization",
+        title = stringResource(R.string.sample_test_authorization),
         selectedDestination = selectedDestination,
         busy = state.busy,
         onDestinationSelected = callbacks.destinationSelected,
@@ -104,7 +104,7 @@ private fun StartupTabs(
                 rowTabs.forEach { tab ->
                     val selected = selectedStartupTab == tab
                     StartupTabButton(
-                        label = tab.title,
+                        label = stringResource(tab.titleRes),
                         selected = selected,
                         enabled = !busy || selected,
                         modifier = Modifier.weight(1f),
@@ -170,9 +170,9 @@ private fun RootPage(
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SampleAction(
             label = if (state.busy && state.status == PrivilegeSampleStatus.STARTING) {
-                "Starting Root Runtime..."
+                stringResource(R.string.sample_starting_root_runtime)
             } else {
-                "Start Root Runtime"
+                stringResource(R.string.sample_start_root_runtime)
             },
             enabled = !state.busy,
             tone = SampleActionTone.Primary,
@@ -193,7 +193,7 @@ private fun ManualPage(
             CommandBlock(commandLine = commandLine, onCopy = onCopyManualCommand)
         } else {
             SampleAction(
-                label = "Manual Shell Command Unavailable",
+                label = stringResource(R.string.sample_manual_shell_command_unavailable),
                 enabled = false,
                 tone = SampleActionTone.Neutral,
                 modifier = Modifier,
@@ -218,10 +218,10 @@ private fun ShizukuPage(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            RuntimeInfoRow(label = "ready", value = if (state.shizukuReady) "yes" else "no")
-            RuntimeInfoRow(label = "permission", value = if (state.shizukuPermissionGranted) "granted" else "-")
+            RuntimeInfoRow(label = stringResource(R.string.sample_ready), value = if (state.shizukuReady) stringResource(R.string.sample_yes) else stringResource(R.string.sample_no))
+            RuntimeInfoRow(label = stringResource(R.string.sample_permission), value = if (state.shizukuPermissionGranted) stringResource(R.string.sample_granted) else "-")
             RuntimeInfoRow(label = "uid", value = state.shizukuUid?.toString() ?: "-")
-            RuntimeInfoRow(label = "version", value = state.shizukuVersion?.toString() ?: "-")
+            RuntimeInfoRow(label = stringResource(R.string.sample_version), value = state.shizukuVersion?.toString() ?: "-")
             SelectionContainer {
                 BasicText(
                     text = state.shizukuMessage,
@@ -247,11 +247,12 @@ private fun ShizukuPage(
     }
 }
 
+@Composable
 private fun PrivilegeSampleScreenState.shizukuExternalActionLabel(): String =
     if (shizukuReady && shizukuPermissionGranted) {
-        "Start with Shizuku"
+        stringResource(R.string.sample_start_with_shizuku)
     } else {
-        "Authorize and Start Shizuku"
+        stringResource(R.string.sample_authorize_and_start_shizuku)
     }
 
 @Composable
@@ -301,7 +302,7 @@ private fun PairingStatusPanel(
             )
             Spacer(modifier = Modifier.width(8.dp))
             BasicText(
-                text = "Pairing: ${status.label}",
+                text = stringResource(R.string.sample_pairing_status, stringResource(status.labelRes)),
                 style = TextStyle(
                     color = foreground,
                     fontFamily = FontFamily.SansSerif,
@@ -320,11 +321,11 @@ private fun PairingStatusPanel(
             ),
         )
         BasicText(
-            text = "Fingerprint: " + when {
-                fingerprintLoading -> "loading..."
+            text = stringResource(R.string.sample_fingerprint, when {
+                fingerprintLoading -> stringResource(R.string.sample_loading)
                 fingerprint != null -> fingerprint
-                else -> "not loaded"
-            },
+                else -> stringResource(R.string.sample_not_loaded)
+            }),
             style = TextStyle(
                 color = foreground.copy(alpha = 0.72f),
                 fontFamily = FontFamily.Monospace,
@@ -357,23 +358,23 @@ private fun WirelessAdbPage(
             fingerprintLoading = state.adbKeyFingerprintLoading,
         )
         SampleField(
-            label = "ADB device name (blank = app name)",
+            label = stringResource(R.string.sample_adb_device_name_blank_app_name),
             value = state.adbDeviceNameText,
             onValueChange = onAdbDeviceNameChanged,
             keyboardOptions = KeyboardOptions.Default,
         )
-        RuntimeInfoRow(label = "adb name", value = state.adbDeviceName)
-        RuntimeInfoRow(label = "key source", value = "persisted ADB key")
+        RuntimeInfoRow(label = stringResource(R.string.sample_adb_name), value = state.adbDeviceName)
+        RuntimeInfoRow(label = stringResource(R.string.sample_key_source), value = stringResource(R.string.sample_persisted_adb_key))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SampleAction(
-                label = "Refresh Identity",
+                label = stringResource(R.string.sample_refresh_identity),
                 enabled = !state.busy && !state.adbKeyFingerprintLoading,
                 tone = SampleActionTone.Tonal,
                 modifier = Modifier.weight(1f),
                 onClick = onRefreshAdbFingerprint,
             )
             SampleAction(
-                label = "Check Pairing",
+                label = stringResource(R.string.sample_check_pairing),
                 enabled = !state.busy && !state.adbKeyFingerprintLoading,
                 tone = SampleActionTone.Secondary,
                 modifier = Modifier.weight(1f),
@@ -381,21 +382,21 @@ private fun WirelessAdbPage(
             )
         }
         SampleAction(
-            label = "Copy Wireless Log",
+            label = stringResource(R.string.sample_copy_wireless_log),
             enabled = true,
             tone = SampleActionTone.Neutral,
             modifier = Modifier,
             onClick = onCopyLog,
         )
         SampleField(
-            label = "Pairing code",
+            label = stringResource(R.string.sample_pairing_code),
             value = state.pairingCode,
             onValueChange = onPairingCodeChanged,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
         )
-        RuntimeInfoRow(label = "connect port", value = state.connectPortText.ifBlank { "auto" })
+        RuntimeInfoRow(label = stringResource(R.string.sample_connect_port), value = state.connectPortText.ifBlank { stringResource(R.string.sample_auto) })
         SampleAction(
-            label = "Pair by Code",
+            label = stringResource(R.string.sample_pair_by_code),
             enabled = !state.busy,
             tone = SampleActionTone.Primary,
             modifier = Modifier,
@@ -403,9 +404,9 @@ private fun WirelessAdbPage(
         )
         SampleAction(
             label = if (notificationPairingRunning) {
-                "Stop Notification Pairing"
+                stringResource(R.string.sample_stop_notification_pairing)
             } else {
-                "Pair via Notification"
+                stringResource(R.string.sample_pair_via_notification)
             },
             enabled = !state.busy || notificationPairingRunning,
             tone = if (notificationPairingRunning) {
@@ -417,7 +418,7 @@ private fun WirelessAdbPage(
             onClick = if (notificationPairingRunning) onStopNotificationPairing else onStartNotificationPairing,
         )
         SampleAction(
-            label = "Start Wireless ADB",
+            label = stringResource(R.string.sample_start_wireless_adb),
             enabled = !state.busy,
             tone = SampleActionTone.Primary,
             modifier = Modifier,
@@ -435,29 +436,29 @@ private fun TcpPage(
     onStopTcp: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        RuntimeInfoRow(label = "last connect port", value = state.connectPortText.ifBlank { "auto" })
+        RuntimeInfoRow(label = stringResource(R.string.sample_last_connect_port), value = state.connectPortText.ifBlank { stringResource(R.string.sample_auto) })
         SampleField(
-            label = "TCP port",
+            label = stringResource(R.string.sample_tcp_port),
             value = state.tcpPortText,
             onValueChange = onTcpPortChanged,
             keyboardOptions = KeyboardOptions.Default,
         )
         SampleAction(
-            label = "Switch to TCP Mode",
+            label = stringResource(R.string.sample_switch_to_tcp_mode),
             enabled = !state.busy,
             tone = SampleActionTone.Secondary,
             modifier = Modifier,
             onClick = onSwitchToTcp,
         )
         SampleAction(
-            label = "Restart From TCP Port",
+            label = stringResource(R.string.sample_restart_from_tcp_port),
             enabled = !state.busy,
             tone = SampleActionTone.Primary,
             modifier = Modifier,
             onClick = onRestartTcp,
         )
         SampleAction(
-            label = "Stop TCP Mode",
+            label = stringResource(R.string.sample_stop_tcp_mode),
             enabled = !state.busy,
             tone = SampleActionTone.Neutral,
             modifier = Modifier,
@@ -476,14 +477,14 @@ private fun SessionPage(
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SampleAction(
-                label = "Copy Log",
+                label = stringResource(R.string.sample_copy_log),
                 enabled = state.logText.isNotBlank(),
                 tone = SampleActionTone.Primary,
                 modifier = Modifier.weight(1f),
                 onClick = onCopyLog,
             )
             SampleAction(
-                label = "Clear Log",
+                label = stringResource(R.string.sample_clear_log),
                 enabled = !state.busy,
                 tone = SampleActionTone.Neutral,
                 modifier = Modifier.weight(1f),
@@ -528,7 +529,7 @@ private fun CommandBlock(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         BasicText(
-            text = "Run starter inside adb shell",
+            text = stringResource(R.string.sample_run_starter_inside_adb_shell),
             style = TextStyle(
                 color = colors.onSurfaceVariant,
                 fontFamily = FontFamily.SansSerif,
@@ -546,7 +547,7 @@ private fun CommandBlock(
             ),
         )
         SampleAction(
-            label = "Copy Command",
+            label = stringResource(R.string.sample_copy_command),
             enabled = true,
             tone = SampleActionTone.Primary,
             modifier = Modifier,
