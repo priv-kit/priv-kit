@@ -2,24 +2,25 @@ package priv.kit.sample.debug
 
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
+import priv.kit.sample.R
 
 internal sealed interface PrivilegeSampleDebugDestination {
-    val title: String
+    val titleRes: Int
 
     data object Connection : PrivilegeSampleDebugDestination {
-        override val title: String = "Test Authorization"
+        override val titleRes: Int = R.string.sample_test_authorization
     }
 
     data object Binder : PrivilegeSampleDebugDestination {
-        override val title: String = "Test Binder"
+        override val titleRes: Int = R.string.sample_test_binder
     }
 
     data object UserService : PrivilegeSampleDebugDestination {
-        override val title: String = "Test UserService"
+        override val titleRes: Int = R.string.sample_test_userservice
     }
 
     data object Permissions : PrivilegeSampleDebugDestination {
-        override val title: String = "Test Permissions"
+        override val titleRes: Int = R.string.sample_test_permissions
     }
 
     companion object {
@@ -28,30 +29,30 @@ internal sealed interface PrivilegeSampleDebugDestination {
 }
 
 internal sealed interface PrivilegeStartupTab {
-    val title: String
+    val titleRes: Int
 
     data object Root : PrivilegeStartupTab {
-        override val title: String = "Root"
+        override val titleRes: Int = R.string.sample_root
     }
 
     data object Manual : PrivilegeStartupTab {
-        override val title: String = "Manual"
+        override val titleRes: Int = R.string.sample_manual
     }
 
     data object Shizuku : PrivilegeStartupTab {
-        override val title: String = "Shizuku"
+        override val titleRes: Int = R.string.sample_shizuku
     }
 
     data object WirelessAdb : PrivilegeStartupTab {
-        override val title: String = "Wireless"
+        override val titleRes: Int = R.string.sample_wireless
     }
 
     data object Tcp : PrivilegeStartupTab {
-        override val title: String = "TCP"
+        override val titleRes: Int = R.string.sample_tcp
     }
 
     data object Log : PrivilegeStartupTab {
-        override val title: String = "Log"
+        override val titleRes: Int = R.string.sample_log
     }
 
     companion object {
@@ -83,14 +84,14 @@ internal data class PrivilegeSampleSystemServiceCheckResult(
     val serverProcess: PrivilegeSampleSystemServicePresence,
 )
 
-internal enum class PrivilegeAdbPairingStatus(val label: String) {
-    NOT_PAIRED("Not paired"),
-    CHECKING("Checking"),
-    SEARCHING("Searching"),
-    FOUND("Port found"),
-    PAIRING("Pairing"),
-    PAIRED("Paired"),
-    FAILED("Failed"),
+internal enum class PrivilegeAdbPairingStatus(val labelRes: Int) {
+    NOT_PAIRED(R.string.sample_not_paired),
+    CHECKING(R.string.sample_checking),
+    SEARCHING(R.string.sample_searching),
+    FOUND(R.string.sample_port_found),
+    PAIRING(R.string.sample_pairing),
+    PAIRED(R.string.sample_paired),
+    FAILED(R.string.sample_failed),
 }
 
 internal data class PrivilegeSampleScreenState(
@@ -109,7 +110,7 @@ internal data class PrivilegeSampleScreenState(
     val connectPortText: String = "",
     val pairingCode: String = "",
     val pairingStatus: PrivilegeAdbPairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
-    val pairingMessage: String = "Enter the Wireless debugging pairing code, or reply from the pairing notification.",
+    val pairingMessage: String = "",
     val notificationPairingRunning: Boolean = false,
     val tcpPortText: String = PRIVILEGE_ADB_DEFAULT_TCP_PORT.toString(),
     val systemServiceNameText: String = "",
@@ -120,7 +121,7 @@ internal data class PrivilegeSampleScreenState(
     val mqsNativeLocalError: String? = null,
     val mqsNativeRemoteDescriptor: String? = null,
     val mqsNativeRemoteError: String? = null,
-    val binderMessage: String = "Connect to a Privileged Server, then get IUserManager or probe IMQSNative.",
+    val binderMessage: String = "",
     val binderLastException: String = "",
     val dedicatedUserServiceBound: Boolean = false,
     val embeddedUserServiceBound: Boolean = false,
@@ -128,15 +129,15 @@ internal data class PrivilegeSampleScreenState(
     val embeddedUserServiceCached: Boolean = false,
     val dedicatedUserServiceMessage: String = "-",
     val embeddedUserServiceMessage: String = "-",
-    val userServiceMessage: String = "Connect to a Privileged Server, then bind a UserService.",
+    val userServiceMessage: String = "",
     val userServiceLastException: String = "",
     val shizukuReady: Boolean = false,
     val shizukuPermissionGranted: Boolean = false,
     val shizukuUid: Int? = null,
     val shizukuVersion: Int? = null,
-    val shizukuMessage: String = "Shizuku status not checked",
+    val shizukuMessage: String = "",
     val shizukuLastException: String = "",
-    val message: String = "Ready",
+    val message: String = "",
     val logText: String = "",
 )
 

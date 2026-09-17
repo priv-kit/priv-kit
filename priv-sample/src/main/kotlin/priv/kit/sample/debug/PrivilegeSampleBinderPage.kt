@@ -14,12 +14,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import priv.kit.sample.R
 
 @Composable
 internal fun BinderTestPage(
@@ -35,7 +37,7 @@ internal fun BinderTestPage(
     onStopServer: () -> Unit,
 ) {
     SamplePageScaffold(
-        title = "Test Binder",
+        title = stringResource(R.string.sample_test_binder),
         selectedDestination = selectedDestination,
         busy = state.busy,
         onDestinationSelected = onDestinationSelected,
@@ -69,11 +71,11 @@ private fun BinderPage(
             onSystemServiceNameChanged = onSystemServiceNameChanged,
             onCheckSystemService = onCheckSystemService,
         )
-        SectionTitle("Binder smoke tests")
+        SectionTitle(stringResource(R.string.sample_binder_smoke_tests))
         BinderStatusPanel(state)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SampleAction(
-                label = if (state.userManagerCached) "IUserManager Cached" else "Get IUserManager",
+                label = if (state.userManagerCached) stringResource(R.string.sample_iusermanager_cached) else stringResource(R.string.sample_get_iusermanager),
                 enabled = !state.busy &&
                     state.status == PrivilegeSampleStatus.CONNECTED &&
                     !state.userManagerCached,
@@ -82,7 +84,7 @@ private fun BinderPage(
                 onClick = onGetUserManager,
             )
             SampleAction(
-                label = "Get Users",
+                label = stringResource(R.string.sample_get_users),
                 enabled = !state.busy &&
                     (state.status == PrivilegeSampleStatus.CONNECTED || state.userManagerCached),
                 tone = SampleActionTone.Primary,
@@ -91,7 +93,7 @@ private fun BinderPage(
             )
         }
         SampleAction(
-            label = "Probe IMQSNative",
+            label = stringResource(R.string.sample_probe_imqsnative),
             enabled = !state.busy &&
                 (state.status == PrivilegeSampleStatus.CONNECTED || state.systemServiceBinderCached),
             tone = SampleActionTone.Secondary,
@@ -119,9 +121,9 @@ private fun SystemServiceCheckPanel(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SectionTitle("System service availability")
+        SectionTitle(stringResource(R.string.sample_system_service_availability))
         BasicText(
-            text = "Check the same service name from this app process and the Privileged Server.",
+            text = stringResource(R.string.sample_check_the_same_service_name_from_this_app_process_and_the_privileged_server),
             style = TextStyle(
                 color = colors.onSurfaceVariant,
                 fontFamily = FontFamily.SansSerif,
@@ -130,7 +132,7 @@ private fun SystemServiceCheckPanel(
             ),
         )
         SampleField(
-            label = "serviceName",
+            label = stringResource(R.string.sample_servicename),
             value = state.systemServiceNameText,
             onValueChange = onSystemServiceNameChanged,
             keyboardOptions = KeyboardOptions(
@@ -141,7 +143,7 @@ private fun SystemServiceCheckPanel(
             enabled = !state.busy,
         )
         SampleAction(
-            label = "Check Both Processes",
+            label = stringResource(R.string.sample_check_both_processes),
             enabled = !state.busy && state.systemServiceNameText.isNotBlank(),
             tone = SampleActionTone.Primary,
             modifier = Modifier.fillMaxWidth(),
@@ -152,13 +154,13 @@ private fun SystemServiceCheckPanel(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             RuntimeInfoRow(
-                label = "Current process",
+                label = stringResource(R.string.sample_current_process),
                 value = systemServiceStatusText(
                     presence = state.systemServiceCheckResult?.currentProcess,
                 ),
             )
             RuntimeInfoRow(
-                label = "Privileged process",
+                label = stringResource(R.string.sample_privileged_process),
                 value = systemServiceStatusText(
                     presence = state.systemServiceCheckResult?.serverProcess,
                 ),
@@ -167,15 +169,16 @@ private fun SystemServiceCheckPanel(
     }
 }
 
+@Composable
 private fun systemServiceStatusText(
     presence: PrivilegeSampleSystemServicePresence?,
 ): String =
     when {
-        presence == null -> "Not checked"
-        presence.error != null -> "Unavailable"
-        presence.exists == true -> "Exists"
-        presence.exists == false -> "Missing"
-        else -> "Not checked"
+        presence == null -> stringResource(R.string.sample_not_checked)
+        presence.error != null -> stringResource(R.string.sample_unavailable)
+        presence.exists == true -> stringResource(R.string.sample_exists)
+        presence.exists == false -> stringResource(R.string.sample_missing)
+        else -> stringResource(R.string.sample_not_checked)
     }
 
 @Composable
@@ -189,16 +192,16 @@ private fun BinderStatusPanel(state: PrivilegeSampleScreenState) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        RuntimeInfoRow(label = "IMQSNative", value = if (state.systemServiceBinderCached) "cached" else "-")
+        RuntimeInfoRow(label = "IMQSNative", value = if (state.systemServiceBinderCached) stringResource(R.string.sample_cached) else "-")
         RuntimeInfoRow(
-            label = "IMQS Local",
+            label = stringResource(R.string.sample_imqs_local),
             value = state.mqsNativeLocalDescriptor ?: state.mqsNativeLocalError ?: "-",
         )
         RuntimeInfoRow(
-            label = "IMQS Remote",
+            label = stringResource(R.string.sample_imqs_remote),
             value = state.mqsNativeRemoteDescriptor ?: state.mqsNativeRemoteError ?: "-",
         )
-        RuntimeInfoRow(label = "IUserManager", value = if (state.userManagerCached) "cached" else "-")
+        RuntimeInfoRow(label = "IUserManager", value = if (state.userManagerCached) stringResource(R.string.sample_cached) else "-")
         SelectionContainer {
             BasicText(
                 text = state.binderMessage,

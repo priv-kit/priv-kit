@@ -33,6 +33,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,6 +46,7 @@ import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
 import priv.kit.core.file.PrivilegeFile
 import priv.kit.core.file.PrivilegeFileMetadata
+import priv.kit.sample.R
 import priv.kit.sample.common.toDiagnosticString
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,10 +58,11 @@ internal fun PrivilegeSampleFilePage(
     var directoryPath by rememberSaveable { mutableStateOf(DEFAULT_TEST_DIRECTORY) }
     var busy by rememberSaveable { mutableStateOf(false) }
     var output by rememberSaveable {
-        mutableStateOf("Connect a Privileged Server, then run a File API operation.")
+        mutableStateOf<String?>(null)
     }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val outputLabel = stringResource(R.string.sample_file_output)
 
     fun runOperation(
         label: String,
@@ -91,12 +94,12 @@ internal fun PrivilegeSampleFilePage(
             TopAppBar(
                 navigationIcon = {
                     TextButton(onClick = onBackToHome) {
-                        Text("Home")
+                        Text(stringResource(R.string.sample_home))
                     }
                 },
                 title = {
                     Text(
-                        text = "Test File API",
+                        text = stringResource(R.string.sample_test_file_api),
                         fontWeight = FontWeight.SemiBold,
                     )
                 },
@@ -115,7 +118,7 @@ internal fun PrivilegeSampleFilePage(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = if (serverRunning) "Server connected" else "Server disconnected",
+                text = if (serverRunning) stringResource(R.string.sample_server_connected) else stringResource(R.string.sample_server_disconnected),
                 color = if (serverRunning) {
                     MaterialTheme.colorScheme.tertiary
                 } else {
@@ -124,8 +127,7 @@ internal fun PrivilegeSampleFilePage(
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                text = "Individual operations use payload.txt and renamed.txt below this " +
-                    "directory. Cleanup is non-recursive and only targets those names.",
+                text = stringResource(R.string.sample_file_operations_description),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -135,7 +137,7 @@ internal fun PrivilegeSampleFilePage(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !busy,
                 singleLine = true,
-                label = { Text("Absolute test directory") },
+                label = { Text(stringResource(R.string.sample_absolute_test_directory)) },
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
                 ),
@@ -147,34 +149,34 @@ internal fun PrivilegeSampleFilePage(
                     runOperation("Full smoke test", ::runFullSmokeTest)
                 },
             ) {
-                Text(if (busy) "Running…" else "Run Full Smoke Test")
+                Text(if (busy) stringResource(R.string.sample_running_progress) else stringResource(R.string.sample_run_full_smoke_test))
             }
 
-            FileActionButton("Inspect Test Paths", actionsEnabled) {
+            FileActionButton(stringResource(R.string.sample_inspect_test_paths), actionsEnabled) {
                 runOperation("Inspect", ::inspectTestPaths)
             }
-            FileActionButton("Create Directory with mkdir()", actionsEnabled) {
+            FileActionButton(stringResource(R.string.sample_create_directory_with_mkdir), actionsEnabled) {
                 runOperation("mkdir", ::createDirectory)
             }
-            FileActionButton("Create Directory with mkdirs()", actionsEnabled) {
+            FileActionButton(stringResource(R.string.sample_create_directory_with_mkdirs), actionsEnabled) {
                 runOperation("mkdirs", ::createDirectories)
             }
-            FileActionButton("Create and Write payload.txt", actionsEnabled) {
+            FileActionButton(stringResource(R.string.sample_create_and_write_payload_txt), actionsEnabled) {
                 runOperation("Write", ::writePayload)
             }
-            FileActionButton("Append payload.txt", actionsEnabled) {
+            FileActionButton(stringResource(R.string.sample_append_payload_txt), actionsEnabled) {
                 runOperation("Append", ::appendPayload)
             }
-            FileActionButton("Atomically Replace payload.txt", actionsEnabled) {
+            FileActionButton(stringResource(R.string.sample_atomically_replace_payload_txt), actionsEnabled) {
                 runOperation("Atomic replace", ::replacePayloadAtomically)
             }
-            FileActionButton("Read payload.txt", actionsEnabled) {
+            FileActionButton(stringResource(R.string.sample_read_payload_txt), actionsEnabled) {
                 runOperation("Read", ::readPayload)
             }
-            FileActionButton("Rename payload.txt ↔ renamed.txt", actionsEnabled) {
+            FileActionButton(stringResource(R.string.sample_rename_payload_txt_renamed_txt), actionsEnabled) {
                 runOperation("Rename", ::renamePayload)
             }
-            FileActionButton("Walk Directory", actionsEnabled) {
+            FileActionButton(stringResource(R.string.sample_walk_directory), actionsEnabled) {
                 runOperation("Directory walk", ::walkDirectory)
             }
             OutlinedButton(
@@ -184,7 +186,7 @@ internal fun PrivilegeSampleFilePage(
                     runOperation("Cleanup", ::cleanupTestPaths)
                 },
             ) {
-                Text("Delete Test Files and Directory")
+                Text(stringResource(R.string.sample_delete_test_files_and_directory))
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -194,24 +196,25 @@ internal fun PrivilegeSampleFilePage(
                     enabled = !busy,
                     onClick = { output = "" },
                 ) {
-                    Text("Clear Output")
+                    Text(stringResource(R.string.sample_clear_output))
                 }
                 TextButton(
-                    enabled = output.isNotBlank(),
+                    enabled = !output.isNullOrBlank(),
                     onClick = {
                         val clipboard =
                             context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         clipboard.setPrimaryClip(
-                            ClipData.newPlainText("Priv Kit File API output", output),
+                            ClipData.newPlainText(outputLabel, output),
                         )
                     },
                 ) {
-                    Text("Copy Output")
+                    Text(stringResource(R.string.sample_copy_output))
                 }
             }
             SelectionContainer {
                 Text(
-                    text = output.ifBlank { "<empty>" },
+                    text = output?.ifBlank { stringResource(R.string.sample_empty) }
+                        ?: stringResource(R.string.sample_file_intro),
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(

@@ -1,10 +1,13 @@
 package priv.kit.sample.file
 
+import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -16,10 +19,9 @@ import priv.kit.core.Privilege
 import priv.kit.core.file.PrivilegeFileEntry
 import priv.kit.core.file.PrivilegeFileMetadata
 import priv.kit.core.file.PrivilegeFileType
-import java.nio.ByteBuffer
-import java.nio.charset.CodingErrorAction
+import priv.kit.sample.R
 
-internal class PrivilegeSampleDeviceFilesViewModel : ViewModel() {
+internal class PrivilegeSampleDeviceFilesViewModel(application: Application) : AndroidViewModel(application) {
     var state by mutableStateOf(PrivilegeSampleDeviceFilesState())
         private set
 
@@ -57,7 +59,7 @@ internal class PrivilegeSampleDeviceFilesViewModel : ViewModel() {
         if (!state.serverRunning || state.isLoadingDirectory) return
         val path = state.directoryText.trim()
         if (!path.startsWith('/')) {
-            state = state.copy(pathError = "Enter an absolute directory path.")
+            state = state.copy(pathError = getApplication<Application>().getString(R.string.sample_enter_absolute_path))
             return
         }
         loadDirectory(path, DirectoryLoadReason.PATH_INPUT)
@@ -106,7 +108,7 @@ internal class PrivilegeSampleDeviceFilesViewModel : ViewModel() {
 
                     else -> {
                         state = state.copy(
-                            notice = "${entry.name} is not a regular file or directory.",
+                            notice = getApplication<Application>().getString(R.string.sample_unsupported_entry, entry.name),
                         )
                         return@launch
                     }
@@ -126,7 +128,7 @@ internal class PrivilegeSampleDeviceFilesViewModel : ViewModel() {
 
                     else -> {
                         state = state.copy(
-                            notice = "${entry.name} points to an unsupported file type.",
+                            notice = getApplication<Application>().getString(R.string.sample_unsupported_target, entry.name),
                         )
                     }
                 }
@@ -186,7 +188,7 @@ internal class PrivilegeSampleDeviceFilesViewModel : ViewModel() {
             val result = withContext(Dispatchers.IO) {
                 val directory = Privilege.file(path)
                 check(directory.metadata(followSymbolicLinks = true).type == PrivilegeFileType.DIRECTORY) {
-                    "$path is not a directory."
+                    getApplication<Application>().getString(R.string.sample_not_directory, path)
                 }
                 val walked = directory.walk(maxDepth = 1)
                     .take(MAX_DIRECTORY_ENTRIES + 1)
@@ -265,7 +267,7 @@ internal class PrivilegeSampleDeviceFilesViewModel : ViewModel() {
                 val file = Privilege.file(path)
                 val metadata = file.metadata(followSymbolicLinks = true)
                 check(metadata.type == PrivilegeFileType.REGULAR_FILE) {
-                    "$path is not a regular file."
+                    getApplication<Application>().getString(R.string.sample_not_file, path)
                 }
                 val buffer = ByteArray(MAX_PREVIEW_BYTES + 1)
                 var byteCount = 0
@@ -354,9 +356,9 @@ internal sealed interface PrivilegeSampleFilePreview {
     ) : PrivilegeSampleFilePreview
 }
 
-internal enum class PrivilegeSampleFilePreviewMode(val label: String) {
-    TEXT("Text"),
-    HEX("HEX"),
+internal enum class PrivilegeSampleFilePreviewMode(val labelRes: Int) {
+    TEXT(R.string.sample_text),
+    HEX(R.string.sample_hex),
 }
 
 private enum class DirectoryLoadReason {

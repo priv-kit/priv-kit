@@ -13,10 +13,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import priv.kit.sample.R
 
 @Composable
 internal fun UserServiceTestPage(
@@ -33,7 +35,7 @@ internal fun UserServiceTestPage(
     onStopServer: () -> Unit,
 ) {
     SamplePageScaffold(
-        title = "Test UserService",
+        title = stringResource(R.string.sample_test_userservice),
         selectedDestination = selectedDestination,
         busy = state.busy,
         onDestinationSelected = onDestinationSelected,
@@ -65,10 +67,10 @@ private fun UserServicePage(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         UserServicePanel(state)
-        SectionTitle("Dedicated Process")
+        SectionTitle(stringResource(R.string.sample_dedicated_process))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SampleAction(
-                label = if (state.dedicatedUserServiceBound) "Dedicated Bound" else "Bind Dedicated",
+                label = if (state.dedicatedUserServiceBound) stringResource(R.string.sample_dedicated_bound) else stringResource(R.string.sample_bind_dedicated),
                 enabled = !state.busy &&
                     state.status == PrivilegeSampleStatus.CONNECTED &&
                     !state.dedicatedUserServiceBound,
@@ -77,24 +79,24 @@ private fun UserServicePage(
                 onClick = onBindDedicatedUserService,
             )
             SampleAction(
-                label = "Call",
+                label = stringResource(R.string.sample_call),
                 enabled = !state.busy && state.dedicatedUserServiceCached,
                 tone = SampleActionTone.Secondary,
                 modifier = Modifier.weight(1f),
                 onClick = onCallDedicatedUserService,
             )
             SampleAction(
-                label = "Stop",
+                label = stringResource(R.string.sample_stop),
                 enabled = !state.busy && state.dedicatedUserServiceCached,
                 tone = SampleActionTone.Destructive,
                 modifier = Modifier.weight(1f),
                 onClick = onStopDedicatedUserService,
             )
         }
-        SectionTitle("Embedded")
+        SectionTitle(stringResource(R.string.sample_embedded))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SampleAction(
-                label = if (state.embeddedUserServiceBound) "Embedded Bound" else "Bind Embedded",
+                label = if (state.embeddedUserServiceBound) stringResource(R.string.sample_embedded_bound) else stringResource(R.string.sample_bind_embedded),
                 enabled = !state.busy &&
                     state.status == PrivilegeSampleStatus.CONNECTED &&
                     !state.embeddedUserServiceBound,
@@ -103,14 +105,14 @@ private fun UserServicePage(
                 onClick = onBindEmbeddedUserService,
             )
             SampleAction(
-                label = "Call",
+                label = stringResource(R.string.sample_call),
                 enabled = !state.busy && state.embeddedUserServiceCached,
                 tone = SampleActionTone.Primary,
                 modifier = Modifier.weight(1f),
                 onClick = onCallEmbeddedUserService,
             )
             SampleAction(
-                label = "Stop",
+                label = stringResource(R.string.sample_stop),
                 enabled = !state.busy && state.embeddedUserServiceCached,
                 tone = SampleActionTone.Destructive,
                 modifier = Modifier.weight(1f),
@@ -135,14 +137,14 @@ private fun UserServicePanel(state: PrivilegeSampleScreenState) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         RuntimeInfoRow(
-            label = "dedicated",
+            label = stringResource(R.string.sample_dedicated),
             value = state.userServiceReferenceText(
                 bound = state.dedicatedUserServiceBound,
                 cached = state.dedicatedUserServiceCached,
             ),
         )
         RuntimeInfoRow(
-            label = "embedded",
+            label = stringResource(R.string.sample_embedded),
             value = state.userServiceReferenceText(
                 bound = state.embeddedUserServiceBound,
                 cached = state.embeddedUserServiceCached,
@@ -166,12 +168,13 @@ private fun UserServicePanel(state: PrivilegeSampleScreenState) {
     }
 }
 
+@Composable
 private fun PrivilegeSampleScreenState.userServiceReferenceText(
     bound: Boolean,
     cached: Boolean,
 ): String =
     when {
-        bound -> "bound"
-        cached -> "cached"
+        bound -> stringResource(R.string.sample_bound)
+        cached -> stringResource(R.string.sample_cached)
         else -> "-"
     }

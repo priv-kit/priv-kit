@@ -50,20 +50,21 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import priv.kit.core.file.PrivilegeFileEntry
-import priv.kit.core.file.PrivilegeFileMetadata
-import priv.kit.core.file.PrivilegeFileType
-import priv.kit.sample.R
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import priv.kit.core.file.PrivilegeFileEntry
+import priv.kit.core.file.PrivilegeFileMetadata
+import priv.kit.core.file.PrivilegeFileType
+import priv.kit.sample.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -102,12 +103,12 @@ internal fun PrivilegeSampleDeviceFilesPage(
                     TextButton(
                         onClick = if (preview == null) onBackToHome else viewModel::closePreview,
                     ) {
-                        Text(if (preview == null) "Home" else "Files")
+                        Text(if (preview == null) stringResource(R.string.sample_home) else stringResource(R.string.sample_files))
                     }
                 },
                 title = {
                     Text(
-                        text = preview?.name ?: "Device Files",
+                        text = preview?.name ?: stringResource(R.string.sample_device_files),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         fontWeight = FontWeight.SemiBold,
@@ -119,7 +120,7 @@ internal fun PrivilegeSampleDeviceFilesPage(
                             enabled = directoryControls.enabled,
                             onClick = viewModel::refreshDirectory,
                         ) {
-                            Text("Refresh")
+                            Text(stringResource(R.string.sample_refresh))
                         }
                     }
                 },
@@ -171,7 +172,7 @@ private fun DeviceDirectoryContent(
     ) {
         Text(
             modifier = Modifier.padding(top = 8.dp),
-            text = if (state.serverRunning) "Server connected" else "Server disconnected",
+            text = if (state.serverRunning) stringResource(R.string.sample_server_connected) else stringResource(R.string.sample_server_disconnected),
             color = if (state.serverRunning) {
                 MaterialTheme.colorScheme.tertiary
             } else {
@@ -189,7 +190,7 @@ private fun DeviceDirectoryContent(
             readOnly = controls.directoryReadOnly,
             singleLine = true,
             isError = state.pathError != null,
-            label = { Text("Current directory") },
+            label = { Text(stringResource(R.string.sample_current_directory)) },
             supportingText = state.pathError?.let { message ->
                 { Text(message) }
             },
@@ -212,8 +213,8 @@ private fun DeviceDirectoryContent(
         ) {
             when {
                 !state.serverRunning -> DeviceFilesStatusPanel(
-                    title = "Privileged Server required",
-                    message = "Connect a Privileged Server before browsing device files.",
+                    title = stringResource(R.string.sample_privileged_server_required),
+                    message = stringResource(R.string.sample_connect_a_privileged_server_before_browsing_device_files),
                     modifier = Modifier.fillMaxSize(),
                 )
 
@@ -228,10 +229,10 @@ private fun DeviceDirectoryContent(
                 }
 
                 state.directoryError != null -> DeviceFilesStatusPanel(
-                    title = "Unable to read directory",
+                    title = stringResource(R.string.sample_unable_to_read_directory),
                     message = state.directoryError,
                     modifier = Modifier.fillMaxSize(),
-                    actionLabel = "Retry",
+                    actionLabel = stringResource(R.string.sample_retry),
                     onAction = onRetry,
                 )
 
@@ -280,7 +281,7 @@ private fun DeviceDirectoryList(
         item(key = PARENT_ENTRY_KEY, contentType = PrivilegeFileType.DIRECTORY) {
             DeviceFileRow(
                 name = "..",
-                details = DeviceFileDetails(text = "Parent directory"),
+                details = DeviceFileDetails(text = stringResource(R.string.sample_parent_directory)),
                 type = PrivilegeFileType.DIRECTORY,
                 enabled = interactionsEnabled && state.currentDirectory != ROOT_DIRECTORY,
                 dimmed = state.currentDirectory == ROOT_DIRECTORY,
@@ -297,8 +298,7 @@ private fun DeviceDirectoryList(
                             RoundedCornerShape(8.dp),
                         )
                         .padding(12.dp),
-                    text = "This directory has more than 20,000 entries. Only the first " +
-                        "20,000 walked entries are shown.",
+                    text = stringResource(R.string.sample_directory_truncated),
                     color = MaterialTheme.colorScheme.onTertiaryContainer,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -310,7 +310,7 @@ private fun DeviceDirectoryList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 24.dp),
-                    text = "This directory is empty.",
+                    text = stringResource(R.string.sample_this_directory_is_empty),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -406,10 +406,10 @@ private fun DeviceFileRow(
                         },
                     ),
                     contentDescription = when (type) {
-                        PrivilegeFileType.DIRECTORY -> "Directory"
-                        PrivilegeFileType.SYMBOLIC_LINK -> "Symbolic link"
-                        null -> "File type unavailable"
-                        else -> "File"
+                        PrivilegeFileType.DIRECTORY -> stringResource(R.string.sample_directory)
+                        PrivilegeFileType.SYMBOLIC_LINK -> stringResource(R.string.sample_symbolic_link)
+                        null -> stringResource(R.string.sample_file_type_unavailable)
+                        else -> stringResource(R.string.sample_file)
                     },
                     tint = if (isDirectory) {
                         MaterialTheme.colorScheme.primary
@@ -441,12 +441,12 @@ private fun DeviceFilePreviewContent(
         }
 
         is PrivilegeSampleFilePreview.Error -> DeviceFilesStatusPanel(
-            title = "Unable to read file",
+            title = stringResource(R.string.sample_unable_to_read_file),
             message = preview.message,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            actionLabel = "Retry",
+            actionLabel = stringResource(R.string.sample_retry),
             onAction = onRetry,
         )
 
@@ -505,7 +505,7 @@ private fun DeviceFilePreviewBody(
                         count = PrivilegeSampleFilePreviewMode.entries.size,
                     ),
                 ) {
-                    Text(mode.label)
+                    Text(stringResource(mode.labelRes))
                 }
             }
         }
@@ -522,7 +522,7 @@ private fun DeviceFilePreviewBody(
                     .padding(12.dp),
             ) {
                 Text(
-                    text = text.ifEmpty { "<empty>" },
+                    text = text.ifEmpty { stringResource(R.string.sample_empty) },
                     modifier = Modifier.fillMaxWidth(),
                     fontFamily = FontFamily.Monospace,
                     style = MaterialTheme.typography.bodySmall,
@@ -540,7 +540,7 @@ private fun DeviceFilePreviewBody(
                 contentPadding = PaddingValues(12.dp),
             ) {
                 if (hexRowCount == 0) {
-                    item { Text("<empty>", fontFamily = FontFamily.Monospace) }
+                    item { Text(stringResource(R.string.sample_empty), fontFamily = FontFamily.Monospace) }
                 } else {
                     items(
                         count = hexRowCount,
@@ -611,7 +611,7 @@ private fun PrivilegeFileEntry.toDetails(
     context: Context,
     dateFormat: DateFormat,
 ): DeviceFileDetails {
-    val metadata = metadata ?: return DeviceFileDetails(text = "Metadata unavailable")
+    val metadata = metadata ?: return DeviceFileDetails(text = context.getString(R.string.sample_metadata_unavailable))
     return metadata.toDetails(context, dateFormat)
 }
 
@@ -622,7 +622,7 @@ private fun PrivilegeFileMetadata.toDetails(
     val modified = if (lastModifiedMillis > 0L) {
         dateFormat.format(Date(lastModifiedMillis))
     } else {
-        "Modified time unavailable"
+        context.getString(R.string.sample_modified_time_unavailable)
     }
     return DeviceFileDetails(
         text = modified,
@@ -644,7 +644,7 @@ private data class DeviceFileDetails(
 private fun PrivilegeSampleFilePreview.Content.previewSummary(context: Context): String {
     val totalSize = Formatter.formatShortFileSize(context, metadata.sizeBytes.coerceAtLeast(0L))
     return if (truncated) {
-        "Showing the first ${MAX_PREVIEW_BYTES / 1024} KiB of $totalSize."
+        context.getString(R.string.sample_preview_summary, MAX_PREVIEW_BYTES / 1024, totalSize)
     } else {
         totalSize
     }

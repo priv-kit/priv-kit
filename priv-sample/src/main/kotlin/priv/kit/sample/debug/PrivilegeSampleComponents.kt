@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -44,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import priv.kit.sample.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,7 +70,7 @@ internal fun SamplePageScaffold(
                 TopAppBar(
                     navigationIcon = {
                         TextButton(onClick = onBackToHome) {
-                            Text("Home")
+                            Text(stringResource(R.string.sample_home))
                         }
                     },
                     title = {
@@ -127,7 +129,7 @@ private fun DestinationTabs(
     }
     val colors = MaterialTheme.colorScheme
     LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(PrivilegeSampleDebugDestination.entries, key = { it.title }) { destination ->
+        items(PrivilegeSampleDebugDestination.entries, key = { it.titleRes }) { destination ->
             val selected = destination == selectedDestination
             Box(
                 modifier = Modifier
@@ -141,7 +143,7 @@ private fun DestinationTabs(
                 contentAlignment = Alignment.Center,
             ) {
                 BasicText(
-                    text = destination.title,
+                    text = stringResource(destination.titleRes),
                     maxLines = 1,
                     style = TextStyle(
                         color = when {
@@ -266,9 +268,9 @@ internal fun StatusPanel(
         }
         RuntimeInfoRow(label = "uid", value = state.serverInfo?.uid?.toString() ?: "-")
         RuntimeInfoRow(label = "pid", value = state.serverInfo?.pid?.toString() ?: "-")
-        RuntimeInfoRow(label = "protocol", value = state.serverInfo?.protocolVersion?.toString() ?: "-")
+        RuntimeInfoRow(label = stringResource(R.string.sample_protocol), value = state.serverInfo?.protocolVersion?.toString() ?: "-")
         SampleAction(
-            label = "Stop Server",
+            label = stringResource(R.string.sample_stop_server),
             enabled = !state.busy && state.status == PrivilegeSampleStatus.CONNECTED,
             tone = SampleActionTone.Destructive,
             modifier = Modifier,
@@ -378,10 +380,10 @@ private fun StatusPill(
 ) {
     val colors = MaterialTheme.colorScheme
     val text = when {
-        busy -> "Busy"
-        status == PrivilegeSampleStatus.CONNECTED -> "Connected"
-        status == PrivilegeSampleStatus.STARTING -> "Starting"
-        else -> "Disconnected"
+        busy -> stringResource(R.string.sample_busy)
+        status == PrivilegeSampleStatus.CONNECTED -> stringResource(R.string.sample_connected)
+        status == PrivilegeSampleStatus.STARTING -> stringResource(R.string.sample_starting)
+        else -> stringResource(R.string.sample_disconnected)
     }
     val background = when {
         busy -> colors.primaryContainer

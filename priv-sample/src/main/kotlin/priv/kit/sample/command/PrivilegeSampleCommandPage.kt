@@ -25,9 +25,11 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import priv.kit.sample.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,12 +50,12 @@ internal fun PrivilegeSampleCommandPage(
             TopAppBar(
                 navigationIcon = {
                     TextButton(onClick = onBackToHome) {
-                        Text("Home")
+                        Text(stringResource(R.string.sample_home))
                     }
                 },
                 title = {
                     Text(
-                        text = "Test Command API",
+                        text = stringResource(R.string.sample_test_command_api),
                         fontWeight = FontWeight.SemiBold,
                     )
                 },
@@ -72,7 +74,7 @@ internal fun PrivilegeSampleCommandPage(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = if (serverRunning) "Server connected" else "Server disconnected",
+                text = if (serverRunning) stringResource(R.string.sample_server_connected) else stringResource(R.string.sample_server_disconnected),
                 color = if (serverRunning) {
                     MaterialTheme.colorScheme.tertiary
                 } else {
@@ -81,8 +83,7 @@ internal fun PrivilegeSampleCommandPage(
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                text = "This sample passes the text to /system/bin/sh -c. The Core API itself " +
-                    "executes an argument list directly and does not add a shell.",
+                text = stringResource(R.string.sample_command_description),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -92,7 +93,7 @@ internal fun PrivilegeSampleCommandPage(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !state.isRunning,
                 minLines = 4,
-                label = { Text("Shell command") },
+                label = { Text(stringResource(R.string.sample_shell_command)) },
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
                 ),
@@ -107,28 +108,28 @@ internal fun PrivilegeSampleCommandPage(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !state.isRunning,
                 singleLine = true,
-                label = { Text("Timeout milliseconds (0 = none)") },
+                label = { Text(stringResource(R.string.sample_timeout_milliseconds_0_none)) },
             )
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = canStart,
                 onClick = viewModel::runStreaming,
             ) {
-                Text("Run with Streaming Output")
+                Text(stringResource(R.string.sample_run_with_streaming_output))
             }
             FilledTonalButton(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = canStart,
                 onClick = viewModel::runForResult,
             ) {
-                Text("Run and Wait for Result")
+                Text(stringResource(R.string.sample_run_and_wait_for_result))
             }
             OutlinedButton(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = state.isRunning,
                 onClick = { viewModel.cancel() },
             ) {
-                Text("Cancel")
+                Text(stringResource(R.string.sample_cancel))
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -142,7 +143,7 @@ internal fun PrivilegeSampleCommandPage(
                     enabled = !state.isRunning,
                     onClick = viewModel::clearOutput,
                 ) {
-                    Text("Clear Output")
+                    Text(stringResource(R.string.sample_clear_output))
                 }
             }
             CommandOutput(
@@ -167,13 +168,13 @@ private fun CommandOutput(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
-            text = if (truncated) "$title (truncated)" else title,
+            text = if (truncated) stringResource(R.string.sample_output_truncated, title) else title,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
         SelectionContainer {
             Text(
-                text = text.ifEmpty { "<empty>" },
+                text = text.ifEmpty { stringResource(R.string.sample_empty) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(

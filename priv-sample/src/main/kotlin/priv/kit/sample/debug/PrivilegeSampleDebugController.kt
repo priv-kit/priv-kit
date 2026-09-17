@@ -1,6 +1,7 @@
 package priv.kit.sample.debug
 
 import androidx.activity.ComponentActivity
+import priv.kit.sample.R
 import priv.kit.sample.startup.PrivilegeSampleNotificationPairingController
 import rikka.shizuku.Shizuku
 
@@ -24,7 +25,7 @@ internal class PrivilegeSampleDebugController(
             pairWirelessAdb()
         },
         onStopped = {
-            val message = "Notification pairing stopped"
+            val message = activity.getString(R.string.sample_message_notification_pairing_stopped)
             screenState = screenState.copy(
                 notificationPairingRunning = false,
                 pairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
@@ -136,8 +137,8 @@ internal class PrivilegeSampleDebugController(
             screenState = screenState.copy(
                 notificationPairingRunning = false,
                 pairingStatus = PrivilegeAdbPairingStatus.NOT_PAIRED,
-                pairingMessage = "Notification permission is required to enter the pairing code from a notification.",
-                message = "Notification permission not granted",
+                pairingMessage = activity.getString(R.string.sample_message_notification_permission_is_required_to_enter_the_pairing_code_from_a_notification),
+                message = activity.getString(R.string.sample_message_notification_permission_not_granted),
             )
         }
     }

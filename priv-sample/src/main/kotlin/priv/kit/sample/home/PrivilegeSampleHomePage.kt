@@ -25,8 +25,10 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import priv.kit.sample.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,7 +69,7 @@ internal fun PrivilegeSampleHomePage(
             ServerStatusRow(running = serverRunning)
             Text(
                 modifier = Modifier.padding(top = 4.dp),
-                text = "Choose the surface you want to inspect.",
+                text = stringResource(R.string.sample_choose_the_surface_you_want_to_inspect),
                 style = MaterialTheme.typography.bodyLarge,
                 color = colors.onSurfaceVariant,
             )
@@ -75,31 +77,31 @@ internal fun PrivilegeSampleHomePage(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onOpenPrivilegeUi,
             ) {
-                Text("Open Privilege UI")
+                Text(stringResource(R.string.sample_open_privilege_ui))
             }
             FilledTonalButton(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onOpenDebug,
             ) {
-                Text("Open Debug Tools")
+                Text(stringResource(R.string.sample_open_debug_tools))
             }
             FilledTonalButton(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onOpenFileApi,
             ) {
-                Text("Test File API")
+                Text(stringResource(R.string.sample_test_file_api))
             }
             FilledTonalButton(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onOpenDeviceFiles,
             ) {
-                Text("Browse Device Files")
+                Text(stringResource(R.string.sample_browse_device_files))
             }
             FilledTonalButton(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onOpenCommandApi,
             ) {
-                Text("Test Command API")
+                Text(stringResource(R.string.sample_test_command_api))
             }
         }
     }
@@ -121,7 +123,7 @@ private fun ServerStatusRow(running: Boolean) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "Server status",
+            text = stringResource(R.string.sample_server_status),
             style = MaterialTheme.typography.titleMedium,
             color = colors.onSurface,
         )
@@ -134,7 +136,7 @@ private fun ServerStatusRow(running: Boolean) {
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = if (running) "Running" else "Stopped",
+                text = if (running) stringResource(R.string.sample_running) else stringResource(R.string.sample_stopped),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
                 color = statusColor,
