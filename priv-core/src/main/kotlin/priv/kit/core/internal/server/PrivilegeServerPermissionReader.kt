@@ -8,6 +8,7 @@ import priv.kit.shared.PrivilegeProcessPermissions
 internal class PrivilegeServerPermissionReader private constructor(
     private val packagesForUid: (Int) -> Array<String>?,
     private val requestedPermissionsForPackage: (String) -> Array<String>?,
+    private val isPermissionDefined: (String) -> Boolean,
     private val checkPermission: (String, Int, Int) -> Int,
 ) {
     fun getDeniedPermissions(
@@ -31,6 +32,7 @@ internal class PrivilegeServerPermissionReader private constructor(
             .filter { permission ->
                 checkPermission(permission, pid, uid) != PackageManager.PERMISSION_GRANTED
             }
+            .filter(isPermissionDefined)
             .sorted()
             .toList()
     }
@@ -57,6 +59,14 @@ internal class PrivilegeServerPermissionReader private constructor(
                     }
                     packageInfo.requestedPermissions
                 },
+                isPermissionDefined = { permission ->
+                    try {
+                        packageManager.getPermissionInfo(permission, 0)
+                        true
+                    } catch (_: PackageManager.NameNotFoundException) {
+                        false
+                    }
+                },
                 checkPermission = PrivilegeProcessPermissions::check,
             )
         }
@@ -64,10 +74,12 @@ internal class PrivilegeServerPermissionReader private constructor(
         internal fun createForTest(
             packagesForUid: (Int) -> Array<String>?,
             requestedPermissionsForPackage: (String) -> Array<String>?,
+            isPermissionDefined: (String) -> Boolean,
             checkPermission: (String, Int, Int) -> Int,
         ): PrivilegeServerPermissionReader = PrivilegeServerPermissionReader(
             packagesForUid = packagesForUid,
             requestedPermissionsForPackage = requestedPermissionsForPackage,
+            isPermissionDefined = isPermissionDefined,
             checkPermission = checkPermission,
         )
     }

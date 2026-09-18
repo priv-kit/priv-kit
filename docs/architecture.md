@@ -141,7 +141,8 @@ Server lifecycle Binder 是独立的跨进程 death token，没有业务 transac
 
 Package permission 相关公开方法是 `checkPermission`、`grantRuntimePermission` 和
 `revokeRuntimePermission` 三个 framework pass-through。`getDeniedServerPermissions` 在服务端
-枚举其 UID 关联包声明的权限，并返回按服务端 PID/UID 检查为 denied 的权限名；结果不包含
+枚举其 UID 关联包声明的权限，先按服务端 PID/UID 检查授予状态，仅对 denied 的权限
+通过 PackageManager 查询定义，过滤当前设备未定义的权限后返回；结果不包含
 AppOps、SELinux 或系统服务内部策略。权限策略和更高层流程由应用定义。
 
 服务端 PID/UID 权限检查统一通过 `:priv-shared` 直接调用 ActivityManager，绕过

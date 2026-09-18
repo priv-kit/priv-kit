@@ -31,6 +31,8 @@ internal fun PrivilegeUiState.toScreenState(
     runtimeStartPhase = runtimeStartPhase,
     runtimeStartProviderId = runtimeStartProviderId,
     permissionRestrictionStatus = permissionRestrictionStatus,
+    connectionSerial = connectionSerial,
+    deniedServerPermissions = deniedServerPermissions,
     desiredEnabled = desiredEnabled,
     restartConfirmationTarget = restartConfirmationTarget,
 )

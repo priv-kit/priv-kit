@@ -87,16 +87,16 @@ await writeFile(path.join(destination, 'index.mjs'), [
   'const resources = {',
   ...resourceEntries,
   '};',
-  'export function renderPrivilegePlayground(container, dark, useLegacyPackaging) {',
+  'export function renderPrivilegePlayground(container, dark, useLegacyPackaging, adbRestricted = true) {',
   '  return render(container, (path) => {',
   '    if (!Object.hasOwn(resources, path)) throw new Error(`Unknown Compose resource: ${path}`);',
   '    return resources[path];',
-  '  }, dark, useLegacyPackaging);',
+  '  }, dark, useLegacyPackaging, adbRestricted);',
   '}',
   '',
 ].join('\n'));
 await writeFile(path.join(destination, 'index.d.mts'),
-  'export declare function renderPrivilegePlayground(container: HTMLElement, dark: boolean, useLegacyPackaging: boolean): (dark: boolean, useLegacyPackaging: boolean) => void;\n');
+  'export declare function renderPrivilegePlayground(container: HTMLElement, dark: boolean, useLegacyPackaging: boolean, adbRestricted?: boolean): (dark: boolean, useLegacyPackaging: boolean, adbRestricted: boolean) => void;\n');
 
 for (const file of ['priv-playground.mjs', 'priv-playground.wasm', 'skiko.mjs', 'skiko.wasm']) {
   if (!(await stat(path.join(destination, file))).isFile()) throw new Error(`Missing playground asset: ${file}`);

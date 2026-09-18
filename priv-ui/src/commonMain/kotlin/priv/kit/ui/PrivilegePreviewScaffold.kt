@@ -19,12 +19,16 @@ import priv.kit.ui.resources.*
 /**
  * Displays the shared page with an in-memory simulation; no runtime is created.
  * [useLegacyPackaging] selects the simulated manual command's native library packaging format.
+ * [adbRestricted] controls permission restrictions for simulated Shell connections.
+ * [onViewPermissionSolutions] overrides opening the localized permission troubleshooting page.
  */
 @Composable
 @Suppress("DEPRECATION")
 public fun PrivilegePreviewScaffold(
     modifier: Modifier = Modifier,
     useLegacyPackaging: Boolean = true,
+    adbRestricted: Boolean = true,
+    onViewPermissionSolutions: (() -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
@@ -42,7 +46,10 @@ public fun PrivilegePreviewScaffold(
             clipboard.setText(AnnotatedString(it))
         }
     }
-    SideEffect { simulation.setUseLegacyPackaging(useLegacyPackaging) }
+    SideEffect {
+        simulation.setUseLegacyPackaging(useLegacyPackaging)
+        simulation.setAdbRestricted(adbRestricted)
+    }
     if (simulation.externalAuthorizationRequested) {
         AlertDialog(
             onDismissRequest = simulation::cancelOperation,
@@ -67,6 +74,7 @@ public fun PrivilegePreviewScaffold(
             actions = simulation.actions,
             interactionEnabled = true,
             showFeedback = { scope.launch { snackbar.showSnackbar(it) } },
+            onViewPermissionSolutions = onViewPermissionSolutions,
         ),
         snackbarHostState = snackbar,
         topBar = { PrivilegeTopBar(onBack = {}, backEnabled = false) },

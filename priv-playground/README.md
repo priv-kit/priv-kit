@@ -5,7 +5,7 @@ Desktop/JVM and Browser/WasmJS. Android integration remains in `:priv-sample`.
 
 `commonMain` provides the Material 3 theme and renders `PrivilegePreviewScaffold()`. The Desktop
 entry point creates a resizable window. The Wasm entry point exports `renderPrivilegePlayground`,
-which accepts a host element, resource URL resolver, theme, and `useLegacyPackaging`. The website owns the element lifecycle.
+which accepts a host element, resource URL resolver, theme, `useLegacyPackaging`, and `adbRestricted`. The website owns the element lifecycle.
 Root, Wireless ADB, static TCP, manual startup, and external authorization use an in-memory simulation.
 Operations default to success, pairing accepts any six digits, and confirmation/cancellation dialogs
 drive the same shared page components. No privileged runtime, networking, or system changes occur.
@@ -30,9 +30,9 @@ target. Java is still required for Gradle. The website workflow enables this mod
 the variable unset for Android builds and publishing.
 
 Open `/playground/` or `/zh/playground/`. The Vue page provides
-language, appearance, and `useLegacyPackaging` controls outside the canvas. `priv-playground/scripts/build-playground.ts` builds the Wasm executable and assembles
+language, appearance, `useLegacyPackaging`, and ADB permission restriction controls outside the canvas. `priv-playground/scripts/build-playground.ts` builds the Wasm executable and assembles
 the entry module, Wasm, Skiko, and Compose resources in the ignored `priv-playground/dist` directory.
-The private workspace package exposes `renderPrivilegePlayground(container, dark, useLegacyPackaging)` with its resource resolver
+The private workspace package exposes `renderPrivilegePlayground(container, dark, useLegacyPackaging, adbRestricted)` with its resource resolver
 already configured. The Vue page loads it with `import('@priv-kit/playground')`; Vite bundles its dependencies and
 fingerprints the Wasm, font, and string resources into `priv-website/.vitepress/dist/assets`.
 The `@priv-kit/playground/wasm-assets` export contains build-time Wasm sizes without loading the runtime.
@@ -43,6 +43,9 @@ VitePress handles routing and the single website build; no separate Vite build o
 The route selects the UI language, and appearance follows the website theme. Leaving the page
 clears the Compose host and restores the browser language settings used by Compose resources.
 The Wasm mount function returns an options updater, so switching the theme or packaging preserves simulation data.
+The ADB restriction switch defaults to on and immediately updates the warning and permission list
+for simulated Shell connections, including manual startup. It also applies to subsequent connections;
+Root connections remain unrestricted. Toggling it preserves the current connection and session.
 The manual command uses a session-local installation path with two URL-safe Base64 tokens encoding 16 random bytes each
 and the fixed package name `priv.kit.sample`. Packaging defaults to `true` (extracted ARM64 library); `false`
 shows the `linker64` command for the library inside `base.apk`. Switching formats retains the installation path.

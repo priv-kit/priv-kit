@@ -13,6 +13,7 @@ import { createTrackedWasmFetch, type WasmDownloadProgress } from './wasmDownloa
 const { lang, isDark: dark } = useData();
 const host = ref<HTMLElement>();
 const useLegacyPackaging = ref(true);
+const adbRestricted = ref(true);
 const status = ref<'loading' | 'ready' | 'error'>('loading');
 const loadingPhase = ref<'downloading' | 'starting'>('downloading');
 const downloadProgress = ref<WasmDownloadProgress>({
@@ -37,7 +38,7 @@ const downloadedBytesLabel = computed(() =>
 let generation = 0;
 let observer: MutationObserver | undefined;
 let timeout: ReturnType<typeof setTimeout> | undefined;
-let updateOptions: ((dark: boolean, useLegacyPackaging: boolean) => void) | undefined;
+let updateOptions: ((dark: boolean, useLegacyPackaging: boolean, adbRestricted: boolean) => void) | undefined;
 let nativeFetch: typeof window.fetch | undefined;
 let trackedFetch: typeof window.fetch | undefined;
 let progressFrame = 0;
@@ -120,7 +121,7 @@ async function mount() {
       observer?.disconnect();
     });
     observer.observe(container, { childList: true });
-    updateOptions = renderPrivilegePlayground(container, dark.value, useLegacyPackaging.value);
+    updateOptions = renderPrivilegePlayground(container, dark.value, useLegacyPackaging.value, adbRestricted.value);
   } catch (cause) {
     console.error('Could not mount the UI playground', cause);
     fail();
@@ -133,7 +134,7 @@ function retry() {
 }
 
 onMounted(() => { void mount(); });
-watch([dark, useLegacyPackaging], ([appearance, legacyPackaging]) => updateOptions?.(appearance, legacyPackaging));
+watch([dark, useLegacyPackaging, adbRestricted], ([appearance, legacyPackaging, restricted]) => updateOptions?.(appearance, legacyPackaging, restricted));
 watch(lang, () => { void mount(); });
 onBeforeUnmount(() => {
   clear();
@@ -198,6 +199,27 @@ onBeforeUnmount(() => {
             @click="useLegacyPackaging = !useLegacyPackaging"
           >
             <span class="absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow-sm transition-transform" :class="useLegacyPackaging ? 'translate-x-5' : 'translate-x-0'" />
+          </button>
+        </div>
+
+        <div class="mb-5 flex items-center justify-between gap-4">
+          <div>
+            <label for="adb-restricted" class="cursor-pointer text-sm">{{ chinese ? 'ADB 权限受限' : 'Restrict ADB permissions' }}</label>
+            <p id="adb-restricted-description" class="mt-1 text-xs text-stone-500 dark:text-stone-400">
+              {{ chinese ? '切换 Shell 连接的权限限制，Root 连接不受影响。' : 'Toggle permission restrictions for Shell connections. Root connections are unaffected.' }}
+            </p>
+          </div>
+          <button
+            id="adb-restricted"
+            type="button"
+            role="switch"
+            :aria-checked="adbRestricted"
+            aria-describedby="adb-restricted-description"
+            class="relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
+            :class="adbRestricted ? 'bg-violet-600' : 'bg-stone-400 dark:bg-stone-600'"
+            @click="adbRestricted = !adbRestricted"
+          >
+            <span class="absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow-sm transition-transform" :class="adbRestricted ? 'translate-x-5' : 'translate-x-0'" />
           </button>
         </div>
 

@@ -19,6 +19,25 @@ description: 使用推荐的 Compose 授权界面，并配置静默启动。
 - `PrivilegeUi.startSilently(...)` 在自动恢复开启时按上次成功的方式静默启动。
   `ignoreAutomaticRecoverySetting = true` 会显式忽略该设置。
 
+## 权限解决方案入口 {#permission-solutions}
+
+权限受限卡片左侧为**查看解决方案**，右侧为**查看受限权限**。默认按界面语言（英文或
+简体中文）打开 [ADB 权限限制解决方案](./permission-restrictions)页面。
+
+传入 `onViewPermissionSolutions` 可替换为宿主自己的导航行为：
+
+```kotlin
+PrivilegeScaffold(
+    viewModel = viewModel,
+    onViewPermissionSolutions = {
+        navController.navigate("permission-help")
+    },
+)
+```
+
+传入后仅执行该回调，不再打开默认网站。`PrivilegePreviewScaffold` 支持相同回调；
+不传或传入 `null` 时使用默认链接。
+
 ## 复用进程级配置 {#application-scoped-config}
 
 在进程级顶层属性中只创建一次外部 Provider 和 `PrivilegeUiConfig`，然后把同一个

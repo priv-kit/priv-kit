@@ -82,7 +82,8 @@ of entries (32 by default), while the pipe buffer may write sooner when full.
 
 Permission checks and runtime permission grant/revoke methods are thin framework pass-throughs.
 `Privilege.getDeniedServerPermissions()` returns the distinct, sorted manifest permissions that
-packages associated with the server UID declare but the server PID/UID is denied. It does not
+packages associated with the server UID declare but the server PID/UID is denied. Permissions
+not defined on the current device are filtered out; only denied permissions need a definition lookup. It does not
 inspect AppOps, SELinux, or service-specific authorization, and an empty result is not a general
 capability guarantee. Domain policy stays with the integrating app.
 

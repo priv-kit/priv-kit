@@ -6,6 +6,7 @@ import android.content.ContextWrapper
 import android.content.pm.PackageManager
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
+import android.content.pm.PermissionInfo
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,9 +29,11 @@ class PrivilegeServerPermissionReaderAndroidTest {
                 packageName = SERVER_PACKAGE
                 uid = SERVER_UID
             }
-            requestedPermissions = arrayOf(GRANTED_PERMISSION, DENIED_PERMISSION)
+            requestedPermissions = arrayOf(GRANTED_PERMISSION, DENIED_PERMISSION, UNKNOWN_PERMISSION)
         }
         shadowOf(application.packageManager).apply {
+            addPermissionInfo(PermissionInfo().apply { name = GRANTED_PERMISSION })
+            addPermissionInfo(PermissionInfo().apply { name = DENIED_PERMISSION })
             installPackage(packageInfo)
             setPackagesForUid(SERVER_UID, SERVER_PACKAGE)
         }
@@ -56,6 +59,7 @@ class PrivilegeServerPermissionReaderAndroidTest {
     fun refreshUsesLiveServiceEvenWhenContextRetainsGrantedResult() {
         val application = RuntimeEnvironment.getApplication()
         shadowOf(application.packageManager).apply {
+            addPermissionInfo(PermissionInfo().apply { name = GRANTED_PERMISSION })
             installPackage(PackageInfo().apply {
                 packageName = SERVER_PACKAGE
                 applicationInfo = ApplicationInfo().apply { uid = SERVER_UID }
@@ -102,5 +106,6 @@ class PrivilegeServerPermissionReaderAndroidTest {
         const val SERVER_UID = 2000
         const val GRANTED_PERMISSION = "priv.kit.permission.GRANTED"
         const val DENIED_PERMISSION = "priv.kit.permission.DENIED"
+        const val UNKNOWN_PERMISSION = "priv.kit.permission.UNKNOWN"
     }
 }

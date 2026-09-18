@@ -57,6 +57,13 @@ startup transcripts, connection status, and permission-restriction warnings. It 
 restart confirmation when a server is connected. Confirmation resumes the original start
 coroutine; cancellation leaves the current server running.
 
+When permissions are restricted, the page fetches the denied permission list in the background.
+The warning's View restricted permissions action opens selectable permission text with Copy and
+Close buttons. Returning to the page refreshes the list; connection changes clear it.
+The warning's View solutions action opens the localized permission troubleshooting page.
+Pass `onViewPermissionSolutions` to `PrivilegeScaffold` or `PrivilegePreviewScaffold` to replace
+that action with host navigation; when supplied, only the callback runs.
+
 Battery guidance opens Android's direct exemption confirmation when the merged manifest contains
 `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. Hosts can remove that permission with manifest merge, in
 which case the page opens Android's optimization list and app details instead.
@@ -137,6 +144,9 @@ ViewModel, Core runtime, polling job, permission request, or external provider. 
 simulation drives the shared page's normal states and actions. Root, Wireless ADB,
 static TCP, and external authorization default to success after a short cancellable delay. Any six
 digits complete pairing. Existing restart, stop, pairing, and TCP confirmation dialogs remain usable.
+Simulated Shell connections show a restricted-permissions warning and sample permission list when
+`adbRestricted` is true (the default). Changing it updates the current simulation without restarting
+the connection; Root connections remain unrestricted.
 The manual tab supplies a command with a randomly generated installation path for `priv.kit.sample`;
 the top Start service action simulates its execution. `useLegacyPackaging` (default `true`) selects
 the extracted library or in-APK linker command without resetting the simulated session.

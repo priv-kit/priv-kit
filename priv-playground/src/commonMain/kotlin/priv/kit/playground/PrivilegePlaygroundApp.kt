@@ -16,6 +16,7 @@ import priv.kit.playground.resources.noto_sans_sc
 internal fun PrivilegePlaygroundApp(
     dark: Boolean = isSystemInDarkTheme(),
     useLegacyPackaging: Boolean = true,
+    adbRestricted: Boolean = true,
 ) {
     val fontFamily = FontFamily(Font(Res.font.noto_sans_sc))
     val defaults = Typography()
@@ -40,6 +41,6 @@ internal fun PrivilegePlaygroundApp(
         colorScheme = if (dark) darkColorScheme() else lightColorScheme(),
         typography = typography,
     ) {
-        PrivilegePreviewScaffold(useLegacyPackaging = useLegacyPackaging)
+        PrivilegePreviewScaffold(useLegacyPackaging = useLegacyPackaging, adbRestricted = adbRestricted)
     }
 }

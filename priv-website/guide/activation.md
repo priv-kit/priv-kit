@@ -93,6 +93,11 @@ die within five seconds, and a matched planned restart does not count toward the
 
 ### Inspect denied server permissions {#denied-server-permissions}
 
+The built-in UI fetches the permission list in the background when it detects restricted
+permissions. Select **View restricted permissions** on the warning card to open a dialog.
+Permission names can be selected freely; **Copy** copies the full list and **Close** dismisses
+the dialog. Returning to the page refreshes the list.
+
 After the server connects, a custom host can inspect permissions declared by
 packages associated with the server UID but denied to the server process:
 
@@ -102,6 +107,8 @@ val deniedPermissions = withContext(Dispatchers.IO) {
 }
 ```
 
+Permissions not defined on the current device are filtered out. The method checks
+grant status first, then looks up definitions only for denied permissions.
 The result is a distinct list sorted by permission name. Root servers return an
 empty list. Failure to resolve package metadata for a non-root server is
 reported instead of being treated as an unrestricted result.
@@ -140,28 +147,17 @@ input via USB debugging**. On the tested device, its Chinese label and descripti
 After changing the switch, call the method again for the current result; the privileged process
 does not need to restart.
 
-**USB debugging (Security settings) enabled: 5 permissions are still denied.**
+**Restrictions disabled (USB debugging (Security settings) enabled): the returned list is empty (0 denied permissions).**
 
-```text
-android.permission.DEBUG_VIRTUAL_MACHINE
-android.permission.MANAGE_VIRTUAL_MACHINE
-android.permission.MANAGE_WIFI_WHEN_WIRELESS_CONSENT_REQUIRED
-com.android.providers.tv.permission.ACCESS_WATCHED_PROGRAMS
-com.android.providers.tv.permission.WRITE_EPG_DATA
-```
-
-**USB debugging (Security settings) disabled: 19 permissions are denied.**
+**Restrictions enabled (USB debugging (Security settings) disabled): 14 permissions are denied.**
 
 ```text
 android.permission.CALL_PHONE
 android.permission.CLEAR_APP_USER_DATA
-android.permission.DEBUG_VIRTUAL_MACHINE
 android.permission.GRANT_RUNTIME_PERMISSIONS
 android.permission.INJECT_EVENTS
 android.permission.INSTALL_GRANT_RUNTIME_PERMISSIONS
 android.permission.MANAGE_DEVICE_ADMINS
-android.permission.MANAGE_VIRTUAL_MACHINE
-android.permission.MANAGE_WIFI_WHEN_WIRELESS_CONSENT_REQUIRED
 android.permission.READ_CONTACTS
 android.permission.REVOKE_RUNTIME_PERMISSIONS
 android.permission.SEND_SMS
@@ -170,8 +166,6 @@ android.permission.UPDATE_APP_OPS_STATS
 android.permission.WRITE_CONTACTS
 android.permission.WRITE_SECURE_SETTINGS
 android.permission.WRITE_SETTINGS
-com.android.providers.tv.permission.ACCESS_WATCHED_PROGRAMS
-com.android.providers.tv.permission.WRITE_EPG_DATA
 ```
 
 On this device, disabling the setting prevents the privileged process running as Shell from

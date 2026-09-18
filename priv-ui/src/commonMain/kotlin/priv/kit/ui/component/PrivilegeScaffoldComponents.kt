@@ -1,6 +1,7 @@
 package priv.kit.ui.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +33,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.StringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -77,6 +81,7 @@ internal fun ItemPanel(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
+@Suppress("DEPRECATION")
 internal fun PrivilegeUiScreenScope.PermissionRestrictionWarning() {
     if (
         !privilegeUiPermissionRestrictionWarningVisible(
@@ -85,6 +90,46 @@ internal fun PrivilegeUiScreenScope.PermissionRestrictionWarning() {
         )
     ) {
         return
+    }
+    var permissionsDialogVisible by remember(state.connectionSerial) { mutableStateOf(false) }
+    val permissions = state.deniedServerPermissions
+    val clipboard = LocalClipboardManager.current
+    val uriHandler = LocalUriHandler.current
+    val solutionsUrl = stringResource(Res.string.priv_ui_permission_solutions_url)
+    if (permissionsDialogVisible) {
+        val permissionText = permissions.joinToString("\n")
+        AlertDialog(
+            onDismissRequest = { permissionsDialogVisible = false },
+            title = { Text(stringResource(Res.string.priv_ui_denied_permissions_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.medium)) {
+                    Text(stringResource(Res.string.priv_ui_denied_permissions_message))
+                    SelectionContainer {
+                        Text(
+                            text = permissionText,
+                            fontFamily = FontFamily.Monospace,
+                            style = MaterialTheme.typography.bodySmall,
+                            softWrap = false,
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.shapes.small)
+                                .verticalScroll(rememberScrollState())
+                                .horizontalScroll(rememberScrollState())
+                                .padding(PrivilegeUiSpacing.medium),
+                        )
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { clipboard.setText(AnnotatedString(permissionText)) }) {
+                    Text(stringResource(Res.string.priv_ui_denied_permissions_copy))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { permissionsDialogVisible = false }) {
+                    Text(stringResource(Res.string.priv_ui_denied_permissions_close))
+                }
+            },
+        )
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -119,6 +164,24 @@ internal fun PrivilegeUiScreenScope.PermissionRestrictionWarning() {
                 text = stringResource(Res.string.priv_ui_permission_restricted_message),
                 style = MaterialTheme.typography.bodyMedium,
             )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(
+                    onClick = onViewPermissionSolutions ?: { uriHandler.openUri(solutionsUrl) },
+                    modifier = Modifier.weight(1f, fill = false),
+                ) {
+                    Text(stringResource(Res.string.priv_ui_permission_solutions_view))
+                }
+                TextButton(
+                    onClick = { permissionsDialogVisible = true },
+                    modifier = Modifier.weight(1f, fill = false),
+                ) {
+                    Text(stringResource(Res.string.priv_ui_denied_permissions_view))
+                }
+            }
         }
     }
 }

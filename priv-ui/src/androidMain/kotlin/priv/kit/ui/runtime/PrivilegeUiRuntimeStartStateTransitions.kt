@@ -27,6 +27,7 @@ internal fun PrivilegeUiState.startingAttempt(
             runtimeStartProviderId = attempt.runtimeStartProviderId,
             serverInfo = null,
             permissionRestrictionStatus = PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
+            deniedServerPermissions = emptyList(),
             runtimeProgressText = attempt.progressText,
         )
     }
@@ -45,6 +46,7 @@ internal fun PrivilegeUiState.toDisconnectedRuntimeIdle(): PrivilegeUiState =
         runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
         serverInfo = null,
         permissionRestrictionStatus = PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
+        deniedServerPermissions = emptyList(),
     )
 
 internal fun PrivilegeUiState.toFailedRuntimeIdle(): PrivilegeUiState =
@@ -52,6 +54,7 @@ internal fun PrivilegeUiState.toFailedRuntimeIdle(): PrivilegeUiState =
         runtimeStatus = PrivilegeUiRuntimeStatus.FAILED,
         serverInfo = null,
         permissionRestrictionStatus = PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
+        deniedServerPermissions = emptyList(),
     )
 
 internal fun PrivilegeUiState.toConnectedRuntimeIdle(
@@ -62,6 +65,7 @@ internal fun PrivilegeUiState.toConnectedRuntimeIdle(
         runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
         serverInfo = serverInfo,
         permissionRestrictionStatus = PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
+        deniedServerPermissions = emptyList(),
         connectionSerial = connectionSerial,
     )
 
