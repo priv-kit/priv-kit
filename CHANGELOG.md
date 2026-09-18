@@ -5,8 +5,10 @@ Keep only the changes for the current release in this file.
 Replace the content when preparing the next release; release history is preserved by GitHub Releases.
 -->
 
-- Add `flushBatchSize` to `PrivilegeFile.walk()` so callers can tune pipe flush frequency
-  during large directory traversals. The default batches 32 entries while delivering the
-  first entry immediately.
-- Remove unused core fields and duplicate synchronization in user service startup and
-  runtime handshake bookkeeping.
+- Filter permissions not defined by the current Android system from
+  `Privilege.getDeniedServerPermissions()`, querying permission definitions only for denied permissions.
+- Show restricted permission details in a selectable dialog with copy support, while displaying
+  the restriction warning immediately and fetching the permission list in the background.
+- Add a permission solutions button with an overridable `onViewPermissionSolutions` callback
+  and English and Chinese guides for device-specific ADB restrictions.
+- Add an ADB restriction toggle to the playground and an `adbRestricted` preview option.
