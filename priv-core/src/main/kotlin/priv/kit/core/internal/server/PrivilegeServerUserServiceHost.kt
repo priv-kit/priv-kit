@@ -18,12 +18,6 @@ internal class PrivilegeServerUserServiceHost(
     private val processStarter: (PrivilegeServerUserServiceProcessStartCommand) -> java.lang.Process =
         PrivilegeServerUserServiceHost::startProcess,
 ) : PrivilegeUserServiceHost {
-    override val uid: Int
-        get() = AndroidProcess.myUid()
-
-    override val pid: Int
-        get() = AndroidProcess.myPid()
-
     override val packageName: String
         get() = config.packageName
 
@@ -69,7 +63,6 @@ internal class PrivilegeServerUserServiceHost(
 internal data class PrivilegeServerUserServiceProcessStartCommand(
     val arguments: List<String>,
     val environment: Map<String, String>,
-    val processName: String,
 )
 
 internal object PrivilegeServerUserServiceProcessCommand {
@@ -101,7 +94,6 @@ internal object PrivilegeServerUserServiceProcessCommand {
                 serverPid.toString(),
             ),
             environment = mapOf("CLASSPATH" to config.classpath),
-            processName = processName,
         )
     }
 

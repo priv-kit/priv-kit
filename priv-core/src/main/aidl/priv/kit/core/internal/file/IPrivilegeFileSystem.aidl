@@ -20,6 +20,7 @@ interface IPrivilegeFileSystem {
         String path,
         int maxDepth,
         in String[] skipDirectoryGlobs,
+        int flushBatchSize,
         in ParcelFileDescriptor sink
     );
     boolean startDeleteRecursively(

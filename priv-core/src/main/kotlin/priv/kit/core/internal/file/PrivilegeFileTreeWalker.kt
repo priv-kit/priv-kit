@@ -27,23 +27,15 @@ internal object PrivilegeFileTreeWalker {
         path: String,
         maxDepth: Int,
         skipDirectoryGlobs: List<String>,
+        flushBatchSize: Int,
         sink: ParcelFileDescriptor,
     ) {
+        require(flushBatchSize >= 1) { "Walk flush batch size must be positive: $flushBatchSize" }
         val output = DataOutputStream(
             BufferedOutputStream(ParcelFileDescriptor.AutoCloseOutputStream(sink)),
         )
         try {
-            walk(path, maxDepth, skipDirectoryGlobs).collect { entry ->
-                PrivilegeFileWire.writeEntry(
-                    output = output,
-                    path = entry.absolutePath,
-                    depth = entry.depth,
-                    stat = entry.stat,
-                )
-                output.flush()
-            }
-            output.writeByte(PrivilegeFileSystemContract.WALK_COMPLETE)
-            output.flush()
+            writeEntries(walk(path, maxDepth, skipDirectoryGlobs), flushBatchSize, output)
         } catch (exception: CancellationException) {
             throw exception
         } catch (throwable: Throwable) {
@@ -57,6 +49,32 @@ internal object PrivilegeFileTreeWalker {
         } finally {
             runCatching(output::close)
         }
+    }
+
+    internal suspend fun writeEntries(
+        entries: Flow<PrivilegeFileWalkRecord>,
+        flushBatchSize: Int,
+        output: DataOutputStream,
+    ) {
+        require(flushBatchSize >= 1) { "Walk flush batch size must be positive: $flushBatchSize" }
+        var entriesSinceFlush = 0
+        var firstEntry = true
+        entries.collect { entry ->
+            PrivilegeFileWire.writeEntry(
+                output = output,
+                path = entry.absolutePath,
+                depth = entry.depth,
+                stat = entry.stat,
+            )
+            entriesSinceFlush += 1
+            if (firstEntry || entriesSinceFlush >= flushBatchSize) {
+                output.flush()
+                entriesSinceFlush = 0
+                firstEntry = false
+            }
+        }
+        output.writeByte(PrivilegeFileSystemContract.WALK_COMPLETE)
+        output.flush()
     }
 
     fun walk(

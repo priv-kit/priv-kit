@@ -171,6 +171,8 @@ Fallback 保留远端结果的不确定性。具有副作用的调用在连接�
 业务遍历策略由应用或 UserService 实现。服务端通过 `lstat` 读取元数据；`EACCES` 或
 `EPERM` 时保留名称并返回空元数据，符号链接和无元数据条目都不进入。后代目录使用
 `SecureDirectoryStream` 的描述符相对操作。每次 walk 占一个服务端槽位，最多同时四个。
+首个目录条目立即刷新到 pipe，后续按可配置的 `flushBatchSize` 显式批量刷新，默认每 32 项；
+缓冲区写满时也可能提前写入。
 
 `deleteRecursively()` 在客户端按词法合并分隔符及 `.`、`..`，并拒绝文件系统根。服务端
 通过 `SecureDirectoryStream` 先删除子项，再删除父目录。取消和服务端关闭会停止任务，

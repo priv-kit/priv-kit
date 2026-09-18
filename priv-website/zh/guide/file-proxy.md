@@ -151,6 +151,16 @@ directory.walk(maxDepth = 2).collect { entry ->
 }
 ```
 
+目录条目较多时，可用 `flushBatchSize` 控制服务端每累计多少个条目显式刷新一次 pipe。
+默认值为 32，必须为正数。首个条目会立即刷新；pipe 缓冲区写满时也可能提前写入。
+该参数只影响结果的送达时机，不改变返回的条目或 Binder 调用次数：
+
+```kotlin
+directory.walk(maxDepth = 2, flushBatchSize = 64).collect { entry ->
+    Log.d("file", entry.absolutePath)
+}
+```
+
 如果需要在服务端剪枝常见的依赖或生成目录：
 
 ```kotlin

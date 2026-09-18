@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReference
 import priv.kit.core.file.PrivilegeFilePath
 
 internal class PrivilegeFileSystemBinder(
-    private val walkAction: suspend (String, Int, List<String>, ParcelFileDescriptor) -> Unit =
+    private val walkAction: suspend (String, Int, List<String>, Int, ParcelFileDescriptor) -> Unit =
         PrivilegeFileTreeWalker::write,
     walkDispatcher: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(
         PrivilegeFileSystemContract.MAX_CONCURRENT_WALKS,
@@ -353,15 +353,17 @@ internal class PrivilegeFileSystemBinder(
         path: String,
         maxDepth: Int,
         skipDirectoryGlobs: Array<out String>?,
+        flushBatchSize: Int,
         sink: ParcelFileDescriptor,
     ): Int {
         validatePath(path)
         require(maxDepth >= 1) { "Maximum walk depth must be positive: $maxDepth" }
+        require(flushBatchSize >= 1) { "Walk flush batch size must be positive: $flushBatchSize" }
         val globs = skipDirectoryGlobs?.toList().orEmpty()
         PrivilegeFileNameGlobs.validate(globs)
 
         val job = walkScope.launch(start = CoroutineStart.LAZY) {
-            walkAction(path, maxDepth, globs, sink)
+            walkAction(path, maxDepth, globs, flushBatchSize, sink)
         }
         val accepted = synchronized(operationAdmissionLock) {
             if (closed || !walkSlots.tryAcquire()) {

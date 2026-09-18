@@ -33,5 +33,6 @@ internal interface PrivilegeFileOperations {
         path: String,
         maxDepth: Int,
         skipDirectoryGlobs: List<String>,
+        flushBatchSize: Int,
     ): Flow<PrivilegeFileEntry>
 }

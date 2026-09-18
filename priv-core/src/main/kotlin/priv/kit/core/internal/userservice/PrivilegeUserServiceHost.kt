@@ -3,8 +3,6 @@ package priv.kit.core.internal.userservice
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
 
 internal interface PrivilegeUserServiceHost {
-    val uid: Int
-    val pid: Int
     val packageName: String
     val userId: Int
 

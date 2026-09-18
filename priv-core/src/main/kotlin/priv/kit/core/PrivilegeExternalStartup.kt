@@ -5,7 +5,6 @@ import priv.kit.core.internal.external.EXTERNAL_STARTUP_READER_JOIN_TIMEOUT_MILL
 import priv.kit.core.internal.external.EXTERNAL_STARTUP_STDERR
 import priv.kit.core.internal.external.EXTERNAL_STARTUP_STDOUT
 import java.io.InputStream
-import java.util.Collections
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
@@ -255,7 +254,7 @@ internal class StartupTranscript(
     private val maxCapturedLines: Int,
     private val startupLogListener: PrivilegeStartupLogListener?,
 ) {
-    private val output = Collections.synchronizedList(mutableListOf<String>())
+    private val output = mutableListOf<String>()
 
     fun append(
         source: String,

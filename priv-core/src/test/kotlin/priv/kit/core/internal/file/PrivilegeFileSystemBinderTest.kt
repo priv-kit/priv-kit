@@ -22,16 +22,23 @@ import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(RobolectricTestRunner::class)
 class PrivilegeFileSystemBinderTest {
+    private data class WalkRequest(
+        val path: String,
+        val maxDepth: Int,
+        val skipDirectoryGlobs: List<String>,
+        val flushBatchSize: Int,
+    )
+
     @Test
     fun walkHasFourActiveSlotsWithoutAQueueAndForwardsDepth() = runBlocking {
         val startedCount = AtomicInteger()
         val allStarted = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
-        val received = LinkedBlockingQueue<Triple<String, Int, List<String>>>()
+        val received = LinkedBlockingQueue<WalkRequest>()
         val sources = mutableListOf<ParcelFileDescriptor>()
         val binder = PrivilegeFileSystemBinder(
-            walkAction = { path, maxDepth, skipDirectoryGlobs, _ ->
-                received += Triple(path, maxDepth, skipDirectoryGlobs)
+            walkAction = { path, maxDepth, skipDirectoryGlobs, flushBatchSize, _ ->
+                received += WalkRequest(path, maxDepth, skipDirectoryGlobs, flushBatchSize)
                 if (
                     startedCount.incrementAndGet() ==
                     PrivilegeFileSystemContract.MAX_CONCURRENT_WALKS
@@ -52,6 +59,7 @@ class PrivilegeFileSystemBinderTest {
                         "/tree-$index",
                         index + 1,
                         arrayOf("skip-$index"),
+                        index + 1,
                         pipe[1],
                     ),
                 )
@@ -62,14 +70,14 @@ class PrivilegeFileSystemBinderTest {
             sources += rejectedPipe[0]
             assertEquals(
                 OsConstants.EBUSY,
-                binder.walk("/tree-over-capacity", 1, emptyArray(), rejectedPipe[1]),
+                binder.walk("/tree-over-capacity", 1, emptyArray(), 1, rejectedPipe[1]),
             )
             assertEquals(
                 setOf(
-                    Triple("/tree-0", 1, listOf("skip-0")),
-                    Triple("/tree-1", 2, listOf("skip-1")),
-                    Triple("/tree-2", 3, listOf("skip-2")),
-                    Triple("/tree-3", 4, listOf("skip-3")),
+                    WalkRequest("/tree-0", 1, listOf("skip-0"), 1),
+                    WalkRequest("/tree-1", 2, listOf("skip-1"), 2),
+                    WalkRequest("/tree-2", 3, listOf("skip-2"), 3),
+                    WalkRequest("/tree-3", 4, listOf("skip-3"), 4),
                 ),
                 List(PrivilegeFileSystemContract.MAX_CONCURRENT_WALKS) {
                     requireNotNull(received.poll(TEST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS))
@@ -88,7 +96,7 @@ class PrivilegeFileSystemBinderTest {
         val binder = PrivilegeFileSystemBinder()
         try {
             org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
-                binder.walk("/tree", 0, emptyArray(), pipe[1])
+                binder.walk("/tree", 0, emptyArray(), 1, pipe[1])
             }
         } finally {
             pipe.forEach { descriptor -> runCatching(descriptor::close) }
@@ -102,7 +110,21 @@ class PrivilegeFileSystemBinderTest {
         val binder = PrivilegeFileSystemBinder()
         try {
             org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
-                binder.walk("/tree", 1, arrayOf("parent/child"), pipe[1])
+                binder.walk("/tree", 1, arrayOf("parent/child"), 1, pipe[1])
+            }
+        } finally {
+            pipe.forEach { descriptor -> runCatching(descriptor::close) }
+            binder.shutdown()
+        }
+    }
+
+    @Test
+    fun walkRejectsNonPositiveFlushBatchSizeBeforeStarting() {
+        val pipe = ParcelFileDescriptor.createPipe()
+        val binder = PrivilegeFileSystemBinder()
+        try {
+            org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+                binder.walk("/tree", 1, emptyArray(), 0, pipe[1])
             }
         } finally {
             pipe.forEach { descriptor -> runCatching(descriptor::close) }

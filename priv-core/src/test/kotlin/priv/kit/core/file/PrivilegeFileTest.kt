@@ -232,14 +232,16 @@ class PrivilegeFileTest {
         assertEquals("/directory", operations.walkPath)
         assertEquals(3, operations.walkMaxDepth)
         assertEquals(emptyList<String>(), operations.walkSkipDirectoryGlobs)
+        assertEquals(32, operations.walkFlushBatchSize)
 
         val globs = mutableListOf("node_modules", "build-*")
         assertSame(
             operations.walkResult,
-            directory.walk(maxDepth = 4, skipDirectoryGlobs = globs),
+            directory.walk(maxDepth = 4, skipDirectoryGlobs = globs, flushBatchSize = 7),
         )
         globs += ".git"
         assertEquals(4, operations.walkMaxDepth)
+        assertEquals(7, operations.walkFlushBatchSize)
         assertEquals(
             listOf("node_modules", "build-*"),
             operations.walkSkipDirectoryGlobs,
@@ -249,6 +251,12 @@ class PrivilegeFileTest {
         }
         assertThrows(IllegalArgumentException::class.java) {
             directory.walk(skipDirectoryGlobs = listOf("parent/child"))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            directory.walk(flushBatchSize = 0)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            directory.walk(skipDirectoryGlobs = emptyList(), flushBatchSize = 0)
         }
     }
 
@@ -278,6 +286,7 @@ class PrivilegeFileTest {
         var walkPath: String? = null
         var walkMaxDepth: Int? = null
         var walkSkipDirectoryGlobs: List<String>? = null
+        var walkFlushBatchSize: Int? = null
 
         override fun query(path: String, kind: Int): Boolean {
             queryCalls += 1
@@ -338,10 +347,12 @@ class PrivilegeFileTest {
             path: String,
             maxDepth: Int,
             skipDirectoryGlobs: List<String>,
+            flushBatchSize: Int,
         ): Flow<PrivilegeFileEntry> {
             walkPath = path
             walkMaxDepth = maxDepth
             walkSkipDirectoryGlobs = skipDirectoryGlobs
+            walkFlushBatchSize = flushBatchSize
             return walkResult
         }
     }
