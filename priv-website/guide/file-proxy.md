@@ -172,6 +172,18 @@ directory.walk(maxDepth = 2).collect { entry ->
 }
 ```
 
+For large directories, `flushBatchSize` controls how many entries the server
+accumulates between explicit pipe flushes. It defaults to 32 and must be positive.
+The first entry is flushed immediately; a full pipe buffer may be written sooner.
+This setting affects delivery timing, not the entries returned or the number of
+Binder calls:
+
+```kotlin
+directory.walk(maxDepth = 2, flushBatchSize = 64).collect { entry ->
+    Log.d("file", entry.absolutePath)
+}
+```
+
 To prune common generated or dependency directories on the server:
 
 ```kotlin

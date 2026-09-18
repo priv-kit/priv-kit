@@ -157,10 +157,16 @@ public class PrivilegeFile internal constructor(
      * and pipe reading run on [kotlinx.coroutines.Dispatchers.IO].
      *
      * @param maxDepth maximum descendant depth to emit; must be positive.
+     * @param flushBatchSize maximum number of entries between explicit pipe flushes; must be
+     * positive. The first entry is flushed immediately, and the pipe buffer may flush sooner.
      */
-    public fun walk(maxDepth: Int = Int.MAX_VALUE): Flow<PrivilegeFileEntry> {
+    public fun walk(
+        maxDepth: Int = Int.MAX_VALUE,
+        flushBatchSize: Int = DEFAULT_WALK_FLUSH_BATCH_SIZE,
+    ): Flow<PrivilegeFileEntry> {
         require(maxDepth >= 1) { "Maximum walk depth must be positive: $maxDepth" }
-        return operations.walk(absolutePath, maxDepth, emptyList())
+        require(flushBatchSize >= 1) { "Walk flush batch size must be positive: $flushBatchSize" }
+        return operations.walk(absolutePath, maxDepth, emptyList(), flushBatchSize)
     }
 
     /**
@@ -174,15 +180,19 @@ public class PrivilegeFile internal constructor(
      *
      * @param skipDirectoryGlobs directory-name globs whose descendants must not be walked.
      * @param maxDepth maximum descendant depth to emit; must be positive.
+     * @param flushBatchSize maximum number of entries between explicit pipe flushes; must be
+     * positive. The first entry is flushed immediately, and the pipe buffer may flush sooner.
      */
     public fun walk(
         skipDirectoryGlobs: List<String>,
         maxDepth: Int = Int.MAX_VALUE,
+        flushBatchSize: Int = DEFAULT_WALK_FLUSH_BATCH_SIZE,
     ): Flow<PrivilegeFileEntry> {
         require(maxDepth >= 1) { "Maximum walk depth must be positive: $maxDepth" }
+        require(flushBatchSize >= 1) { "Walk flush batch size must be positive: $flushBatchSize" }
         val globs = skipDirectoryGlobs.toList()
         PrivilegeFileNameGlobs.validate(globs)
-        return operations.walk(absolutePath, maxDepth, globs)
+        return operations.walk(absolutePath, maxDepth, globs, flushBatchSize)
     }
 
     override fun equals(other: Any?): Boolean =
@@ -192,6 +202,8 @@ public class PrivilegeFile internal constructor(
 
     override fun toString(): String = absolutePath
 }
+
+private const val DEFAULT_WALK_FLUSH_BATCH_SIZE: Int = 32
 
 internal object PrivilegeFilePath {
     private const val MAX_PATH_UTF8_BYTES: Int = 4_095

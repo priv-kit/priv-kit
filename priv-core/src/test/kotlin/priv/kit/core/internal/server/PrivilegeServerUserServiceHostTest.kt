@@ -31,10 +31,6 @@ class PrivilegeServerUserServiceHostTest {
             serverPid = 2468,
         )
 
-        assertEquals(
-            "priv.kit.sample:My-Service-tag-with-slash",
-            command.processName,
-        )
         assertEquals(mapOf("CLASSPATH" to "/data/app/base.apk"), command.environment)
         assertEquals(
             listOf(
@@ -73,10 +69,12 @@ class PrivilegeServerUserServiceHostTest {
             serverPid = 2468,
         )
 
-        assertEquals(48, command.processName.substringAfter(':').length)
+        val niceName = command.arguments.single { it.startsWith("--nice-name=") }
+            .substringAfter('=')
+        assertEquals(48, niceName.substringAfter(':').length)
         assertEquals(
             "priv.kit.sample:VeryLongServiceNameVeryLongServiceNameVeryLongSe",
-            command.processName,
+            niceName,
         )
     }
 

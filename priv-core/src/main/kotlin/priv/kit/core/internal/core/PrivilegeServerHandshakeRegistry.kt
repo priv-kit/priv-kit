@@ -84,7 +84,7 @@ internal object PrivilegeServerHandshakeRegistry {
             }
             return true
         } finally {
-            PrivilegeRuntimeStartCoordinator.finishHandshake(ticket)
+            PrivilegeRuntimeStartCoordinator.finishHandshake()
         }
     }
 

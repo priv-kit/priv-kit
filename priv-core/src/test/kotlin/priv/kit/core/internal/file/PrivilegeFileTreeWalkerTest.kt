@@ -2,6 +2,7 @@ package priv.kit.core.internal.file
 
 import android.system.ErrnoException
 import android.system.OsConstants
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -16,11 +17,63 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.nio.file.Files
 import java.nio.file.SecureDirectoryStream
+import java.io.BufferedOutputStream
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
+import java.io.DataOutputStream
 
 @RunWith(RobolectricTestRunner::class)
 class PrivilegeFileTreeWalkerTest {
     @get:Rule
     val temporaryFolder = TemporaryFolder()
+
+    @Test
+    fun writeEntriesFlushesFirstEntryThenConfiguredBatchesAndCompletion() = runBlocking {
+        val sink = RecordingOutputStream()
+        val output = DataOutputStream(BufferedOutputStream(sink))
+        val entries = flowOf(
+            PrivilegeFileWalkRecord("/tree/one", 1, null),
+            PrivilegeFileWalkRecord("/tree/two", 1, null),
+            PrivilegeFileWalkRecord("/tree/three", 1, null),
+            PrivilegeFileWalkRecord("/tree/four", 1, null),
+        )
+
+        PrivilegeFileTreeWalker.writeEntries(entries, flushBatchSize = 2, output)
+
+        assertEquals(3, sink.flushSnapshots.size)
+        assertEquals(1, countEntryFrames(sink.flushSnapshots[0]))
+        assertEquals(3, countEntryFrames(sink.flushSnapshots[1]))
+        assertEquals(4, countEntryFrames(sink.flushSnapshots[2]))
+    }
+
+    private fun countEntryFrames(bytes: ByteArray): Int {
+        val input = DataInputStream(ByteArrayInputStream(bytes))
+        var count = 0
+        while (input.available() > 0) {
+            when (input.readUnsignedByte()) {
+                PrivilegeFileSystemContract.WALK_ENTRY -> {
+                    PrivilegeFileWire.readEntry(input)
+                    count += 1
+                }
+                PrivilegeFileSystemContract.WALK_COMPLETE -> {
+                    assertEquals(0, input.available())
+                    return count
+                }
+                else -> error("Unexpected walk frame")
+            }
+        }
+        return count
+    }
+
+    private class RecordingOutputStream : ByteArrayOutputStream() {
+        val flushSnapshots = mutableListOf<ByteArray>()
+
+        override fun flush() {
+            super.flush()
+            flushSnapshots += toByteArray()
+        }
+    }
 
     @Test
     fun walkEmitsDepthFirstPreOrderAndHonorsMaxDepth() = runBlocking {

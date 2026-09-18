@@ -54,7 +54,7 @@ class PrivilegeRuntimeStartArbiterTest {
         assertNotNull(reconnectTicket)
         assertNull(arbiter.tryCommitClientStart(preflight))
 
-        arbiter.finishHandshake(requireNotNull(reconnectTicket))
+        arbiter.finishHandshake()
 
         val refreshedPreflight = arbiter.beginPreflight()
         assertNotNull(arbiter.tryCommitClientStart(refreshedPreflight))
@@ -89,7 +89,7 @@ class PrivilegeRuntimeStartArbiterTest {
         assertNotNull(initialLaunchTicket)
         assertEquals(operationId, initialLaunchTicket?.clientStartOperationId)
 
-        arbiter.finishHandshake(requireNotNull(initialLaunchTicket))
+        arbiter.finishHandshake()
         arbiter.finishClientStart(operationId)
 
         val reconnectTicket = arbiter.tryAcceptHandshake(
@@ -97,7 +97,7 @@ class PrivilegeRuntimeStartArbiterTest {
             launchCorrelationId = null,
         )
         assertNotNull(reconnectTicket)
-        arbiter.finishHandshake(requireNotNull(reconnectTicket))
+        arbiter.finishHandshake()
     }
 
     @Test
@@ -191,7 +191,7 @@ class PrivilegeRuntimeStartArbiterTest {
             ),
         )
         assertEquals(operationId, replacementTicket.clientStartOperationId)
-        arbiter.finishHandshake(replacementTicket)
+        arbiter.finishHandshake()
         arbiter.finishClientStart(operationId)
     }
 
@@ -215,13 +215,13 @@ class PrivilegeRuntimeStartArbiterTest {
         )
 
         assertTrue(arbiter.beginClientLaunch(operationId, "assigned-launch"))
-        val ticket = requireNotNull(
+        assertNotNull(
             arbiter.tryAcceptHandshake(
                 origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
                 launchCorrelationId = "assigned-launch",
             ),
         )
-        arbiter.finishHandshake(ticket)
+        arbiter.finishHandshake()
         arbiter.finishClientStart(operationId)
     }
 
@@ -246,7 +246,7 @@ class PrivilegeRuntimeStartArbiterTest {
         )
 
         assertNull(replacementTicket.clientStartOperationId)
-        arbiter.finishHandshake(replacementTicket)
+        arbiter.finishHandshake()
     }
 
     @Test
@@ -280,13 +280,13 @@ class PrivilegeRuntimeStartArbiterTest {
                 launchCorrelationId = null,
             ),
         )
-        val initialLaunchTicket = requireNotNull(
+        assertNotNull(
             arbiter.tryAcceptHandshake(
                 origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
                 launchCorrelationId = launchCorrelationId,
             ),
         )
-        arbiter.finishHandshake(initialLaunchTicket)
+        arbiter.finishHandshake()
         arbiter.markServerConnected()
 
         assertFalse(arbiter.finishClientStart(operationId))
@@ -298,7 +298,7 @@ class PrivilegeRuntimeStartArbiterTest {
     @Test
     fun onlyOneHandshakeCanBeInFlight() {
         val arbiter = PrivilegeRuntimeStartArbiter { 0L }
-        val firstTicket = requireNotNull(
+        assertNotNull(
             arbiter.tryAcceptHandshake(
                 origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
                 launchCorrelationId = null,
@@ -318,14 +318,14 @@ class PrivilegeRuntimeStartArbiterTest {
             ),
         )
 
-        assertTrue(arbiter.finishHandshake(firstTicket))
+        assertTrue(arbiter.finishHandshake())
 
         val nextTicket = arbiter.tryAcceptHandshake(
             origin = PrivilegeServerHandshakeOrigin.INITIAL_LAUNCH,
             launchCorrelationId = "launch-after-handshake",
         )
         assertNotNull(nextTicket)
-        arbiter.finishHandshake(requireNotNull(nextTicket))
+        arbiter.finishHandshake()
     }
 
     @Test
@@ -355,7 +355,7 @@ class PrivilegeRuntimeStartArbiterTest {
 
         assertNotNull(currentTicket)
         assertEquals(currentOperationId, currentTicket?.clientStartOperationId)
-        arbiter.finishHandshake(requireNotNull(currentTicket))
+        arbiter.finishHandshake()
         arbiter.finishClientStart(currentOperationId)
     }
 }

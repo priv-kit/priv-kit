@@ -130,6 +130,7 @@ internal object PrivilegeFileSystemClient : PrivilegeFileOperations {
         path: String,
         maxDepth: Int,
         skipDirectoryGlobs: List<String>,
+        flushBatchSize: Int,
     ): Flow<PrivilegeFileEntry> = callbackFlow {
         val pipe = ParcelFileDescriptor.createPipe()
         val source = pipe[0]
@@ -142,6 +143,7 @@ internal object PrivilegeFileSystemClient : PrivilegeFileOperations {
                             path,
                             maxDepth,
                             skipDirectoryGlobs.toTypedArray(),
+                            flushBatchSize,
                             sink,
                         )
                     }

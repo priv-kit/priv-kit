@@ -75,7 +75,8 @@ normalizes the explicit target, rejects filesystem root, traverses with `SecureD
 and can leave a partial tree after cancellation or failure. Walks can prune directory subtrees with
 case-sensitive basename globs; matching directories remain in the flow. Dynamic traversal policy
 belongs in the app or a UserService. Transfers, walks, and recursive deletes use bounded server-side
-concurrency.
+concurrency. Walks flush the first entry immediately and then flush after each configurable batch
+of entries (32 by default), while the pipe buffer may write sooner when full.
 
 ## Binder and UserService
 

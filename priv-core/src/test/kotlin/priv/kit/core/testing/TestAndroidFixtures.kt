@@ -104,8 +104,6 @@ open class TestUserServiceProcess : IPrivilegeUserServiceProcess {
 }
 
 open class TestEmbeddedUserServiceHost : PrivilegeUserServiceHost {
-    override val uid: Int = 0
-    override val pid: Int = 1234
     override val packageName: String = "priv.kit.test"
     override val userId: Int = 0
 
@@ -129,8 +127,6 @@ open class TestEmbeddedUserServiceHost : PrivilegeUserServiceHost {
 open class TestDedicatedUserServiceHost(
     var process: IPrivilegeUserServiceProcess = TestUserServiceProcess(),
 ) : PrivilegeUserServiceHost {
-    override val uid: Int = 0
-    override val pid: Int = 1234
     override val packageName: String = "priv.kit.test"
     override val userId: Int = 0
 

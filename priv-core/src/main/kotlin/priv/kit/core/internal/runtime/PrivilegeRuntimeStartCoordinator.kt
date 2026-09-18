@@ -51,7 +51,6 @@ public class PrivilegeRuntimeStartLease internal constructor(
 
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 public class PrivilegeRuntimeClientLaunch internal constructor(
-    internal val operationId: Long,
     public val launchCorrelationId: String,
 )
 
@@ -111,7 +110,6 @@ public object PrivilegeRuntimeStartCoordinator {
         val launchCorrelationId = newLaunchCorrelationId()
         return if (arbiter.beginClientLaunch(lease.operationId, launchCorrelationId)) {
             PrivilegeRuntimeClientLaunch(
-                operationId = lease.operationId,
                 launchCorrelationId = launchCorrelationId,
             )
         } else {
@@ -174,8 +172,8 @@ public object PrivilegeRuntimeStartCoordinator {
             )
         }
 
-    internal fun finishHandshake(ticket: PrivilegeRuntimeHandshakeTicket) {
-        if (arbiter.finishHandshake(ticket)) {
+    internal fun finishHandshake() {
+        if (arbiter.finishHandshake()) {
             notifyOwnerReconnect()
         }
     }
@@ -335,13 +333,13 @@ internal class PrivilegeRuntimeStartArbiter(
         }
 
     /** Returns whether an OWNER_RECONNECT rejected behind this handshake should retry. */
-    fun finishHandshake(ticket: PrivilegeRuntimeHandshakeTicket): Boolean =
+    fun finishHandshake(): Boolean =
         synchronized(lock) {
             check(handshakeInFlightCount > 0) {
                 "No runtime handshake is in flight"
             }
             handshakeInFlightCount -= 1
-            stateSerial = maxOf(stateSerial, ticket.serial) + 1L
+            stateSerial += 1L
             val notifyDeferredReconnect =
                 handshakeInFlightCount == 0 &&
                     ownerReconnectDeferred &&

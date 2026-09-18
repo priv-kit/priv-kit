@@ -130,6 +130,7 @@ class PrivilegeFileSystemClientTest {
             path: String,
             maxDepth: Int,
             skipDirectoryGlobs: Array<out String>?,
+            flushBatchSize: Int,
             sink: ParcelFileDescriptor,
         ): Int = 0
 
