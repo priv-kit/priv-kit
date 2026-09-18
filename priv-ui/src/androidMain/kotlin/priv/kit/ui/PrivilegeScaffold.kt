@@ -43,6 +43,10 @@ import priv.kit.ui.component.PrivilegeTopBar
 import priv.kit.ui.component.PrivilegeUiSpacing
 import java.util.UUID
 
+/**
+ * Displays the authorization page. [onViewPermissionSolutions] replaces the default action
+ * that opens the localized permission troubleshooting page in the system URI handler.
+ */
 @Composable
 public fun PrivilegeScaffold(
     modifier: Modifier = Modifier,
@@ -59,6 +63,7 @@ public fun PrivilegeScaffold(
     containerColor: Color = MaterialTheme.colorScheme.background,
     contentColor: Color = contentColorFor(containerColor),
     contentWindowInsets: WindowInsets = ScaffoldDefaults.contentWindowInsets,
+    onViewPermissionSolutions: (() -> Unit)? = null,
 ) {
     val activity = LocalActivity.current!!
     val context = LocalContext.current
@@ -66,6 +71,7 @@ public fun PrivilegeScaffold(
     val view = LocalView.current
     val permissionHostId = rememberSaveable { UUID.randomUUID().toString() }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val deniedServerPermissions by viewModel.deniedServerPermissions.collectAsStateWithLifecycle()
     val startGateState by viewModel.startGateState.collectAsStateWithLifecycle()
     val visibleSystemPrompt by remember(viewModel.visibleSystemPrompt) {
         viewModel.visibleSystemPrompt.debouncedForDisplay()
@@ -135,10 +141,12 @@ public fun PrivilegeScaffold(
             tcpPort = viewModel.config.tcpPort,
             batteryOptimizationPromptVisible = batteryOptimizationPromptVisible,
             staticTcpSwitchConfirmation = staticTcpSwitchConfirmation,
+            deniedServerPermissions = deniedServerPermissions,
         ),
         actions = remember(viewModel, context) { viewModel.screenActions(context) },
         interactionEnabled = interactionEnabled,
         showFeedback = ::showFeedback,
+        onViewPermissionSolutions = onViewPermissionSolutions,
     )
     LaunchedEffect(Unit) {
         viewModel.permissionRequests.collect { request ->

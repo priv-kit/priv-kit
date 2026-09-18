@@ -2,7 +2,6 @@ package priv.kit.core.internal.server
 
 import android.content.pm.PackageManager
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -12,6 +11,7 @@ class PrivilegeServerPermissionReaderTest {
         val requestedPermissions = mapOf(
             "package.two" to arrayOf(
                 "permission.DENIED_B",
+                "permission.UNKNOWN",
                 "permission.SHARED_DENIED",
             ),
             "package.one" to arrayOf(
@@ -21,12 +21,17 @@ class PrivilegeServerPermissionReaderTest {
             ),
         )
         val permissionChecks = mutableListOf<PermissionCheck>()
+        val definitionChecks = mutableListOf<String>()
         val reader = PrivilegeServerPermissionReader.createForTest(
             packagesForUid = { uid ->
                 assertEquals(SHELL_UID, uid)
                 arrayOf("package.two", "package.one", "package.one")
             },
             requestedPermissionsForPackage = requestedPermissions::get,
+            isPermissionDefined = { permission ->
+                definitionChecks += permission
+                permission != "permission.UNKNOWN"
+            },
             checkPermission = { permission, pid, uid ->
                 permissionChecks += PermissionCheck(permission, pid, uid)
                 if (permission == "permission.GRANTED") {
@@ -51,10 +56,20 @@ class PrivilegeServerPermissionReaderTest {
                 "permission.DENIED_B",
                 "permission.GRANTED",
                 "permission.SHARED_DENIED",
+                "permission.UNKNOWN",
             ),
             permissionChecks.map(PermissionCheck::permission).toSet(),
         )
-        assertFalse(permissionChecks.isEmpty())
+        assertEquals(5, permissionChecks.size)
+        assertEquals(
+            listOf(
+                "permission.DENIED_B",
+                "permission.UNKNOWN",
+                "permission.SHARED_DENIED",
+                "permission.DENIED_A",
+            ),
+            definitionChecks,
+        )
         permissionChecks.forEach { check ->
             assertEquals(SERVER_PID, check.pid)
             assertEquals(SHELL_UID, check.uid)
@@ -66,6 +81,7 @@ class PrivilegeServerPermissionReaderTest {
         val reader = PrivilegeServerPermissionReader.createForTest(
             packagesForUid = { null },
             requestedPermissionsForPackage = { emptyArray() },
+            isPermissionDefined = { true },
             checkPermission = { _, _, _ -> PackageManager.PERMISSION_DENIED },
         )
 

@@ -84,6 +84,10 @@ Process.killProcess(Process.myPid())
 
 ### 检查服务端被拒绝的权限 {#denied-server-permissions}
 
+内置界面检测到权限受限后，会在后台获取权限列表。点击提示卡片上的**查看受限权限**
+即可打开弹窗。权限文本可自由选择，底部的**复制**按钮复制完整列表，**关闭**按钮关闭
+弹窗。返回页面时会刷新列表。
+
 服务端连接后，自定义界面可以读取其 UID 关联包已经声明、但服务端进程实际未获授予的
 权限：
 
@@ -93,6 +97,7 @@ val deniedPermissions = withContext(Dispatchers.IO) {
 }
 ```
 
+方法会过滤当前系统不支持（未定义）的权限：先检查授予状态，仅对被拒绝的权限查询定义。
 返回结果会去重并按权限名排序。Root 服务端返回空列表；非 Root 服务端无法解析关联包
 元数据时会报告失败，不会将其误判为不受限制。
 
@@ -125,28 +130,17 @@ println(deniedPermissions.joinToString("\n"))
 
 切换开关后，再次调用即可读取当前结果，无需重启特权进程。
 
-**“USB调试（安全设置）”开启时：仍有 5 项权限被拒绝。**
+**关闭安全限制（开启“USB调试（安全设置）”）时：返回空列表，0 项权限被拒绝。**
 
-```text
-android.permission.DEBUG_VIRTUAL_MACHINE
-android.permission.MANAGE_VIRTUAL_MACHINE
-android.permission.MANAGE_WIFI_WHEN_WIRELESS_CONSENT_REQUIRED
-com.android.providers.tv.permission.ACCESS_WATCHED_PROGRAMS
-com.android.providers.tv.permission.WRITE_EPG_DATA
-```
-
-**“USB调试（安全设置）”关闭时：有 19 项权限被拒绝。**
+**开启安全限制（关闭“USB调试（安全设置）”）时：有 14 项权限被拒绝。**
 
 ```text
 android.permission.CALL_PHONE
 android.permission.CLEAR_APP_USER_DATA
-android.permission.DEBUG_VIRTUAL_MACHINE
 android.permission.GRANT_RUNTIME_PERMISSIONS
 android.permission.INJECT_EVENTS
 android.permission.INSTALL_GRANT_RUNTIME_PERMISSIONS
 android.permission.MANAGE_DEVICE_ADMINS
-android.permission.MANAGE_VIRTUAL_MACHINE
-android.permission.MANAGE_WIFI_WHEN_WIRELESS_CONSENT_REQUIRED
 android.permission.READ_CONTACTS
 android.permission.REVOKE_RUNTIME_PERMISSIONS
 android.permission.SEND_SMS
@@ -155,8 +149,6 @@ android.permission.UPDATE_APP_OPS_STATS
 android.permission.WRITE_CONTACTS
 android.permission.WRITE_SECURE_SETTINGS
 android.permission.WRITE_SETTINGS
-com.android.providers.tv.permission.ACCESS_WATCHED_PROGRAMS
-com.android.providers.tv.permission.WRITE_EPG_DATA
 ```
 
 这意味着，在上述设备上关闭此设置后，以 Shell 身份运行的特权进程无法执行模拟点击

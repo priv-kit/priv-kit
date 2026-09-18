@@ -101,6 +101,9 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     private var hostResumeDispatchInProgress = false
     private val batteryOptimizationPromptVisibleState = MutableStateFlow(false)
     internal val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
+    internal val deniedServerPermissions: StateFlow<List<String>> = store.state
+        .map { it.deniedServerPermissions }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     internal val startGateState: StateFlow<PrivilegeUiStartGateState> =
         effectsCoordinator.startGateState
     internal val uiEffectsEnabled: StateFlow<Boolean> = effectsCoordinator.enabled

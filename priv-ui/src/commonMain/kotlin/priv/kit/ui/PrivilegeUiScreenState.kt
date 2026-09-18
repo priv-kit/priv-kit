@@ -10,6 +10,8 @@ internal data class PrivilegeUiScreenState(
     val runtimeStatus: PrivilegeUiRuntimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
     val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
     val serverUid: Int? = null,
+    val connectionSerial: Long = 0L,
+    val deniedServerPermissions: List<String> = emptyList(),
     val selectedStartupMode: PrivilegeUiStartupMode = PrivilegeUiStartupMode.ADB,
     val startupModes: List<PrivilegeUiStartupMode> = listOf(
         PrivilegeUiStartupMode.ROOT,

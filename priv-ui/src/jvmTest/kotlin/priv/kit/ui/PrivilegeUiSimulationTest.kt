@@ -17,6 +17,46 @@ class PrivilegeUiSimulationTest {
         PrivilegeUiSimulation(scope, "Simulated provider", PrivilegeUiRuntimeStartSource.entries.associateWith { "Starting $it" }, "Enter six digits", copy)
 
     @Test
+    fun adbRestrictionOptionUpdatesExistingAndFutureShellConnectionsOnly() = runTest {
+        val model = model(this)
+        model.setAdbRestricted(false)
+        model.actions.startStaticTcpAdb()
+        model.actions.confirmStaticTcpSwitch()
+        advanceUntilIdle()
+        val connection = model.state.connectionSerial
+        assertEquals(PrivilegeUiPermissionRestrictionStatus.NOT_RESTRICTED, model.state.permissionRestrictionStatus)
+        assertEquals(emptyList(), model.state.deniedServerPermissions)
+        model.setAdbRestricted(true)
+        assertEquals(PrivilegeUiPermissionRestrictionStatus.RESTRICTED, model.state.permissionRestrictionStatus)
+        assertTrue(model.state.deniedServerPermissions.isNotEmpty())
+        assertEquals(connection, model.state.connectionSerial)
+        model.setAdbRestricted(false)
+        assertEquals(emptyList(), model.state.deniedServerPermissions)
+        model.actions.stopServer()
+        model.actions.startRoot()
+        advanceUntilIdle()
+        model.setAdbRestricted(true)
+        assertEquals(PrivilegeUiPermissionRestrictionStatus.NOT_RESTRICTED, model.state.permissionRestrictionStatus)
+        assertEquals(emptyList(), model.state.deniedServerPermissions)
+    }
+
+    @Test
+    fun shellPermissionsAreAvailableAndClearedOnDisconnect() = runTest {
+        val model = model(this)
+        model.actions.startStaticTcpAdb()
+        model.actions.confirmStaticTcpSwitch()
+        advanceUntilIdle()
+        assertEquals(PrivilegeUiPermissionRestrictionStatus.RESTRICTED, model.state.permissionRestrictionStatus)
+        assertTrue(model.state.deniedServerPermissions.orEmpty().contains("android.permission.INJECT_EVENTS"))
+        model.actions.stopServer()
+        assertEquals(emptyList(), model.state.deniedServerPermissions)
+        model.actions.startRoot()
+        advanceUntilIdle()
+        assertEquals(PrivilegeUiPermissionRestrictionStatus.NOT_RESTRICTED, model.state.permissionRestrictionStatus)
+        assertEquals(emptyList(), model.state.deniedServerPermissions)
+    }
+
+    @Test
     fun rootRestartRequiresConfirmationAndStopClearsRecovery() = runTest {
         val model = model(this)
         model.actions.startRoot()

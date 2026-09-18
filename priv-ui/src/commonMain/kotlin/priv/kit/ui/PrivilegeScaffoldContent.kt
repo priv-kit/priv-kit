@@ -118,6 +118,7 @@ internal class PrivilegeUiScreenScope(
     val actions: PrivilegeUiActions,
     val interactionEnabled: Boolean,
     val showFeedback: (String) -> Unit,
+    val onViewPermissionSolutions: (() -> Unit)? = null,
 )
 
 @Composable

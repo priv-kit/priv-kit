@@ -29,6 +29,7 @@ internal class PrivilegeUiRuntimeActions(
     private val shutdownServer: () -> Unit = { Privilege.shutdownServer() },
     private val isPermissionRestricted: () -> Boolean =
         Privilege::isPermissionRestricted,
+    private val getDeniedServerPermissions: () -> List<String> = Privilege::getDeniedServerPermissions,
     private val operationDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : AutoCloseable {
     private val closed = AtomicBoolean(false)
@@ -323,6 +324,7 @@ internal class PrivilegeUiRuntimeActions(
                     it.copy(
                         runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
                         serverInfo = null,
+                        deniedServerPermissions = emptyList(),
                         permissionRestrictionStatus =
                             PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
                     )
@@ -381,17 +383,26 @@ internal class PrivilegeUiRuntimeActions(
                 }
             }.getOrNull()
         } ?: return
-        store.updateState { current ->
-            if (
+        fun isCurrent(current: PrivilegeUiState): Boolean =
+            !(
                 closed.get() ||
                 permissionRestrictionRefreshGeneration.get() != generation ||
                 current.connectionSerial != expectedConnectionSerial ||
                 !current.canRefreshPermissionRestrictionStatus()
-            ) {
-                current
-            } else {
-                current.copy(permissionRestrictionStatus = restrictionStatus)
-            }
+            )
+        store.updateState { current ->
+            if (isCurrent(current)) {
+                current.copy(
+                    permissionRestrictionStatus = restrictionStatus,
+                    deniedServerPermissions = if (restrictionStatus == PrivilegeUiPermissionRestrictionStatus.RESTRICTED)
+                        current.deniedServerPermissions else emptyList(),
+                )
+            } else current
+        }
+        if (restrictionStatus != PrivilegeUiPermissionRestrictionStatus.RESTRICTED || !isCurrent(store.state.value)) return
+        val permissions = withContext(operationDispatcher) { getDeniedServerPermissions() }
+        store.updateState { current ->
+            if (isCurrent(current)) current.copy(deniedServerPermissions = permissions) else current
         }
     }
 

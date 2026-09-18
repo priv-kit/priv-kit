@@ -20,13 +20,17 @@ fun renderPrivilegePlayground(
     resourceUrl: (String) -> String,
     dark: Boolean,
     useLegacyPackaging: Boolean,
-): (Boolean, Boolean) -> Unit {
-    val options = mutableStateOf(dark to useLegacyPackaging)
+    adbRestricted: Boolean,
+): (Boolean, Boolean, Boolean) -> Unit {
+    val options = mutableStateOf(Triple(dark, useLegacyPackaging, adbRestricted))
     configureWebResources { resourcePathMapping(resourceUrl) }
     ComposeViewport(viewportContainer = asElement(container)) {
-        PrivilegePlaygroundApp(dark = options.value.first, useLegacyPackaging = options.value.second)
+        PrivilegePlaygroundApp(dark = options.value.first, useLegacyPackaging = options.value.second,
+            adbRestricted = options.value.third)
     }
-    return { nextDark, nextLegacyPackaging -> options.value = nextDark to nextLegacyPackaging }
+    return { nextDark, nextLegacyPackaging, nextAdbRestricted ->
+        options.value = Triple(nextDark, nextLegacyPackaging, nextAdbRestricted)
+    }
 }
 
 private fun asElement(container: JsAny): Element = js("container")

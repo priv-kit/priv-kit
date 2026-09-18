@@ -300,11 +300,40 @@ class PrivilegeUiRuntimeActionsTest {
     }
 
     @Test
+    fun restrictionIsPublishedBeforePermissionListCompletes() = runBlocking {
+        val queryEntered = CountDownLatch(1)
+        val releaseQuery = CountDownLatch(1)
+        RuntimeActionsFixture(
+            isPermissionRestricted = { true },
+            getDeniedServerPermissions = {
+                queryEntered.countDown()
+                releaseQuery.await()
+                listOf("android.permission.INJECT_EVENTS")
+            },
+            beforeClose = { releaseQuery.countDown() },
+        ).use { (store, actions) ->
+            actions.connectForTest(shellServerInfo())
+            assertTrue(waitUntil { queryEntered.count == 0L })
+            assertEquals(PrivilegeUiPermissionRestrictionStatus.RESTRICTED, store.state.value.permissionRestrictionStatus)
+            assertEquals(emptyList<String>(), store.state.value.deniedServerPermissions)
+            releaseQuery.countDown()
+            assertTrue(waitUntil {
+                store.state.value.deniedServerPermissions == listOf("android.permission.INJECT_EVENTS")
+            })
+        }
+    }
+
+    @Test
     fun connectionForegroundRefreshAndDisconnectUpdatePermissionRestrictionStatus() =
         runBlocking {
         val restricted = AtomicBoolean(true)
+        val permissionQueries = AtomicInteger(0)
         RuntimeActionsFixture(
             isPermissionRestricted = restricted::get,
+            getDeniedServerPermissions = {
+                permissionQueries.incrementAndGet()
+                listOf("android.permission.INJECT_EVENTS")
+            },
         ).use { (store, actions) ->
             actions.connectForTest(shellServerInfo())
 
@@ -312,6 +341,9 @@ class PrivilegeUiRuntimeActionsTest {
                 store.state.value.permissionRestrictionStatus ==
                     PrivilegeUiPermissionRestrictionStatus.RESTRICTED
             })
+
+            assertTrue(waitUntil { store.state.value.deniedServerPermissions == listOf("android.permission.INJECT_EVENTS") })
+            assertEquals(1, permissionQueries.get())
 
             restricted.set(false)
             actions.refreshPermissionRestrictionStatus()
@@ -321,7 +353,15 @@ class PrivilegeUiRuntimeActionsTest {
                     PrivilegeUiPermissionRestrictionStatus.NOT_RESTRICTED
             })
 
+            assertEquals(emptyList<String>(), store.state.value.deniedServerPermissions)
+            assertEquals(1, permissionQueries.get())
+
+            restricted.set(true)
+            actions.refreshPermissionRestrictionStatusNow()
+            assertTrue(waitUntil { store.state.value.deniedServerPermissions == listOf("android.permission.INJECT_EVENTS") })
+            assertEquals(2, permissionQueries.get())
             actions.disconnectForTest()
+            assertEquals(emptyList<String>(), store.state.value.deniedServerPermissions)
 
             assertEquals(
                 PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
@@ -1573,6 +1613,7 @@ class PrivilegeUiRuntimeActionsTest {
         config: PrivilegeUiConfig = PrivilegeUiConfig(),
         shutdownServer: () -> Unit = { Privilege.shutdownServer() },
         isPermissionRestricted: () -> Boolean = Privilege::isPermissionRestricted,
+        getDeniedServerPermissions: () -> List<String> = { listOf("android.permission.INJECT_EVENTS") },
         acquireStartPermit: () -> AutoCloseable? = { AutoCloseable {} },
         operationDispatcher: CoroutineDispatcher = Dispatchers.IO,
         private val beforeClose: () -> Unit = {},
@@ -1584,6 +1625,7 @@ class PrivilegeUiRuntimeActionsTest {
             coroutineScope = scope,
             shutdownServer = shutdownServer,
             isPermissionRestricted = isPermissionRestricted,
+            getDeniedServerPermissions = getDeniedServerPermissions,
             acquireStartPermit = acquireStartPermit,
             operationDispatcher = operationDispatcher,
         )

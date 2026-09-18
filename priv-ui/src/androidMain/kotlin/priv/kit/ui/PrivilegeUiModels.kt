@@ -135,6 +135,7 @@ internal data class PrivilegeUiState(
     val externalStartItems: List<PrivilegeUiExternalStartItemState> = emptyList(),
     val startupLogLines: List<String> = emptyList(),
     val connectionSerial: Long = 0L,
+    val deniedServerPermissions: List<String> = emptyList(),
     val runtimeStartPhase: PrivilegeUiRuntimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
     val runtimeStartProviderId: String? = null,
     val permissionRestrictionStatus: PrivilegeUiPermissionRestrictionStatus =

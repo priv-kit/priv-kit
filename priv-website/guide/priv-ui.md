@@ -21,6 +21,26 @@ custom interfaces can use `priv-core` directly.
   automatic recovery is enabled. `ignoreAutomaticRecoverySetting = true`
   explicitly bypasses that setting.
 
+## Permission troubleshooting action {#permission-solutions}
+
+The restriction warning shows **View solutions** on the left and **View restricted permissions**
+on the right. By default, View solutions opens the [ADB permission troubleshooting page](./permission-restrictions)
+in the interface language (English or Simplified Chinese).
+
+Pass `onViewPermissionSolutions` to replace the link with your own navigation:
+
+```kotlin
+PrivilegeScaffold(
+    viewModel = viewModel,
+    onViewPermissionSolutions = {
+        navController.navigate("permission-help")
+    },
+)
+```
+
+When provided, only your callback runs; the default website is not opened.
+`PrivilegePreviewScaffold` supports the same callback. Omitting it or passing `null` uses the default link.
+
 ## Keep one process-scoped configuration {#application-scoped-config}
 
 Create external providers and `PrivilegeUiConfig` once at process scope, then

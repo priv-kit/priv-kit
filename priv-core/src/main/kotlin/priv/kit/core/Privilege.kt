@@ -320,7 +320,10 @@ public object Privilege {
 
     /**
      * Returns permissions declared by packages associated with the connected server's UID that
-     * are denied to the server process.
+     * are defined on the current device and denied to the server process.
+     *
+     * Permissions not defined on the current device are excluded. Grant status is checked first;
+     * only denied permissions require a permission-definition lookup.
      *
      * The returned snapshot is distinct and sorted by permission name. It does not inspect
      * AppOps, SELinux policy, or service-specific authorization, so an empty result does not

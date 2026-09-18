@@ -58,6 +58,24 @@ internal class PrivilegeUiSimulation(
 
     private var operation: Job? = null
     private var pendingStart: PrivilegeUiServerRestartRequest? = null
+    private var adbRestricted = true
+
+    fun setAdbRestricted(value: Boolean) {
+        adbRestricted = value
+        if (state.serverUid == 2000) {
+            state = state.copy(
+                permissionRestrictionStatus = if (value) PrivilegeUiPermissionRestrictionStatus.RESTRICTED
+                    else PrivilegeUiPermissionRestrictionStatus.NOT_RESTRICTED,
+                deniedServerPermissions = if (value) simulatedDeniedPermissions else emptyList(),
+            )
+        }
+    }
+
+    private val simulatedDeniedPermissions = listOf(
+        "android.permission.GRANT_RUNTIME_PERMISSIONS",
+        "android.permission.INJECT_EVENTS",
+        "android.permission.WRITE_SECURE_SETTINGS",
+    )
 
     fun setUseLegacyPackaging(value: Boolean) {
         state = state.copy(manualShellCommandLine = manualCommand(value))
@@ -78,7 +96,7 @@ internal class PrivilegeUiSimulation(
         startInteractive = ::startSelected,
         confirmServerRestart = {
             state.restartConfirmationTarget?.let { request ->
-                state = state.copy(restartConfirmationTarget = null, runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED, serverUid = null)
+                state = state.copy(restartConfirmationTarget = null, runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED, serverUid = null, deniedServerPermissions = emptyList())
                 prepareStart(request)
             }
         },
@@ -160,7 +178,7 @@ internal class PrivilegeUiSimulation(
         pendingStart = null
         state = state.copy(busy = true, runtimeStatus = PrivilegeUiRuntimeStatus.STARTING,
             runtimeStartSource = source, runtimeStartProviderId = (request as? PrivilegeUiServerRestartRequest.External)?.providerId,
-            runtimeStartPhase = PrivilegeUiRuntimeStartPhase.RUNNING, runtimeProgressText = startingText[source], serverUid = null)
+            runtimeStartPhase = PrivilegeUiRuntimeStartPhase.RUNNING, runtimeProgressText = startingText[source], serverUid = null, deniedServerPermissions = emptyList())
         log("Starting ${source?.name ?: "MANUAL_SHELL"}")
         operation = scope.launch {
             delay(1_200)
@@ -168,6 +186,11 @@ internal class PrivilegeUiSimulation(
             state = state.copy(busy = false, runtimeStatus = PrivilegeUiRuntimeStatus.CONNECTED,
                 runtimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE, runtimeProgressText = null,
                 serverUid = if (source == PrivilegeUiRuntimeStartSource.ROOT) 0 else 2000,
+                connectionSerial = state.connectionSerial + 1,
+                permissionRestrictionStatus = if (source == PrivilegeUiRuntimeStartSource.ROOT || !adbRestricted)
+                    PrivilegeUiPermissionRestrictionStatus.NOT_RESTRICTED else PrivilegeUiPermissionRestrictionStatus.RESTRICTED,
+                deniedServerPermissions = if (source == PrivilegeUiRuntimeStartSource.ROOT || !adbRestricted)
+                    emptyList() else simulatedDeniedPermissions,
                 desiredEnabled = request != null)
         }
     }
@@ -236,14 +259,14 @@ internal class PrivilegeUiSimulation(
 
     private fun stopServer() {
         cancelOperation()
-        state = state.copy(runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED, serverUid = null, desiredEnabled = false,
+        state = state.copy(runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED, serverUid = null, deniedServerPermissions = emptyList(), desiredEnabled = false,
             runtimeStartSource = null, runtimeStartProviderId = null)
         log("Server stopped")
     }
 
     private fun disconnectAdbRuntime() {
         if (state.serverUid == 2000 && state.runtimeStatus == PrivilegeUiRuntimeStatus.CONNECTED) {
-            state = state.copy(runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED, serverUid = null)
+            state = state.copy(runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED, serverUid = null, deniedServerPermissions = emptyList())
         }
     }
 
