@@ -16,7 +16,6 @@ import priv.kit.core.internal.userservice.PrivilegeUserServiceLoader
 import priv.kit.core.internal.userservice.PrivilegeUserServiceManagerBinder
 import priv.kit.core.internal.userservice.PrivilegeUserServiceRegistry
 import priv.kit.shared.CompatPermissionManager
-import priv.kit.shared.PrivilegeProcessPermissions
 import kotlin.system.exitProcess
 
 internal class PrivilegeServerBinder(
@@ -83,14 +82,6 @@ internal class PrivilegeServerBinder(
 
     override fun hasSystemService(serviceName: String): Boolean {
         return getSystemService(serviceName) != null
-    }
-
-    override fun checkServerPermission(permission: String): Int {
-        return PrivilegeProcessPermissions.check(
-            permission,
-            AndroidProcess.myPid(),
-            AndroidProcess.myUid(),
-        )
     }
 
     override fun getDeniedServerPermissions(): Array<String> =

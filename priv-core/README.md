@@ -87,10 +87,20 @@ not defined on the current device are filtered out; only denied permissions need
 inspect AppOps, SELinux, or service-specific authorization, and an empty result is not a general
 capability guarantee. Domain policy stays with the integrating app.
 
+Package enumeration, individual permission checks, and permission-definition lookups for this list
+all stay in the server. A client can check a known permission using the server PID/UID, but client
+package visibility restrictions can hide associated packages or their declarations and yield an
+incomplete denied list.
+
 Server PID/UID permission checks, including `checkServerPermission()` and
-`isPermissionRestricted()`, query ActivityManager directly. They bypass the process-local
+`isPermissionRestricted()`, query ActivityManager directly from the client using one connection's
+PID/UID. Startup grant prechecks use the handshake's PID/UID before that connection is installed;
+the actual grant still runs in the server. These checks bypass the process-local
 Context permission cache so vendor shell restrictions can be refreshed without restarting
 the server even when the vendor setting does not invalidate that cache.
+Client checks reject dead or replaced connections; an ActivityManager failure alone does not
+disconnect the privileged server. Package-based `checkPermission()` and server-side system-service
+discovery remain remote because their results depend on the caller's visibility and identity.
 
 UserService lifecycle methods are suspending operations backed by a bounded asynchronous Binder
 protocol. Cancellation removes pending work and unaccepted resources. Connection unbind is

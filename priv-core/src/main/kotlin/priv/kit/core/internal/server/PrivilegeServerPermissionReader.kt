@@ -5,6 +5,8 @@ import android.content.pm.PackageManager
 import android.os.Build
 import priv.kit.shared.PrivilegeProcessPermissions
 
+// Keep the entire query in the server: client-side package visibility can hide UID-associated
+// packages or their declarations, even though checking a known permission by PID/UID is possible.
 internal class PrivilegeServerPermissionReader private constructor(
     private val packagesForUid: (Int) -> Array<String>?,
     private val requestedPermissionsForPackage: (String) -> Array<String>?,

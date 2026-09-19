@@ -86,6 +86,27 @@ class PrivilegeTest {
     }
 
     @Test
+    fun previousProtocolCannotInstallServerWithOldTransactionLayout() {
+        val server = FakePrivilegeServer()
+        assertThrows(PrivilegeStartupException::class.java) {
+            Privilege.connectHandshake(
+                testHandshakeResult(
+                    PrivilegeServerInfo(
+                        uid = 2000,
+                        pid = 1234,
+                        protocolVersion = PrivilegeProtocol.VERSION - 1,
+                        lifecycleBinder = android.os.Binder(),
+                    ),
+                    server.asBinder(),
+                ),
+                null,
+            )
+        }
+        assertNull(Privilege.serverState.value)
+        assertTrue(server.runtimeConfigUpdates.isEmpty())
+    }
+
+    @Test
     fun getServerInfoWithoutServerThrowsDisconnectedException() {
         assertThrows(PrivilegeServerUnavailableException::class.java) {
             Privilege.getServerInfo()
@@ -298,34 +319,10 @@ class PrivilegeTest {
     }
 
     @Test
-    fun checkServerPermissionReturnsServerResult() {
-        val server = FakePrivilegeServer(
-            permissionResult = PackageManager.PERMISSION_GRANTED,
-        )
-        Privilege.connectHandshake(
-            handshakeResult = testHandshakeResult(
-                serverInfo = PrivilegeServerInfo(
-                    uid = 2000,
-                    pid = 1234,
-                    protocolVersion = PrivilegeProtocol.VERSION,
-                    lifecycleBinder = android.os.Binder(),
-                ),
-                serverBinder = server.asBinder(),
-            ),
-            startupLogListener = null,
-        )
-
-        assertEquals(
-            PackageManager.PERMISSION_GRANTED,
-            Privilege.checkServerPermission("android.permission.GRANT_RUNTIME_PERMISSIONS"),
-        )
-    }
-
-    @Test
     fun deadServerCallUsesFallbackAndClearsConnection() {
         val deadObjectException = DeadObjectException("server died")
         val server = FakePrivilegeServer(
-            checkServerPermissionCall = { throw deadObjectException },
+            checkPermissionCall = { throw deadObjectException },
         )
         Privilege.connectHandshake(
             handshakeResult = testHandshakeResult(
@@ -347,7 +344,7 @@ class PrivilegeTest {
                 PackageManager.PERMISSION_DENIED
             },
         ) {
-            Privilege.checkServerPermission("android.permission.GRANT_RUNTIME_PERMISSIONS")
+            Privilege.checkPermission("android.permission.GRANT_RUNTIME_PERMISSIONS", "test.package", 0)
         }
 
         assertEquals(PackageManager.PERMISSION_DENIED, result)
@@ -362,7 +359,7 @@ class PrivilegeTest {
     fun remoteExceptionFromConfirmedDeadServerUsesFallback() {
         val remoteException = RemoteException("server transport failed")
         val server = FakePrivilegeServer(
-            checkServerPermissionCall = { throw remoteException },
+            checkPermissionCall = { throw remoteException },
         )
         Privilege.connectHandshake(
             handshakeResult = testHandshakeResult(
@@ -385,7 +382,7 @@ class PrivilegeTest {
                 PackageManager.PERMISSION_DENIED
             },
         ) {
-            Privilege.checkServerPermission("android.permission.GRANT_RUNTIME_PERMISSIONS")
+            Privilege.checkPermission("android.permission.GRANT_RUNTIME_PERMISSIONS", "test.package", 0)
         }
 
         assertEquals(PackageManager.PERMISSION_DENIED, result)
@@ -401,7 +398,7 @@ class PrivilegeTest {
         val callEntered = CountDownLatch(1)
         val releaseCall = CountDownLatch(1)
         val oldServer = FakePrivilegeServer(
-            checkServerPermissionCall = {
+            checkPermissionCall = {
                 callEntered.countDown()
                 check(releaseCall.await(5, TimeUnit.SECONDS)) {
                     "Timed out waiting to release the old server call"
@@ -433,8 +430,10 @@ class PrivilegeTest {
                             PackageManager.PERMISSION_DENIED
                         },
                     ) {
-                        Privilege.checkServerPermission(
+                        Privilege.checkPermission(
                             "android.permission.GRANT_RUNTIME_PERMISSIONS",
+                            "test.package",
+                            0,
                         )
                     },
                 )
@@ -525,55 +524,6 @@ class PrivilegeTest {
         )
 
         assertFalse(Privilege.isPermissionRestricted())
-        assertTrue(server.serverPermissionChecks.isEmpty())
-    }
-
-    @Test
-    fun nonRootPermissionRestrictionUsesGrantPermissionRegardlessOfUid() {
-        val grantedServer = FakePrivilegeServer(
-            permissionResult = PackageManager.PERMISSION_GRANTED,
-        )
-        Privilege.connectHandshake(
-            handshakeResult = testHandshakeResult(
-                serverInfo = PrivilegeServerInfo(
-                    uid = 1000,
-                    pid = 1234,
-                    protocolVersion = PrivilegeProtocol.VERSION,
-                    lifecycleBinder = android.os.Binder(),
-                ),
-                serverBinder = grantedServer.asBinder(),
-            ),
-            startupLogListener = null,
-        )
-
-        assertFalse(Privilege.isPermissionRestricted())
-        assertEquals(
-            listOf("android.permission.GRANT_RUNTIME_PERMISSIONS"),
-            grantedServer.serverPermissionChecks,
-        )
-
-        Privilege.shutdownServer()
-        val deniedServer = FakePrivilegeServer(
-            permissionResult = PackageManager.PERMISSION_DENIED,
-        )
-        Privilege.connectHandshake(
-            handshakeResult = testHandshakeResult(
-                serverInfo = PrivilegeServerInfo(
-                    uid = 2000,
-                    pid = 5678,
-                    protocolVersion = PrivilegeProtocol.VERSION,
-                    lifecycleBinder = android.os.Binder(),
-                ),
-                serverBinder = deniedServer.asBinder(),
-            ),
-            startupLogListener = null,
-        )
-
-        assertTrue(Privilege.isPermissionRestricted())
-        assertEquals(
-            listOf("android.permission.GRANT_RUNTIME_PERMISSIONS"),
-            deniedServer.serverPermissionChecks,
-        )
     }
 
     @Test
@@ -715,7 +665,6 @@ class PrivilegeTest {
             ),
             server.runtimePermissionGrants,
         )
-        assertTrue(server.serverPermissionChecks.isEmpty())
     }
 
     @Test
@@ -752,35 +701,6 @@ class PrivilegeTest {
             ),
             server.runtimePermissionRevokes,
         )
-        assertTrue(server.serverPermissionChecks.isEmpty())
-    }
-
-    @Test
-    fun runtimeGrantRequiresGrantPermissionForNonRootServer() {
-        val server = FakePrivilegeServer(
-            permissionResult = PackageManager.PERMISSION_DENIED,
-        )
-
-        assertFalse(
-            Privilege.grantRuntimePermissionForRuntime(
-                serverInfo = PrivilegeServerInfo(
-                    uid = 2000,
-                    pid = 1234,
-                    protocolVersion = PrivilegeProtocol.VERSION,
-                    lifecycleBinder = android.os.Binder(),
-                ),
-                server = server,
-                packageName = "test.package",
-                permissionName = "android.permission.WRITE_SECURE_SETTINGS",
-                userId = 10,
-            ),
-        )
-
-        assertEquals(
-            listOf("android.permission.GRANT_RUNTIME_PERMISSIONS"),
-            server.serverPermissionChecks,
-        )
-        assertTrue(server.runtimePermissionGrants.isEmpty())
     }
 
     @Test
@@ -804,7 +724,6 @@ class PrivilegeTest {
             ),
         )
 
-        assertTrue(server.serverPermissionChecks.isEmpty())
         assertEquals(
             listOf(
                 RuntimePermissionGrant(
@@ -819,11 +738,10 @@ class PrivilegeTest {
 
     private class FakePrivilegeServer(
         private val permissionResult: Int = PackageManager.PERMISSION_DENIED,
-        private val checkServerPermissionCall: ((String) -> Int)? = null,
+        private val checkPermissionCall: ((String) -> Int)? = null,
         private val deniedServerPermissions: Array<String> = emptyArray(),
     ) : IPrivilegeServer {
         private val binder = TestBinder(localInterface = this)
-        val serverPermissionChecks = mutableListOf<String>()
         val packagePermissionChecks = mutableListOf<PackagePermissionCheck>()
         val runtimePermissionGrants = mutableListOf<RuntimePermissionGrant>()
         val runtimePermissionRevokes = mutableListOf<RuntimePermissionRevoke>()
@@ -844,11 +762,6 @@ class PrivilegeTest {
 
         override fun hasSystemService(serviceName: String): Boolean = false
 
-        override fun checkServerPermission(permission: String): Int {
-            serverPermissionChecks += permission
-            return checkServerPermissionCall?.invoke(permission) ?: permissionResult
-        }
-
         override fun getDeniedServerPermissions(): Array<String> {
             deniedServerPermissionQueries += 1
             return deniedServerPermissions.copyOf()
@@ -864,7 +777,7 @@ class PrivilegeTest {
                 pkgName = pkgName,
                 userId = userId,
             )
-            return permissionResult
+            return checkPermissionCall?.invoke(permName) ?: permissionResult
         }
 
         override fun grantRuntimePermission(

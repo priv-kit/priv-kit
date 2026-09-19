@@ -71,21 +71,6 @@ internal class PrivilegeUiAdbStatusActions(
         }
     }
 
-    suspend fun refreshAdbIdentityInfoNow() {
-        runCatching {
-            withContext(Dispatchers.IO) {
-                Privilege.createAdbManager(
-                    adbDeviceName = store.currentAdbDeviceNameOverride(),
-                ).getIdentityInfo()
-            }
-        }.onSuccess { info ->
-            store.updateState { it.copy(adbKeyFingerprint = info.publicKeyFingerprint) }
-        }.onFailure { throwable ->
-            if (throwable is CancellationException) throw throwable
-            store.appendLog(throwable.toPrivilegeUiDiagnosticString())
-        }
-    }
-
     fun refreshWifiConnected() {
         store.updateState { it.copy(wifiConnected = store.isWifiConnected()) }
     }

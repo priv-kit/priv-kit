@@ -83,14 +83,6 @@ internal fun ItemPanel(content: @Composable ColumnScope.() -> Unit) {
 @Composable
 @Suppress("DEPRECATION")
 internal fun PrivilegeUiScreenScope.PermissionRestrictionWarning() {
-    if (
-        !privilegeUiPermissionRestrictionWarningVisible(
-            runtimeStatus = state.runtimeStatus,
-            restrictionStatus = state.permissionRestrictionStatus,
-        )
-    ) {
-        return
-    }
     var permissionsDialogVisible by remember(state.connectionSerial) { mutableStateOf(false) }
     val permissions = state.deniedServerPermissions
     val clipboard = LocalClipboardManager.current

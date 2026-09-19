@@ -1,6 +1,8 @@
 package priv.kit.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +22,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import priv.kit.ui.component.AdbPanel
@@ -34,6 +37,7 @@ import priv.kit.ui.component.RestartConfirmationDialog
 import priv.kit.ui.component.ServiceStatusPanel
 import priv.kit.ui.component.StartupLogPanel
 import priv.kit.ui.component.privilegeUiAutoRecoveryWarningVisible
+import priv.kit.ui.component.privilegeUiPermissionRestrictionWarningVisible
 
 @Composable
 internal fun PrivilegeScaffoldContent(
@@ -92,8 +96,20 @@ internal fun PrivilegeScaffoldContent(
                     }
                 }
                 screenScope.ServiceStatusPanel()
+                AnimatedVisibility(
+                    visible = privilegeUiPermissionRestrictionWarningVisible(
+                        runtimeStatus = state.runtimeStatus,
+                        restrictionStatus = state.permissionRestrictionStatus,
+                    ),
+                    enter = expandVertically(expandFrom = Alignment.Top),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top),
+                ) {
+                    Column {
+                        Spacer(Modifier.height(PrivilegeUiSpacing.large))
+                        screenScope.PermissionRestrictionWarning()
+                    }
+                }
             }
-            screenScope.PermissionRestrictionWarning()
             screenScope.AuthorizationModeTabs()
             screenScope.AuthorizationModePanel()
             if (state.startupLogLines.isNotEmpty()) {

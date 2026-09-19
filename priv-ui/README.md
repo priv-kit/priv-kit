@@ -58,6 +58,11 @@ restart confirmation when a server is connected. Confirmation resumes the origin
 coroutine; cancellation leaves the current server running.
 
 When permissions are restricted, the page fetches the denied permission list in the background.
+The ViewModel reads the connected server's restriction status synchronously during initialization,
+so the first frame has a stable warning height during route transitions. Later visibility changes
+expand or collapse the warning and its spacing vertically.
+Initial permission details reuse that snapshot or join the refresh already scheduled for the same
+connection. Foreground refreshes still query current restriction status and permissions.
 The warning's View restricted permissions action opens selectable permission text with Copy and
 Close buttons. Returning to the page refreshes the list; connection changes clear it.
 The warning's View solutions action opens the localized permission troubleshooting page.
