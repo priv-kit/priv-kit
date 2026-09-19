@@ -37,6 +37,7 @@ import priv.kit.core.internal.runtime.PrivilegeServerLaunchCommandBuilder
 import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS
 import priv.kit.shared.PRIVILEGE_INTERNAL_ROOT_UID
 import priv.kit.shared.PrivilegeManifestPermissions
+import priv.kit.shared.PrivilegeProcessPermissions
 import priv.kit.shared.toPrivilegeAdbDeviceNameText
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
 import java.io.Closeable
@@ -313,9 +314,8 @@ public object Privilege {
     public fun isPermissionRestricted(): Boolean {
         val connection = requireServerConnection()
         if (connection.serverInfo.uid == PRIVILEGE_INTERNAL_ROOT_UID) return false
-        return callServer(connection) { server ->
-            !server.canGrantRuntimePermissions()
-        }
+        return checkServerPermission(connection, GRANT_RUNTIME_PERMISSIONS) !=
+            PackageManager.PERMISSION_GRANTED
     }
 
     /**
@@ -324,6 +324,10 @@ public object Privilege {
      *
      * Permissions not defined on the current device are excluded. Grant status is checked first;
      * only denied permissions require a permission-definition lookup.
+     *
+     * Package enumeration, permission checks, and definition lookups all run in the server.
+     * Although a client can check a known permission using the server PID/UID, its package
+     * visibility restrictions can hide package metadata and produce an incomplete denied list.
      *
      * The returned snapshot is distinct and sorted by permission name. It does not inspect
      * AppOps, SELinux policy, or service-specific authorization, so an empty result does not
@@ -342,9 +346,7 @@ public object Privilege {
 
     public fun checkServerPermission(permission: String): Int {
         require(permission.isNotBlank()) { "permission must not be blank" }
-        return callServer { server ->
-            server.checkServerPermission(permission)
-        }
+        return checkServerPermission(requireServerConnection(), permission)
     }
 
     public fun checkPermission(
@@ -585,7 +587,10 @@ public object Privilege {
         permissionName: String,
         userId: Int,
     ): Boolean {
-        if (serverInfo.uid != PRIVILEGE_INTERNAL_ROOT_UID && !server.canGrantRuntimePermissions()) {
+        if (serverInfo.uid != PRIVILEGE_INTERNAL_ROOT_UID &&
+            checkServerProcessPermission(serverInfo, server, GRANT_RUNTIME_PERMISSIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
             return false
         }
         server.grantRuntimePermission(
@@ -788,9 +793,40 @@ public object Privilege {
     private fun PrivilegeServerInfo.matchesCurrentRuntime(): Boolean =
         protocolVersion == PrivilegeProtocol.VERSION
 
-    private fun IPrivilegeServer.canGrantRuntimePermissions(): Boolean =
-        checkServerPermission(GRANT_RUNTIME_PERMISSIONS) ==
-            PackageManager.PERMISSION_GRANTED
+    private fun checkServerPermission(connection: ServerConnection, permission: String): Int {
+        fun requireCurrentConnection() {
+            if (!connection.server.asBinder().isBinderAlive) {
+                markServerDisconnected(connection)
+                serverUnavailable(cause = null)
+            }
+            if (synchronized(serverLock) { currentServer !== connection }) {
+                serverUnavailable(cause = null)
+            }
+        }
+        requireCurrentConnection()
+        // ActivityManager failures belong to the system service, not the privileged server.
+        // Recheck our snapshot even on failure, without treating its DeadObjectException as
+        // evidence that the privileged server died.
+        return try {
+            PrivilegeProcessPermissions.check(permission, connection.serverInfo.pid, connection.serverInfo.uid)
+        } finally {
+            requireCurrentConnection()
+        }
+    }
+
+    // Also used before the handshake is installed as the current connection.
+    private fun checkServerProcessPermission(
+        serverInfo: PrivilegeServerInfo,
+        server: IPrivilegeServer,
+        permission: String,
+    ): Int {
+        if (!server.asBinder().isBinderAlive) serverUnavailable(cause = null)
+        return try {
+            PrivilegeProcessPermissions.check(permission, serverInfo.pid, serverInfo.uid)
+        } finally {
+            if (!server.asBinder().isBinderAlive) serverUnavailable(cause = null)
+        }
+    }
 
     private fun PrivilegeStartupLogListener?.emitStartupLog(
         source: String,

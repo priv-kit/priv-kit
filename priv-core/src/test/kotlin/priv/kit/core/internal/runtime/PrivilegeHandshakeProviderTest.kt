@@ -370,9 +370,6 @@ class PrivilegeHandshakeProviderTest {
 
         override fun hasSystemService(serviceName: String): Boolean = false
 
-        override fun checkServerPermission(permission: String): Int =
-            PackageManager.PERMISSION_GRANTED
-
         override fun getDeniedServerPermissions(): Array<String> = emptyArray()
 
         override fun checkPermission(

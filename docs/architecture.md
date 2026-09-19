@@ -145,9 +145,19 @@ Package permission 相关公开方法是 `checkPermission`、`grantRuntimePermis
 通过 PackageManager 查询定义，过滤当前设备未定义的权限后返回；结果不包含
 AppOps、SELinux 或系统服务内部策略。权限策略和更高层流程由应用定义。
 
+`getDeniedServerPermissions` 的包枚举、逐项权限检查和权限定义查询全部保留在服务端。
+内部协议版本 28 已删除单项服务端权限检查的 AIDL 方法；旧协议连接在安装前被拒绝，
+避免删除方法后 transaction 编号变化导致误调用。
+客户端虽可用服务端 PID/UID 检查已知权限，但查询 UID 关联包及其声明时可能受到包可见性
+过滤，导致拒绝权限列表遗漏；因此不将该查询拆分到客户端执行。
+
 服务端 PID/UID 权限检查统一通过 `:priv-shared` 直接调用 ActivityManager，绕过
 Context 的进程内权限缓存，避免厂商 Shell 限制开关未触发缓存失效时返回旧结果。
 该路径同时用于拒绝权限列表、单项服务端权限检查及 `isPermissionRestricted`。
+单项检查与 `isPermissionRestricted` 在客户端使用同一连接快照的 PID/UID 查询，查询前后
+验证连接未死亡或被替换；ActivityManager 的异常本身不触发服务端断线处理。启动授权
+预检使用尚未安装的 handshake 身份在客户端查询，实际授权仍由服务端执行。按包检查
+`checkPermission` 和服务端系统服务发现仍走服务端，以保留调用方可见性及身份语义。
 
 Fallback 保留远端结果的不确定性。具有副作用的调用在连接中断后由应用根据幂等性决定
 恢复方式。

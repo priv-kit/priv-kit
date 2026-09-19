@@ -134,7 +134,7 @@ internal class PrivilegeUiEffectsCoordinator(
             runtimeActions.refreshRuntimeStatus(
                 useCurrentState = useCurrentRuntimeState,
             )
-            runtimeActions.refreshPermissionRestrictionStatusNow()
+            runtimeActions.loadInitialPermissionDetails()
         }
         if (PrivilegeUiStartupMode.MANUAL_SHELL in startupModes) {
             launch { store.loadManualShellCommand() }

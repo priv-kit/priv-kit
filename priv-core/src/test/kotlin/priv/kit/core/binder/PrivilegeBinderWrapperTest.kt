@@ -409,9 +409,6 @@ class PrivilegeBinderWrapperTest {
 
         override fun hasSystemService(serviceName: String): Boolean = hasSystemService
 
-        override fun checkServerPermission(permission: String): Int =
-            android.content.pm.PackageManager.PERMISSION_DENIED
-
         override fun getDeniedServerPermissions(): Array<String> = emptyArray()
 
         override fun checkPermission(

@@ -9,6 +9,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.drop
@@ -36,6 +37,7 @@ internal class PrivilegeUiRuntimeActions(
     private var nextStopOperationId = 0L
     private val activeStopOperationIds = mutableSetOf<Long>()
     private val permissionRestrictionRefreshGeneration = AtomicLong(0L)
+    private var scheduledPermissionRefresh: Pair<Long, Job>? = null
     private var runtimeWatcherJob: Job? = null
     private val runtimeStartCoordinator = PrivilegeUiRuntimeStartCoordinator(
         store = store,
@@ -152,6 +154,19 @@ internal class PrivilegeUiRuntimeActions(
         runtimeStartCoordinator.stopCurrentStart()
     }
 
+    // Resolve the first frame synchronously; permission details are loaded by the effects later.
+    fun initializeRuntimeState(serverInfo: PrivilegeServerInfo? = Privilege.serverState.value) {
+        if (serverInfo == null) return
+        val restrictionStatus = runCatching {
+            if (isPermissionRestricted()) PrivilegeUiPermissionRestrictionStatus.RESTRICTED
+            else PrivilegeUiPermissionRestrictionStatus.NOT_RESTRICTED
+        }.getOrDefault(PrivilegeUiPermissionRestrictionStatus.UNKNOWN)
+        store.updateState {
+            it.toConnectedRuntimeIdle(serverInfo, it.connectionSerial + 1L)
+                .copy(permissionRestrictionStatus = restrictionStatus)
+        }
+    }
+
     suspend fun refreshRuntimeStatus(useCurrentState: Boolean) {
         if (closed.get()) return
         if (useCurrentState) {
@@ -190,14 +205,19 @@ internal class PrivilegeUiRuntimeActions(
         schedulePermissionRestrictionRefresh(current.connectionSerial)
     }
 
-    suspend fun refreshPermissionRestrictionStatusNow() {
-        val current = store.state.value
-        if (!current.canRefreshPermissionRestrictionStatus()) return
-        val generation = permissionRestrictionRefreshGeneration.incrementAndGet()
-        refreshPermissionRestrictionStatus(
-            expectedConnectionSerial = current.connectionSerial,
-            generation = generation,
-        )
+    suspend fun loadInitialPermissionDetails() {
+        val job = synchronized(store) {
+            val current = store.state.value
+            if (!current.canRefreshPermissionRestrictionStatus() || closed.get()) return
+            scheduledPermissionRefresh?.takeIf { it.first == current.connectionSerial }?.second
+                ?: schedulePermissionRestrictionRefresh(
+                    current.connectionSerial,
+                    current.permissionRestrictionStatus.takeUnless {
+                        it == PrivilegeUiPermissionRestrictionStatus.UNKNOWN
+                    },
+                )
+        }
+        job.join()
     }
 
     fun installRuntimeWatchers() {
@@ -361,20 +381,28 @@ internal class PrivilegeUiRuntimeActions(
         schedulePermissionRestrictionRefresh(connectionSerial)
     }
 
-    private fun schedulePermissionRestrictionRefresh(expectedConnectionSerial: Long) {
+    private fun schedulePermissionRestrictionRefresh(
+        expectedConnectionSerial: Long,
+        initialRestrictionStatus: PrivilegeUiPermissionRestrictionStatus? = null,
+    ): Job = synchronized(store) {
         val generation = permissionRestrictionRefreshGeneration.incrementAndGet()
-        coroutineScope.launch(
+        val job = coroutineScope.launch(
             operationDispatcher + CoroutineName("priv-ui-refresh-permission-restriction"),
+            start = CoroutineStart.LAZY,
         ) {
-            refreshPermissionRestrictionStatus(expectedConnectionSerial, generation)
+            refreshPermissionRestrictionStatus(expectedConnectionSerial, generation, initialRestrictionStatus)
         }
+        scheduledPermissionRefresh = expectedConnectionSerial to job
+        job.start()
+        job
     }
 
     private suspend fun refreshPermissionRestrictionStatus(
         expectedConnectionSerial: Long,
         generation: Long,
+        initialRestrictionStatus: PrivilegeUiPermissionRestrictionStatus? = null,
     ) {
-        val restrictionStatus = withContext(operationDispatcher) {
+        val restrictionStatus = initialRestrictionStatus ?: withContext(operationDispatcher) {
             runCatching {
                 if (isPermissionRestricted()) {
                     PrivilegeUiPermissionRestrictionStatus.RESTRICTED

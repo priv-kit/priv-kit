@@ -300,6 +300,82 @@ class PrivilegeUiRuntimeActionsTest {
     }
 
     @Test
+    fun initialRestrictionIsAvailableSynchronouslyWithoutLoadingPermissionDetails() {
+        RuntimeActionsFixture(
+            isPermissionRestricted = { true },
+            getDeniedServerPermissions = { error("Initial state must not enumerate permissions") },
+        ).use { (store, actions) ->
+            val serverInfo = shellServerInfo()
+            actions.initializeRuntimeState(serverInfo)
+
+            assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, store.state.value.runtimeStatus)
+            assertEquals(serverInfo, store.state.value.serverInfo)
+            assertEquals(PrivilegeUiPermissionRestrictionStatus.RESTRICTED, store.state.value.permissionRestrictionStatus)
+            assertEquals(emptyList<String>(), store.state.value.deniedServerPermissions)
+        }
+    }
+
+    @Test
+    fun initialDetailsReuseSynchronousRestrictionSnapshot() = runBlocking {
+        val checks = AtomicInteger(0)
+        val details = AtomicInteger(0)
+        RuntimeActionsFixture(
+            isPermissionRestricted = { checks.incrementAndGet(); true },
+            getDeniedServerPermissions = { details.incrementAndGet(); listOf("permission.TEST") },
+        ).use { (store, actions) ->
+            actions.initializeRuntimeState(shellServerInfo())
+            actions.loadInitialPermissionDetails()
+            actions.loadInitialPermissionDetails()
+            assertEquals(1, checks.get())
+            assertEquals(1, details.get())
+            assertEquals(listOf("permission.TEST"), store.state.value.deniedServerPermissions)
+        }
+    }
+
+    @Test
+    fun initialDetailsJoinConnectionRefresh() = runBlocking {
+        val checks = AtomicInteger(0)
+        val details = AtomicInteger(0)
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        RuntimeActionsFixture(
+            isPermissionRestricted = { checks.incrementAndGet(); true },
+            getDeniedServerPermissions = {
+                details.incrementAndGet()
+                entered.countDown()
+                release.await()
+                listOf("permission.TEST")
+            },
+            beforeClose = { release.countDown() },
+        ).use { (store, actions) ->
+            actions.connectForTest(shellServerInfo())
+            assertTrue(entered.await(2, TimeUnit.SECONDS))
+            val load = async(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                actions.loadInitialPermissionDetails()
+            }
+            try {
+                assertFalse(load.isCompleted)
+                assertEquals(1, checks.get())
+                assertEquals(1, details.get())
+            } finally {
+                release.countDown()
+            }
+            load.await()
+            assertEquals(listOf("permission.TEST"), store.state.value.deniedServerPermissions)
+        }
+    }
+
+    @Test
+    fun failedInitialRestrictionCheckKeepsUnknownStatus() {
+        RuntimeActionsFixture(
+            isPermissionRestricted = { error("Server disconnected during initialization") },
+        ).use { (store, actions) ->
+            actions.initializeRuntimeState(shellServerInfo())
+            assertEquals(PrivilegeUiPermissionRestrictionStatus.UNKNOWN, store.state.value.permissionRestrictionStatus)
+        }
+    }
+
+    @Test
     fun restrictionIsPublishedBeforePermissionListCompletes() = runBlocking {
         val queryEntered = CountDownLatch(1)
         val releaseQuery = CountDownLatch(1)
@@ -357,7 +433,7 @@ class PrivilegeUiRuntimeActionsTest {
             assertEquals(1, permissionQueries.get())
 
             restricted.set(true)
-            actions.refreshPermissionRestrictionStatusNow()
+            actions.refreshPermissionRestrictionStatus()
             assertTrue(waitUntil { store.state.value.deniedServerPermissions == listOf("android.permission.INJECT_EVENTS") })
             assertEquals(2, permissionQueries.get())
             actions.disconnectForTest()
