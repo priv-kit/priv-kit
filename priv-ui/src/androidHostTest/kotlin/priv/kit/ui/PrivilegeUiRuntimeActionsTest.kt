@@ -1714,7 +1714,7 @@ class PrivilegeUiRuntimeActionsTest {
             beforeClose()
             actions.close()
             scope.cancel()
-            store.close()
+
         }
     }
 }

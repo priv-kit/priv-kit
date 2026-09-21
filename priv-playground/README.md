@@ -65,3 +65,8 @@ are included, while ignored files are excluded even when tracked. Source text is
 literally, without decoding Kotlin escapes or XML entities. Characters absent from the original
 font cannot be added by subsetting, and arbitrary user input may still need font fallback.
 Run `pnpm --filter @priv-kit/playground check` to check the TypeScript tooling and scan behavior.
+
+The preview also accepts `batteryOptimizationExempt` and `localNetworkPermissionGranted`
+(default `true`). Turning either off shows its ADB prompt card; ADB operations
+remain available without local network permission. Simulated permission requests notify the host through
+`onPermissionsChanged`, keeping the website switches in sync without restarting the session.

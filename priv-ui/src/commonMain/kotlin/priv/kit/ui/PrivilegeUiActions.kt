@@ -18,6 +18,7 @@ internal class PrivilegeUiActions(
     val dismissTcpAuthorizationFailureDialog: () -> Unit = {},
     val enableTcpMode: () -> Unit = {},
     val openNotificationSettings: () -> Unit = {},
+    val requestLocalNetworkPermission: () -> Unit = {},
     val requestBatteryOptimization: () -> Boolean = { false },
     val restartTcpMode: () -> Unit = {},
     val selectStartupMode: (PrivilegeUiStartupMode) -> Unit = {},

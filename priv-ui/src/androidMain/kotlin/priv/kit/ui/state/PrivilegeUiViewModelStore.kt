@@ -25,7 +25,7 @@ import java.util.UUID
 internal class PrivilegeUiViewModelStore(
     context: Context? = null,
     val config: PrivilegeUiConfig = PrivilegeUiConfig(),
-) : AutoCloseable {
+) {
     val state = MutableStateFlow(
         initialPrivilegeUiState(
             config = config,
@@ -83,10 +83,6 @@ internal class PrivilegeUiViewModelStore(
         }
     }
 
-    fun appendLog(line: String) {
-        appendStartupLog(line)
-    }
-
     fun showSnackbar(text: PrivilegeUiText) {
         snackbarTextState.tryEmit(text)
     }
@@ -136,8 +132,6 @@ internal class PrivilegeUiViewModelStore(
         config.adbDeviceName
             ?.toPrivilegeUiAdbDeviceNameText()
             ?.ifBlank { null }
-
-    override fun close() = Unit
 
     private companion object {
         const val MAX_STARTUP_LOG_LINES = 240

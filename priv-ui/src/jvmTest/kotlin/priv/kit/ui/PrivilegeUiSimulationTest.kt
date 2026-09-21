@@ -14,7 +14,28 @@ import kotlin.io.encoding.Base64
 @OptIn(ExperimentalCoroutinesApi::class)
 class PrivilegeUiSimulationTest {
     private fun model(scope: CoroutineScope, copy: (String) -> Unit = {}) =
-        PrivilegeUiSimulation(scope, "Simulated provider", PrivilegeUiRuntimeStartSource.entries.associateWith { "Starting $it" }, "Enter six digits", copy)
+        PrivilegeUiSimulation(scope, "Simulated provider", PrivilegeUiRuntimeStartSource.entries.associateWith { "Starting $it" }, "Enter six digits", copyText = copy)
+
+    @Test
+    fun missingPermissionIsAdvisoryAndDoesNotInterruptAdb() = runTest {
+        val model = model(this)
+        model.setPermissions(batteryExempt = false, networkGranted = false)
+        assertTrue(model.state.batteryOptimizationPromptVisible)
+        assertTrue(model.state.localNetworkPermissionMissing)
+        model.actions.startNotificationPairing()
+        assertTrue(model.state.pairingDialogVisible)
+        model.actions.stopNotificationPairing()
+        model.actions.startStaticTcpAdb()
+        model.actions.confirmStaticTcpSwitch()
+        runCurrent()
+        model.setPermissions(batteryExempt = true, networkGranted = true)
+        model.setPermissions(batteryExempt = true, networkGranted = false)
+        advanceUntilIdle()
+        assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, model.state.runtimeStatus)
+        val connection = model.state.connectionSerial
+        model.setPermissions(batteryExempt = true, networkGranted = true)
+        assertEquals(connection, model.state.connectionSerial)
+    }
 
     @Test
     fun adbRestrictionOptionUpdatesExistingAndFutureShellConnectionsOnly() = runTest {

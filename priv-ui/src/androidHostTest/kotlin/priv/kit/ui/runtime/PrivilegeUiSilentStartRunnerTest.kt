@@ -164,17 +164,17 @@ class PrivilegeUiSilentStartRunnerTest {
     }
 
     @Test
-    fun wirelessMethodDoesNotStartWhenLocalNetworkPermissionIsMissing() = runBlocking {
+    fun adbMethodsAttemptTransportWithoutPermissionPreflight() = runBlocking {
         val backend = RecordingBackend(serverInfo)
         val runner = PrivilegeUiSilentStartRunner(
             context = context,
             config = PrivilegeUiConfig(startupModes = listOf(PrivilegeUiStartupMode.ADB)),
             backend = backend,
-            requiredLocalNetworkPermission = { "android.permission.ACCESS_LOCAL_NETWORK" },
         )
 
-        assertNull(runner.start(PrivilegeUiStartMethod.AdbWireless, clientLaunch))
-        assertEquals(0, backend.totalCalls)
+        assertSame(serverInfo, runner.start(PrivilegeUiStartMethod.AdbWireless, clientLaunch))
+        assertSame(serverInfo, runner.start(PrivilegeUiStartMethod.AdbTcpip, clientLaunch))
+        assertEquals(2, backend.totalCalls)
     }
 
     @Test
@@ -318,7 +318,6 @@ class PrivilegeUiSilentStartRunnerTest {
             context = context,
             config = config,
             backend = backend,
-            requiredLocalNetworkPermission = { null },
         )
 
     private class RecordingBackend(

@@ -8,6 +8,19 @@ import org.junit.Test
 
 class PrivilegeUiDirectStartTest {
     @Test
+    fun missingLocalNetworkPermissionKeepsAdbAndRootFallback() {
+        val state = PrivilegeUiState(
+            localNetworkPermissionMissing = true,
+            selectedStartupMode = PrivilegeUiStartupMode.ADB,
+            startupModes = listOf(PrivilegeUiStartupMode.ADB, PrivilegeUiStartupMode.ROOT),
+        )
+        assertEquals(
+            listOf(PrivilegeUiDirectStartTarget.Adb, PrivilegeUiDirectStartTarget.Root),
+            state.directStartTargets(PrivilegeUiAdbTcpPolicy.PREFER_EXISTING, true),
+        )
+    }
+
+    @Test
     fun manualOnlyHasNoDirectStartTarget() {
         val state = PrivilegeUiState(
             selectedStartupMode = PrivilegeUiStartupMode.MANUAL_SHELL,

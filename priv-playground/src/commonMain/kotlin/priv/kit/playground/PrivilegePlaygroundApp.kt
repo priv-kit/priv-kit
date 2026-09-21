@@ -17,6 +17,9 @@ internal fun PrivilegePlaygroundApp(
     dark: Boolean = isSystemInDarkTheme(),
     useLegacyPackaging: Boolean = true,
     adbRestricted: Boolean = true,
+    batteryOptimizationExempt: Boolean = true,
+    localNetworkPermissionGranted: Boolean = true,
+    onPermissionsChanged: ((Boolean, Boolean) -> Unit)? = null,
 ) {
     val fontFamily = FontFamily(Font(Res.font.noto_sans_sc))
     val defaults = Typography()
@@ -41,6 +44,8 @@ internal fun PrivilegePlaygroundApp(
         colorScheme = if (dark) darkColorScheme() else lightColorScheme(),
         typography = typography,
     ) {
-        PrivilegePreviewScaffold(useLegacyPackaging = useLegacyPackaging, adbRestricted = adbRestricted)
+        PrivilegePreviewScaffold(useLegacyPackaging = useLegacyPackaging, adbRestricted = adbRestricted,
+            batteryOptimizationExempt = batteryOptimizationExempt, localNetworkPermissionGranted = localNetworkPermissionGranted,
+            onPermissionsChanged = onPermissionsChanged)
     }
 }

@@ -72,7 +72,7 @@ class PrivilegeUiExternalStartActionsTest {
             runtimeActions.close()
             promptCoordinator.close()
             scope.cancel()
-            store.close()
+
         }
     }
 
@@ -98,7 +98,7 @@ class PrivilegeUiExternalStartActionsTest {
             checkNotNull(silentPermit).close()
             runtimeActions.close()
             scope.cancel()
-            store.close()
+
         }
     }
 
@@ -123,7 +123,7 @@ class PrivilegeUiExternalStartActionsTest {
         } finally {
             runtimeActions.close()
             scope.cancel()
-            store.close()
+
         }
     }
 
@@ -144,7 +144,7 @@ class PrivilegeUiExternalStartActionsTest {
         } finally {
             runtimeActions.close()
             scope.cancel()
-            store.close()
+
         }
     }
 
@@ -177,7 +177,7 @@ class PrivilegeUiExternalStartActionsTest {
         } finally {
             runtimeActions.close()
             scope.cancel()
-            store.close()
+
         }
     }
 
@@ -213,7 +213,7 @@ class PrivilegeUiExternalStartActionsTest {
         } finally {
             runtimeActions.close()
             scope.cancel()
-            store.close()
+
         }
     }
 

@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import priv.kit.ui.adb.PrivilegeUiAdbActions
@@ -31,6 +33,9 @@ internal class PrivilegeUiEffectsCoordinator(
     private val externalStartActions: PrivilegeUiExternalStartActions,
     private val coroutineScope: CoroutineScope,
 ) : AutoCloseable {
+    private val resumedHosts = mutableSetOf<String>()
+    private val pageVisible = MutableStateFlow(false)
+    private val refreshRequests = Channel<Unit>(Channel.CONFLATED)
     private val enabledState = MutableStateFlow(false)
     private var initialLoadCompleted = false
     private var observerJob: Job? = null
@@ -61,27 +66,22 @@ internal class PrivilegeUiEffectsCoordinator(
     ): Boolean =
         interactiveStartOwner.canInteract(gateState)
 
+    fun setHostResumed(hostId: String, resumed: Boolean) {
+        if (resumed) resumedHosts.add(hostId) else resumedHosts.remove(hostId)
+        pageVisible.value = resumedHosts.isNotEmpty()
+    }
+
+    fun removeHost(hostId: String) = setHostResumed(hostId, false)
+
     fun refreshHostResumeState() {
-        coroutineScope.launch(CoroutineName("priv-ui-host-resume")) {
-            runtimeActions.refreshPermissionRestrictionStatus()
-            when (store.state.value.selectedStartupMode) {
-                PrivilegeUiStartupMode.ADB -> {
-                    if (isPrivilegeUiWirelessAdbSupported()) {
-                        adbActions.refreshWirelessAdbStatusNow(markChecking = false)
-                    }
-                    if (store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED) {
-                        adbActions.refreshTcpModeEnabledNow(markChecking = false)
-                    }
-                }
-                PrivilegeUiStartupMode.EXTERNAL ->
-                    externalStartActions.refreshExternalStartStatusNow(providerId = null)
-                else -> Unit
-            }
-        }
+        refreshRequests.trySend(Unit)
     }
 
     override fun close() {
         enabledState.value = false
+        refreshRequests.close()
+        resumedHosts.clear()
+        pageVisible.value = false
         observerJob?.cancel()
         observerJob = null
     }
@@ -115,15 +115,11 @@ internal class PrivilegeUiEffectsCoordinator(
         }
         enabledState.value = true
 
-        supervisorScope {
-            launch(CoroutineName("priv-ui-deferred-initial-state")) {
-                loadDeferredInitialState()
-            }
-            store.state
-                .map { it.selectedStartupMode }
-                .distinctUntilChanged()
-                .collectLatest(::pollSelectedMode)
-        }
+        combine(store.state, pageVisible) { state, visible ->
+            if (visible) VisiblePage(
+                mode = state.selectedStartupMode,
+            ) else null
+        }.distinctUntilChanged().collectLatest(::runVisiblePageEffects)
     }
 
     private suspend fun loadImmediateInitialState(
@@ -141,57 +137,49 @@ internal class PrivilegeUiEffectsCoordinator(
         }
     }
 
-    private suspend fun loadDeferredInitialState(): Unit = supervisorScope {
-        val state = store.state.value
-        val startupModes = state.startupModes
-        if (PrivilegeUiStartupMode.ADB in startupModes) {
-            if (
-                isPrivilegeUiWirelessAdbSupported() &&
-                !state.wirelessAdbStatusLoaded
-            ) {
-                launch {
+    private suspend fun runVisiblePageEffects(page: VisiblePage?): Unit = coroutineScope {
+        if (page == null) return@coroutineScope
+        val mode = page.mode
+        // A new visible page always refreshes. Merge resume/focus signals already queued.
+        while (refreshRequests.tryReceive().isSuccess) { /* merged into the initial refresh */ }
+        launch(CoroutineName("priv-ui-page-refresh")) {
+            refreshVisibleMode(mode)
+            for (request in refreshRequests) refreshVisibleMode(mode)
+        }
+        when (mode) {
+            PrivilegeUiStartupMode.ADB -> launch { pollAdbStatus() }
+            PrivilegeUiStartupMode.EXTERNAL -> launch {
+                externalStartActions.pollExternalStartStatus()
+            }
+            else -> Unit
+        }
+        awaitCancellation()
+    }
+
+    private suspend fun refreshVisibleMode(mode: PrivilegeUiStartupMode): Unit = supervisorScope {
+        launch { runtimeActions.refreshPermissionRestrictionStatus() }
+        when (mode) {
+            PrivilegeUiStartupMode.ADB -> {
+                if (isPrivilegeUiWirelessAdbSupported()) launch {
                     adbActions.refreshWirelessAdbStatusNow(markChecking = false)
                 }
-            }
-            if (
-                store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED &&
-                !state.staticTcp.loaded
-            ) {
-                launch {
+                if (store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED) launch {
                     adbActions.refreshTcpModeEnabledNow(markChecking = false)
                 }
             }
-        }
-        if (
-            PrivilegeUiStartupMode.EXTERNAL in startupModes &&
-            state.externalStartItems.any { !it.statusLoaded }
-        ) {
-            launch {
+            PrivilegeUiStartupMode.EXTERNAL -> launch {
                 externalStartActions.refreshExternalStartStatusNow(providerId = null)
             }
+            else -> Unit
         }
     }
 
-    private suspend fun pollSelectedMode(mode: PrivilegeUiStartupMode): Unit = coroutineScope {
-        when (mode) {
-            PrivilegeUiStartupMode.ADB -> {
-                if (isPrivilegeUiWirelessAdbSupported()) {
-                    launch(CoroutineName("priv-ui-wireless-adb-status")) {
-                        adbActions.pollWirelessAdbStatus()
-                    }
-                }
-                if (store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED) {
-                    launch(CoroutineName("priv-ui-tcp-mode-status")) {
-                        adbActions.pollTcpModeStatus()
-                    }
-                }
-            }
-            PrivilegeUiStartupMode.EXTERNAL -> {
-                launch(CoroutineName("priv-ui-external-start-status")) {
-                    externalStartActions.pollExternalStartStatus()
-                }
-            }
-            else -> Unit
+    private suspend fun pollAdbStatus(): Unit = coroutineScope {
+        if (isPrivilegeUiWirelessAdbSupported()) launch {
+            adbActions.pollWirelessAdbStatus()
+        }
+        if (store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED) launch {
+            adbActions.pollTcpModeStatus()
         }
         awaitCancellation()
     }
@@ -202,6 +190,10 @@ internal class PrivilegeUiEffectsCoordinator(
             current.silentCompletionSerial == silentCompletionSerial &&
             interactiveStartOwner.canInteract(current)
     }
+
+    private data class VisiblePage(
+        val mode: PrivilegeUiStartupMode,
+    )
 
     private data class EffectsGate(
         val canInteract: Boolean,

@@ -8,10 +8,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import priv.kit.core.Privilege
@@ -26,6 +25,7 @@ import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiManagedWirelessAdbStatus
 import priv.kit.ui.PrivilegeUiStaticTcpState
 import priv.kit.ui.PrivilegeUiWirelessAdbStatus
+import priv.kit.ui.state.PrivilegeUiRefreshTask
 import priv.kit.ui.state.PrivilegeUiViewModelStore
 import priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported
 import priv.kit.ui.state.toPrivilegeUiDiagnosticString
@@ -35,8 +35,8 @@ internal class PrivilegeUiAdbStatusActions(
     private val store: PrivilegeUiViewModelStore,
     private val coroutineScope: CoroutineScope,
 ) : AutoCloseable {
-    private val wirelessRefresh = Mutex()
-    private val tcpRefresh = Mutex()
+    private val wirelessRefresh = PrivilegeUiRefreshTask()
+    private val tcpRefresh = PrivilegeUiRefreshTask()
     private var pairingSession: PrivilegeAdbPairingCheckSession? = null
     private var tcpSession: PrivilegeAdbTcpAuthorizationCheckSession? = null
     private var tcpSessionPort: Int? = null
@@ -54,7 +54,7 @@ internal class PrivilegeUiAdbStatusActions(
                 refreshTcpModeEnabled(markChecking = false)
             }
         } finally {
-            closeTcpSession()
+            tcpRefresh.releaseWhenIdle(::closeTcpSession)
         }
     }
 
@@ -62,11 +62,13 @@ internal class PrivilegeUiAdbStatusActions(
         try {
             while (currentCoroutineContext().isActive) {
                 delay(store.config.wirelessStatusPollIntervalMillis.milliseconds)
-                refreshWirelessAdbStatus(markChecking = false)
-                markWirelessAdbStatusLoaded()
+                store.retryOnLocalNetworkPermissionGrant {
+                    refreshWirelessAdbStatus(markChecking = false)
+                    markWirelessAdbStatusLoaded()
+                }
             }
         } finally {
-            closePairingSession()
+            wirelessRefresh.releaseWhenIdle(::closePairingSession)
             updateNotificationPairingRunning()
         }
     }
@@ -77,14 +79,14 @@ internal class PrivilegeUiAdbStatusActions(
 
     suspend fun forceWirelessAdbStatusRefreshForAction(
         markChecking: Boolean = true,
-    ): Boolean {
+    ): Boolean = store.retryOnLocalNetworkPermissionGrant {
         val refreshed = withTimeoutOrNull(actionRefreshTimeoutMillis().milliseconds) {
             refreshWirelessAdbStatus(markChecking = markChecking)
             markWirelessAdbStatusLoaded()
             true
         }
-        if (refreshed == null) closePairingSession()
-        return refreshed ?: false
+        if (refreshed == null) wirelessRefresh.releaseWhenIdle(::closePairingSession)
+        refreshed ?: false
     }
 
     suspend fun forceTcpModeStatusRefreshForAction(
@@ -94,7 +96,7 @@ internal class PrivilegeUiAdbStatusActions(
             refreshTcpModeEnabled(markChecking = markChecking)
             true
         }
-        if (refreshed == null) closeTcpSession()
+        if (refreshed == null) tcpRefresh.releaseWhenIdle(::closeTcpSession)
         return refreshed ?: false
     }
 
@@ -109,13 +111,13 @@ internal class PrivilegeUiAdbStatusActions(
         store.updateState { it.copy(wirelessAdbStatusLoaded = true) }
     }
 
-    private suspend fun refreshTcpModeEnabled(markChecking: Boolean): Unit = tcpRefresh.withLock {
+    private suspend fun refreshTcpModeEnabled(markChecking: Boolean): Unit = tcpRefresh.run {
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) {
             closeTcpSession()
             store.updateStaticTcp {
                 PrivilegeUiStaticTcpState(loaded = true)
             }
-            return@withLock
+            return@run
         }
         if (markChecking) {
             store.updateStaticTcp {
@@ -126,7 +128,7 @@ internal class PrivilegeUiAdbStatusActions(
             }
         }
         if (shouldSkipTcpAuthorizationRefresh(store.state.value.staticTcp.authorizationStatus)) {
-            return@withLock
+            return@run
         }
 
         val manager = Privilege.createAdbManager(
@@ -146,7 +148,7 @@ internal class PrivilegeUiAdbStatusActions(
                     loaded = true,
                 )
             }
-            return@withLock
+            return@run
         }
 
         val authorization = checkTcpAuthorization(manager, configuredTcpPort)
@@ -167,7 +169,7 @@ internal class PrivilegeUiAdbStatusActions(
                 failureMessage = authorization.failureMessage,
             )
         ) {
-            authorization.failureMessage?.let(store::appendLog)
+            authorization.failureMessage?.let(store::appendStartupLog)
         }
     }
 
@@ -192,11 +194,12 @@ internal class PrivilegeUiAdbStatusActions(
         }
 
     private suspend fun refreshWirelessAdbStatus(markChecking: Boolean): Unit =
-        wirelessRefresh.withLock {
+        wirelessRefresh.run {
             if (markChecking) markWirelessAdbStatusChecking()
             try {
                 pollWirelessAdbStatusOnce()
             } catch (exception: CancellationException) {
+                closePairingSession()
                 throw exception
             } catch (throwable: Throwable) {
                 store.updateState {
@@ -211,7 +214,7 @@ internal class PrivilegeUiAdbStatusActions(
                         ),
                     )
                 }
-                store.appendLog(throwable.toPrivilegeUiDiagnosticString())
+                store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
             }
         }
 
@@ -313,6 +316,7 @@ internal class PrivilegeUiAdbStatusActions(
                 null
             }
 
+        currentCoroutineContext().ensureActive()
         store.updateState {
             it.copy(
                 wifiConnected = true,

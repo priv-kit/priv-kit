@@ -20,6 +20,7 @@ internal fun PrivilegeUiViewModel.screenActions(context: Context): PrivilegeUiAc
     dismissTcpAuthorizationFailureDialog = this::dismissTcpAuthorizationFailureDialog,
     enableTcpMode = this::enableTcpMode,
     openNotificationSettings = { dispatchNotificationPermissionSettingsRequest(context) },
+    requestLocalNetworkPermission = { requestAdbLocalNetworkPermission(context) },
     requestBatteryOptimization = { context.requestPrivilegeUiBatteryOptimizationExemption() },
     restartTcpMode = this::restartTcpMode,
     selectStartupMode = this::selectStartupMode,

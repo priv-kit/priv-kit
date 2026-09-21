@@ -12,7 +12,7 @@ internal suspend fun PrivilegeUiViewModelStore.loadManualShellCommand() {
         runCatching { Privilege.nativeStarterCommand }
             .map(::privilegeUiManualShellCommand)
     }.getOrElse { throwable ->
-        appendLog(throwable.toPrivilegeUiDiagnosticString())
+        appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
         updateState { it.copy(manualShellCommandLine = null) }
         return
     }

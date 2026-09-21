@@ -1,6 +1,8 @@
 package priv.kit.ui
 
 internal data class PrivilegeUiScreenState(
+    val localNetworkPermissionMissing: Boolean = false,
+    val localNetworkPermissionSettingsRequired: Boolean = false,
     val wirelessAdbSupported: Boolean = true,
     val adbTcpPolicy: PrivilegeUiAdbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
     val tcpPort: Int = 5555,
