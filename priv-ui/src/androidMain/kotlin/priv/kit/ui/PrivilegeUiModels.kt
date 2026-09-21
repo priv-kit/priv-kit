@@ -104,6 +104,8 @@ public interface PrivilegeUiStreamingExternalStartProvider : PrivilegeUiExternal
 }
 
 internal data class PrivilegeUiState(
+    val localNetworkPermissionMissing: Boolean = false,
+    val localNetworkPermissionSettingsRequired: Boolean = false,
     val busy: Boolean = false,
     val runtimeStatus: PrivilegeUiRuntimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
     val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,

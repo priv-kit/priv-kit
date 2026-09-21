@@ -536,7 +536,7 @@ internal class PrivilegeUiRuntimeStartCoordinator(
             return
         }
         store.showFailure(PrivilegeUiFailureKind.START_FAILED)
-        store.appendLog(store.text(R.string.priv_ui_start_failed))
+        store.appendStartupLog(store.text(R.string.priv_ui_start_failed))
     }
 
     private fun startFailedWithoutDiagnostic() = RuntimeStartCompletion.Failure(

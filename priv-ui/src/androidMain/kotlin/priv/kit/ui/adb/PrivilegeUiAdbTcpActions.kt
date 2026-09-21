@@ -25,6 +25,7 @@ internal class PrivilegeUiAdbTcpActions(
     private val systemPromptCoordinator: PrivilegeUiSystemPromptCoordinator,
 ) {
     suspend fun enableTcpMode() {
+
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
         val tcpPort = store.config.tcpPort
         val result = adbManager().switchToTcp(tcpPort = tcpPort)
@@ -41,6 +42,7 @@ internal class PrivilegeUiAdbTcpActions(
         tcpPort: Int,
         options: PrivilegeAdbConnectionOptions?,
     ) {
+
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
         adbManager().stopTcp(tcpPort, options)
         store.updateStaticTcp {
@@ -52,6 +54,7 @@ internal class PrivilegeUiAdbTcpActions(
         tcpPort: Int,
         options: PrivilegeAdbConnectionOptions?,
     ) {
+
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return
         val restartedPort = adbManager().restartTcp(tcpPort, options).port
         store.updateStaticTcp {
@@ -68,6 +71,7 @@ internal class PrivilegeUiAdbTcpActions(
         session: PrivilegeUiRuntimeStartSession,
         tcpPort: Int,
     ): Boolean {
+
         if (store.config.adbTcpPolicy == PrivilegeUiAdbTcpPolicy.DISABLED) return false
         session.appendStartupLog(store.text(R.string.priv_ui_adb_static_authorize_action))
         session.appendStartupLog(store.text(R.string.priv_ui_tcp_authorization_prompt_waiting_help))
@@ -112,6 +116,7 @@ internal class PrivilegeUiAdbTcpActions(
         tcpPort: Int,
         session: PrivilegeUiRuntimeStartSession,
     ): PrivilegeUiStaticTcpPreparationResult {
+
         val manager = adbManager()
         val initialAuthorization = manager.prepareTcpForStart(tcpPort = tcpPort)
         val configuredTcpPort = manager.getConfiguredTcpPort()
@@ -147,6 +152,7 @@ internal class PrivilegeUiAdbTcpActions(
         manager: PrivilegeAdbManager,
         session: PrivilegeUiRuntimeStartSession,
     ): Int {
+
         val configuredTcpPort = manager.getConfiguredTcpPort()
         if (configuredTcpPort == null) {
             store.updateStaticTcp {
@@ -180,6 +186,7 @@ internal class PrivilegeUiAdbTcpActions(
         tcpPort: Int,
         session: PrivilegeUiRuntimeStartSession,
     ): PrivilegeServerInfo {
+
         val serverInfo = PrivilegeRuntimeStartCoordinator.startAdb(
             launch = session.requireRuntimeClientLaunch(),
             options = PrivilegeAdbConnectionOptions(

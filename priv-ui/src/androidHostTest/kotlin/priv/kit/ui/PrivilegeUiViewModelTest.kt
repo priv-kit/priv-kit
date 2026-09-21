@@ -167,6 +167,9 @@ class PrivilegeUiViewModelTest {
         )
 
         viewModel.awaitEffectsEnabled()
+        viewModel.registerPermissionHost("slow-provider-host")
+        viewModel.selectStartupMode(PrivilegeUiStartupMode.EXTERNAL)
+        shadowOf(Looper.getMainLooper()).idle()
         withTimeout(TimeUnit.SECONDS.toMillis(2)) {
             snapshotStarted.await()
         }
@@ -183,6 +186,7 @@ class PrivilegeUiViewModelTest {
         }
 
         assertTrue(viewModel.state.value.externalStartItems.single().snapshot.canStart)
+        viewModel.unregisterPermissionHost("slow-provider-host", changingConfigurations = false)
     }
 
     @Test
@@ -441,6 +445,42 @@ class PrivilegeUiViewModelTest {
         } finally {
             release.countDown()
             actions.close()
+        }
+    }
+
+    @Test
+    fun hostResumeAndPermissionResultRefreshAdbPermissionCard() {
+        val application = application()
+        val viewModel = RootOnlyPrivilegeUiViewModel(application)
+        val originalSdk = android.os.Build.VERSION.SDK_INT
+        val permission = "android.permission.ACCESS_LOCAL_NETWORK"
+        try {
+            // Robolectric's Android 16 runtime supplies permission state; only the
+            // library's Android 17 policy check is exercised with the higher SDK.
+            org.robolectric.util.ReflectionHelpers.setStaticField(
+                android.os.Build.VERSION::class.java, "SDK_INT", 37,
+            )
+            shadowOf(application).denyPermissions(permission)
+            viewModel.dispatchHostResume()
+            assertTrue(viewModel.state.value.localNetworkPermissionMissing)
+
+            viewModel.completeLocalNetworkPermissionRequest(
+                "host", PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
+            )
+            assertTrue(viewModel.state.value.localNetworkPermissionSettingsRequired)
+
+            shadowOf(application).grantPermissions(permission)
+            viewModel.dispatchHostResume()
+            assertFalse(viewModel.state.value.localNetworkPermissionMissing)
+            assertFalse(viewModel.state.value.localNetworkPermissionSettingsRequired)
+
+            shadowOf(application).denyPermissions(permission)
+            viewModel.dispatchHostWindowFocus()
+            assertTrue(viewModel.state.value.localNetworkPermissionMissing)
+        } finally {
+            org.robolectric.util.ReflectionHelpers.setStaticField(
+                android.os.Build.VERSION::class.java, "SDK_INT", originalSdk,
+            )
         }
     }
 

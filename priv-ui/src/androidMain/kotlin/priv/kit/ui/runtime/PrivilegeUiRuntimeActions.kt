@@ -98,7 +98,7 @@ internal class PrivilegeUiRuntimeActions(
         }
         runCatching(beforeShutdown)
         val message = store.text(R.string.priv_ui_stopping_service)
-        store.appendLog(message)
+        store.appendStartupLog(message)
         try {
             val job = coroutineScope.launch(operationDispatcher + CoroutineName("priv-ui-stop-server")) {
                 try {
@@ -123,7 +123,7 @@ internal class PrivilegeUiRuntimeActions(
                             )
                         }
                         store.showFailure(PrivilegeUiFailureKind.STOP_SERVICE_FAILED)
-                        store.appendLog(throwable.toPrivilegeUiDiagnosticString())
+                        store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
                     }
                 }
             }
@@ -291,7 +291,7 @@ internal class PrivilegeUiRuntimeActions(
             operationPermit.close()
             return
         }
-        store.appendLog(message)
+        store.appendStartupLog(message)
         try {
             val job = coroutineScope.launch(operationDispatcher + CoroutineName("priv-ui-runtime-busy")) {
                 try {
@@ -299,7 +299,7 @@ internal class PrivilegeUiRuntimeActions(
                     if (!closed.get()) {
                         val resultMessage = onSuccess(result)
                         store.updateState { it.copy(busy = false) }
-                        store.appendLog(resultMessage)
+                        store.appendStartupLog(resultMessage)
                     }
                 } catch (_: CancellationException) {
                     return@launch
@@ -308,7 +308,7 @@ internal class PrivilegeUiRuntimeActions(
                         onFailure?.invoke(throwable)
                         store.updateState { it.copy(busy = false) }
                         store.showFailure(failureKind)
-                        store.appendLog(throwable.toPrivilegeUiDiagnosticString())
+                        store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
                     }
                 }
             }

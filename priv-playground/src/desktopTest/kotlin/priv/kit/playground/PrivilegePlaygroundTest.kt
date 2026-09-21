@@ -14,6 +14,48 @@ import androidx.compose.material3.MaterialTheme
 @OptIn(ExperimentalTestApi::class)
 class PrivilegePlaygroundTest {
     @Test
+    fun permissionCardsFollowScenarioChangesAndReportSimulatedGrants() {
+        val previousLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.ENGLISH)
+            runSkikoComposeUiTest(size = Size(480f, 1400f)) {
+                val batteryExempt = androidx.compose.runtime.mutableStateOf(false)
+                val networkGranted = androidx.compose.runtime.mutableStateOf(false)
+                setContent {
+                    MaterialTheme {
+                        PrivilegePreviewScaffold(
+                            batteryOptimizationExempt = batteryExempt.value,
+                            localNetworkPermissionGranted = networkGranted.value,
+                            onPermissionsChanged = { battery, network ->
+                                batteryExempt.value = battery
+                                networkGranted.value = network
+                            },
+                        )
+                    }
+                }
+                repeat(2) {
+                    onNodeWithText("Local network permission required").assertExists()
+                    onNodeWithText("Pair").assertIsEnabled()
+                    onNodeWithText("Grant permission").assertExists()
+                    onNodeWithText("Keep the background connection active").assertExists()
+                    onNodeWithText("Grant permission").performClick()
+                    onNodeWithText("Grant permission").assertDoesNotExist()
+                    onNodeWithText("Allow battery optimization exemption").performClick()
+                    onNodeWithText("Keep the background connection active").assertDoesNotExist()
+                    runOnIdle {
+                        kotlin.test.assertTrue(batteryExempt.value)
+                        kotlin.test.assertTrue(networkGranted.value)
+                        batteryExempt.value = false
+                        networkGranted.value = false
+                    }
+                }
+            }
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @Test
     fun statusCardCancelInterruptsStartupWithoutLateConnection() {
         val previousLocale = Locale.getDefault()
         try {

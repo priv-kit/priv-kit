@@ -81,7 +81,25 @@ The scaffold observes Core state internally. Features outside the page collect
 Core owns pairing, discovery, authorization, TCP control, and startup. `priv-ui` selects those
 operations and presents their state and user interactions.
 
-The ADB panel polls while selected and keeps the latest completed snapshot visible during refresh.
+On Android 17 and later, a missing local network permission shows an advisory card in the
+ADB tab. Clicking requests permission; permanent denial links to app settings. Returning to
+the page and permission results refresh the grant. ADB operations, including static loopback
+TCP and silent recovery, remain available and report normal transport errors or timeouts.
+A missing-to-granted transition cancels and joins active wireless discovery/check attempts,
+then retries them. It also requests a visible-page refresh. Service startup commands and
+existing connections are not replayed or interrupted; completed or cancelled actions stay finished.
+
+Passive ADB and external-provider status checks run only while at least one registered host is
+resumed and the corresponding tab is selected. Leaving the page cancels those checks; returning
+refreshes immediately. Resume and focus signals are conflated, and concurrent checks of the same
+status share one refresh. Existing completed snapshots remain visible during refresh. Explicit
+startup checks and notification pairing have their own operation lifetimes.
+
+Pairing owns its task, endpoint, generation, and interaction permit in one session object; shared
+state-transition functions publish searching, stopped, and completed presentation states. Local
+network permission reads do not cancel operations: a single permission-state observer performs
+revocation cleanup, while dispatch still checks the current grant.
+
 Notification pairing is implemented by the internal `PrivilegeAdbPairingService`; the foreground
 dialog remains available when notification input cannot be used.
 
@@ -161,3 +179,8 @@ The simulation shares presentation models and components with Android, not Andro
 `:priv-playground` is the unpublished Desktop/Wasm host. `priv-website` embeds its Wasm output.
 Run `./gradlew :priv-ui:jvmTest :priv-ui:testAndroidHostTest` for shared presentation tests and
 the existing Android regression suite.
+
+The preview also accepts `batteryOptimizationExempt` and `localNetworkPermissionGranted`
+(default `true`). Turning either off shows its ADB prompt card; ADB operations
+remain available without local network permission. Simulated permission requests notify the host through
+`onPermissionsChanged`, keeping the website switches in sync without restarting the session.

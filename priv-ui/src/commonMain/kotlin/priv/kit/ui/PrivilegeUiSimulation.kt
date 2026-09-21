@@ -18,6 +18,8 @@ internal class PrivilegeUiSimulation(
     externalLabel: String,
     private val startingText: Map<PrivilegeUiRuntimeStartSource, String>,
     private val pairingText: String,
+    private val requestBatteryOptimization: () -> Unit = {},
+    private val requestLocalNetworkPermission: () -> Unit = {},
     private val copyText: (String) -> Unit,
 ) {
     private val installationDirectory = "/data/app/~~${randomInstallToken()}/priv.kit.sample-${randomInstallToken()}"
@@ -81,7 +83,14 @@ internal class PrivilegeUiSimulation(
         state = state.copy(manualShellCommandLine = manualCommand(value))
     }
 
+    fun setPermissions(batteryExempt: Boolean, networkGranted: Boolean) {
+        state = state.copy(batteryOptimizationPromptVisible = !batteryExempt,
+            localNetworkPermissionMissing = !networkGranted)
+    }
+
     val actions = PrivilegeUiActions(
+        requestBatteryOptimization = { requestBatteryOptimization(); true },
+        requestLocalNetworkPermission = requestLocalNetworkPermission,
         // Cancellation remains available while an operation is busy.
         canInteract = { true },
         selectStartupMode = { if (!state.busy) state = state.copy(selectedStartupMode = it) },

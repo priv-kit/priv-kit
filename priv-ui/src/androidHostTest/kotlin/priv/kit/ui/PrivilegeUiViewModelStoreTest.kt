@@ -23,7 +23,7 @@ class PrivilegeUiViewModelStoreTest {
                 store.state.value.startupLogLines,
             )
         } finally {
-            store.close()
+
         }
     }
 
@@ -43,7 +43,7 @@ class PrivilegeUiViewModelStoreTest {
 
             assertEquals(emptyList<String>(), store.state.value.startupLogLines)
         } finally {
-            store.close()
+
         }
     }
 }

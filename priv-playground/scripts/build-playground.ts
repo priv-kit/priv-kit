@@ -87,16 +87,16 @@ await writeFile(path.join(destination, 'index.mjs'), [
   'const resources = {',
   ...resourceEntries,
   '};',
-  'export function renderPrivilegePlayground(container, dark, useLegacyPackaging, adbRestricted = true) {',
+  'export function renderPrivilegePlayground(container, dark, useLegacyPackaging, adbRestricted = true, batteryOptimizationExempt = true, localNetworkPermissionGranted = true, onPermissionsChanged = () => {}) {',
   '  return render(container, (path) => {',
   '    if (!Object.hasOwn(resources, path)) throw new Error(`Unknown Compose resource: ${path}`);',
   '    return resources[path];',
-  '  }, dark, useLegacyPackaging, adbRestricted);',
+  '  }, dark, useLegacyPackaging, adbRestricted, batteryOptimizationExempt, localNetworkPermissionGranted, onPermissionsChanged);',
   '}',
   '',
 ].join('\n'));
 await writeFile(path.join(destination, 'index.d.mts'),
-  'export declare function renderPrivilegePlayground(container: HTMLElement, dark: boolean, useLegacyPackaging: boolean, adbRestricted?: boolean): (dark: boolean, useLegacyPackaging: boolean, adbRestricted: boolean) => void;\n');
+  'export declare function renderPrivilegePlayground(container: HTMLElement, dark: boolean, useLegacyPackaging: boolean, adbRestricted?: boolean, batteryOptimizationExempt?: boolean, localNetworkPermissionGranted?: boolean, onPermissionsChanged?: (batteryOptimizationExempt: boolean, localNetworkPermissionGranted: boolean) => void): (dark: boolean, useLegacyPackaging: boolean, adbRestricted: boolean, batteryOptimizationExempt: boolean, localNetworkPermissionGranted: boolean) => void;\n');
 
 for (const file of ['priv-playground.mjs', 'priv-playground.wasm', 'skiko.mjs', 'skiko.wasm']) {
   if (!(await stat(path.join(destination, file))).isFile()) throw new Error(`Missing playground asset: ${file}`);

@@ -111,7 +111,7 @@ class PrivilegeUiAdbTcpActionsTest {
             runtimeActions.close()
             promptCoordinator.close()
             runtimeScope.cancel()
-            store.close()
+
         }
     }
 

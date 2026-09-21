@@ -3,6 +3,8 @@ package priv.kit.ui
 internal fun PrivilegeUiState.toScreenState(
     resolveText: (PrivilegeUiText) -> String,
 ): PrivilegeUiScreenState = PrivilegeUiScreenState(
+    localNetworkPermissionMissing = localNetworkPermissionMissing,
+    localNetworkPermissionSettingsRequired = localNetworkPermissionSettingsRequired,
     busy = busy,
     runtimeStatus = runtimeStatus,
     runtimeStartSource = runtimeStartSource,

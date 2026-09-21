@@ -15,7 +15,6 @@ import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiExternalStartProvider
 import priv.kit.ui.PrivilegeUiStartupMode
 import priv.kit.ui.effectiveStartupModes
-import priv.kit.ui.adb.privilegeUiRequiredLocalNetworkPermission
 import priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported
 import priv.kit.ui.state.toPrivilegeUiAdbDeviceNameText
 import kotlin.time.Duration.Companion.milliseconds
@@ -24,21 +23,20 @@ internal class PrivilegeUiSilentStartRunner(
     context: Context,
     private val config: PrivilegeUiConfig,
     private val backend: PrivilegeUiSilentStartBackend = PrivilegeUiPlatformSilentStartBackend,
-    private val requiredLocalNetworkPermission: (Context) -> String? =
-        ::privilegeUiRequiredLocalNetworkPermission,
 ) {
     private val applicationContext = context.applicationContext
 
     suspend fun start(
         method: PrivilegeUiStartMethod,
         launch: PrivilegeRuntimeClientLaunch,
-    ): PrivilegeServerInfo? =
-        when (method) {
+    ): PrivilegeServerInfo? {
+        return when (method) {
             PrivilegeUiStartMethod.Root -> startRoot(launch)
             PrivilegeUiStartMethod.AdbWireless -> startWirelessAdb(launch)
             PrivilegeUiStartMethod.AdbTcpip -> startTcpipAdb(launch)
             is PrivilegeUiStartMethod.External -> startExternal(method.providerId, launch)
         }
+    }
 
     private suspend fun startRoot(launch: PrivilegeRuntimeClientLaunch): PrivilegeServerInfo? {
         if (PrivilegeUiStartupMode.ROOT !in config.effectiveStartupModes()) return null
@@ -50,8 +48,7 @@ internal class PrivilegeUiSilentStartRunner(
     ): PrivilegeServerInfo? {
         if (
             PrivilegeUiStartupMode.ADB !in config.effectiveStartupModes() ||
-            !isPrivilegeUiWirelessAdbSupported() ||
-            requiredLocalNetworkPermission(applicationContext) != null
+            !isPrivilegeUiWirelessAdbSupported()
         ) {
             return null
         }

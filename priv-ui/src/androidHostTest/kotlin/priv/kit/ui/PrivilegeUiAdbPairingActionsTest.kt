@@ -334,7 +334,7 @@ class PrivilegeUiAdbPairingActionsTest {
         } finally {
             actions.close()
             scope.cancel()
-            store.close()
+
         }
     }
 
@@ -427,7 +427,7 @@ class PrivilegeUiAdbPairingActionsTest {
         } finally {
             actions.close()
             scope.cancel()
-            store.close()
+
         }
     }
 }

@@ -97,14 +97,12 @@ public fun PrivilegeScaffold(
     )
     val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
         contract = requestPermissionContract,
-        onResult = { granted ->
+        onResult = { _ ->
             viewModel.completeLocalNetworkPermissionRequest(
                 hostId = permissionHostId,
-                permissionState = if (granted) {
-                    PrivilegeUiPermissionState.Granted
-                } else {
-                    PrivilegeUiPermissionState.NotGranted.Denied
-                },
+                permissionState = privilegeUiPermissionState(
+                    activity, "android.permission.ACCESS_LOCAL_NETWORK",
+                ),
             )
         },
     )

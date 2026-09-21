@@ -3,6 +3,7 @@ package priv.kit.ui
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -22,6 +23,8 @@ import kotlinx.coroutines.launch
 import priv.kit.core.Privilege
 import priv.kit.ui.adb.PrivilegeUiAdbActions
 import priv.kit.ui.adb.PrivilegeUiStaticTcpSwitchAction
+import priv.kit.ui.adb.privilegeUiRequiredLocalNetworkPermission
+import priv.kit.ui.adb.refreshLocalNetworkPermission
 import priv.kit.ui.external.PrivilegeUiExternalStartActions
 import priv.kit.ui.runtime.PrivilegeUiDirectStartTarget
 import priv.kit.ui.runtime.PrivilegeUiRuntimeActions
@@ -50,7 +53,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
                     it.copy(adbKeyFingerprint = info.publicKeyFingerprint)
                 }
             }.onFailure { throwable ->
-                createdStore.appendLog(throwable.toPrivilegeUiDiagnosticString())
+                createdStore.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
             }
         }
     }
@@ -93,6 +96,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         cancelPairingWithoutInteractionHost = adbActions::cancelPairingWithoutInteractionHost,
         systemPromptCoordinator = systemPromptCoordinator,
     )
+    private var localNetworkPermissionJob: Job? = null
     private var notificationPairingStartJob: Job? = null
     private var externalAuthorizationJob: Job? = null
     private var batteryOptimizationRefreshJob: Job? = null
@@ -142,7 +146,9 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     private fun configure() {
+        store.refreshLocalNetworkPermission()
         runtimeActions.initializeRuntimeState()
+        adbActions.observeLocalNetworkPermission(effectsCoordinator::refreshHostResumeState)
         adbActions.observePairingNotificationEvents()
         store.updateState {
             it.copy(desiredEnabled = PrivilegeUi.desiredEnabled.value)
@@ -192,6 +198,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     public open fun selectStartupMode(mode: PrivilegeUiStartupMode) {
         if (!uiInteractionsEnabled) return
         if (mode !in store.state.value.startupModes) return
+        if (mode == PrivilegeUiStartupMode.ADB) store.refreshLocalNetworkPermission()
         store.updateState { it.copy(selectedStartupMode = mode) }
     }
 
@@ -214,6 +221,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
             return
         }
         adbActions.refreshAdbStartPrerequisites()
+        externalStartActions.refreshExternalStartStatusNow(providerId = null)
         val directTargets = store.state.value.directStartTargets(
             tcpPolicy = store.config.adbTcpPolicy,
             wirelessAdbSupported = isPrivilegeUiWirelessAdbSupported(),
@@ -336,7 +344,39 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     internal fun completeLocalNetworkPermissionRequest(
         hostId: String,
         permissionState: PrivilegeUiPermissionState,
-    ) = permissionCoordinator.completeLocalNetworkPermissionRequest(hostId, permissionState)
+    ) {
+        permissionCoordinator.completeLocalNetworkPermissionRequest(hostId, permissionState)
+        store.updateState {
+            it.copy(
+                localNetworkPermissionSettingsRequired =
+                    permissionState == PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
+            )
+        }
+        store.refreshLocalNetworkPermission()
+    }
+
+    internal fun requestAdbLocalNetworkPermission(context: Context) {
+        if (!uiInteractionsEnabled || localNetworkPermissionJob?.isActive == true) return
+        if (store.refreshLocalNetworkPermission()) return
+        if (store.state.value.localNetworkPermissionSettingsRequired) {
+            context.tryStartPrivilegeUiSettingsActivity(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.fromParts("package", context.packageName, null),
+                ),
+            )
+            return
+        }
+        localNetworkPermissionJob = viewModelScope.launch {
+            val permission = privilegeUiRequiredLocalNetworkPermission(store.requireContext())
+                ?: return@launch
+            try {
+                permissionCoordinator.requestLocalNetworkPermission(permission)
+            } finally {
+                store.refreshLocalNetworkPermission()
+            }
+        }
+    }
 
     public open fun startWirelessAdb() {
         requestServerStart(PrivilegeUiServerRestartRequest.WirelessAdb)
@@ -353,6 +393,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     private fun refreshHostInteractiveState() {
+        store.refreshLocalNetworkPermission()
         refreshBatteryOptimizationState()
         if (uiInteractionsEnabled) {
             adbActions.continuePendingPairingIfNotificationPermissionGranted()
@@ -375,11 +416,13 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         hostId: String,
         hasWindowFocus: Boolean,
     ) {
+        effectsCoordinator.setHostResumed(hostId, true)
         systemPromptCoordinator.onHostResumed(hostId, hasWindowFocus)
         dispatchHostResume()
     }
 
     internal fun dispatchHostPause(hostId: String) {
+        effectsCoordinator.setHostResumed(hostId, false)
         systemPromptCoordinator.onHostPaused(hostId)
     }
 
@@ -424,12 +467,12 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
 
     internal fun disableTcpMode() {
         if (!uiInteractionsEnabled) return
-        adbActions.disableTcpMode(permissionCoordinator::requestLocalNetworkPermission)
+        adbActions.disableTcpMode()
     }
 
     internal fun restartTcpMode() {
         if (!uiInteractionsEnabled) return
-        adbActions.restartTcpMode(permissionCoordinator::requestLocalNetworkPermission)
+        adbActions.restartTcpMode()
     }
 
     public open fun startStaticTcpAdb() {
@@ -548,17 +591,14 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
                 runtimeActions.startRoot(replaceConnectedServer)
             PrivilegeUiServerRestartRequest.Adb ->
                 adbActions.startAdb(
-                    permissionCoordinator::requestLocalNetworkPermission,
                     replaceConnectedServer,
                 )
             PrivilegeUiServerRestartRequest.WirelessAdb ->
                 adbActions.startWirelessAdb(
-                    permissionCoordinator::requestLocalNetworkPermission,
                     replaceConnectedServer,
                 )
             PrivilegeUiServerRestartRequest.StaticTcpAdb ->
                 adbActions.startStaticTcpAdb(
-                    permissionCoordinator::requestLocalNetworkPermission,
                     replaceConnectedServer,
                 )
             is PrivilegeUiServerRestartRequest.External ->
@@ -588,6 +628,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         resumed: Boolean = true,
         hasWindowFocus: Boolean = true,
     ) {
+        effectsCoordinator.setHostResumed(hostId, resumed)
         systemPromptCoordinator.registerHost(hostId, resumed, hasWindowFocus)
         permissionCoordinator.registerHost(hostId)
     }
@@ -596,6 +637,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         hostId: String,
         changingConfigurations: Boolean,
     ) {
+        effectsCoordinator.removeHost(hostId)
         systemPromptCoordinator.unregisterHost(hostId, changingConfigurations)
         permissionCoordinator.unregisterHost(hostId, changingConfigurations)
     }
@@ -615,7 +657,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         runCatching { adbActions.close() }
         permissionCoordinator.close()
         systemPromptCoordinator.close()
-        runCatching { store.close() }
     }
 
     private data class PendingServerRestartDecision(
@@ -628,7 +669,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
             PrivilegeUi.setDesiredEnabled(false)
         }.onFailure { throwable ->
             store.showSnackbar(store.resourceText(R.string.priv_ui_auto_recovery_disable_failed))
-            store.appendLog(throwable.toPrivilegeUiDiagnosticString())
+            store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
         }
     }
 }
