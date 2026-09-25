@@ -44,7 +44,6 @@
     <string name="priv_ui_stop_service_dialog_message">当前授权连接将被关闭</string>
     <string name="priv_ui_stop_service_confirm">停止</string>
     <string name="priv_ui_stop_service_cancel">取消</string>
-    <string name="priv_ui_status_loading">加载中…</string>
     <string name="priv_ui_ready">就绪</string>
     <string name="priv_ui_connected">已连接</string>
     <string name="priv_ui_binder_died">Binder 已断开</string>
@@ -88,6 +87,7 @@
     <string name="priv_ui_adb_static_prepare_action">通过无线调试打开静态端口</string>
     <string name="priv_ui_adb_static_command_desc">在连接到此设备的电脑上运行此命令，服务被关闭时也能自启动</string>
     <string name="priv_ui_adb_static_control_action">控制</string>
+    <string name="priv_ui_adb_static_control_status_loading">正在检查静态端口，请稍后重试</string>
     <string name="priv_ui_adb_static_control_dialog_title">控制静态端口</string>
     <string name="priv_ui_adb_connection_warning_title">ADB 将重启</string>
     <string name="priv_ui_adb_connection_warning_message">启动或关闭静态端口会重启 ADB，并终止本应用及其他授权器通过 ADB 启动的特权子进程。应用本身仍可运行，但相关特权功能需在对应服务重新启动后才能恢复。</string>

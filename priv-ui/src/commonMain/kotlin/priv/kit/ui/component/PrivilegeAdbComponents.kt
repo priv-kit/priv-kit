@@ -109,7 +109,7 @@ internal fun AdbFingerprintRow(
 @Composable
 internal fun AdbStatusRow(
     label: String,
-    text: String,
+    text: String?,
     color: Color,
 ) {
     Row(
@@ -122,11 +122,13 @@ internal fun AdbStatusRow(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelLarge,
-            color = color,
-            fontWeight = FontWeight.SemiBold,
-        )
+        if (text != null) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                color = color,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }

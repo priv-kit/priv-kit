@@ -123,6 +123,7 @@ internal fun PrivilegeUiScreenScope.StaticTcpSwitchConfirmationDialog(
 internal fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
     val adbInteractionEnabled = interactionEnabled
     val copiedMessage = stringResource(Res.string.priv_ui_adb_static_command_copied)
+    val controlStatusLoadingMessage = stringResource(Res.string.priv_ui_adb_static_control_status_loading)
     var controlDialogVisible by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -162,10 +163,10 @@ internal fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
             wirelessAdbSupported = wirelessAdbSupported,
             interactionEnabled = adbInteractionEnabled,
         )
-        val controlActionEnabled = adbInteractionEnabled &&
+        val controlActionAvailable = adbInteractionEnabled &&
             !runtimeStartInProgress &&
-            !state.busy &&
-            staticTcpActive
+            !state.busy
+        val controlActionEnabled = controlActionAvailable && staticTcpActive
         val commandHelpVisible = staticTcpCommandHelpVisible(
             wirelessAdbSupported = wirelessAdbSupported,
         )
@@ -174,7 +175,7 @@ internal fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
             text = if (state.staticTcp.loaded) {
                 staticTcpStatus.displayText()
             } else {
-                stringResource(Res.string.priv_ui_status_loading)
+                null
             },
             color = if (state.staticTcp.loaded) {
                 staticTcpStatus.displayColor()
@@ -197,9 +198,13 @@ internal fun PrivilegeUiScreenScope.StaticTcpAdbSection() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             OutlinedButton(
-                enabled = controlActionEnabled,
+                enabled = controlActionAvailable && (!state.staticTcp.loaded || staticTcpActive),
                 onClick = {
-                    controlDialogVisible = true
+                    if (!state.staticTcp.loaded) {
+                        showFeedback(controlStatusLoadingMessage)
+                    } else if (staticTcpActive) {
+                        controlDialogVisible = true
+                    }
                 },
             ) {
                 Text(stringResource(Res.string.priv_ui_adb_static_control_action))

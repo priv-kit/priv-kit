@@ -37,13 +37,9 @@ internal fun PrivilegeUiScreenScope.ExternalStartPanel() {
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    StatusText(
-                        if (item.statusLoaded) {
-                            item.snapshot.externalStartStatusText()
-                        } else {
-                            stringResource(Res.string.priv_ui_status_loading)
-                        },
-                    )
+                    if (item.statusLoaded) {
+                        StatusText(item.snapshot.externalStartStatusText())
+                    }
                 }
                 Button(
                     modifier = Modifier.fillMaxWidth(),
