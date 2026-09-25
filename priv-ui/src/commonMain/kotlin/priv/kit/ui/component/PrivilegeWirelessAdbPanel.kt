@@ -44,7 +44,7 @@ internal fun PrivilegeUiScreenScope.WirelessAdbSection() {
             text = if (state.wirelessAdbStatusLoaded) {
                 wirelessStatus.displayText()
             } else {
-                stringResource(Res.string.priv_ui_status_loading)
+                null
             },
             color = if (state.wirelessAdbStatusLoaded) {
                 wirelessStatus.displayColor()

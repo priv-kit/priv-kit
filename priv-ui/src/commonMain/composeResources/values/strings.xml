@@ -44,7 +44,6 @@
     <string name="priv_ui_stop_service_dialog_message">The current privileged connection will be closed</string>
     <string name="priv_ui_stop_service_confirm">Stop</string>
     <string name="priv_ui_stop_service_cancel">Cancel</string>
-    <string name="priv_ui_status_loading">Loading…</string>
     <string name="priv_ui_ready">Ready</string>
     <string name="priv_ui_connected">Connected</string>
     <string name="priv_ui_binder_died">Binder died</string>
@@ -88,6 +87,7 @@
     <string name="priv_ui_adb_static_prepare_action">Open static port with wireless debugging</string>
     <string name="priv_ui_adb_static_command_desc">Run this command from a computer connected to this device, it can restart itself after the service is closed</string>
     <string name="priv_ui_adb_static_control_action">Control</string>
+    <string name="priv_ui_adb_static_control_status_loading">Checking the static port. Please try again shortly.</string>
     <string name="priv_ui_adb_static_control_dialog_title">Control static port</string>
     <string name="priv_ui_adb_connection_warning_title">ADB will restart</string>
     <string name="priv_ui_adb_connection_warning_message">Starting or stopping the static port will restart ADB and stop the privileged subprocesses that this app and other authorization services started through ADB. The apps themselves can still run, but affected privileged features will be unavailable until the corresponding services restart.</string>
