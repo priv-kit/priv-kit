@@ -28,12 +28,11 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import priv.kit.ui.PrivilegeUiSystemPrompt
-import priv.kit.ui.asString
+import priv.kit.ui.PrivilegeUiPromptState
 
 @Composable
 internal fun PrivilegeSystemPromptOverlay(
-    prompt: PrivilegeUiSystemPrompt?,
+    prompt: PrivilegeUiPromptState?,
     modifier: Modifier = Modifier,
 ) {
     var displayedPrompt by remember { mutableStateOf(prompt) }
@@ -73,7 +72,7 @@ internal fun PrivilegeSystemPromptOverlay(
 }
 
 @Composable
-private fun PrivilegeSystemPromptCard(prompt: PrivilegeUiSystemPrompt) {
+private fun PrivilegeSystemPromptCard(prompt: PrivilegeUiPromptState) {
     Surface(
         modifier = Modifier
             .widthIn(max = PROMPT_MAX_WIDTH)
@@ -95,12 +94,12 @@ private fun PrivilegeSystemPromptCard(prompt: PrivilegeUiSystemPrompt) {
             verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.extraSmall),
         ) {
             Text(
-                text = prompt.title.asString(),
+                text = prompt.title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = prompt.message.asString(),
+                text = prompt.message,
                 style = MaterialTheme.typography.bodyMedium,
             )
         }

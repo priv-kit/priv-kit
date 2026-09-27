@@ -89,6 +89,10 @@ internal class PrivilegeUiSimulation(
     }
 
     val actions = PrivilegeUiActions(
+        continuePairingWithoutNotification = { state = state.copy(pairingNotificationPermissionWarningVisible = false) },
+        dismissTcpAuthorizationFailureDialog = { state = state.copy(tcpAuthorizationFailureDialogVisible = false) },
+        // The preview has no system notification settings; dismiss its simulated warning.
+        openNotificationSettings = { state = state.copy(pairingNotificationPermissionWarningVisible = false) },
         requestBatteryOptimization = { requestBatteryOptimization(); true },
         requestLocalNetworkPermission = requestLocalNetworkPermission,
         // Cancellation remains available while an operation is busy.

@@ -1,19 +1,19 @@
 package priv.kit.ui
 
-internal enum class PrivilegeUiRuntimeStatus {
+public enum class PrivilegeUiRuntimeStatus {
     DISCONNECTED,
     STARTING,
     CONNECTED,
     FAILED,
 }
 
-internal enum class PrivilegeUiRuntimeStartPhase {
+public enum class PrivilegeUiRuntimeStartPhase {
     IDLE,
     RUNNING,
     CANCELLING,
 }
 
-internal enum class PrivilegeUiPermissionRestrictionStatus {
+public enum class PrivilegeUiPermissionRestrictionStatus {
     UNKNOWN,
     NOT_RESTRICTED,
     RESTRICTED,
@@ -26,7 +26,7 @@ public enum class PrivilegeUiStartupMode {
     EXTERNAL,
 }
 
-internal enum class PrivilegeUiRuntimeStartSource {
+public enum class PrivilegeUiRuntimeStartSource {
     ROOT,
     ADB_WIRELESS,
     ADB_STATIC_TCP,
@@ -49,7 +49,7 @@ public enum class PrivilegeUiAdbTcpPolicy {
     AUTO_ENABLE_AFTER_WIRELESS_PAIRED,
 }
 
-internal enum class PrivilegeUiAdbPairingStatus {
+public enum class PrivilegeUiAdbPairingStatus {
     NOT_PAIRED,
     CHECKING,
     SEARCHING,
@@ -59,14 +59,14 @@ internal enum class PrivilegeUiAdbPairingStatus {
     FAILED,
 }
 
-internal enum class PrivilegeUiWirelessAdbStatus {
+public enum class PrivilegeUiWirelessAdbStatus {
     UNKNOWN,
     CHECKING,
     ON,
     OFF,
 }
 
-internal enum class PrivilegeUiManagedWirelessAdbStatus {
+public enum class PrivilegeUiManagedWirelessAdbStatus {
     UNKNOWN,
     CHECKING,
     READY,
@@ -76,7 +76,7 @@ internal enum class PrivilegeUiManagedWirelessAdbStatus {
     FAILED,
 }
 
-internal enum class PrivilegeUiAdbTcpAuthorizationStatus {
+public enum class PrivilegeUiAdbTcpAuthorizationStatus {
     UNKNOWN,
     CHECKING,
     AUTHORIZING,
@@ -98,17 +98,17 @@ public data class PrivilegeUiExternalStartSnapshot public constructor(
         get() = available && authorized
 }
 
-internal data class PrivilegeUiExternalStartItemState(
-    val id: String,
-    val label: CharSequence,
-    val snapshot: PrivilegeUiExternalStartSnapshot = PrivilegeUiExternalStartSnapshot(),
-    val statusLoaded: Boolean = false,
+public data class PrivilegeUiExternalStartItemState(
+    public val id: String,
+    public val label: CharSequence,
+    public val snapshot: PrivilegeUiExternalStartSnapshot = PrivilegeUiExternalStartSnapshot(),
+    public val statusLoaded: Boolean = false,
 )
 
-internal data class PrivilegeUiStaticTcpState(
-    val activePort: Int? = null,
-    val configuredPort: Int? = null,
-    val authorizationStatus: PrivilegeUiAdbTcpAuthorizationStatus =
+public data class PrivilegeUiStaticTcpState(
+    public val activePort: Int? = null,
+    public val configuredPort: Int? = null,
+    public val authorizationStatus: PrivilegeUiAdbTcpAuthorizationStatus =
         PrivilegeUiAdbTcpAuthorizationStatus.UNKNOWN,
-    val loaded: Boolean = false,
+    public val loaded: Boolean = false,
 )
