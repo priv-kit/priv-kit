@@ -221,3 +221,36 @@ UI 发起的前台启动成功并收到匹配的初始连接后，才会开启�
 手动命令使用为 `priv.kit.sample` 随机生成的安装路径。设置 `useLegacyPackaging = false` 可展示通过 `linker64` 加载 APK 内原生库的命令，默认值 `true` 展示解压后的原生库路径。展示页在画布外提供该开关；切换格式会保留路径和模拟状态。
 
 通过顶栏的「UI 展示」打开独立的 Vue 展示页。
+
+## 由宿主控制的跨平台页面 {#host-controlled-page}
+
+当状态由宿主管理（例如 Desktop 模拟控制窗口）时，使用 `PrivilegeScreen`。
+它接收 `PrivilegeUiScreenState`、`PrivilegeUiActions` 和必填的 `showFeedback` 回调，
+在 Android、JVM、WasmJS 上渲染与 Android 和 Preview 入口相同的页面，不创建运行时，也不会自动完成操作。
+
+```kotlin
+PrivilegeScreen(
+    state = screenState,
+    actions = hostActions,
+    showFeedback = ::showMessage,
+    systemPrompt = prompt, // PrivilegeUiPromptState(title, message)，或 null
+    topBar = { AppTopBar() },
+)
+```
+
+宿主必须显式实现全部操作回调，更新可观察状态，并管理异步任务及取消。
+不支持的操作应提供反馈；复制操作应使用宿主剪贴板。`requestBatteryOptimization` 返回
+是否打开了请求或设置界面。`interactionEnabled` 控制展示上的可用性，`canInteract` 在点击时
+检查当前交互许可，忙碌时仍应允许取消；`busy` 单独阻止冲突的启动操作。
+
+`startupModes` 不能为空；选中模式不在列表中时，展示第一个模式。宿主提供的消息和
+`PrivilegeUiPromptState` 文本应已完成本地化。替换连接时递增 `connectionSerial`，
+以重置连接相关的展示状态。列表作为快照使用，应发布新状态，不要原地修改列表。
+
+宿主可注入连接失败、配对阶段、权限限制、启动日志、重启/TCP 确认和仅供展示的系统提示。
+平台权限请求及提示归属仍由宿主管理；Android 适配层保留原有生命周期和权限处理。
+HTTP 控制接口及应用专属模拟模型放在接入应用中。内部页面作用域和组件不属于公共 API。
+
+`systemPromptWindowInsets` 独立于 `contentWindowInsets` 控制提示层的位置，默认使用
+`WindowInsets.safeDrawing` 的顶部边距。Desktop 模拟宿主可传入模拟状态栏或挖孔的边距，
+例如 `WindowInsets(top = 48.dp)`，不影响页面内容的位置。Android 调用方可保留默认值。

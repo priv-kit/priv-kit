@@ -5,14 +5,7 @@ import android.view.ViewTreeObserver
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScaffoldDefaults
@@ -26,21 +19,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
-import priv.kit.ui.component.PrivilegeSystemPromptOverlay
 import priv.kit.ui.component.PrivilegeTopBar
-import priv.kit.ui.component.PrivilegeUiSpacing
 import java.util.UUID
 
 /**
@@ -131,19 +120,14 @@ public fun PrivilegeScaffold(
     val staticTcpSwitchConfirmation by viewModel.staticTcpSwitchConfirmation.collectAsStateWithLifecycle()
     // Reading LocalConfiguration makes retained text follow application locale changes.
     androidx.compose.ui.platform.LocalConfiguration.current
-    val screenScope = PrivilegeUiScreenScope(
-        state = state.toScreenState { it.asString(context) }.copy(
-            wirelessAdbSupported = priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported(),
-            adbTcpPolicy = viewModel.config.adbTcpPolicy,
-            tcpPort = viewModel.config.tcpPort,
-            batteryOptimizationPromptVisible = batteryOptimizationPromptVisible,
-            staticTcpSwitchConfirmation = staticTcpSwitchConfirmation,
-        ),
-        actions = remember(viewModel, context) { viewModel.screenActions(context) },
-        interactionEnabled = interactionEnabled,
-        showFeedback = ::showFeedback,
-        onViewPermissionSolutions = onViewPermissionSolutions,
+    val screenState = state.toScreenState { it.asString(context) }.copy(
+        wirelessAdbSupported = priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported(),
+        adbTcpPolicy = viewModel.config.adbTcpPolicy,
+        tcpPort = viewModel.config.tcpPort,
+        batteryOptimizationPromptVisible = batteryOptimizationPromptVisible,
+        staticTcpSwitchConfirmation = staticTcpSwitchConfirmation,
     )
+    val actions = remember(viewModel, context) { viewModel.screenActions(context) }
     LaunchedEffect(Unit) {
         viewModel.permissionRequests.collect { request ->
             when (request) {
@@ -237,36 +221,26 @@ public fun PrivilegeScaffold(
         }
     }
 
-    Box(modifier = modifier) {
-        PrivilegeScaffoldContent(
-            screenScope = screenScope,
-            modifier = Modifier.fillMaxSize(),
-            topBar = topBar,
-            bottomBar = bottomBar,
-            snackbarHost = snackbarHost,
-            snackbarHostState = snackbarHostState,
-            floatingActionButton = floatingActionButton,
-            floatingActionButtonPosition = floatingActionButtonPosition,
-            containerColor = containerColor,
-            contentColor = contentColor,
-            contentWindowInsets = contentWindowInsets,
-        )
-        PrivilegeSystemPromptOverlay(
-            prompt = visibleSystemPrompt
-                ?.takeIf { it.ownerHostId == permissionHostId }
-                ?.prompt,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .zIndex(1f)
-                .windowInsetsPadding(
-                    WindowInsets.safeDrawing.only(WindowInsetsSides.Top),
-                )
-                .padding(
-                    horizontal = PrivilegeUiSpacing.large,
-                    vertical = PrivilegeUiSpacing.medium,
-                ),
-        )
-    }
+    PrivilegeScreen(
+        state = screenState,
+        actions = actions,
+        interactionEnabled = interactionEnabled,
+        showFeedback = ::showFeedback,
+        onViewPermissionSolutions = onViewPermissionSolutions,
+        systemPrompt = visibleSystemPrompt?.takeIf { it.ownerHostId == permissionHostId }?.prompt?.let {
+            PrivilegeUiPromptState(it.title.asString(context), it.message.asString(context))
+        },
+        modifier = modifier,
+        topBar = topBar,
+        bottomBar = bottomBar,
+        snackbarHost = snackbarHost,
+        snackbarHostState = snackbarHostState,
+        floatingActionButton = floatingActionButton,
+        floatingActionButtonPosition = floatingActionButtonPosition,
+        containerColor = containerColor,
+        contentColor = contentColor,
+        contentWindowInsets = contentWindowInsets,
+    )
 }
 
 @Composable

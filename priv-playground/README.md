@@ -70,3 +70,6 @@ The preview also accepts `batteryOptimizationExempt` and `localNetworkPermission
 (default `true`). Turning either off shows its ADB prompt card; ADB operations
 remain available without local network permission. Simulated permission requests notify the host through
 `onPermissionsChanged`, keeping the website switches in sync without restarting the session.
+
+The Desktop integration tests also consume `PrivilegeScreen` directly through the public API,
+verifying host-owned transitions and shared system prompts without internal API access.

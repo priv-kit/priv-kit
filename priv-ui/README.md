@@ -184,3 +184,43 @@ The preview also accepts `batteryOptimizationExempt` and `localNetworkPermission
 (default `true`). Turning either off shows its ADB prompt card; ADB operations
 remain available without local network permission. Simulated permission requests notify the host through
 `onPermissionsChanged`, keeping the website switches in sync without restarting the session.
+
+## Host-controlled multiplatform page
+
+Use `PrivilegeScreen` when the host owns the state, such as a Desktop simulation controller.
+It accepts `PrivilegeUiScreenState`, `PrivilegeUiActions`, and a required `showFeedback` callback.
+It renders the same page as `PrivilegeScaffold` and `PrivilegePreviewScaffold` on Android, JVM,
+and WasmJS, without creating a runtime or automatically completing operations.
+
+```kotlin
+PrivilegeScreen(
+    state = screenState,
+    actions = hostActions,
+    showFeedback = ::showMessage,
+    systemPrompt = prompt, // PrivilegeUiPromptState(title, message), or null
+    topBar = { AppTopBar() },
+)
+```
+
+The host implements every `PrivilegeUiActions` callback explicitly, updates its observable state,
+and owns cancellation and asynchronous work. Unsupported operations should produce host feedback.
+Clipboard callbacks should use the host clipboard. `requestBatteryOptimization` returns whether
+it opened a request or settings surface. `interactionEnabled` controls the displayed availability;
+`canInteract` checks the current interaction lease when clicked and should still permit cancellation
+while busy. `busy` separately prevents conflicting starts.
+
+Keep `startupModes` nonempty. A selected mode absent from that list falls back to its first entry.
+Host-provided messages and `PrivilegeUiPromptState` text must already be localized. Increment
+`connectionSerial` when replacing a connection to reset connection-specific presentation.
+Lists are snapshots: publish a new state instead of mutating a list in place.
+
+The host may inject connection failures, pairing stages, permission restrictions, startup logs,
+restart/TCP confirmations, and a display-only system prompt. Platform permission requests and prompt
+ownership remain the host's responsibility. The Android adapter retains its existing lifecycle and
+permission handling. HTTP control endpoints and application-specific simulation models belong in
+the consuming application. Internal screen scopes and components are not public API.
+
+`systemPromptWindowInsets` controls prompt placement independently of `contentWindowInsets`.
+It defaults to the top of `WindowInsets.safeDrawing`. Desktop simulation hosts can pass their
+simulated status bar/cutout insets, for example `WindowInsets(top = 48.dp)`, without shifting
+page content. Android callers can retain the default.

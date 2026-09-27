@@ -91,15 +91,13 @@ public fun PrivilegePreviewScaffold(
             },
         )
     }
-    PrivilegeScaffoldContent(
+    PrivilegeScreen(
         modifier = modifier,
-        screenScope = PrivilegeUiScreenScope(
-            state = simulation.state,
-            actions = simulation.actions,
-            interactionEnabled = true,
-            showFeedback = { scope.launch { snackbar.showSnackbar(it) } },
-            onViewPermissionSolutions = onViewPermissionSolutions,
-        ),
+        state = simulation.state,
+        actions = simulation.actions,
+        interactionEnabled = true,
+        showFeedback = { scope.launch { snackbar.showSnackbar(it) } },
+        onViewPermissionSolutions = onViewPermissionSolutions,
         snackbarHostState = snackbar,
         topBar = { PrivilegeTopBar(onBack = {}, backEnabled = false) },
     )

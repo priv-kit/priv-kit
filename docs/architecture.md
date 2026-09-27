@@ -228,6 +228,9 @@ pump，客户端消费时也同时读取两条 pipe，避免任一有限缓冲�
 
 页面 UI 使用 Compose Multiplatform，布局、展示状态和操作回调位于 `:priv-ui/commonMain`。
 `androidMain` 将 Core 与 ViewModel 状态映射为纯展示数据，保留权限、生命周期和恢复处理。
+`PrivilegeScreen` 是公开受控入口，由宿主提供展示状态、完整操作回调和反馈处理；系统提示使用
+已本地化的 `PrivilegeUiPromptState` 在共享层渲染，平台请求与提示归属保留在 Android 适配层。
+内部页面作用域和组件继续隐藏；HTTP 与应用模拟控制器属于下游。
 `PrivilegeScaffold` 保持 Android 接入方式；`PrivilegePreviewScaffold` 在三端共用布局，
 统一由 `PrivilegeUiSimulation` 内存状态驱动，复用相同页面、文案、配对和确认弹窗，
 不再维护静态禁用预览分支。Root、无线 ADB、静态
