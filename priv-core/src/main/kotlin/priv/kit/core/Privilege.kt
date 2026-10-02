@@ -808,6 +808,9 @@ public object Privilege {
         // Recheck our snapshot even on failure, without treating its DeadObjectException as
         // evidence that the privileged server died.
         return try {
+            if (connection.serverInfo.uid == PRIVILEGE_INTERNAL_ROOT_UID) {
+                return PackageManager.PERMISSION_GRANTED
+            }
             PrivilegeProcessPermissions.check(permission, connection.serverInfo.pid, connection.serverInfo.uid)
         } finally {
             requireCurrentConnection()
