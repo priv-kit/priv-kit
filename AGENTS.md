@@ -74,3 +74,23 @@ their versions declared as caret (`^`) ranges in the default `catalog` in
 `pnpm-workspace.yaml`. Keep internal package links as `workspace:*`.
 Update the root manifest, catalog, and `pnpm-lock.yaml` together when changing
 dependencies.
+
+## Android Hidden APIs and R8
+
+When changing hidden interface or superclass implementations, system callbacks,
+remapping, or related module dependencies and R8 configuration, use
+[android-hidden-api-r8](.agents/skills/android-hidden-api-r8/SKILL.md).
+Also use it when investigating related failures in minified Release builds.
+Check the final application's actual R8 inputs and optimized runtime contracts;
+source-level override declarations, compilation success, and Debug behavior
+are not sufficient evidence. Limit checks to affected paths unless a broader
+audit is requested or the evidence warrants one.
+
+Use the affected `:priv-sample` minified Release variants (`legacyRelease` and
+`api29Release`) or the actual consuming application's variant for validation.
+Verify that required `:hidden-api` declarations reach final R8 analysis while
+compilation stubs remain absent from the APK. Ship required consumer keep rules
+with the library that owns the callback contract and validate them in the
+optimized consumer. Continue using `android-api-diff` before changing hidden
+API declarations. The release procedure above takes precedence during version
+publication; this guidance does not add checks to that procedure.
