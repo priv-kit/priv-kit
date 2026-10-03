@@ -7,6 +7,7 @@ import android.os.Parcel
 import android.os.ResultReceiver
 import android.os.ServiceManager
 import android.os.ShellCallback
+import androidx.annotation.Keep
 import priv.kit.core.Privilege
 import priv.kit.shared.toHidden
 import java.io.FileDescriptor
@@ -66,6 +67,7 @@ public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
         }
     }
 
+    @Keep
     public fun shellCommand(
         input: FileDescriptor?,
         output: FileDescriptor?,
