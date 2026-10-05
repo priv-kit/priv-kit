@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
 import priv.kit.core.Privilege
+import priv.kit.core.PrivilegeConfig
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.core.PrivilegeProtocol
@@ -131,6 +132,10 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
                 putBinder(
                     PrivilegeHandshakeContract.RESULT_OWNER_BINDER,
                     ownerBinder,
+                )
+                putString(
+                    PrivilegeHandshakeContract.EXTRA_CRASH_LOG_DIRECTORY,
+                    PrivilegeConfig.crashLogDirectory?.absolutePath,
                 )
                 if (!ownerReconnect) {
                     val runtimeConfig = Privilege.runtimeConfig()

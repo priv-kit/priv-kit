@@ -20,6 +20,8 @@ import priv.kit.sample.file.PrivilegeSampleDeviceFilesPage
 import priv.kit.sample.file.PrivilegeSampleDeviceFilesViewModel
 import priv.kit.sample.file.PrivilegeSampleFilePage
 import priv.kit.sample.home.PrivilegeSampleHomePage
+import priv.kit.sample.crash.PrivilegeSampleCrashPage
+import priv.kit.sample.crash.PrivilegeSampleCrashViewModel
 import priv.kit.sample.command.PrivilegeSampleCommandPage
 import priv.kit.sample.command.PrivilegeSampleCommandViewModel
 import priv.kit.sample.startup.PrivilegeSamplePrivilegeUiCallbacks
@@ -37,6 +39,7 @@ internal fun PrivilegeSampleScreen(
     onOpenDeviceFiles: () -> Unit,
     onOpenFileApi: () -> Unit,
     onOpenCommandApi: () -> Unit,
+    onOpenCrashLogs: () -> Unit,
     onOpenPrivilegeUi: () -> Unit,
     onBackToHome: () -> Unit,
     onDebugStarted: () -> Unit,
@@ -83,6 +86,7 @@ internal fun PrivilegeSampleScreen(
                     onOpenDeviceFiles = onOpenDeviceFiles,
                     onOpenFileApi = onOpenFileApi,
                     onOpenCommandApi = onOpenCommandApi,
+                    onOpenCrashLogs = onOpenCrashLogs,
                 )
             }
             entry<PrivilegeSampleRootDestination.Debug> {
@@ -111,6 +115,14 @@ internal fun PrivilegeSampleScreen(
                     serverRunning = serverRunning,
                     viewModel = deviceFilesViewModel,
                     onBackToHome = onBackToHome,
+                )
+            }
+            entry<PrivilegeSampleRootDestination.CrashLogs> {
+                val crashViewModel = viewModel<PrivilegeSampleCrashViewModel>()
+                PrivilegeSampleCrashPage(
+                    serverRunning = serverRunning,
+                    viewModel = crashViewModel,
+                    onBack = onBackToHome,
                 )
             }
             entry<PrivilegeSampleRootDestination.CommandApi> {

@@ -50,6 +50,41 @@ one-shot plan. A matching owner death is excluded from crash-loop counting and s
 requested passive reconnect interval. If the owner does not return in that interval, configured
 active reconnect resumes for the remainder of the original follow-death deadline.
 
+## Crash logs
+
+Set `PrivilegeConfig.crashLogDirectory` during application initialization, before startup or the
+first read of `Privilege.nativeStarterCommand`. For example, use
+`context.getExternalFilesDir("privilege-crashes")`, which creates the app-specific external directory
+when storage is available. A null value uses `/data/local/tmp` only. The native startup command
+passes the directory in an environment variable; owner handshakes refresh it for an existing server.
+Dedicated UserServices inherit the directory at launch, before their service class is instantiated.
+Already-running dedicated processes keep their launch directory.
+
+After launch configuration is parsed, the server and dedicated UserService processes record fatal
+Java/Kotlin exceptions as UTF-8 JSON. They first attempt the configured directory, then retry
+`/data/local/tmp` if creation, writing, syncing, or publishing fails. No `canWrite()` assumption is
+used. The configured directory belongs to one app and Android user, and files there use
+`priv-crash_uid<processUid>_<yyyyMMddHHmmss>.json`. The shared fallback directory uses
+`priv-crash_<applicationId>_u<ownerUserId>_uid<processUid>_<yyyyMMddHHmmss>.json`.
+The filename uses the crash time in the device local timezone, with second precision, assuming at most one crash per second for each app/user/UID. Process type, PID,
+and timestamps remain in the JSON. Each report is written to a same-directory `.json.tmp`, synced and closed, then atomically renamed.
+Readers scan only `.json` files. An interrupted write can leave a `.tmp` file.
+
+`PrivilegeCrashLog` is a public `@Serializable` data class with schema version 1, process and thread
+identity, epoch-millisecond timestamps, exception type, nullable message, and the full stack trace
+including causes and suppressed exceptions. Core exposes `kotlinx-serialization-core` and its
+generated serializer; it uses Android `JSONObject` to write reports and does not ship a JSON format
+library. Hosts using `kotlinx-serialization-json` can decode with
+`Json { ignoreUnknownKeys = true }.decodeFromString(PrivilegeCrashLog.serializer(), text)` and
+should check `schemaVersion` before interpreting a report.
+
+The host owns scanning and cleanup: read its external directory directly, and scan `/data/local/tmp`
+through `Privilege.file()` after a privileged connection is available. An ordinary app cannot
+generally list the fallback directory, and root-owned files may require root again to read or remove.
+Writes remain subject to filesystem and SELinux permissions. If both destinations fail, Logcat
+remains the diagnostic path and the process still exits. No files are automatically deleted.
+Failures before configuration parsing, native crashes, and `SIGKILL` are not captured.
+
 ## ADB
 
 A null `PrivilegeAdbConnectionOptions.port` discovers the Wireless Debugging endpoint. A concrete

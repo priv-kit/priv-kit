@@ -7,6 +7,7 @@ import androidx.annotation.Keep
 import androidx.annotation.RestrictTo
 import priv.kit.core.internal.core.PrivilegeContentProviderCall
 import priv.kit.core.internal.core.preparePrivilegeMainLooper
+import priv.kit.core.internal.runtime.PrivilegeCrashRecorder
 import java.io.File
 import kotlin.system.exitProcess
 
@@ -15,9 +16,15 @@ public object PrivilegeUserServiceMain {
     @Keep
     @JvmStatic
     public fun main(args: Array<String>) {
+        var crashLog: PrivilegeCrashRecorder? = null
         try {
-            preparePrivilegeMainLooper()
             val config = Arguments.parse(args)
+            crashLog = PrivilegeCrashRecorder.install(
+                config.packageName,
+                config.userId,
+                config.serviceClassName,
+            )
+            preparePrivilegeMainLooper()
             val instance = PrivilegeUserServiceLoader.instantiate(
                 serviceClassName = config.serviceClassName,
                 contextConfig = PrivilegeUserServiceLoader.ContextConfig(
@@ -38,6 +45,7 @@ public object PrivilegeUserServiceMain {
             watchServer(config.serverPid)
             Looper.loop()
         } catch (throwable: Throwable) {
+            crashLog?.recordOrLog(Thread.currentThread(), throwable)
             Log.e(TAG, "Privilege UserService failed", throwable)
             throwable.printStackTrace(System.err)
             exitProcess(1)

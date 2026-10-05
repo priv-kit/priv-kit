@@ -10,6 +10,7 @@ import android.util.Log
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
 import priv.kit.core.internal.core.preparePrivilegeMainLooper
+import priv.kit.core.internal.runtime.PrivilegeCrashRecorder
 import priv.kit.core.userservice.PrivilegeUserServiceEnvironment
 import java.io.File
 import kotlin.system.exitProcess
@@ -61,10 +62,10 @@ public object PrivilegeServerMain {
     @Keep
     @JvmStatic
     public fun main(args: Array<String>) {
+        var crashLog: PrivilegeCrashRecorder? = null
         try {
             PrivilegeUserServiceEnvironment.markServerProcess()
             Log.i(TAG, "Privileged Server main entered args=${args.toDiagnosticString()}")
-            preparePrivilegeMainLooper()
             val config = PrivilegeServerArguments.parse(
                 args = args,
                 classpath = System.getenv("CLASSPATH").orEmpty(),
@@ -74,6 +75,8 @@ public object PrivilegeServerMain {
                 ownerUserId =
                     System.getenv(PrivilegeHandshakeContract.ENV_OWNER_USER_ID),
             )
+            crashLog = PrivilegeCrashRecorder.install(config.packageName, config.userId)
+            preparePrivilegeMainLooper()
             val providerAuthority = PrivilegeHandshakeContract.providerAuthority(config.packageName)
             Log.i(
                 TAG,
@@ -130,6 +133,7 @@ public object PrivilegeServerMain {
             )
             keepAlive()
         } catch (throwable: Throwable) {
+            crashLog?.recordOrLog(Thread.currentThread(), throwable)
             Log.e(TAG, "Privileged Server failed before keepAlive", throwable)
             throwable.printStackTrace(System.err)
             exitServer(1)

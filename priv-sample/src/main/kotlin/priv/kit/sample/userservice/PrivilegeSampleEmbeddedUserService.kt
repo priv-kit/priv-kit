@@ -22,6 +22,13 @@ internal class PrivilegeSampleEmbeddedUserService private constructor(
 
     override fun getMode(): String = state.getMode()
 
+    override fun crashProcess() {
+        // Throw outside the Binder transaction so this reaches the process crash handler.
+        Thread({
+            throw IllegalStateException("Intentional privileged process crash from embedded UserService")
+        }, "sample-embedded-crash").start()
+    }
+
     companion object {
         private fun createState(packageName: String): PrivilegeSampleUserServiceState =
             PrivilegeSampleUserServiceState(

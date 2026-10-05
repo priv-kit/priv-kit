@@ -159,6 +159,28 @@ class PrivilegeServerHandshakeSenderTest {
     }
 
     @Test
+    fun reconnectUpdatesAndClearsCrashDirectory() {
+        val config = PrivilegeServerConfig(packageName = "example.app", classpath = "/data/app/base.apk")
+        val directory = java.io.File(System.getProperty("java.io.tmpdir"), "crashes").absolutePath
+        listOf(directory, null).forEach { path ->
+            PrivilegeServerHandshakeSender.send(
+                config = config,
+                serverBinder = PrivilegeServerBinder(config),
+                origin = PrivilegeServerHandshakeOrigin.OWNER_RECONNECT,
+                providerCall = { _, _, _, _, _ ->
+                    Bundle().apply {
+                        putBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, true)
+                        putBinder(PrivilegeHandshakeContract.RESULT_OWNER_BINDER, Binder())
+                        putString(PrivilegeHandshakeContract.EXTRA_CRASH_LOG_DIRECTORY, path)
+                    }
+                },
+                replacementStarter = { error("unexpected replacement") },
+            )
+            assertEquals(path, priv.kit.core.internal.runtime.PrivilegeCrashRecorder.currentDirectory?.path)
+        }
+    }
+
+    @Test
     fun rejectedHandshakeStartsReplacementCommand() {
         val config = PrivilegeServerConfig(
             packageName = "priv.kit.sample",

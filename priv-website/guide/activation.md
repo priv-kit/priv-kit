@@ -457,3 +457,47 @@ finished. A complete implementation is available in the sample:
 [starter](https://github.com/priv-kit/priv-kit/blob/main/priv-sample/src/main/kotlin/priv/kit/sample/startup/PrivilegeSampleShizukuExternalStarter.kt),
 [privileged endpoint](https://github.com/priv-kit/priv-kit/blob/main/priv-sample/src/main/kotlin/priv/kit/sample/startup/PrivilegeSampleShizukuStartService.kt),
 and [AIDL contract](https://github.com/priv-kit/priv-kit/blob/main/priv-sample/src/main/aidl/priv/kit/sample/startup/IPrivilegeSampleShizukuStartService.aidl).
+
+## Crash logs {#crash-logs}
+
+Configure a preferred directory during application initialization, before starting a server or
+first reading `Privilege.nativeStarterCommand`:
+
+```kotlin
+PrivilegeConfig.crashLogDirectory = context.getExternalFilesDir("privilege-crashes")
+```
+
+The host creates the directory. A null value uses `/data/local/tmp` only. The server receives this
+path at launch and refreshes it on owner handshakes; dedicated UserServices inherit it at launch,
+before their constructors run. Already-running dedicated processes keep their original directory.
+If writing the preferred directory fails, including work-profile storage denied to shell, the
+recorder retries `/data/local/tmp`. Writes remain subject to filesystem and SELinux permissions.
+
+Fatal Java/Kotlin exceptions produce one UTF-8 JSON file. The configured directory belongs to one
+app and Android user, and files there use `priv-crash_uid<uid>_<yyyyMMddHHmmss>.json`.
+The shared fallback directory `/data/local/tmp` uses
+`priv-crash_<applicationId>_u<userId>_uid<uid>_<yyyyMMddHHmmss>.json`.
+The filename uses the crash time in the device local timezone, with second precision, assuming at most one crash per second for each app/user/UID. Process type, PID,
+and timestamps remain in the JSON. The recorder syncs and closes a temporary `.json.tmp` file before atomically renaming it. Scan only
+`.json` files; an interrupted write can leave a temporary file. The host owns scanning and cleanup.
+Read the app's external directory directly at startup, then scan the fallback directory through
+`Privilege.file()` once a privileged connection is available. Root-owned files may require root.
+
+Reports use the public `@Serializable` data class `PrivilegeCrashLog`. Core exposes
+`kotlinx-serialization-core` and a generated serializer, but uses Android `JSONObject` to write
+reports. To decode with Kotlin JSON, add `kotlinx-serialization-json` to the host:
+
+```kotlin
+val json = Json { ignoreUnknownKeys = true }
+val report = json.decodeFromString(PrivilegeCrashLog.serializer(), file.readText())
+if (report.schemaVersion == 1) {
+    println(report.stackTrace)
+}
+```
+
+The model contains the host application ID and Android user ID, process UID/PID and type,
+optional service class name, recorder initialization and crash times in epoch milliseconds,
+thread name, exception type, nullable message, and the stack trace with causes and suppressed
+exceptions. It does not contain preceding Logcat messages. Persistence is best effort; both
+failed destinations still allow process exit. Failures before launch configuration parsing,
+native crashes, and `SIGKILL` are not captured.

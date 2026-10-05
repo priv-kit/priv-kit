@@ -1,6 +1,7 @@
 package priv.kit.core
 
 import java.io.File
+import priv.kit.shared.toPrivilegeShellArgument
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -68,6 +69,22 @@ class PrivilegeNativeStarterCommandTest {
                 launchCorrelationId = null,
                 ownerUserId = 10,
             ),
+        )
+    }
+
+    @Test
+    fun startupDirectoryUsesShellEscaping() {
+        val directory = File(System.getProperty("java.io.tmpdir"), "crashes with 'quotes'")
+        val command = PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
+            baseNativeStarterCommand = "/starter",
+            launchCorrelationId = null,
+            ownerUserId = 0,
+            crashLogDirectory = directory,
+        )
+        assertEquals(
+            "${PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORY}=" +
+                directory.absolutePath.toPrivilegeShellArgument() + " /starter",
+            command,
         )
     }
 

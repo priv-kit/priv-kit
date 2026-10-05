@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.lsposed.hiddenapibypass.HiddenApiBypass
+import priv.kit.core.PrivilegeConfig
 import priv.kit.sample.startup.privilegeUiConfig
 import priv.kit.ui.PrivilegeUi
 
@@ -23,6 +24,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        PrivilegeConfig.crashLogDirectory = getExternalFilesDir("privilege-crashes")
         automaticRecoveryScope.launch {
             PrivilegeUi.startSilently(
                 config = privilegeUiConfig,

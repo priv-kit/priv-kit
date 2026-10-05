@@ -31,6 +31,7 @@ internal fun UserServiceTestPage(
     onStopDedicatedUserService: () -> Unit,
     onBindEmbeddedUserService: () -> Unit,
     onCallEmbeddedUserService: () -> Unit,
+    onCrashEmbeddedProcess: () -> Unit,
     onStopEmbeddedUserService: () -> Unit,
     onStopServer: () -> Unit,
 ) {
@@ -50,6 +51,7 @@ internal fun UserServiceTestPage(
             onStopDedicatedUserService = onStopDedicatedUserService,
             onBindEmbeddedUserService = onBindEmbeddedUserService,
             onCallEmbeddedUserService = onCallEmbeddedUserService,
+            onCrashEmbeddedProcess = onCrashEmbeddedProcess,
             onStopEmbeddedUserService = onStopEmbeddedUserService,
         )
     }
@@ -63,6 +65,7 @@ private fun UserServicePage(
     onStopDedicatedUserService: () -> Unit,
     onBindEmbeddedUserService: () -> Unit,
     onCallEmbeddedUserService: () -> Unit,
+    onCrashEmbeddedProcess: () -> Unit,
     onStopEmbeddedUserService: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -119,6 +122,15 @@ private fun UserServicePage(
                 onClick = onStopEmbeddedUserService,
             )
         }
+        SampleAction(
+            label = stringResource(R.string.sample_crash_privileged_process),
+            enabled = !state.busy &&
+                state.status == PrivilegeSampleStatus.CONNECTED &&
+                state.embeddedUserServiceBound,
+            tone = SampleActionTone.Destructive,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onCrashEmbeddedProcess,
+        )
         if (state.userServiceLastException.isNotBlank()) {
             DiagnosticBlock(state.userServiceLastException)
         }
