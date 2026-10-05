@@ -8,6 +8,7 @@ import priv.kit.core.internal.core.PrivilegeContentProviderCall
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.core.PrivilegeServerHandshakeOrigin
 import java.io.File
+import priv.kit.core.internal.runtime.PrivilegeCrashRecorder
 
 internal object PrivilegeServerHandshakeSender {
     private val processSelinuxContext: String? by lazy {
@@ -85,6 +86,11 @@ internal object PrivilegeServerHandshakeSender {
             requireNotNull(ownerBinder) {
                 "Accepted handshake response is missing ${PrivilegeHandshakeContract.RESULT_OWNER_BINDER}"
             }
+        }
+        if (accepted) {
+            PrivilegeCrashRecorder.updateDirectory(
+                response?.getString(PrivilegeHandshakeContract.EXTRA_CRASH_LOG_DIRECTORY),
+            )
         }
         val ownerConfig = if (
             accepted &&

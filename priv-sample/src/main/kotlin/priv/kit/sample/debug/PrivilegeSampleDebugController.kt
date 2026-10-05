@@ -120,6 +120,7 @@ internal class PrivilegeSampleDebugController(
                 stopDedicated = { stopDedicatedUserService() },
                 bindEmbedded = { bindEmbeddedUserService() },
                 callEmbedded = { callEmbeddedUserService() },
+                crashEmbeddedProcess = { crashEmbeddedUserServiceProcess() },
                 stopEmbedded = { stopEmbeddedUserService() },
             ),
             log = PrivilegeSampleLogCallbacks(

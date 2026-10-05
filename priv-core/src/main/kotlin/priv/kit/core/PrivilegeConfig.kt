@@ -1,10 +1,29 @@
 package priv.kit.core
 
 import priv.kit.core.internal.core.PrivilegeProtocol
+import java.io.File
 
 public object PrivilegeConfig {
     private val lock = Any()
     private var current = PrivilegeConfigSnapshot()
+
+    /**
+     * Preferred existing directory for privileged-process crash JSON files, or null for
+     * `/data/local/tmp` only. Configure during application initialization, before startup or
+     * first reading [Privilege.nativeStarterCommand]. A failed write falls back to `/data/local/tmp`.
+     *
+     * The host creates an app/user-specific directory, for example with
+     * `getExternalFilesDir("privilege-crashes")`. Filenames there omit application and user IDs;
+     * fallback filenames in `/data/local/tmp` include both.
+     * Changes reach an existing server on its next owner handshake. Dedicated UserServices
+     * inherit the directory when launched. Scanning and cleanup belong to the host.
+     */
+    @Volatile
+    public var crashLogDirectory: File? = null
+        set(value) {
+            require(value == null || value.isAbsolute) { "crashLogDirectory must be absolute" }
+            field = value
+        }
 
     /**
      * How long the server remains alive while waiting for its owner process to reconnect.

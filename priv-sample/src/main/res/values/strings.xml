@@ -251,4 +251,17 @@
     <string name="sample_tcp_requested">ADB TCP mode requested on port %1$d</string>
     <string name="sample_tcp_stop_requested">ADB TCP mode stop requested</string>
     <string name="sample_checking_service">Checking system service %1$s…</string>
+    <string name="sample_crash_privileged_process">Crash Privileged Process</string>
+    <string name="sample_crash_privileged_process_requested">Requesting privileged process crash via embedded UserService…</string>
+    <string name="sample_crash_logs">Crash Logs</string>
+    <string name="sample_crash_details">Crash Details</string>
+    <string name="sample_crash_empty">No crash logs found for this app and Android user.</string>
+    <string name="sample_crash_fallback_disconnected">Showing app storage. Connect the privileged service to also scan the fallback directory.</string>
+    <string name="sample_crash_directory_unreadable">Cannot read directory: %1$s</string>
+    <string name="sample_crash_unreadable">Unable to read crash log</string>
+    <string name="sample_crash_no_message">No exception message</string>
+    <string name="sample_crash_file">Log file</string>
+    <string name="sample_crash_occurred_at">Crashed at: %1$s</string>
+    <string name="sample_crash_started_at">Recorder initialized at: %1$s</string>
+    <string name="sample_crash_stack_trace">Stack trace</string>
 </resources>

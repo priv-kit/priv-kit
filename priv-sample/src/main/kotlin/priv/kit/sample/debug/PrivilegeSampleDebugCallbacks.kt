@@ -45,6 +45,7 @@ internal data class PrivilegeSampleUserServiceCallbacks(
     val stopDedicated: () -> Unit,
     val bindEmbedded: () -> Unit,
     val callEmbedded: () -> Unit,
+    val crashEmbeddedProcess: () -> Unit,
     val stopEmbedded: () -> Unit,
 )
 

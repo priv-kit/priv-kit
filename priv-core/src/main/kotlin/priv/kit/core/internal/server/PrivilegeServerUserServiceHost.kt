@@ -1,6 +1,7 @@
 package priv.kit.core.internal.server
 
 import android.os.Bundle
+import priv.kit.core.internal.runtime.PrivilegeCrashRecorder
 import android.os.SystemClock
 import priv.kit.core.internal.core.PrivilegeContentProviderCall
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
@@ -33,6 +34,7 @@ internal class PrivilegeServerUserServiceHost(
             spec = spec,
             token = token,
             serverPid = AndroidProcess.myPid(),
+            crashLogDirectory = PrivilegeCrashRecorder.currentDirectory?.absolutePath,
         )
         return processStarter(command)
     }
@@ -71,6 +73,7 @@ internal object PrivilegeServerUserServiceProcessCommand {
         spec: PrivilegeUserServiceSpec,
         token: String,
         serverPid: Int,
+        crashLogDirectory: String? = null,
     ): PrivilegeServerUserServiceProcessStartCommand {
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(config.packageName)
         val processName = buildProcessName(config.packageName, spec)
@@ -93,7 +96,11 @@ internal object PrivilegeServerUserServiceProcessCommand {
                 "--server-pid",
                 serverPid.toString(),
             ),
-            environment = mapOf("CLASSPATH" to config.classpath),
+            environment = mapOf(
+                "CLASSPATH" to config.classpath,
+                // Override any stale directory inherited from the original server launch.
+                PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORY to crashLogDirectory.orEmpty(),
+            ),
         )
     }
 

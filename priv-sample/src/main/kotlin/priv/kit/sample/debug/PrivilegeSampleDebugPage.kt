@@ -40,6 +40,7 @@ internal fun PrivilegeSampleDebugPage(
             onStopDedicatedUserService = callbacks.userService.stopDedicated,
             onBindEmbeddedUserService = callbacks.userService.bindEmbedded,
             onCallEmbeddedUserService = callbacks.userService.callEmbedded,
+            onCrashEmbeddedProcess = callbacks.userService.crashEmbeddedProcess,
             onStopEmbeddedUserService = callbacks.userService.stopEmbedded,
             onStopServer = callbacks.connection.stopServer,
         )

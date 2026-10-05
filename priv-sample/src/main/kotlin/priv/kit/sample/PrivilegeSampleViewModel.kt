@@ -37,6 +37,10 @@ internal class PrivilegeSampleViewModel : ViewModel() {
         openRootDestination(PrivilegeSampleRootDestination.CommandApi)
     }
 
+    fun openCrashLogs() {
+        openRootDestination(PrivilegeSampleRootDestination.CrashLogs)
+    }
+
     fun navigateBack() {
         if (backStack.size > 1) {
             backStack.removeAt(backStack.lastIndex)

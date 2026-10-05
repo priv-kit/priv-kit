@@ -20,6 +20,8 @@ internal object PrivilegeHandshakeContract {
 
     const val ENV_LAUNCH_CORRELATION_ID: String = "PRIV_KIT_LAUNCH_CORRELATION_ID"
     const val ENV_OWNER_USER_ID: String = "PRIV_KIT_OWNER_USER_ID"
+    const val ENV_CRASH_LOG_DIRECTORY: String = "PRIV_KIT_CRASH_LOG_DIRECTORY"
+    const val EXTRA_CRASH_LOG_DIRECTORY: String = "privilege_crash_log_directory"
 
     const val RESULT_ACCEPTED: String = "privilege_accepted"
     const val RESULT_OWNER_BINDER: String = "privilege_owner_binder"

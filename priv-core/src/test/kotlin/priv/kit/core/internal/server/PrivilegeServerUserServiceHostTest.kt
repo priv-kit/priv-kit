@@ -31,7 +31,8 @@ class PrivilegeServerUserServiceHostTest {
             serverPid = 2468,
         )
 
-        assertEquals(mapOf("CLASSPATH" to "/data/app/base.apk"), command.environment)
+        assertEquals("/data/app/base.apk", command.environment["CLASSPATH"])
+        assertEquals("", command.environment[priv.kit.core.internal.core.PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORY])
         assertEquals(
             listOf(
                 "/system/bin/app_process",
@@ -52,6 +53,21 @@ class PrivilegeServerUserServiceHostTest {
                 "2468",
             ),
             command.arguments,
+        )
+    }
+
+    @Test
+    fun forwardsCrashDirectoryToDedicatedProcess() {
+        val command = PrivilegeServerUserServiceProcessCommand.build(
+            config = config(classpath = "/data/app/base.apk"),
+            spec = PrivilegeUserServiceSpec(serviceClassName = "example.Service"),
+            token = "token",
+            serverPid = 1,
+            crashLogDirectory = "/storage/emulated/10/Android/data/example.app/files/crashes",
+        )
+        assertEquals(
+            "/storage/emulated/10/Android/data/example.app/files/crashes",
+            command.environment[priv.kit.core.internal.core.PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORY],
         )
     }
 

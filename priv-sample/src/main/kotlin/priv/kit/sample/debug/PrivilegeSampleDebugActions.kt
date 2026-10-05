@@ -756,6 +756,19 @@ internal fun PrivilegeSampleDebugHost.callEmbeddedUserService() {
     callSampleUserService(label = "embedded")
 }
 
+internal fun PrivilegeSampleDebugHost.crashEmbeddedUserServiceProcess() {
+    runUserServiceAction(
+        message = activity.getString(R.string.sample_crash_privileged_process_requested),
+        requireConnected = true,
+    ) {
+        checkNotNull(sampleViewModel.embeddedUserService) { "Embedded UserService is not bound" }
+            .crashProcess()
+        UserServiceActionResult(
+            message = activity.getString(R.string.sample_crash_privileged_process_requested),
+        )
+    }
+}
+
 internal fun PrivilegeSampleDebugHost.stopEmbeddedUserService() {
     stopSampleUserService(label = "embedded")
 }

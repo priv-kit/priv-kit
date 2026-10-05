@@ -47,3 +47,18 @@ exposes timeout and cancellation controls.
 The Shizuku example keeps third-party binding and AIDL in the app. Its privileged endpoint delegates
 startup execution to `PrivilegeExternalStartupHost`, while the main process uses
 `PrivilegeExternalStartup.runThroughBridge(...)` for pipes, completion, and server handoff.
+
+## Crash browser
+
+The Home page opens Crash Logs. The page reads the configured app directory without a privileged
+connection, then additionally scans `/data/local/tmp` while connected. It filters published `.json`
+files by the current application and Android user, accepts short filenames only in the app directory,
+validates report identity and schema, and sorts
+newest crashes first. Refresh reloads both available sources; opening a row shows selectable
+metadata and the complete exception stack. Unreadable, malformed, unsupported, or larger-than-1-MiB
+reports remain visible as error rows instead of preventing the other reports from loading.
+The sample depends on `kotlinx-serialization-json` to consume Core's public `PrivilegeCrashLog` model.
+
+To produce a report, bind the embedded service in Test UserService and press Crash Privileged
+Process. This terminates the privileged server through an uncaught worker-thread exception.
+Return Home and open Crash Logs; fallback files require a privileged connection again.

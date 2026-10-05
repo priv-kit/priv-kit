@@ -39,6 +39,7 @@ internal fun PrivilegeSampleHomePage(
     onOpenDeviceFiles: () -> Unit,
     onOpenFileApi: () -> Unit,
     onOpenCommandApi: () -> Unit,
+    onOpenCrashLogs: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     Scaffold(
@@ -84,6 +85,12 @@ internal fun PrivilegeSampleHomePage(
                 onClick = onOpenDebug,
             ) {
                 Text(stringResource(R.string.sample_open_debug_tools))
+            }
+            FilledTonalButton(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onOpenCrashLogs,
+            ) {
+                Text(stringResource(R.string.sample_crash_logs))
             }
             FilledTonalButton(
                 modifier = Modifier.fillMaxWidth(),

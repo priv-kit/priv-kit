@@ -247,4 +247,17 @@
     <string name="sample_tcp_requested">已请求在端口 %1$d 上启用 ADB TCP 模式</string>
     <string name="sample_tcp_stop_requested">已请求停止 ADB TCP 模式</string>
     <string name="sample_checking_service">正在检查系统服务 %1$s…</string>
+    <string name="sample_crash_privileged_process">触发特权进程崩溃</string>
+    <string name="sample_crash_privileged_process_requested">正在通过嵌入式 UserService 触发特权进程崩溃…</string>
+    <string name="sample_crash_logs">崩溃日志</string>
+    <string name="sample_crash_details">崩溃详情</string>
+    <string name="sample_crash_empty">未找到当前应用和 Android 用户的崩溃日志。</string>
+    <string name="sample_crash_fallback_disconnected">当前显示应用目录中的日志。连接特权服务后，还会扫描兜底目录。</string>
+    <string name="sample_crash_directory_unreadable">无法读取目录：%1$s</string>
+    <string name="sample_crash_unreadable">无法读取崩溃日志</string>
+    <string name="sample_crash_no_message">无异常消息</string>
+    <string name="sample_crash_file">日志文件</string>
+    <string name="sample_crash_occurred_at">崩溃时间：%1$s</string>
+    <string name="sample_crash_started_at">记录器初始化时间：%1$s</string>
+    <string name="sample_crash_stack_trace">异常堆栈</string>
 </resources>

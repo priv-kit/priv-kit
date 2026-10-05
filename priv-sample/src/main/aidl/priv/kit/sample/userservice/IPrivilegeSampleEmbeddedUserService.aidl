@@ -6,4 +6,5 @@ interface IPrivilegeSampleEmbeddedUserService {
     int getPid();
     int getCallCount();
     String getMode();
+    void crashProcess();
 }

@@ -71,6 +71,7 @@ androidComponents.onVariants { variant ->
 dependencies {
     compileOnly(project(":hidden-api"))
     implementation(project(":priv-core"))
+    implementation(libs.kotlinx.serialization.json)
     implementation(project(":priv-ui"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.foundation)

@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
                     onOpenDeviceFiles = viewModel::openDeviceFiles,
                     onOpenFileApi = viewModel::openFileApi,
                     onOpenCommandApi = viewModel::openCommandApi,
+                    onOpenCrashLogs = viewModel::openCrashLogs,
                     onOpenPrivilegeUi = viewModel::openPrivilegeUi,
                     onBackToHome = viewModel::navigateBack,
                     onDebugStarted = debugController::initialize,
