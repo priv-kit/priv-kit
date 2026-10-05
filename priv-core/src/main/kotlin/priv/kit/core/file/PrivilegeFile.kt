@@ -151,7 +151,8 @@ public class PrivilegeFile internal constructor(
      * Streams this directory's descendants in unsorted depth-first pre-order.
      *
      * This directory itself is not emitted. Direct children have depth 1, so [maxDepth] 1 performs
-     * a non-recursive directory listing. Symbolic links and entries with unavailable metadata are
+     * a non-recursive directory listing. The root path follows symbolic links and does not require
+     * listing its parent directory. Descendant symbolic links and entries with unavailable metadata are
      * emitted but never entered. Each collection starts a new weakly-consistent walk in the
      * Privileged Server. Cancelling collection closes its pipe and stops that walk. Binder setup
      * and pipe reading run on [kotlinx.coroutines.Dispatchers.IO].

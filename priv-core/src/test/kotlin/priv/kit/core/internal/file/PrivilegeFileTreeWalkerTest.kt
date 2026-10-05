@@ -155,6 +155,46 @@ class PrivilegeFileTreeWalkerTest {
     }
 
     @Test
+    fun walkFollowsRootSymbolicLinkAndPreservesRequestedPath() = runBlocking {
+        val target = temporaryFolder.newFolder("root-target")
+        target.resolve("child.txt").writeText("child")
+        val link = temporaryFolder.root.resolve("root-link")
+        Files.newDirectoryStream(target.toPath()).use { stream ->
+            assumeTrue(stream is SecureDirectoryStream<*>)
+        }
+        try {
+            Files.createSymbolicLink(link.toPath(), target.toPath())
+        } catch (exception: Exception) {
+            assumeNoException(exception)
+        }
+
+        val entries = PrivilegeFileTreeWalker.walk(link.absolutePath, maxDepth = 1).toList()
+
+        assertEquals(listOf(link.resolve("child.txt").absolutePath), entries.map { it.absolutePath })
+    }
+
+    @Test
+    fun walkDoesNotRequireReadPermissionOnParent() = runBlocking {
+        val parent = temporaryFolder.newFolder("search-only-parent").toPath()
+        val root = Files.createDirectory(parent.resolve("root"))
+        val child = Files.createFile(root.resolve("child.txt"))
+        Files.newDirectoryStream(root).use { stream ->
+            assumeTrue(stream is SecureDirectoryStream<*>)
+        }
+        val originalPermissions = Files.getPosixFilePermissions(parent)
+        try {
+            Files.setPosixFilePermissions(parent, java.nio.file.attribute.PosixFilePermissions.fromString("--x------"))
+            assumeTrue("Requires an unprivileged process", !Files.isReadable(parent))
+
+            val entries = PrivilegeFileTreeWalker.walk(root.toString(), maxDepth = 1).toList()
+
+            assertEquals(listOf(child.toString()), entries.map { it.absolutePath })
+        } finally {
+            Files.setPosixFilePermissions(parent, originalPermissions)
+        }
+    }
+
+    @Test
     fun walkRejectsARegularFileAsTheRoot() = runBlocking {
         val file = temporaryFolder.newFile("root-file")
 

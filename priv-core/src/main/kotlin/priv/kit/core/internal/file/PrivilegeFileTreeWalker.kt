@@ -102,12 +102,13 @@ internal object PrivilegeFileTreeWalker {
     }
 
     private fun openWalkRoot(path: String): WalkDirectory {
-        val rootStat = Os.lstat(path)
+        val rootStat = Os.stat(path)
         if (!OsConstants.S_ISDIR(rootStat.st_mode)) {
             throw ErrnoException("walk($path)", OsConstants.ENOTDIR)
         }
         val rootPath = File(path).toPath()
-        return WalkDirectory(rootPath, openRoot(rootPath))
+        // Open the explicit root directly: its parent may permit search but not listing.
+        return WalkDirectory(rootPath, asSecureDirectoryStream(rootPath, Files.newDirectoryStream(rootPath)))
     }
 
     private class WalkDirectory(
@@ -149,18 +150,6 @@ internal object PrivilegeFileTreeWalker {
         override fun close() {
             stream.close()
         }
-    }
-
-    private fun openRoot(path: Path): SecureDirectoryStream<Path> {
-        val parentPath = path.parent
-        val targetName = path.fileName
-        if (parentPath != null && targetName != null) {
-            val parent = asSecureDirectoryStream(parentPath, Files.newDirectoryStream(parentPath))
-            return parent.use {
-                it.newDirectoryStream(targetName, LinkOption.NOFOLLOW_LINKS)
-            }
-        }
-        return asSecureDirectoryStream(path, Files.newDirectoryStream(path))
     }
 
     private fun asSecureDirectoryStream(
