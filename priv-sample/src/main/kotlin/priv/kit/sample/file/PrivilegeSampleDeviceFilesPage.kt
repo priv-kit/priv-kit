@@ -5,6 +5,7 @@ import android.text.format.Formatter
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -46,8 +48,9 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -77,6 +80,7 @@ internal fun PrivilegeSampleDeviceFilesPage(
     val preview = state.preview
     val directoryControls = state.deviceDirectoryControls()
     val snackbarHostState = remember { SnackbarHostState() }
+    val focusManager = LocalFocusManager.current
 
     LaunchedEffect(serverRunning) {
         viewModel.setServerRunning(serverRunning)
@@ -118,7 +122,10 @@ internal fun PrivilegeSampleDeviceFilesPage(
                     if (preview == null) {
                         TextButton(
                             enabled = directoryControls.enabled,
-                            onClick = viewModel::refreshDirectory,
+                            onClick = {
+                                focusManager.clearFocus()
+                                viewModel.refreshDirectory()
+                            },
                         ) {
                             Text(stringResource(R.string.sample_refresh))
                         }
@@ -163,12 +170,20 @@ private fun DeviceDirectoryContent(
     onOpenEntry: (PrivilegeFileEntry) -> Unit,
     onRetry: () -> Unit,
 ) {
+    val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val dismissInput = {
+        focusManager.clearFocus()
+        keyboardController?.hide()
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(innerPadding)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .pointerInput(focusManager, keyboardController) {
+                detectTapGestures(onTap = { dismissInput() })
+            },
     ) {
         Text(
             modifier = Modifier.padding(top = 8.dp),
@@ -180,31 +195,50 @@ private fun DeviceDirectoryContent(
             },
             style = MaterialTheme.typography.labelLarge,
         )
-        OutlinedTextField(
-            value = state.directoryText,
-            onValueChange = onDirectoryTextChanged,
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp, bottom = 8.dp),
-            enabled = controls.enabled,
-            readOnly = controls.directoryReadOnly,
-            singleLine = true,
-            isError = state.pathError != null,
-            label = { Text(stringResource(R.string.sample_current_directory)) },
-            supportingText = state.pathError?.let { message ->
-                { Text(message) }
-            },
-            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                fontFamily = FontFamily.Monospace,
-            ),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-            keyboardActions = KeyboardActions(
-                onGo = {
-                    keyboardController?.hide()
-                    onSubmitDirectory()
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(
+                onClick = {
+                    dismissInput()
+                    onOpenParent()
                 },
-            ),
-        )
+                enabled = controls.enabled && !state.isLoadingDirectory &&
+                    state.currentDirectory != ROOT_DIRECTORY,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_priv_sample_arrow_up),
+                    contentDescription = stringResource(R.string.sample_parent_directory),
+                )
+            }
+            OutlinedTextField(
+                value = state.directoryText,
+                onValueChange = onDirectoryTextChanged,
+                modifier = Modifier
+                    .weight(1f),
+                enabled = controls.enabled,
+                readOnly = controls.directoryReadOnly,
+                singleLine = true,
+                isError = state.pathError != null,
+                label = { Text(stringResource(R.string.sample_current_directory)) },
+                supportingText = state.pathError?.let { message ->
+                    { Text(message) }
+                },
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                ),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                keyboardActions = KeyboardActions(
+                    onGo = {
+                        dismissInput()
+                        onSubmitDirectory()
+                    },
+                ),
+            )
+        }
 
         Box(
             modifier = Modifier
@@ -223,8 +257,10 @@ private fun DeviceDirectoryContent(
                         state = state,
                         modifier = Modifier.fillMaxSize(),
                         interactionsEnabled = !state.isLoadingDirectory,
-                        onOpenParent = onOpenParent,
-                        onOpenEntry = onOpenEntry,
+                        onOpenEntry = { entry ->
+                            dismissInput()
+                            onOpenEntry(entry)
+                        },
                     )
                 }
 
@@ -233,7 +269,10 @@ private fun DeviceDirectoryContent(
                     message = state.directoryError,
                     modifier = Modifier.fillMaxSize(),
                     actionLabel = stringResource(R.string.sample_retry),
-                    onAction = onRetry,
+                    onAction = {
+                        dismissInput()
+                        onRetry()
+                    },
                 )
 
                 else -> Unit
@@ -267,7 +306,6 @@ private fun DeviceDirectoryList(
     state: PrivilegeSampleDeviceFilesState,
     modifier: Modifier,
     interactionsEnabled: Boolean,
-    onOpenParent: () -> Unit,
     onOpenEntry: (PrivilegeFileEntry) -> Unit,
 ) {
     val context = LocalContext.current
@@ -278,16 +316,6 @@ private fun DeviceDirectoryList(
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
-        item(key = PARENT_ENTRY_KEY, contentType = PrivilegeFileType.DIRECTORY) {
-            DeviceFileRow(
-                name = "..",
-                details = DeviceFileDetails(text = stringResource(R.string.sample_parent_directory)),
-                type = PrivilegeFileType.DIRECTORY,
-                enabled = interactionsEnabled && state.currentDirectory != ROOT_DIRECTORY,
-                dimmed = state.currentDirectory == ROOT_DIRECTORY,
-                onClick = onOpenParent,
-            )
-        }
         if (state.directoryTruncated) {
             item(key = DIRECTORY_TRUNCATED_KEY) {
                 Text(
@@ -326,7 +354,6 @@ private fun DeviceDirectoryList(
                 details = entry.toDetails(context, dateFormat),
                 type = entry.metadata?.type,
                 enabled = interactionsEnabled,
-                dimmed = false,
                 onClick = { onOpenEntry(entry) },
             )
         }
@@ -339,14 +366,12 @@ private fun DeviceFileRow(
     details: DeviceFileDetails,
     type: PrivilegeFileType?,
     enabled: Boolean,
-    dimmed: Boolean,
     onClick: () -> Unit,
 ) {
     val isDirectory = type == PrivilegeFileType.DIRECTORY
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(if (dimmed) 0.45f else 1f)
             .clickable(
                 enabled = enabled,
                 role = Role.Button,
@@ -682,7 +707,6 @@ internal fun ByteArray.formatHexRow(rowIndex: Int): String = buildString(HEX_LIN
 }
 
 private const val ROOT_DIRECTORY: String = "/"
-private const val PARENT_ENTRY_KEY: String = "device-files-parent"
 private const val DIRECTORY_TRUNCATED_KEY: String = "device-files-truncated"
 private const val EMPTY_DIRECTORY_KEY: String = "device-files-empty"
 private const val DIRECTORY_ENTRY_DATE_PATTERN: String = "yyyy-MM-dd HH:mm:ss"
