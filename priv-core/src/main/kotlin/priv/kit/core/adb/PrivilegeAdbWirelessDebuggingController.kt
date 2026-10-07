@@ -31,6 +31,12 @@ internal interface PrivilegeAdbWirelessDebuggingController {
 
 internal class AndroidPrivilegeAdbWirelessDebuggingController(
     private val context: Context,
+    private val writeGlobalInt: (String, Int) -> Boolean = { name, value ->
+        Settings.Global.putInt(context.contentResolver, name, value)
+    },
+    private val writeGlobalLong: (String, Long) -> Boolean = { name, value ->
+        Settings.Global.putLong(context.contentResolver, name, value)
+    },
 ) : PrivilegeAdbWirelessDebuggingController {
     private val contentResolver get() = context.contentResolver
 
@@ -64,17 +70,24 @@ internal class AndroidPrivilegeAdbWirelessDebuggingController(
 
     override fun enableAdb() {
         enforceWriteSecureSettingsPermission()
-        Settings.Global.putInt(contentResolver, Settings.Global.ADB_ENABLED, 1)
+        checkSettingWrite(Settings.Global.ADB_ENABLED, 1, writeGlobalInt(Settings.Global.ADB_ENABLED, 1))
     }
 
     override fun prepareAdb() {
         enableAdb()
-        Settings.Global.putLong(contentResolver, ADB_ALLOWED_CONNECTION_TIME, 0L)
+        checkSettingWrite(ADB_ALLOWED_CONNECTION_TIME, 0L, writeGlobalLong(ADB_ALLOWED_CONNECTION_TIME, 0L))
     }
 
     override fun setWirelessDebuggingEnabled(enabled: Boolean) {
         enforceWriteSecureSettingsPermission()
-        Settings.Global.putInt(contentResolver, ADB_WIFI_ENABLED, if (enabled) 1 else 0)
+        val value = if (enabled) 1 else 0
+        checkSettingWrite(ADB_WIFI_ENABLED, value, writeGlobalInt(ADB_WIFI_ENABLED, value))
+    }
+
+    private fun checkSettingWrite(name: String, value: Number, accepted: Boolean) {
+        if (!accepted) {
+            throw PrivilegeAdbException("Failed to write global setting $name=$value")
+        }
     }
 
     private fun hasWriteSecureSettingsPermission(): Boolean =
@@ -126,7 +139,7 @@ internal fun disableManagedWirelessDebuggingAfterStart(
     if (!shouldDisable || controller == null) return
     runCatching {
         controller.setWirelessDebuggingEnabled(false)
-        output.append("adb", "Wireless debugging disabled")
+        output.append("adb", "Wireless debugging disable request submitted")
     }.onFailure { throwable ->
         output.append("diag", "Failed to disable Wireless debugging: ${throwable.toFailureMessage()}")
     }
