@@ -44,7 +44,32 @@ class PrivilegeAdbEndpointResolverTest {
 
         assertEquals(1, disableCalls)
         assertTrue(exception.message.orEmpty().contains("already closed"))
-        assertTrue(output.text().contains("Wireless debugging disabled"))
+        assertTrue(output.text().contains("Wireless debugging disable request submitted"))
+    }
+
+    @Test
+    fun cleanupFailureIsDiagnosticAndDoesNotThrowOrReportSuccess() {
+        val output = PrivilegeAdbOutput()
+        val controller = object : PrivilegeAdbWirelessDebuggingController {
+            override fun status(): PrivilegeAdbWirelessDebuggingControlStatus = error("unused")
+            override fun enableAdb() = error("unused")
+            override fun prepareAdb() = error("unused")
+            override fun setWirelessDebuggingEnabled(enabled: Boolean) {
+                assertFalse(enabled)
+                throw PrivilegeAdbException("Failed to write global setting adb_wifi_enabled=0")
+            }
+        }
+        val lease = PrivilegeAdbConnectEndpointLease(
+            endpoint = PrivilegeAdbEndpoint.local(PRIVILEGE_ADB_DEFAULT_TCP_PORT),
+            cleanupController = controller,
+            output = output,
+        )
+
+        lease.close()
+
+        assertTrue(output.text().contains("Failed to disable Wireless debugging"))
+        assertTrue(output.text().contains("adb_wifi_enabled=0"))
+        assertFalse(output.text().contains("Wireless debugging disable request submitted"))
     }
 
     @Test
