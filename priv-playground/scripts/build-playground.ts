@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { init, parse } from 'es-module-lexer';
 import subsetFont from 'subset-font';
 import { collectFontCharacters } from './font-characters.ts';
+import { prepareFont } from './prepare-font.ts';
 
 const playgroundRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const repositoryRoot = path.resolve(playgroundRoot, '..');
@@ -17,6 +18,8 @@ const tasks = [
   ':priv-playground:processSkikoRuntimeForKWasm',
   ':priv-playground:wasmJsProcessResources',
 ];
+
+await prepareFont();
 
 await new Promise<void>((resolve, reject) => {
   const child = spawn(

@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:wasm": "node scripts/build-playground.ts",
+    "prepare:font": "node --use-env-proxy scripts/prepare-font.ts",
+    "build:wasm": "node --use-env-proxy scripts/build-playground.ts",
     "check": "tsc --noEmit && node --test scripts/font-characters.test.ts"
   },
   "exports": {

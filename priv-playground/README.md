@@ -14,6 +14,7 @@ Copy buttons copy sample text to the host clipboard. Closing the page or window 
 Run the desktop app:
 
 ```shell
+pnpm --filter @priv-kit/playground prepare:font
 ./gradlew :priv-playground:run
 ```
 
@@ -53,7 +54,10 @@ Changing the language opens a new localized page session.
 Build the package with `pnpm --filter @priv-kit/playground build:wasm` before importing it outside the website scripts.
 No npm or Maven artifact is published for this module.
 
-The playground bundles Noto Sans SC from the Google Fonts repository to render Chinese in Wasm.
+The playground downloads Noto Sans SC from a pinned Google Fonts commit to render Chinese in Wasm.
+The Node build script prepares it before invoking Gradle, verifies its SHA-256, and reuses a valid
+local copy. The full font is ignored by Git. The first build requires network access;
+`HTTPS_PROXY` and `HTTP_PROXY` are supported by the Node scripts.
 Its SIL Open Font License is included under `src/commonMain/composeResources/files/NotoSansSC-OFL.txt`.
 The font is demonstration-host data and is not shipped in `priv-ui`.
 While copying Gradle resources, the browser build reads the source font and writes its subset

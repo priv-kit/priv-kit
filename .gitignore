@@ -14,4 +14,5 @@ priv-website/.vitepress/cache/
 priv-website/.vitepress/dist/
 
 priv-playground/dist/
+priv-playground/src/commonMain/composeResources/font/
 kotlin-js-store/
