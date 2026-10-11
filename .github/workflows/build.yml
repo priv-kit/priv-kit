@@ -34,6 +34,11 @@ jobs:
 
       - run: ./gradlew publishToMavenLocal
 
+      - uses: pnpm/setup@v2
+
+      - name: Prepare playground font
+        run: pnpm --filter @priv-kit/playground prepare:font
+
       - run: ./gradlew :priv-ui:jvmTest :priv-ui:testAndroidHostTest :priv-playground:desktopTest
 
       - run: ./gradlew :priv-sample:assembleRelease
