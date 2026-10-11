@@ -18,6 +18,10 @@ Read these files before changing product behavior or public APIs:
 1. `docs/architecture.md`
 2. The README of every affected Gradle module
 
+Keep user-facing manual startup commands short and clean. Obtain the user's
+explicit consent before adding any extra arguments, options, or environment
+variable assignments to these commands.
+
 The `docs` directory contains durable maintainer and AI-readable repository
 documentation. It is not published as the project website.
 

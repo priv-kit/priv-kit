@@ -204,6 +204,7 @@ public object Privilege {
         PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
             baseNativeStarterCommand = baseNativeStarterCommand,
             launchCorrelationId = launchCorrelationId,
+            crashLogDirectory = PrivilegeConfig.crashLogDirectory,
         )
 
     @Throws(PrivilegeStartupException::class)

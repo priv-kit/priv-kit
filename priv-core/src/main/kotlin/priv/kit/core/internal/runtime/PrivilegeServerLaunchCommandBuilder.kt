@@ -1,6 +1,5 @@
 package priv.kit.core.internal.runtime
 
-import priv.kit.core.PrivilegeConfig
 import java.io.File
 import priv.kit.core.internal.core.PrivilegeAndroidUsers
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
@@ -29,7 +28,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
         baseNativeStarterCommand: String,
         launchCorrelationId: String?,
         ownerUserId: Int = ownerUserId(),
-        crashLogDirectory: File? = PrivilegeConfig.crashLogDirectory,
+        crashLogDirectory: File? = null,
     ): String {
         require(ownerUserId >= 0) { "ownerUserId must not be negative" }
         val ownerUserEnvironment = if (ownerUserId == 0) {

@@ -52,11 +52,12 @@ active reconnect resumes for the remainder of the original follow-death deadline
 
 ## Crash logs
 
-Set `PrivilegeConfig.crashLogDirectory` during application initialization, before startup or the
-first read of `Privilege.nativeStarterCommand`. For example, use
+Set `PrivilegeConfig.crashLogDirectory` during application initialization, before startup. For example, use
 `context.getExternalFilesDir("privilege-crashes")`, which creates the app-specific external directory
-when storage is available. A null value uses `/data/local/tmp` only. The native startup command
-passes the directory in an environment variable; owner handshakes refresh it for an existing server.
+when storage is available. A null value uses `/data/local/tmp` only. Core-managed startup
+passes the directory in an environment variable. The public manual command omits it and receives
+the directory through the owner handshake, using `/data/local/tmp` before that handshake.
+Owner handshakes also refresh it for an existing server.
 Dedicated UserServices inherit the directory at launch, before their service class is instantiated.
 Already-running dedicated processes keep their launch directory.
 

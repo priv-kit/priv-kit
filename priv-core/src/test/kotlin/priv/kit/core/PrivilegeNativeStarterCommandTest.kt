@@ -5,6 +5,7 @@ import priv.kit.shared.toPrivilegeShellArgument
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.After
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
@@ -16,14 +17,21 @@ import priv.kit.core.internal.runtime.PrivilegeServerLaunchCommandBuilder
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class PrivilegeNativeStarterCommandTest {
+    @After
+    fun resetCrashLogDirectory() {
+        PrivilegeConfig.crashLogDirectory = null
+    }
+
     @Test
     fun publicNativeStarterCommandCachesInstalledLibrary() {
         installRuntimeContext()
+        PrivilegeConfig.crashLogDirectory = File(RuntimeEnvironment.getApplication().cacheDir, "crashes")
 
         val nativeStarterCommand = Privilege.nativeStarterCommand
 
         assertTrue(PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID !in nativeStarterCommand)
         assertTrue(PrivilegeHandshakeContract.ENV_OWNER_USER_ID !in nativeStarterCommand)
+        assertTrue(PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORY !in nativeStarterCommand)
 
         RuntimeEnvironment.getApplication().applicationInfo.nativeLibraryDir =
             "/data/app/reinstalled/lib/arm64"
@@ -45,6 +53,22 @@ class PrivilegeNativeStarterCommandTest {
             "${PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID}=launch-1 " +
                 baseNativeStarterCommand,
             commandLine,
+        )
+    }
+
+    @Test
+    fun coordinatedCommandReadsCurrentCrashDirectoryAfterPublicCommandWasCached() {
+        installRuntimeContext()
+        val manualCommand = Privilege.nativeStarterCommand
+        val directory = File(RuntimeEnvironment.getApplication().cacheDir, "crashes with 'quotes'")
+        PrivilegeConfig.crashLogDirectory = directory
+
+        assertEquals(manualCommand, Privilege.nativeStarterCommand)
+        assertEquals(
+            "${PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID}=launch-1 " +
+                "${PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORY}=" +
+                directory.absolutePath.toPrivilegeShellArgument() + " " + manualCommand,
+            Privilege.createNativeStarterCommand("launch-1"),
         )
     }
 

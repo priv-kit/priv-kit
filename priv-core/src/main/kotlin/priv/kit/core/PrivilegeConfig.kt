@@ -9,8 +9,9 @@ public object PrivilegeConfig {
 
     /**
      * Preferred existing directory for privileged-process crash JSON files, or null for
-     * `/data/local/tmp` only. Configure during application initialization, before startup or
-     * first reading [Privilege.nativeStarterCommand]. A failed write falls back to `/data/local/tmp`.
+     * `/data/local/tmp` only. Configure during application initialization, before startup.
+     * A failed write falls back to `/data/local/tmp`. Manual startup receives the directory
+     * through the owner handshake; the public starter command does not include it.
      *
      * The host creates an app/user-specific directory, for example with
      * `getExternalFilesDir("privilege-crashes")`. Filenames there omit application and user IDs;
