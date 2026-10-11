@@ -34,3 +34,22 @@ compose.desktop {
 }
 
 compose.resources { packageOfResClass = "priv.kit.playground.resources" }
+
+val prepareFont = tasks.register<Exec>("prepareFont") {
+    group = "build setup"
+    description = "Downloads and verifies the playground font when needed."
+    inputs.file(layout.projectDirectory.file("scripts/prepare-font.ts"))
+    outputs.file(layout.projectDirectory.file("src/commonMain/composeResources/font/noto_sans_sc.ttf"))
+    workingDir(layout.projectDirectory)
+    commandLine("node", "--use-env-proxy", "scripts/prepare-font.ts")
+}
+
+tasks.matching {
+    it.name in setOf(
+        "convertXmlValueResourcesForCommonMain",
+        "copyNonXmlValueResourcesForCommonMain",
+        "prepareComposeResourcesTaskForCommonMain",
+    )
+}.configureEach {
+    dependsOn(prepareFont)
+}
