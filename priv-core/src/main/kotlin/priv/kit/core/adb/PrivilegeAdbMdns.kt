@@ -1,5 +1,6 @@
 package priv.kit.core.adb
 
+import android.net.nsd.DiscoveryRequest
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
@@ -40,11 +41,22 @@ internal class PrivilegeAdbMdns(
                         if (continuation.isActive) {
                             registered = true
                             runCatching {
-                                nsdManager.discoverServices(
-                                    serviceType,
-                                    NsdManager.PROTOCOL_DNS_SD,
-                                    listener,
-                                )
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
+                                    // Passive discovery must never launch a system picker.
+                                    nsdManager.discoverServices(
+                                        DiscoveryRequest.Builder(serviceType)
+                                            .setFlags(DiscoveryRequest.FLAG_NO_PICKER)
+                                            .build(),
+                                        callbackExecutor,
+                                        listener,
+                                    )
+                                } else {
+                                    nsdManager.discoverServices(
+                                        serviceType,
+                                        NsdManager.PROTOCOL_DNS_SD,
+                                        listener,
+                                    )
+                                }
                             }.onFailure {
                                 registered = false
                                 failDiscovery(it)

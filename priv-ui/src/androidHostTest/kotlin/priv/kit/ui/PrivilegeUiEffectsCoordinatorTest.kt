@@ -2,6 +2,7 @@ package priv.kit.ui
 
 import android.content.Context
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -21,6 +22,46 @@ import priv.kit.ui.state.PrivilegeUiViewModelStore
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class PrivilegeUiEffectsCoordinatorTest {
+    @Test
+    fun missingPermissionSuspendsPassiveDiscoveryUntilGrantedAndRevocationCancelsIt() = runTest {
+        val fixture = Fixture(this)
+        try {
+            fixture.store.updateState {
+                it.copy(selectedStartupMode = PrivilegeUiStartupMode.ADB, localNetworkPermissionMissing = true)
+            }
+            fixture.effects.setHostResumed("a", true)
+            fixture.effects.initialize()
+            testScheduler.runCurrent()
+            fixture.effects.refreshHostResumeState()
+            testScheduler.advanceTimeBy(500)
+            testScheduler.runCurrent()
+            assertEquals(0, fixture.wirelessRefreshes)
+            assertEquals(0, fixture.wirelessPolls)
+
+            fixture.store.updateState { it.copy(localNetworkPermissionMissing = false) }
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.wirelessRefreshes)
+            assertEquals(1, fixture.wirelessPolls)
+
+            fixture.store.updateState { it.copy(localNetworkPermissionMissing = true) }
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.wirelessCancellations)
+            fixture.effects.setHostResumed("a", false)
+            testScheduler.runCurrent()
+            fixture.effects.setHostResumed("a", true)
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.wirelessRefreshes)
+            assertEquals(1, fixture.wirelessPolls)
+
+            fixture.store.updateState { it.copy(localNetworkPermissionMissing = false) }
+            testScheduler.runCurrent()
+            assertEquals(2, fixture.wirelessRefreshes)
+            assertEquals(2, fixture.wirelessPolls)
+        } finally {
+            fixture.close()
+        }
+    }
+
     @Test
     fun onlyVisibleSelectedPagePollsAndLastHostPauseStopsIt() = runTest {
         val fixture = Fixture(this)
@@ -101,6 +142,9 @@ class PrivilegeUiEffectsCoordinatorTest {
     }
 
     private class Fixture(scope: TestScope) : AutoCloseable {
+        var wirelessRefreshes = 0
+        var wirelessPolls = 0
+        var wirelessCancellations = 0
         val provider = Provider()
         val store = PrivilegeUiViewModelStore(
             RuntimeEnvironment.getApplication(),
@@ -125,6 +169,15 @@ class PrivilegeUiEffectsCoordinatorTest {
         )
         val effects = PrivilegeUiEffectsCoordinator(
             store, owner, runtime, adb, external, scope.backgroundScope,
+            refreshWirelessStatus = { wirelessRefreshes++ },
+            pollWirelessStatus = {
+                wirelessPolls++
+                try {
+                    awaitCancellation()
+                } finally {
+                    wirelessCancellations++
+                }
+            },
         )
         override fun close() {
             effects.close()

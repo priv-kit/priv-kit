@@ -85,7 +85,9 @@ On Android 17 and later, a missing local network permission shows an advisory ca
 ADB tab. Clicking requests permission; permanent denial links to app settings. Returning to
 the page and permission results refresh the grant. ADB operations, including static loopback
 TCP and silent recovery, remain available and report normal transport errors or timeouts.
-A missing-to-granted transition cancels and joins active wireless discovery/check attempts,
+Passive wireless discovery is suspended while the permission is missing and resumes when granted.
+Core discovery never opens the Android 17 system device picker implicitly.
+A missing-to-granted transition cancels and joins active explicit wireless discovery/check attempts,
 then retries them. It also requests a visible-page refresh. Service startup commands and
 existing connections are not replayed or interrupted; completed or cancelled actions stay finished.
 
