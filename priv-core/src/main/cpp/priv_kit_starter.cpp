@@ -40,10 +40,8 @@ namespace {
 
     struct StarterConfig {
         char classpath[MAX_CLASSPATH_LENGTH] = {};
-        char package_name[256] = {};
         char process_name[384] = {};
         char process_comm[16] = {};
-        int owner_user_id = -1;
     };
 
     enum ProcessMatch {
@@ -199,7 +197,20 @@ namespace {
         char split_apks[MAX_SPLIT_APK_COUNT][PATH_MAX] = {};
         size_t split_apk_count = 0;
         dirent *entry = nullptr;
-        while ((entry = readdir(dir)) != nullptr) {
+        while (true) {
+            errno = 0;
+            entry = readdir(dir);
+            if (entry == nullptr) {
+                const int scan_errno = errno;
+                closedir(dir);
+                if (scan_errno != 0) {
+                    fprintf(stderr, "fatal: failed to enumerate APKs in %s: %s\n",
+                            install_dir, strerror(scan_errno));
+                    errno = scan_errno;
+                    return false;
+                }
+                break;
+            }
             if (!ends_with(entry->d_name, ".apk") || strcmp(entry->d_name, "base.apk") == 0) {
                 continue;
             }
@@ -208,22 +219,14 @@ namespace {
                 fprintf(stderr, "fatal: too many split APKs\n");
                 return false;
             }
-            char apk_path[PATH_MAX] = {};
-            if (!string_append_path(apk_path, sizeof(apk_path), install_dir, entry->d_name)) {
-                closedir(dir);
-                fprintf(stderr, "fatal: split APK path is too long\n");
-                return false;
-            }
-            if (!string_copy(split_apks[split_apk_count], sizeof(split_apks[split_apk_count]),
-                             apk_path)) {
+            if (!string_append_path(split_apks[split_apk_count], sizeof(split_apks[0]),
+                                    install_dir, entry->d_name)) {
                 closedir(dir);
                 fprintf(stderr, "fatal: split APK path is too long\n");
                 return false;
             }
             split_apk_count += 1;
         }
-        closedir(dir);
-
         qsort(split_apks, split_apk_count, sizeof(split_apks[0]), compare_path_string);
         for (size_t i = 0; i < split_apk_count; ++i) {
             if (!string_append(output, output_size, ":") ||
@@ -268,26 +271,28 @@ namespace {
     bool infer_defaults(char **argv, StarterConfig *config) {
         char starter_path[PATH_MAX] = {};
         char install_dir[PATH_MAX] = {};
+        char package_name[256] = {};
+        int owner_user_id = -1;
         if (!infer_starter_path(argv, starter_path, sizeof(starter_path)) ||
             !infer_install_dir(starter_path, install_dir, sizeof(install_dir)) ||
-            !parse_owner_user_id(&config->owner_user_id)) {
+            !parse_owner_user_id(&owner_user_id)) {
             return false;
         }
 
-        if (!infer_package_name(install_dir, config->package_name, sizeof(config->package_name))) {
+        if (!infer_package_name(install_dir, package_name, sizeof(package_name))) {
             return false;
         }
         if (!build_classpath(install_dir, config->classpath, sizeof(config->classpath))) {
             return false;
         }
         char user_id[16] = {};
-        const int user_id_length = snprintf(user_id, sizeof(user_id), "%d", config->owner_user_id);
+        const int user_id_length = snprintf(user_id, sizeof(user_id), "%d", owner_user_id);
         if (user_id_length <= 0 || static_cast<size_t>(user_id_length) >= sizeof(user_id)) {
             fprintf(stderr, "fatal: owner userId is too long\n");
             return false;
         }
         const auto scope_hash = static_cast<unsigned long long>(
-                process_scope_hash(config->package_name, user_id) & UINT64_C(0xffffffffffff));
+                process_scope_hash(package_name, user_id) & UINT64_C(0xffffffffffff));
         const int comm_length = snprintf(
                 config->process_comm,
                 sizeof(config->process_comm),
@@ -301,13 +306,13 @@ namespace {
                          config->process_comm) ||
             !string_append(config->process_name, sizeof(config->process_name), "-") ||
             !string_append(config->process_name, sizeof(config->process_name),
-                           config->package_name) ||
+                           package_name) ||
             !string_append(config->process_name, sizeof(config->process_name),
                            DEFAULT_PROCESS_SUFFIX)) {
             fprintf(stderr, "fatal: process name is too long\n");
             return false;
         }
-        if (config->owner_user_id != 0) {
+        if (owner_user_id != 0) {
             if (!string_append(config->process_name, sizeof(config->process_name),
                                SCOPED_PROCESS_USER_SUFFIX) ||
                 !string_append(config->process_name, sizeof(config->process_name), user_id)) {
@@ -328,62 +333,41 @@ namespace {
         return true;
     }
 
-    bool read_process_name(pid_t pid, char *output, size_t output_size) {
+    ssize_t read_process_file(pid_t pid, const char *file, char *output, size_t output_size) {
         char path[PATH_MAX] = {};
-        snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
-        int fd = open(path, O_RDONLY);
+        snprintf(path, sizeof(path), "/proc/%d/%s", pid, file);
+        const int fd = open(path, O_RDONLY);
         if (fd < 0) {
-            return false;
+            return -1;
         }
-        ssize_t length = read(fd, output, output_size - 1);
+        const ssize_t length = read(fd, output, output_size - 1);
         const int read_errno = errno;
         close(fd);
-        if (length <= 0) {
-            errno = length == 0 ? ENODATA : read_errno;
-            return false;
+        if (length < 0) {
+            errno = read_errno;
+            return -1;
         }
         output[length] = '\0';
-        return output[0] != '\0';
+        return length;
     }
 
     bool read_process_comm(pid_t pid, char *output, size_t output_size) {
-        char path[PATH_MAX] = {};
-        snprintf(path, sizeof(path), "/proc/%d/comm", pid);
-        int fd = open(path, O_RDONLY);
-        if (fd < 0) {
-            return false;
-        }
-        ssize_t length = read(fd, output, output_size - 1);
-        const int read_errno = errno;
-        close(fd);
-        if (length <= 0) {
-            errno = length == 0 ? ENODATA : read_errno;
+        ssize_t length = read_process_file(pid, "comm", output, output_size);
+        if (length < 0) {
             return false;
         }
         while (length > 0 && (output[length - 1] == '\n' || output[length - 1] == '\r')) {
             length--;
         }
         output[length] = '\0';
-        return output[0] != '\0';
+        return true;
     }
 
     bool read_process_uid(pid_t pid, uid_t *uid) {
-        char path[PATH_MAX] = {};
-        snprintf(path, sizeof(path), "/proc/%d/status", pid);
-        int fd = open(path, O_RDONLY);
-        if (fd < 0) {
-            return false;
-        }
         char status[4096] = {};
-        ssize_t length = read(fd, status, sizeof(status) - 1);
-        const int read_errno = errno;
-        close(fd);
-        if (length <= 0) {
-            errno = length == 0 ? ENODATA : read_errno;
+        if (read_process_file(pid, "status", status, sizeof(status)) < 0) {
             return false;
         }
-        status[length] = '\0';
-
         char *uid_line = strstr(status, "\nUid:");
         if (uid_line != nullptr) {
             uid_line++;
@@ -408,29 +392,31 @@ namespace {
         return true;
     }
 
-    bool process_name_matches(const StarterConfig &config, const char *process_name) {
-        return strcmp(process_name, config.process_name) == 0;
-    }
-
     ProcessMatch validate_process_uid(pid_t pid) {
         uid_t uid = 0;
         if (read_process_uid(pid, &uid)) {
             return is_supported_starter_uid(uid) ? PROCESS_MATCH : PROCESS_NO_MATCH;
         }
-        return errno == ENOENT || errno == ESRCH
-               ? PROCESS_NO_MATCH
-               : PROCESS_INSPECTION_FAILED;
+        const int status_errno = errno;
+        if (status_errno == ENOENT || status_errno == ESRCH) {
+            return PROCESS_NO_MATCH;
+        }
+        fprintf(stderr, "fatal: failed to inspect /proc/%d/status: %s\n",
+                pid, strerror(status_errno));
+        errno = status_errno;
+        return PROCESS_INSPECTION_FAILED;
     }
 
     ProcessMatch inspect_process(const StarterConfig &config, pid_t pid) {
         char name[PATH_MAX] = {};
-        if (read_process_name(pid, name, sizeof(name))) {
-            if (!process_name_matches(config, name)) {
+        const ssize_t name_length = read_process_file(pid, "cmdline", name, sizeof(name));
+        if (name_length >= 0 && name[0] != '\0') {
+            if (strcmp(name, config.process_name) != 0) {
                 return PROCESS_NO_MATCH;
             }
             return validate_process_uid(pid);
         }
-        const int cmdline_errno = errno;
+        const int cmdline_errno = name_length < 0 ? errno : ENODATA;
 
         char comm[sizeof(config.process_comm)] = {};
         if (read_process_comm(pid, comm, sizeof(comm))) {
@@ -444,6 +430,11 @@ namespace {
             comm_errno == ENOENT || comm_errno == ESRCH) {
             return PROCESS_NO_MATCH;
         }
+        fprintf(stderr, "fatal: failed to inspect /proc/%d/cmdline: %s\n",
+                pid, strerror(cmdline_errno));
+        fprintf(stderr, "fatal: failed to inspect /proc/%d/comm: %s\n",
+                pid, strerror(comm_errno));
+        errno = comm_errno;
         return PROCESS_INSPECTION_FAILED;
     }
 
@@ -467,32 +458,46 @@ namespace {
         return true;
     }
 
-    bool collect_existing_servers(
-            const StarterConfig &config,
-            ProcessSnapshot *snapshot) {
+    // A null snapshot only checks existence, without allocating or scanning past the first match.
+    int scan_existing_servers(const StarterConfig &config, ProcessSnapshot *snapshot = nullptr) {
         DIR *proc = opendir("/proc");
         if (proc == nullptr) {
-            return false;
+            return -1;
         }
-        dirent *entry = nullptr;
-        while ((entry = readdir(proc)) != nullptr) {
+        int result = 0;
+        while (true) {
+            errno = 0;
+            dirent *entry = readdir(proc);
+            if (entry == nullptr) {
+                if (errno != 0) {
+                    result = -1;
+                }
+                break;
+            }
             pid_t pid = 0;
             if (!parse_pid_name(entry->d_name, &pid) || pid == getpid()) {
                 continue;
             }
             const ProcessMatch match = inspect_process(config, pid);
             if (match == PROCESS_INSPECTION_FAILED) {
-                closedir(proc);
-                errno = EACCES;
-                return false;
+                result = -1;
+                break;
             }
-            if (match == PROCESS_MATCH && !append_process(snapshot, pid)) {
-                closedir(proc);
-                return false;
+            if (match == PROCESS_MATCH) {
+                result = 1;
+                if (snapshot == nullptr) {
+                    break;
+                }
+                if (!append_process(snapshot, pid)) {
+                    result = -1;
+                    break;
+                }
             }
         }
+        const int scan_errno = errno;
         closedir(proc);
-        return true;
+        errno = scan_errno;
+        return result;
     }
 
     bool preflight_process_snapshot(
@@ -502,7 +507,6 @@ namespace {
             const pid_t pid = snapshot->pids[index];
             const ProcessMatch match = inspect_process(config, pid);
             if (match == PROCESS_INSPECTION_FAILED) {
-                errno = EACCES;
                 return false;
             }
             if (match != PROCESS_MATCH) {
@@ -520,36 +524,9 @@ namespace {
         return true;
     }
 
-    int scan_existing_server(const StarterConfig &config) {
-        DIR *proc = opendir("/proc");
-        if (proc == nullptr) {
-            return -1;
-        }
-        int found = 0;
-        dirent *entry = nullptr;
-        while ((entry = readdir(proc)) != nullptr) {
-            pid_t pid = 0;
-            if (!parse_pid_name(entry->d_name, &pid) || pid == getpid()) {
-                continue;
-            }
-            const ProcessMatch match = inspect_process(config, pid);
-            if (match == PROCESS_INSPECTION_FAILED) {
-                closedir(proc);
-                errno = EACCES;
-                return -1;
-            }
-            if (match == PROCESS_MATCH) {
-                found = 1;
-                break;
-            }
-        }
-        closedir(proc);
-        return found;
-    }
-
     bool kill_existing_server(const StarterConfig &config) {
         ProcessSnapshot snapshot;
-        if (!collect_existing_servers(config, &snapshot)) {
+        if (scan_existing_servers(config, &snapshot) < 0) {
             fprintf(stderr, "fatal: %s: failed to inspect /proc before kill: %s\n",
                     STOP_EXISTING_SERVER_FAILED_MARKER, strerror(errno));
             free(snapshot.pids);
@@ -585,7 +562,7 @@ namespace {
         }
         fflush(stdout);
         for (int attempt = 0; attempt < STOP_WAIT_ATTEMPTS; ++attempt) {
-            const int existing = scan_existing_server(config);
+            const int existing = scan_existing_servers(config);
             if (existing == 0) {
                 return true;
             }
@@ -621,20 +598,14 @@ namespace {
             _exit(4);
         }
 
-        const int app_arg_count = 5;
-        char **app_argv = static_cast<char **>(calloc(app_arg_count + 1, sizeof(char *)));
-        if (app_argv == nullptr) {
-            fprintf(stderr, "fatal: failed to allocate app_process argv\n");
-            _exit(4);
-        }
-
-        int index = 0;
-        app_argv[index++] = const_cast<char *>("/system/bin/app_process");
-        app_argv[index++] = classpath_arg;
-        app_argv[index++] = const_cast<char *>("/system/bin");
-        app_argv[index++] = nice_name_arg;
-        app_argv[index++] = const_cast<char *>(DEFAULT_MAIN_CLASS);
-        app_argv[index] = nullptr;
+        char *app_argv[] = {
+                const_cast<char *>("/system/bin/app_process"),
+                classpath_arg,
+                const_cast<char *>("/system/bin"),
+                nice_name_arg,
+                const_cast<char *>(DEFAULT_MAIN_CLASS),
+                nullptr,
+        };
 
         setenv("CLASSPATH", config.classpath, 1);
         execv(app_argv[0], app_argv);
