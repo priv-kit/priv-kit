@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.Layout
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -121,30 +122,63 @@ internal fun PrivilegeUiScreenScope.WirelessAdbPairingDialog() {
             }
         },
         confirmButton = {
-            TextButton(
-                enabled = canSubmit,
-                onClick = actions.submitNotificationPairingCode,
-            ) {
-                Text(stringResource(Res.string.priv_ui_pairing_submit_action))
-            }
-        },
-        dismissButton = {
-            TextButton(
-                enabled = interactionEnabled,
-                onClick = ::dismissOrStop,
-            ) {
-                Text(
-                    stringResource(
-                        if (pairing) {
-                            Res.string.priv_ui_pairing_stop_action
-                        } else {
-                            Res.string.priv_ui_pairing_cancel_action
-                        },
-                    ),
+            PairingDialogActions {
+                TutorialButton(
+                    topic = priv.kit.ui.PrivilegeUiTutorialTopic.PAIRING,
+                    label = Res.string.priv_ui_pairing_tutorial,
                 )
+                TextButton(
+                    enabled = interactionEnabled,
+                    onClick = ::dismissOrStop,
+                ) {
+                    Text(
+                        stringResource(
+                            if (pairing) Res.string.priv_ui_pairing_stop_action
+                            else Res.string.priv_ui_pairing_cancel_action,
+                        ),
+                    )
+                }
+                TextButton(
+                    enabled = canSubmit,
+                    onClick = actions.submitNotificationPairingCode,
+                ) {
+                    Text(stringResource(Res.string.priv_ui_pairing_submit_action))
+                }
             }
         },
     )
+}
+
+/** Keeps help at the start and actions at the end, wrapping help above when necessary. */
+@Composable
+private fun PairingDialogActions(content: @Composable () -> Unit) {
+    val spacing = PrivilegeUiSpacing.small
+    Layout(content = content, modifier = Modifier.fillMaxWidth()) { measurables, constraints ->
+        val (help, cancel, submit) = measurables.map {
+            it.measure(constraints.copy(minWidth = 0, minHeight = 0))
+        }
+        val gap = spacing.roundToPx()
+        val width = constraints.maxWidth
+        val actionsWidth = cancel.width + gap + submit.width
+        val separateHelp = help.width + gap + actionsWidth > width
+        val separateActions = actionsWidth > width
+        val actionHeight = if (separateActions) cancel.height + gap + submit.height
+            else maxOf(cancel.height, submit.height)
+        val height = if (separateHelp) help.height + gap + actionHeight
+            else maxOf(help.height, actionHeight)
+        layout(width, height) {
+            help.placeRelative(0, if (separateHelp) 0 else (height - help.height) / 2)
+            val actionTop = if (separateHelp) help.height + gap else 0
+            if (separateActions) {
+                cancel.placeRelative(width - cancel.width, actionTop)
+                submit.placeRelative(width - submit.width, actionTop + cancel.height + gap)
+            } else {
+                val rowHeight = if (separateHelp) actionHeight else height
+                cancel.placeRelative(width - actionsWidth, actionTop + (rowHeight - cancel.height) / 2)
+                submit.placeRelative(width - submit.width, actionTop + (rowHeight - submit.height) / 2)
+            }
+        }
+    }
 }
 
 internal fun privilegeUiPairingCodeSubmitEnabled(

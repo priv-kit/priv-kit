@@ -13,7 +13,7 @@ const englishSidebar = [
       { text: 'Getting started', link: '/guide/getting-started' },
       { text: 'Privilege UI', link: '/guide/priv-ui' },
       { text: 'Startup methods', link: '/guide/activation' },
-      { text: 'ADB permission restrictions', link: '/guide/permission-restrictions' },
+      { text: 'Startup tutorial & FAQ', link: '/guide/startup-tutorial' },
     ],
   },
   {
@@ -39,7 +39,7 @@ const chineseSidebar = [
       { text: '快速接入', link: '/zh/guide/getting-started' },
       { text: 'Privilege UI', link: '/zh/guide/priv-ui' },
       { text: '启动方式', link: '/zh/guide/activation' },
-      { text: 'ADB 权限限制', link: '/zh/guide/permission-restrictions' },
+      { text: '启动教程与常见问题', link: '/zh/guide/startup-tutorial' },
     ],
   },
   {
@@ -58,6 +58,17 @@ const chineseSidebar = [
 ];
 
 export default defineConfig({
+  markdown: {
+    config(md) {
+      // Keep the exported guide portable while using the default theme's heading anchors.
+      md.core.ruler.before('block', 'portable-guide-anchors', (state) => {
+        state.src = state.src.replace(
+          /^<a id="([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)"><\/a>\r?\n\r?\n(#{1,6} .+)$/gm,
+          '$2 {#$1}',
+        );
+      });
+    },
+  },
   base,
   title: 'Priv Kit',
   description:

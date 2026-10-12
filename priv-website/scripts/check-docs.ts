@@ -80,19 +80,22 @@ async function readMarkdownHeadings(
     const anchoredHeading = line.match(
       /^(#{1,6})[ \t]+.+?[ \t]+\{#([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)\}[ \t]*$/u,
     );
-    if (!anchoredHeading) {
+    const standaloneAnchor = lines[index - 1]?.trim() === ''
+      ? lines[index - 2]?.match(/^<a id="([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)"><\/a>$/u)?.[1]
+      : undefined;
+    if (!anchoredHeading && !standaloneAnchor) {
       errors.push(`${displayPath}:${index + 1} is missing a valid manual heading anchor`);
       return;
     }
 
-    const anchor = anchoredHeading[2];
+    const anchor = anchoredHeading?.[2] ?? standaloneAnchor!;
     if (anchors.has(anchor)) {
       errors.push(`${displayPath}:${index + 1} repeats heading anchor #${anchor}`);
       return;
     }
     anchors.add(anchor);
     headings.push({
-      level: anchoredHeading[1].length,
+      level: heading[1].length,
       anchor,
     });
   });

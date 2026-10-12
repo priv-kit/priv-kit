@@ -38,11 +38,12 @@ internal fun PrivilegeUiScreenScope.AdbPanel() {
                 Spacer(Modifier.height(PrivilegeUiSpacing.large))
             }
         }
-        Panel {
+        Panel(topPadding = PrivilegeUiSpacing.extraSmall) {
             val wirelessAdbVisible = state.wirelessAdbSupported
             val staticTcpVisible = state.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED
             AdbFingerprintRow(
                 fingerprint = state.adbKeyFingerprint,
+                trailingContent = { TutorialButton(priv.kit.ui.PrivilegeUiTutorialTopic.ADB) },
             )
             if (!wirelessAdbVisible && !staticTcpVisible) {
                 StatusText(stringResource(Res.string.priv_ui_adb_unavailable))

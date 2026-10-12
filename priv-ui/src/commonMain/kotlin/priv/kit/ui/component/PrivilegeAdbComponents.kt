@@ -55,6 +55,7 @@ internal fun privilegeUiFingerprintShouldWrap(
 @Composable
 internal fun AdbFingerprintRow(
     fingerprint: String?,
+    trailingContent: @Composable () -> Unit = {},
 ) {
     val typography = MaterialTheme.typography
     val fingerprintTextStyle = typography.bodySmall
@@ -64,11 +65,19 @@ internal fun AdbFingerprintRow(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.extraSmall),
     ) {
-        Text(
-            text = stringResource(Res.string.priv_ui_adb_key_fingerprint),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.small),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                modifier = Modifier.weight(1f),
+                text = stringResource(Res.string.priv_ui_adb_key_fingerprint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            trailingContent()
+        }
         SelectionContainer {
             Text(
                 modifier = Modifier.fillMaxWidth(),

@@ -20,7 +20,6 @@
     <string name="priv_ui_permission_restricted_title">Permissions are restricted</string>
     <string name="priv_ui_denied_permissions_view">View restricted permissions</string>
     <string name="priv_ui_permission_solutions_view">View solutions</string>
-    <string name="priv_ui_permission_solutions_url">https://priv-kit.pages.dev/guide/permission-restrictions</string>
     <string name="priv_ui_denied_permissions_title">Permissions not granted</string>
     <string name="priv_ui_denied_permissions_message">The privileged service has not been granted the following permissions. Permissions unsupported by this system are excluded.</string>
     <string name="priv_ui_denied_permissions_copy">Copy</string>
@@ -63,8 +62,8 @@
     <string name="priv_ui_manual_command_copied">Manual command copied</string>
     <string name="priv_ui_manual_command_clip_label">Manual command</string>
     <string name="priv_ui_pairing_default_message">Searching for the pairing service...</string>
-    <string name="priv_ui_pairing_input_hint">Use the notification shade, split screen, or a floating window to enter it</string>
-    <string name="priv_ui_pairing_split_screen_hint">Use split screen or a floating window to enter it</string>
+    <string name="priv_ui_pairing_input_hint">In system Wireless debugging settings, select Pair device with pairing code. Keep that window open and enter its pairing code from the notification shade, or use split screen or a floating window to enter it here.</string>
+    <string name="priv_ui_pairing_split_screen_hint">In system Wireless debugging settings, select Pair device with pairing code. Keep that window open and use split screen or a floating window to enter its six-digit code here.</string>
     <string name="priv_ui_pairing_code">Pairing code</string>
     <string name="priv_ui_adb_key_fingerprint">Device fingerprint</string>
     <string name="priv_ui_adb_key_fingerprint_unavailable">Not generated yet</string>
@@ -195,4 +194,8 @@
     <string name="priv_ui_local_network_permission_message">Allow local network access to help discover wireless debugging services. You can still try ADB without it; discovery may fail or time out.</string>
     <string name="priv_ui_local_network_permission_grant_action">Grant permission</string>
     <string name="priv_ui_local_network_permission_settings_action">Open settings</string>
+    <string name="priv_ui_startup_tutorial_url">https://priv-kit.pages.dev/guide/startup-tutorial</string>
+    <string name="priv_ui_startup_tutorial">Usage guide</string>
+    <string name="priv_ui_pairing_tutorial">View pairing guide</string>
+    <string name="priv_ui_tutorial_open_failed">Could not open the guide. Please check that a browser is available.</string>
 </resources>

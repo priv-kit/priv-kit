@@ -27,6 +27,9 @@ import priv.kit.ui.resources.*
  * [batteryOptimizationExempt] and [localNetworkPermissionGranted] control simulated permission cards.
  * [onPermissionsChanged] reports successful simulated requests to the host controls.
  * [onViewPermissionSolutions] overrides opening the localized permission troubleshooting page.
+ * [startupTutorialUrl] replaces the localized guide URL for every help topic.
+ * [onViewStartupTutorial] overrides guide navigation; [onViewPermissionSolutions] takes
+ * precedence for permission help. Topic anchors are stable across guide languages.
  */
 @Composable
 @Suppress("DEPRECATION")
@@ -38,6 +41,8 @@ public fun PrivilegePreviewScaffold(
     localNetworkPermissionGranted: Boolean = true,
     onPermissionsChanged: ((batteryOptimizationExempt: Boolean, localNetworkPermissionGranted: Boolean) -> Unit)? = null,
     onViewPermissionSolutions: (() -> Unit)? = null,
+    startupTutorialUrl: String? = null,
+    onViewStartupTutorial: ((PrivilegeUiTutorialTopic) -> Unit)? = null,
 ) {
     var batteryExempt by remember(batteryOptimizationExempt) { mutableStateOf(batteryOptimizationExempt) }
     var networkGranted by remember(localNetworkPermissionGranted) { mutableStateOf(localNetworkPermissionGranted) }
@@ -98,6 +103,8 @@ public fun PrivilegePreviewScaffold(
         interactionEnabled = true,
         showFeedback = { scope.launch { snackbar.showSnackbar(it) } },
         onViewPermissionSolutions = onViewPermissionSolutions,
+        startupTutorialUrl = startupTutorialUrl,
+        onViewStartupTutorial = onViewStartupTutorial,
         snackbarHostState = snackbar,
         topBar = { PrivilegeTopBar(onBack = {}, backEnabled = false) },
     )

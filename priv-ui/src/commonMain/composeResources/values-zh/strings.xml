@@ -20,7 +20,6 @@
     <string name="priv_ui_permission_restricted_title">权限受限</string>
     <string name="priv_ui_denied_permissions_view">查看受限权限</string>
     <string name="priv_ui_permission_solutions_view">查看解决方案</string>
-    <string name="priv_ui_permission_solutions_url">https://priv-kit.pages.dev/zh/guide/permission-restrictions</string>
     <string name="priv_ui_denied_permissions_title">未授予的权限</string>
     <string name="priv_ui_denied_permissions_message">当前特权服务未获授予以下权限，已过滤当前系统不支持的权限。</string>
     <string name="priv_ui_denied_permissions_copy">复制</string>
@@ -63,8 +62,8 @@
     <string name="priv_ui_manual_command_copied">已复制手动命令</string>
     <string name="priv_ui_manual_command_clip_label">手动命令</string>
     <string name="priv_ui_pairing_default_message">正在搜索配对服务...</string>
-    <string name="priv_ui_pairing_input_hint">可从通知栏输入，也可使用分屏或小窗输入</string>
-    <string name="priv_ui_pairing_split_screen_hint">请使用分屏或小窗输入</string>
+    <string name="priv_ui_pairing_input_hint">在系统“无线调试”页面选择“使用配对码配对设备”。保持配对码窗口打开，可从通知栏输入配对码，也可使用分屏或小窗输入。</string>
+    <string name="priv_ui_pairing_split_screen_hint">在系统“无线调试”页面选择“使用配对码配对设备”。保持配对码窗口打开，使用分屏或小窗在此输入六位配对码。</string>
     <string name="priv_ui_pairing_code">配对码</string>
     <string name="priv_ui_adb_key_fingerprint">设备指纹</string>
     <string name="priv_ui_adb_key_fingerprint_unavailable">暂未生成</string>
@@ -195,4 +194,8 @@
     <string name="priv_ui_local_network_permission_message">允许本地网络访问有助于发现无线调试服务。未授权时仍可尝试 ADB，服务发现可能失败或超时。</string>
     <string name="priv_ui_local_network_permission_grant_action">授予权限</string>
     <string name="priv_ui_local_network_permission_settings_action">前往设置</string>
+    <string name="priv_ui_startup_tutorial_url">https://priv-kit.pages.dev/zh/guide/startup-tutorial</string>
+    <string name="priv_ui_startup_tutorial">使用教程</string>
+    <string name="priv_ui_pairing_tutorial">查看配对教程</string>
+    <string name="priv_ui_tutorial_open_failed">无法打开教程，请检查是否有可用的浏览器。</string>
 </resources>

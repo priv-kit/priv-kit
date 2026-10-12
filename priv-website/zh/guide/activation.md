@@ -4,6 +4,8 @@ description: 优先使用 Privilege UI，或通过 priv-core 构建自定义授�
 
 # 启动方式 {#startup-methods}
 
+使用应用时遇到启动或配对问题？请阅读[启动使用教程](./startup-tutorial)。
+
 所有启动方式都会启动同一个应用自有 Privileged Server，最终都与应用建立同样的
 Binder 连接。区别只在 Privileged Server 最初通过哪种方式启动。
 

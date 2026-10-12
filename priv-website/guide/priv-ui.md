@@ -24,7 +24,7 @@ custom interfaces can use `priv-core` directly.
 ## Permission troubleshooting action {#permission-solutions}
 
 The restriction warning shows **View solutions** on the left and **View restricted permissions**
-on the right. By default, View solutions opens the [ADB permission troubleshooting page](./permission-restrictions)
+on the right. By default, View solutions opens the [ADB permission troubleshooting page](./startup-tutorial#permission-restrictions)
 in the interface language (English or Simplified Chinese).
 
 Pass `onViewPermissionSolutions` to replace the link with your own navigation:
@@ -292,3 +292,24 @@ the consuming application. Internal screen scopes and components are not public 
 It defaults to the top of `WindowInsets.safeDrawing`. Desktop simulation hosts can pass their
 simulated status bar/cutout insets, for example `WindowInsets(top = 48.dp)`, without shifting
 page content. Android callers can retain the default.
+
+## User tutorial links {#startup-tutorial-links}
+
+The ADB fingerprint-header link, Manual link beside Copy, pairing dialog guide, and permission solutions open
+sections of one user guide. `PrivilegeScaffold`, `PrivilegePreviewScaffold`, and
+`PrivilegeScreen` accept:
+
+- `startupTutorialUrl`: a complete replacement guide URL. By default the current UI
+  language selects the official English or Chinese guide. Existing fragments are replaced
+  with the topic anchor; query parameters are preserved.
+- `onViewStartupTutorial`: receives `PrivilegeUiTutorialTopic` and replaces default navigation.
+- Existing `onViewPermissionSolutions`: overrides only permission help, taking precedence
+  over the unified callback.
+
+For example: `PrivilegeScaffold(startupTutorialUrl = "https://example.com/help/startup")`.
+When a callback applies, only that callback runs. Guide links remain available while busy.
+
+The guide uses ordinary Markdown and HTML anchors, without VitePress components. Copy
+`startup-tutorial.md` for the desired
+language to self-host it. Preserve its anchors,
+including `adb`, `pairing`, `manual`, `tcp-ip`, and `permission-restrictions`.

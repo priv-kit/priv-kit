@@ -35,6 +35,9 @@ import java.util.UUID
 /**
  * Displays the authorization page. [onViewPermissionSolutions] replaces the default action
  * that opens the localized permission troubleshooting page in the system URI handler.
+ * [startupTutorialUrl] replaces the localized guide URL for every help topic.
+ * [onViewStartupTutorial] overrides guide navigation; [onViewPermissionSolutions] takes
+ * precedence for permission help. Topic anchors are stable across guide languages.
  */
 @Composable
 public fun PrivilegeScaffold(
@@ -53,6 +56,8 @@ public fun PrivilegeScaffold(
     contentColor: Color = contentColorFor(containerColor),
     contentWindowInsets: WindowInsets = ScaffoldDefaults.contentWindowInsets,
     onViewPermissionSolutions: (() -> Unit)? = null,
+    startupTutorialUrl: String? = null,
+    onViewStartupTutorial: ((PrivilegeUiTutorialTopic) -> Unit)? = null,
 ) {
     val activity = LocalActivity.current!!
     val context = LocalContext.current
@@ -227,6 +232,8 @@ public fun PrivilegeScaffold(
         interactionEnabled = interactionEnabled,
         showFeedback = ::showFeedback,
         onViewPermissionSolutions = onViewPermissionSolutions,
+        startupTutorialUrl = startupTutorialUrl,
+        onViewStartupTutorial = onViewStartupTutorial,
         systemPrompt = visibleSystemPrompt?.takeIf { it.ownerHostId == permissionHostId }?.prompt?.let {
             PrivilegeUiPromptState(it.title.asString(context), it.message.asString(context))
         },

@@ -34,7 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.StringResource
@@ -42,6 +41,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import priv.kit.ui.PrivilegeUiPermissionRestrictionStatus
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
@@ -51,14 +51,22 @@ import priv.kit.ui.PrivilegeUiScreenState
 import priv.kit.ui.resources.*
 
 @Composable
-internal fun Panel(content: @Composable ColumnScope.() -> Unit) {
+internal fun Panel(
+    topPadding: Dp = PrivilegeUiSpacing.large,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = MaterialTheme.shapes.medium,
     ) {
         Column(
-            modifier = Modifier.padding(PrivilegeUiSpacing.large),
+            modifier = Modifier.padding(
+                start = PrivilegeUiSpacing.large,
+                top = topPadding,
+                end = PrivilegeUiSpacing.large,
+                bottom = PrivilegeUiSpacing.large,
+            ),
             verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.medium),
             content = content,
         )
@@ -86,8 +94,7 @@ internal fun PrivilegeUiScreenScope.PermissionRestrictionWarning() {
     var permissionsDialogVisible by remember(state.connectionSerial) { mutableStateOf(false) }
     val permissions = state.deniedServerPermissions
     val clipboard = LocalClipboardManager.current
-    val uriHandler = LocalUriHandler.current
-    val solutionsUrl = stringResource(Res.string.priv_ui_permission_solutions_url)
+    val viewSolutions = tutorialAction(priv.kit.ui.PrivilegeUiTutorialTopic.PERMISSION_RESTRICTIONS)
     if (permissionsDialogVisible) {
         val permissionText = permissions.joinToString("\n")
         AlertDialog(
@@ -162,7 +169,7 @@ internal fun PrivilegeUiScreenScope.PermissionRestrictionWarning() {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextButton(
-                    onClick = onViewPermissionSolutions ?: { uriHandler.openUri(solutionsUrl) },
+                    onClick = viewSolutions,
                     modifier = Modifier.weight(1f, fill = false),
                 ) {
                     Text(stringResource(Res.string.priv_ui_permission_solutions_view))

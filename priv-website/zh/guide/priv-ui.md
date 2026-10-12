@@ -22,7 +22,7 @@ description: 使用推荐的 Compose 授权界面，并配置静默启动。
 ## 权限解决方案入口 {#permission-solutions}
 
 权限受限卡片左侧为**查看解决方案**，右侧为**查看受限权限**。默认按界面语言（英文或
-简体中文）打开 [ADB 权限限制解决方案](./permission-restrictions)页面。
+简体中文）打开 [ADB 权限限制解决方案](./startup-tutorial#permission-restrictions)页面。
 
 传入 `onViewPermissionSolutions` 可替换为宿主自己的导航行为：
 
@@ -254,3 +254,21 @@ HTTP 控制接口及应用专属模拟模型放在接入应用中。内部页面
 `systemPromptWindowInsets` 独立于 `contentWindowInsets` 控制提示层的位置，默认使用
 `WindowInsets.safeDrawing` 的顶部边距。Desktop 模拟宿主可传入模拟状态栏或挖孔的边距，
 例如 `WindowInsets(top = 48.dp)`，不影响页面内容的位置。Android 调用方可保留默认值。
+
+## 用户教程链接 {#startup-tutorial-links}
+
+ADB 设备指纹标题右侧与手动页复制按钮左侧的“使用教程”、配对弹窗的教程入口，以及权限受限的解决方法，
+统一打开同一篇[用户指南](./startup-tutorial)的对应章节。
+`PrivilegeScaffold`、`PrivilegePreviewScaffold` 和 `PrivilegeScreen` 均支持：
+
+- `startupTutorialUrl`：替换完整教程地址；默认按界面语言选择官网中英文页面。
+  URL 中已有的片段会被对应主题的锚点替换，查询参数保留。
+- `onViewStartupTutorial`：接收 `PrivilegeUiTutorialTopic`，替换所有默认教程导航。
+- 原 `onViewPermissionSolutions`：仅覆盖权限解决入口，优先于统一回调。
+
+例如 `PrivilegeScaffold(startupTutorialUrl = "https://example.com/help/startup")`。
+回调存在时只执行回调，不另外打开浏览器。教程入口在操作忙碌时仍可用。
+
+指南使用普通 Markdown 和 HTML 锚点，无需 VitePress 组件。复制对应语言的
+`startup-tutorial.md` 即可部署；保留文档中的锚点（包括 `adb`、`pairing`、`manual`、
+`tcp-ip` 和 `permission-restrictions`），让 UI 能定位到正确章节。

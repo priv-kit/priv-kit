@@ -12,6 +12,43 @@ import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 
 internal object PrivilegeUiIcons {
+    val OpenInNew: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "open_in_new",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            path(fill = SolidColor(Color.Black)) {
+                moveTo(19f, 19f)
+                horizontalLineTo(5f)
+                verticalLineTo(5f)
+                horizontalLineTo(12f)
+                verticalLineTo(3f)
+                horizontalLineTo(5f)
+                curveTo(3.9f, 3f, 3f, 3.9f, 3f, 5f)
+                verticalLineTo(19f)
+                curveTo(3f, 20.1f, 3.9f, 21f, 5f, 21f)
+                horizontalLineTo(19f)
+                curveTo(20.1f, 21f, 21f, 20.1f, 21f, 19f)
+                verticalLineTo(12f)
+                horizontalLineTo(19f)
+                close()
+                moveTo(14f, 3f)
+                verticalLineTo(5f)
+                horizontalLineTo(17.59f)
+                lineTo(7.76f, 14.83f)
+                lineTo(9.17f, 16.24f)
+                lineTo(19f, 6.41f)
+                verticalLineTo(10f)
+                horizontalLineTo(21f)
+                verticalLineTo(3f)
+                close()
+            }
+        }.build()
+    }
+
     val Warning: ImageVector
         get() {
             if (_warning != null) return _warning!!

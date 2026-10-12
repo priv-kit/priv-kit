@@ -32,6 +32,9 @@ import priv.kit.ui.component.PrivilegeUiSpacing
  * [systemPrompt] is display-only; platform prompt ownership stays with the host.
  * [systemPromptWindowInsets] positions the prompt independently of [contentWindowInsets],
  * allowing simulation hosts to supply their own status bar or cutout insets.
+ * [startupTutorialUrl] replaces the localized guide URL for every help topic.
+ * [onViewStartupTutorial] overrides guide navigation; [onViewPermissionSolutions] takes
+ * precedence for permission help. Topic anchors are stable across guide languages.
  */
 @Composable
 public fun PrivilegeScreen(
@@ -52,11 +55,21 @@ public fun PrivilegeScreen(
     contentColor: Color = contentColorFor(containerColor),
     contentWindowInsets: WindowInsets = ScaffoldDefaults.contentWindowInsets,
     systemPromptWindowInsets: WindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top),
+    startupTutorialUrl: String? = null,
+    onViewStartupTutorial: ((PrivilegeUiTutorialTopic) -> Unit)? = null,
 ) {
     require(state.startupModes.isNotEmpty()) { "startupModes must not be empty" }
     Box(modifier = modifier) {
         PrivilegeScaffoldContent(
-            screenScope = PrivilegeUiScreenScope(state, actions, interactionEnabled, showFeedback, onViewPermissionSolutions),
+            screenScope = PrivilegeUiScreenScope(
+                state = state,
+                actions = actions,
+                interactionEnabled = interactionEnabled,
+                showFeedback = showFeedback,
+                onViewPermissionSolutions = onViewPermissionSolutions,
+                startupTutorialUrl = startupTutorialUrl,
+                onViewStartupTutorial = onViewStartupTutorial,
+            ),
             modifier = Modifier.fillMaxSize(),
             topBar = topBar,
             bottomBar = bottomBar,

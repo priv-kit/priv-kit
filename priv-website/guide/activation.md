@@ -4,6 +4,8 @@ description: Start with Privilege UI, or use priv-core to build a custom authori
 
 # Startup methods {#startup-methods}
 
+Using an app and need help starting or pairing? Read the [startup tutorial](./startup-tutorial).
+
 Every startup method starts the same app-owned Privileged Server and converges
 on the same Binder handoff. The difference is how the initial privileged
 process is created.
