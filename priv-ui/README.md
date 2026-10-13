@@ -273,7 +273,10 @@ sections of one user guide. `PrivilegeScaffold`, `PrivilegePreviewScaffold`, and
 For example: `PrivilegeScaffold(startupTutorialUrl = "https://example.com/help/startup")`.
 When a callback applies, only that callback runs. Guide links remain available while busy.
 
-The guide uses ordinary Markdown and HTML anchors, without VitePress components. Copy
-`startup-tutorial.md` for the desired
-language to self-host it. Preserve its anchors,
+To self-host the guide in a Vue-enabled Markdown site such as VitePress, copy
+`startup-tutorial.md` for the desired language together with the adjacent
+`startup-tutorial/` folder, keeping their relative paths.
+The Markdown file and its resource folder form one portable unit; the folder contains
+any Vue components, images, and other supporting resources used by the guide.
+Preserve its anchors,
 including `adb`, `pairing`, `manual`, `tcp-ip`, and `permission-restrictions`.

@@ -25,6 +25,8 @@
     "scripts/**/*.ts",
     "vite.config.ts",
     "playground/**/*.ts",
-    "playground/**/*.vue"
+    "playground/**/*.vue",
+    "guide/**/*.vue",
+    "zh/guide/**/*.vue"
   ]
 }

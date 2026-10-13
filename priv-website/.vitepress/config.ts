@@ -1,9 +1,20 @@
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { defineConfig } from 'vitepress';
+import { defineConfig, type MarkdownRenderer } from 'vitepress';
+import { tutorialSearchContent as englishTutorialSearch } from '../guide/startup-tutorial/search.ts';
+import { tutorialSearchContent as chineseTutorialSearch } from '../zh/guide/startup-tutorial/search.ts';
 
 const base = process.env.DOCS_BASE ?? '/';
 const viteConfigPath = fileURLToPath(new URL('../vite.config.ts', import.meta.url));
+const tutorialSearchOptions = {
+  async _render(src: string, env: { relativePath: string; frontmatter?: { search?: boolean } }, md: Pick<MarkdownRenderer, 'renderAsync'>) {
+    const tutorial = env.relativePath === 'guide/startup-tutorial.md'
+      ? englishTutorialSearch
+      : env.relativePath === 'zh/guide/startup-tutorial.md' ? chineseTutorialSearch : null;
+    const html = await md.renderAsync(tutorial ? `${src}\n\n${tutorial()}` : src, env);
+    return env.frontmatter?.search === false ? '' : html;
+  },
+};
 
 const englishSidebar = [
   {
@@ -169,6 +180,7 @@ export default defineConfig({
     search: {
       provider: 'local',
       options: {
+        ...tutorialSearchOptions,
         locales: {
           zh: {
             translations: {
