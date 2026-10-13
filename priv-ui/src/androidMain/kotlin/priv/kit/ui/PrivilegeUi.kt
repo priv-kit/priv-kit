@@ -18,6 +18,7 @@ import priv.kit.ui.runtime.PrivilegeUiSilentStartRunner
 import priv.kit.ui.runtime.PrivilegeUiStartGate
 import priv.kit.ui.runtime.PrivilegeUiStartMethodStore
 import priv.kit.ui.runtime.preparePrivilegeUiExternalShellScript
+import priv.kit.ui.runtime.requireValidManualShellScriptPath
 import kotlin.time.Duration.Companion.milliseconds
 
 public object PrivilegeUi {
@@ -51,8 +52,10 @@ public object PrivilegeUi {
 
     /**
      * Creates or updates the external manual startup script and returns its actual absolute file.
-     * Uses [PrivilegeUiConfig.manualShellScriptPath] under the system-provided external directory;
+     * Uses [scriptPath] relative to the app's external `Android/data/<package>` directory;
      * the returned path is not rewritten to the UI's `/sdcard` alias.
+     * Pass `files/start.sh`, `start.sh`, or [PrivilegeUiConfig.manualShellScriptPath].
+     * Invalid relative paths throw [IllegalArgumentException].
      *
      * Returns `null` for a `null` path, a nonzero Android user, unavailable external storage, or a
      * file read/write failure. The first two cases skip native command resolution and storage access.
@@ -66,13 +69,15 @@ public object PrivilegeUi {
      * This function does not create UI or start a server, and is independent of automatic recovery
      * and the configured startup tabs.
      */
-    public fun prepareExternalShellScript(config: PrivilegeUiConfig): File? =
-        preparePrivilegeUiExternalShellScript(
+    public fun prepareExternalShellScript(scriptPath: String?): File? {
+        requireValidManualShellScriptPath(scriptPath)
+        return preparePrivilegeUiExternalShellScript(
             nativeStarterCommand = { Privilege.nativeStarterCommand },
             ownerUserId = Process.myUserHandle().hashCode(),
-            scriptPath = config.manualShellScriptPath,
+            scriptPath = scriptPath,
             externalFilesDirectory = { PrivilegeContext.require().getExternalFilesDir(null) },
         )
+    }
 
     /**
      * Replays the last successful foreground startup method with the supplied current config.

@@ -102,7 +102,7 @@ UI 初始化时立即显示 sh 命令并允许复制，每个 ViewModel 仅在�
 该任务独立于静默启动。切换 tab、页面恢复和刷新均不会重新准备，准备成功不会改变命令文本。
 准备时会比较现有内容，一致则直接复用，文件缺失或内容变化时才原子写入。同一进程内的并发
 准备会串行执行，因此应用预写和 UI 初始化不会重复写入相同内容。
-应用更新后，先调用 `PrivilegeUi.prepareExternalShellScript(config)` 或重新打开 UI，
+应用更新后，先调用 `PrivilegeUi.prepareExternalShellScript(config.manualShellScriptPath)` 或重新打开 UI，
 再使用已保存的命令，以便脚本使用最新安装路径。配置的目标文件内容不一致时会被覆盖；
 修改路径不会删除旧脚本。
 
@@ -117,12 +117,13 @@ UI 初始化时立即显示 sh 命令并允许复制，每个 ViewModel 仅在�
 如果希望无需 UI 即可创建或更新外置脚本，可以直接调用此同步 API，例如在应用初始化时：
 
 ```kotlin
-val scriptFile: File? = PrivilegeUi.prepareExternalShellScript(privilegeUiConfig)
+val scriptFile: File? = PrivilegeUi.prepareExternalShellScript("files/start.sh")
 val scriptPath: String? = scriptFile?.absolutePath
 ```
 
-方法返回系统外部目录下脚本的实际绝对路径 `File`，不会将其路径改写为 `/sdcard`。
-配置路径为 `null` 或 Android userId 非 0 时，跳过 native 命令解析及存储访问，返回 `null`。
+方法直接接收可空路径，无需配置对象；也可以传入 `privilegeUiConfig.manualShellScriptPath`。
+返回系统外部目录下脚本的实际绝对路径 `File`，不会将其路径改写为 `/sdcard`。
+路径为 `null` 或 Android userId 非 0 时，跳过 native 命令解析及存储访问，返回 `null`。
 外部存储不可用或文件读写失败也返回 `null`；解析 native starter 的异常会传递给调用方。
 所有操作都在调用线程同步执行，包括首次使用时的 APK 检查、内容比较，以及需要写入时的文件同步。
 调用方自行选择执行上下文，内置 UI 和 sample 在各自的调用点选择 `Dispatchers.IO`。

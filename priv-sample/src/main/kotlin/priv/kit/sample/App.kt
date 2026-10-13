@@ -26,7 +26,7 @@ class App : Application() {
         super.onCreate()
         PrivilegeConfig.crashLogDirectory = getExternalFilesDir("privilege-crashes")
         applicationScope.launch(Dispatchers.IO) {
-            PrivilegeUi.prepareExternalShellScript(privilegeUiConfig)
+            PrivilegeUi.prepareExternalShellScript(privilegeUiConfig.manualShellScriptPath)
         }
         applicationScope.launch {
             PrivilegeUi.startSilently(

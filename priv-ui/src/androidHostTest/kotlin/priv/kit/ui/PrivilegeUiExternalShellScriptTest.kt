@@ -46,15 +46,11 @@ class PrivilegeUiExternalShellScriptTest {
     }
 
     @Test
-    fun preparesAndRefreshesActualFileOnCallerThreadWithoutUiOrManualTab() {
+    fun preparesAndRefreshesActualFileOnCallerThreadWithoutUiConfig() {
         val callerThread = Thread.currentThread()
-        val config = PrivilegeUiConfig(
-            startupModes = listOf(PrivilegeUiStartupMode.ROOT),
-            manualShellScriptPath = "files/start.sh",
-        )
         assertFalse(script.exists())
 
-        val preparedFile = PrivilegeUi.prepareExternalShellScript(config)
+        val preparedFile = PrivilegeUi.prepareExternalShellScript("files/start.sh")
 
         assertEquals(script, preparedFile)
         assertTrue(preparedFile!!.isAbsolute)
@@ -63,7 +59,7 @@ class PrivilegeUiExternalShellScriptTest {
         assertSame(callerThread, application.externalFilesThread)
 
         script.writeText("outdated command")
-        assertEquals(script, PrivilegeUi.prepareExternalShellScript(config))
+        assertEquals(script, PrivilegeUi.prepareExternalShellScript("files/start.sh"))
         assertEquals("#!/system/bin/sh\n${Privilege.nativeStarterCommand}\n", script.readText())
         assertEquals(2, application.externalFilesCalls)
     }
@@ -71,7 +67,7 @@ class PrivilegeUiExternalShellScriptTest {
     @Test
     fun uiReusesScriptPreparedAtApplicationStartup() = runBlocking {
         val config = PrivilegeUiConfig(manualShellScriptPath = "files/start.sh")
-        assertEquals(script, PrivilegeUi.prepareExternalShellScript(config))
+        assertEquals(script, PrivilegeUi.prepareExternalShellScript(config.manualShellScriptPath))
         assertTrue(script.setLastModified(1_000_000L))
         val unchangedTimestamp = script.lastModified()
 
@@ -89,9 +85,18 @@ class PrivilegeUiExternalShellScriptTest {
     }
 
     @Test
-    fun defaultPathSkipsExternalStorage() {
-        assertNull(PrivilegeUi.prepareExternalShellScript(PrivilegeUiConfig()))
+    fun nullPathSkipsExternalStorage() {
+        assertNull(PrivilegeUi.prepareExternalShellScript(null))
 
+        assertEquals(0, application.externalFilesCalls)
+        assertFalse(script.exists())
+    }
+
+    @Test
+    fun invalidPathFailsBeforeExternalStorageAccess() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PrivilegeUi.prepareExternalShellScript("../start.sh")
+        }
         assertEquals(0, application.externalFilesCalls)
         assertFalse(script.exists())
     }
@@ -102,7 +107,7 @@ class PrivilegeUiExternalShellScriptTest {
         application.applicationInfo.uid = 1_010_000
 
         assertNull(
-            PrivilegeUi.prepareExternalShellScript(PrivilegeUiConfig(manualShellScriptPath = "files/start.sh")),
+            PrivilegeUi.prepareExternalShellScript("files/start.sh"),
         )
 
         assertEquals(0, application.externalFilesCalls)
@@ -117,7 +122,7 @@ class PrivilegeUiExternalShellScriptTest {
         }
 
         assertNull(
-            PrivilegeUi.prepareExternalShellScript(PrivilegeUiConfig(manualShellScriptPath = "files/start.sh")),
+            PrivilegeUi.prepareExternalShellScript("files/start.sh"),
         )
 
         assertFalse(script.exists())

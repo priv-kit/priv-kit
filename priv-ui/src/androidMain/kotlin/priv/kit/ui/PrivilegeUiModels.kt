@@ -10,6 +10,7 @@ import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILL
 import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_START_TIMEOUT_MILLIS
 import priv.kit.shared.isPrivilegeAdbPort
 import priv.kit.shared.toPrivilegeAdbPairingCodeDigits
+import priv.kit.ui.runtime.requireValidManualShellScriptPath
 
 public data class PrivilegeUiConfig public constructor(
     public val startupModes: List<PrivilegeUiStartupMode> = listOf(
@@ -65,15 +66,7 @@ public data class PrivilegeUiConfig public constructor(
     public val manualShellScriptPath: String? = null,
 ) {
     init {
-        if (manualShellScriptPath != null) {
-            require(
-                manualShellScriptPath.split('/').all { it.isNotBlank() && it != "." && it != ".." } &&
-                    manualShellScriptPath.none { it == '\\' || it.isISOControl() },
-            ) {
-                "manualShellScriptPath must be a relative file path without empty, . or .. components, " +
-                    "backslashes or control characters"
-            }
-        }
+        requireValidManualShellScriptPath(manualShellScriptPath)
         require(startupModes.distinct().size == startupModes.size) {
             "startup modes must be unique"
         }

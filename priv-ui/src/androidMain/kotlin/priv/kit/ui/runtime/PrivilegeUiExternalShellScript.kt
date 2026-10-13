@@ -6,6 +6,17 @@ import priv.kit.shared.PrivilegeBinaryFileStore
 
 private val externalShellScriptLock = Any()
 
+internal fun requireValidManualShellScriptPath(scriptPath: String?) {
+    if (scriptPath == null) return
+    require(
+        scriptPath.split('/').all { it.isNotBlank() && it != "." && it != ".." } &&
+            scriptPath.none { it == '\\' || it.isISOControl() },
+    ) {
+        "scriptPath must be a relative file path without empty, . or .. components, " +
+            "backslashes or control characters"
+    }
+}
+
 internal fun preparePrivilegeUiExternalShellScript(
     nativeStarterCommand: () -> String,
     ownerUserId: Int,

@@ -112,7 +112,7 @@ resuming the page, or refreshing it does not prepare it again. Successful prepar
 command text unchanged. Existing content is compared with the current script and reused when it
 matches; missing or changed scripts are written atomically. Concurrent preparation in the same
 process is serialized, so application preloading and UI initialization do not repeat the same write.
-After an app update, call `PrivilegeUi.prepareExternalShellScript(config)` or open the UI again before
+After an app update, call `PrivilegeUi.prepareExternalShellScript(config.manualShellScriptPath)` or open the UI again before
 reusing the saved command so the script contains the current installation paths. Changed content at
 the configured path is overwritten; changing its path does not remove the old script.
 
@@ -129,12 +129,13 @@ To create or update the external script without opening UI, call the synchronous
 during application initialization:
 
 ```kotlin
-val scriptFile: File? = PrivilegeUi.prepareExternalShellScript(privilegeUiConfig)
+val scriptFile: File? = PrivilegeUi.prepareExternalShellScript("files/start.sh")
 val scriptPath: String? = scriptFile?.absolutePath
 ```
 
-The API returns the actual absolute `File` under the system-provided external directory, without
-rewriting its path to `/sdcard`. A `null` configured path or a nonzero Android user skips native
+The API accepts a nullable path directly without a config object; you can also pass
+`privilegeUiConfig.manualShellScriptPath`. It returns the actual absolute `File` under the system-provided external directory, without
+rewriting its path to `/sdcard`. A `null` path or a nonzero Android user skips native
 command resolution and storage access, returning `null`. Unavailable storage and file read/write failures
 also return `null`; native starter resolution failures propagate to the caller.
 All work runs on the calling thread, including first-use APK inspection, content comparison, and file

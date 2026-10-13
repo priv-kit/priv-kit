@@ -92,11 +92,13 @@ alongside `files`:
 val privilegeUiConfig = PrivilegeUiConfig(
     manualShellScriptPath = "files/start.sh",
 )
-val scriptFile: File? = PrivilegeUi.prepareExternalShellScript(privilegeUiConfig)
+val scriptFile: File? = PrivilegeUi.prepareExternalShellScript(privilegeUiConfig.manualShellScriptPath)
 ```
 
 The synchronous API creates or updates the script without UI or server startup, returning its
-actual absolute `File`. Matching content is reused, including scripts prepared before UI initialization.
+actual absolute `File`. It accepts a nullable path directly, so no config object is required:
+`PrivilegeUi.prepareExternalShellScript("files/start.sh")`. Pass `null` to skip preparation.
+Matching content is reused, including scripts prepared before UI initialization.
 It returns `null` when disabled, for nonzero Android users, or when external storage is unavailable
 or file access fails; native starter resolution failures propagate to the caller.
 The caller chooses the execution context. The UI handles command display and fallback separately.
