@@ -7,6 +7,26 @@ import org.junit.Test
 
 class PrivilegeUiViewModelUtilsTest {
     @Test
+    fun scriptCommandKeepsSimplePathsShort() {
+        assertEquals(
+            "adb shell sh /sdcard/Android/data/example.app/files/sh/start.sh",
+            privilegeUiManualShellScriptCommand(
+                "example.app", "files/sh/start.sh",
+            ),
+        )
+    }
+
+    @Test
+    fun scriptCommandPreservesQuotingThroughPosixHostAndDeviceShells() {
+        assertEquals(
+            """adb shell sh ''"'"'/sdcard/Android/data/example.app/files/my scripts/start.sh'"'"''""",
+            privilegeUiManualShellScriptCommand(
+                "example.app", "files/my scripts/start.sh",
+            ),
+        )
+    }
+
+    @Test
     fun hostShellCommandAddsAdbShellPrefix() {
         assertEquals(
             "adb shell /data/app/libprivkitstarter.so",

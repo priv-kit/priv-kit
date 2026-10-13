@@ -7,7 +7,6 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -36,23 +35,26 @@ internal class PrivilegeUiEffectsCoordinator(
         adbActions.refreshWirelessAdbStatusNow(markChecking = false)
     },
     private val pollWirelessStatus: suspend () -> Unit = { adbActions.pollWirelessAdbStatus() },
+    private val loadInitialManualShellCommand: suspend () -> Unit = { store.loadManualShellCommand() },
 ) : AutoCloseable {
     private val resumedHosts = mutableSetOf<String>()
     private val pageVisible = MutableStateFlow(false)
     private val refreshRequests = Channel<Unit>(Channel.CONFLATED)
-    private val enabledState = MutableStateFlow(false)
     private var initialLoadCompleted = false
     private var observerJob: Job? = null
     private var reconciledSilentCompletionSerial = 0L
 
     val startGateState: StateFlow<PrivilegeUiStartGateState> = PrivilegeUiStartGate.state
-    val enabled: StateFlow<Boolean> = enabledState.asStateFlow()
 
     fun initialize() {
         val gateState = startGateState.value
         reconciledSilentCompletionSerial = gateState.silentCompletionSerial
-        enabledState.value = false
         observerJob = coroutineScope.launch(CoroutineName("priv-ui-effects")) {
+            val manualCommandJob = launch(CoroutineName("priv-ui-initial-manual-command")) {
+                if (PrivilegeUiStartupMode.MANUAL_SHELL in store.state.value.startupModes) {
+                    loadInitialManualShellCommand()
+                }
+            }
             startGateState
                 .map { state ->
                     EffectsGate(
@@ -61,7 +63,7 @@ internal class PrivilegeUiEffectsCoordinator(
                     )
                 }
                 .distinctUntilChanged()
-                .collectLatest(::runEffects)
+                .collectLatest { gate -> runEffects(gate, manualCommandJob) }
         }
     }
 
@@ -82,7 +84,6 @@ internal class PrivilegeUiEffectsCoordinator(
     }
 
     override fun close() {
-        enabledState.value = false
         refreshRequests.close()
         resumedHosts.clear()
         pageVisible.value = false
@@ -90,34 +91,23 @@ internal class PrivilegeUiEffectsCoordinator(
         observerJob = null
     }
 
-    private suspend fun runEffects(gate: EffectsGate) {
-        if (!gate.canInteract) {
-            enabledState.value = false
-            return
-        }
+    private suspend fun runEffects(gate: EffectsGate, manualCommandJob: Job) {
+        if (!gate.canInteract) return
         val silentCompletionChanged =
             gate.silentCompletionSerial != reconciledSilentCompletionSerial
-        if (silentCompletionChanged) {
-            enabledState.value = false
-        }
 
         val loadingInitialState = !initialLoadCompleted
-        if (loadingInitialState) {
-            loadImmediateInitialState(
-                useCurrentRuntimeState = !silentCompletionChanged,
-            )
-        } else {
-            runtimeActions.refreshRuntimeStatus(
-                useCurrentState = !silentCompletionChanged,
-            )
-        }
+        runtimeActions.refreshRuntimeStatus(
+            useCurrentState = !silentCompletionChanged,
+        )
+        if (loadingInitialState) runtimeActions.loadInitialPermissionDetails()
+        manualCommandJob.join()
         if (!gate.isCurrent()) return
 
         reconciledSilentCompletionSerial = gate.silentCompletionSerial
         if (loadingInitialState) {
             initialLoadCompleted = true
         }
-        enabledState.value = true
 
         combine(store.state, pageVisible) { state, visible ->
             if (visible) VisiblePage(
@@ -126,21 +116,6 @@ internal class PrivilegeUiEffectsCoordinator(
                     !state.localNetworkPermissionMissing,
             ) else null
         }.distinctUntilChanged().collectLatest(::runVisiblePageEffects)
-    }
-
-    private suspend fun loadImmediateInitialState(
-        useCurrentRuntimeState: Boolean,
-    ): Unit = supervisorScope {
-        val startupModes = store.state.value.startupModes
-        launch {
-            runtimeActions.refreshRuntimeStatus(
-                useCurrentState = useCurrentRuntimeState,
-            )
-            runtimeActions.loadInitialPermissionDetails()
-        }
-        if (PrivilegeUiStartupMode.MANUAL_SHELL in startupModes) {
-            launch { store.loadManualShellCommand() }
-        }
     }
 
     private suspend fun runVisiblePageEffects(page: VisiblePage?): Unit = coroutineScope {

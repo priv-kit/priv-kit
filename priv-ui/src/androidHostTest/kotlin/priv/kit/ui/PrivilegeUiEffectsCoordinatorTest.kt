@@ -1,5 +1,6 @@
 package priv.kit.ui
 
+import android.content.ClipboardManager
 import android.content.Context
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
@@ -7,21 +8,164 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowProcess
 import priv.kit.ui.adb.PrivilegeUiAdbActions
 import priv.kit.ui.external.PrivilegeUiExternalStartActions
 import priv.kit.ui.runtime.PrivilegeUiRuntimeActions
 import priv.kit.ui.runtime.PrivilegeUiStartGate
+import priv.kit.ui.runtime.copyManualShellCommand
 import priv.kit.ui.state.PrivilegeUiViewModelStore
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class PrivilegeUiEffectsCoordinatorTest {
+    @Test
+    fun scriptCommandIsImmediatelyCopyableAndRemainsUnchangedDuringInitialWrite() = runTest {
+        ShadowProcess.setUid(10_000)
+        val fixture = Fixture(
+            this,
+            listOf(PrivilegeUiStartupMode.ROOT, PrivilegeUiStartupMode.MANUAL_SHELL),
+            manualShellScriptPath = "files/start.sh",
+        )
+        val context = fixture.store.requireContext()
+        val preparedCommand = "adb shell sh /sdcard/Android/data/${context.packageName}/files/start.sh"
+        val preparation = CompletableDeferred<Unit>()
+        fixture.manualBlocker = preparation
+        try {
+            assertEquals(preparedCommand, fixture.store.state.value.manualShellCommandLine)
+            fixture.effects.initialize()
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.manualLoads)
+            assertEquals(preparedCommand, fixture.store.state.value.manualShellCommandLine)
+            fixture.store.copyManualShellCommand()
+            assertEquals(
+                preparedCommand,
+                context.getSystemService(ClipboardManager::class.java).primaryClip!!.getItemAt(0).text.toString(),
+            )
+
+            preparation.complete(Unit)
+            testScheduler.runCurrent()
+            assertEquals(preparedCommand, fixture.store.state.value.manualShellCommandLine)
+            assertEquals(PrivilegeUiStartupMode.ROOT, fixture.store.state.value.selectedStartupMode)
+            assertEquals(1, fixture.manualCompletions)
+
+            fixture.effects.setHostResumed("a", true)
+            testScheduler.runCurrent()
+            fixture.store.updateState { it.copy(selectedStartupMode = PrivilegeUiStartupMode.MANUAL_SHELL) }
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.manualLoads)
+            assertEquals(preparedCommand, fixture.store.state.value.manualShellCommandLine)
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun manualCommandLoadsOnlyOnceAcrossRefreshesTabChangesAndResume() = runTest {
+        val fixture = Fixture(this, listOf(PrivilegeUiStartupMode.MANUAL_SHELL, PrivilegeUiStartupMode.ROOT))
+        try {
+            fixture.effects.setHostResumed("a", true)
+            fixture.effects.initialize()
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.manualLoads)
+
+            fixture.effects.refreshHostResumeState()
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.manualLoads)
+
+            fixture.effects.setHostResumed("a", false)
+            testScheduler.runCurrent()
+            fixture.effects.refreshHostResumeState()
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.manualLoads)
+
+            fixture.effects.setHostResumed("a", true)
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.manualLoads)
+
+            fixture.store.updateState { it.copy(selectedStartupMode = PrivilegeUiStartupMode.ROOT) }
+            testScheduler.runCurrent()
+            fixture.effects.refreshHostResumeState()
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.manualLoads)
+            fixture.store.updateState { it.copy(selectedStartupMode = PrivilegeUiStartupMode.MANUAL_SHELL) }
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.manualLoads)
+
+            val silentPermit = checkNotNull(PrivilegeUiStartGate.tryAcquireSilent())
+            try {
+                testScheduler.runCurrent()
+            } finally {
+                silentPermit.close()
+            }
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.manualLoads)
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun silentStartDoesNotCancelOrRepeatInitialManualPreparation() = runTest {
+        val fixture = Fixture(this, listOf(PrivilegeUiStartupMode.MANUAL_SHELL))
+        val preparation = CompletableDeferred<Unit>()
+        fixture.manualBlocker = preparation
+        try {
+            fixture.effects.initialize()
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.manualLoads)
+
+            val silentPermit = checkNotNull(PrivilegeUiStartGate.tryAcquireSilent())
+            try {
+                testScheduler.runCurrent()
+                assertFalse(fixture.effects.canInteract())
+            } finally {
+                silentPermit.close()
+            }
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.manualLoads)
+            assertEquals(0, fixture.manualCompletions)
+
+            preparation.complete(Unit)
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.manualLoads)
+            assertEquals(1, fixture.manualCompletions)
+            assertTrue(fixture.store.state.value.manualShellCommandLine!!.startsWith("adb shell sh "))
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun manualPreparationRunsOnceWhenUiOpensDuringSilentStart() = runTest {
+        val fixture = Fixture(this, listOf(PrivilegeUiStartupMode.MANUAL_SHELL))
+        try {
+            val silentPermit = checkNotNull(PrivilegeUiStartGate.tryAcquireSilent())
+            try {
+                fixture.effects.initialize()
+                testScheduler.runCurrent()
+                assertEquals(1, fixture.manualLoads)
+                assertFalse(fixture.effects.canInteract())
+            } finally {
+                silentPermit.close()
+            }
+            testScheduler.runCurrent()
+            assertEquals(1, fixture.manualLoads)
+            assertTrue(fixture.effects.canInteract())
+            assertEquals(1, fixture.manualCompletions)
+        } finally {
+            fixture.close()
+        }
+    }
+
     @Test
     fun missingPermissionSuspendsPassiveDiscoveryUntilGrantedAndRevocationCancelsIt() = runTest {
         val fixture = Fixture(this)
@@ -141,18 +285,26 @@ class PrivilegeUiEffectsCoordinatorTest {
         override suspend fun start(context: Context, commandLine: String) = Unit
     }
 
-    private class Fixture(scope: TestScope) : AutoCloseable {
+    private class Fixture(
+        scope: TestScope,
+        startupModes: List<PrivilegeUiStartupMode> = listOf(PrivilegeUiStartupMode.EXTERNAL, PrivilegeUiStartupMode.ROOT),
+        manualShellScriptPath: String? = null,
+    ) : AutoCloseable {
         var wirelessRefreshes = 0
         var wirelessPolls = 0
         var wirelessCancellations = 0
+        var manualLoads = 0
+        var manualCompletions = 0
+        var manualBlocker: CompletableDeferred<Unit>? = null
         val provider = Provider()
         val store = PrivilegeUiViewModelStore(
             RuntimeEnvironment.getApplication(),
             PrivilegeUiConfig(
-                startupModes = listOf(PrivilegeUiStartupMode.EXTERNAL, PrivilegeUiStartupMode.ROOT),
+                startupModes = startupModes,
                 adbTcpPolicy = PrivilegeUiAdbTcpPolicy.DISABLED,
                 externalStartProviders = listOf(provider),
                 externalStartStatusPollIntervalMillis = 100,
+                manualShellScriptPath = manualShellScriptPath,
             ),
         )
         private val owner = PrivilegeUiStartGate.newInteractiveOwner()
@@ -177,6 +329,15 @@ class PrivilegeUiEffectsCoordinatorTest {
                 } finally {
                     wirelessCancellations++
                 }
+            },
+            loadInitialManualShellCommand = {
+                manualLoads++
+                manualBlocker?.await()
+                store.updateState {
+                    it.copy(manualShellCommandLine =
+                        "adb shell sh /sdcard/Android/data/${store.requireContext().packageName}/files/start.sh")
+                }
+                manualCompletions++
             },
         )
         override fun close() {

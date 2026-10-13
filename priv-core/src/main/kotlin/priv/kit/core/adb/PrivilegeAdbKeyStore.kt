@@ -25,15 +25,8 @@ internal object PrivilegeAdbKeyStore {
             throw PrivilegeAdbException("Failed to read ADB key file: ${file.absolutePath}", throwable)
         }
 
-        val keyBytes = if (existingBytes != null && isReadable(existingBytes)) {
-            existingBytes
-        } else {
-            create()
-        }
-        if (existingBytes == null || !existingBytes.contentEquals(keyBytes)) {
-            write(file, keyBytes)
-        }
-        return keyBytes
+        if (existingBytes != null && isReadable(existingBytes)) return existingBytes
+        return create().also { write(file, it) }
     }
 
     private fun isReadable(bytes: ByteArray): Boolean =
@@ -51,9 +44,8 @@ internal object PrivilegeAdbKeyStore {
         }
 
     private fun write(file: File, bytes: ByteArray) {
-        val bytesToWrite = bytes.copyOf()
         runCatching {
-            PrivilegeBinaryFileStore.writeAtomically(file, bytesToWrite)
+            PrivilegeBinaryFileStore.writeAtomically(file, bytes)
         }.onFailure { throwable ->
             throw PrivilegeAdbException("Failed to write ADB key file: ${file.absolutePath}", throwable)
         }

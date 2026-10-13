@@ -20,6 +20,7 @@ custom interfaces can use `priv-core` directly.
 - `PrivilegeUi.startSilently(...)` replays the last successful method while
   automatic recovery is enabled. `ignoreAutomaticRecoverySetting = true`
   explicitly bypasses that setting.
+- `PrivilegeUi.prepareExternalShellScript(...)` synchronously writes the optional external script and returns its `File`.
 
 ## Permission troubleshooting action {#permission-solutions}
 
@@ -71,6 +72,76 @@ keys and stay stable across app upgrades.
 and duplicate modes are rejected. With configured external providers,
 `EXTERNAL` keeps its listed position or is appended when omitted. With no
 external providers, the External tab is hidden even when `EXTERNAL` is listed.
+
+## Fixed manual startup script {#manual-startup-script}
+
+`manualShellScriptPath` defaults to `null`: the UI displays the full native starter command without
+writing an external script. Other shell processes can modify external scripts before execution,
+causing altered code to run with the executing caller's privileges. Only enable this option if
+your app accepts that risk.
+
+When explicitly enabled for Android user 0, command preparation writes a script when external storage
+is available. The path is relative to the app's `Android/data/<package>` directory and includes
+the filename. Suggested values are `files/start.sh`, or `files/sh/start.sh` to group shell scripts:
+
+```kotlin
+val privilegeUiConfig = PrivilegeUiConfig(
+    manualShellScriptPath = "files/sh/start.sh",
+)
+```
+
+The UI writes the script and creates parent directories using the actual base directory from
+`Context.getExternalFilesDir(null)?.parentFile`. Displayed and copied commands use the shorter
+`/sdcard` alias. The example displays:
+
+```shell
+adb shell sh /sdcard/Android/data/<package>/files/sh/start.sh
+```
+
+Set the path to `start.sh` to place the script alongside `files` and display
+`adb shell sh /sdcard/Android/data/<package>/start.sh`.
+
+For every nonzero Android user, including work profiles, the UI skips external storage entirely
+and displays the full native starter command. Core's owner user ID stays in that command. This
+avoids depending on Shell being able to read another user's external directory, even when the
+app itself can write there.
+
+The script command is displayed and can be copied immediately. The UI prepares the script in the
+background once during ViewModel initialization, independently of silent startup. Switching tabs,
+resuming the page, or refreshing it does not prepare it again. Successful preparation leaves the
+command text unchanged. Existing content is compared with the current script and reused when it
+matches; missing or changed scripts are written atomically. Concurrent preparation in the same
+process is serialized, so application preloading and UI initialization do not repeat the same write.
+After an app update, call `PrivilegeUi.prepareExternalShellScript(config)` or open the UI again before
+reusing the saved command so the script contains the current installation paths. Changed content at
+the configured path is overwritten; changing its path does not remove the old script.
+
+The UI falls back to the full native starter command if external storage is unavailable or file
+access fails. Paths must be relative, with
+no empty components, `.`/`..`, backslashes, or control characters, and must resolve inside the app's
+external directory. The executing shell must be able
+to read the script. This setting only affects Android's manual command preparation; automatic startup methods
+and the multiplatform preview keep their existing behavior.
+Use letters, digits, `/`, `.`, `_`, and `-` for commands that work unchanged across desktop shells;
+other characters use POSIX host-shell quoting.
+
+To create or update the external script without opening UI, call the synchronous API, for example
+during application initialization:
+
+```kotlin
+val scriptFile: File? = PrivilegeUi.prepareExternalShellScript(privilegeUiConfig)
+val scriptPath: String? = scriptFile?.absolutePath
+```
+
+The API returns the actual absolute `File` under the system-provided external directory, without
+rewriting its path to `/sdcard`. A `null` configured path or a nonzero Android user skips native
+command resolution and storage access, returning `null`. Unavailable storage and file read/write failures
+also return `null`; native starter resolution failures propagate to the caller.
+All work runs on the calling thread, including first-use APK inspection, content comparison, and file
+sync when writing is needed. The caller chooses the execution context. The built-in UI and sample choose `Dispatchers.IO`
+at their call sites. The UI handles command display and fallback separately.
+Preparation does not start a server or depend on the automatic-recovery setting or enabled tabs.
+`startSilently(...)` remains a separate operation and does not prepare the script.
 
 ## Embed the scaffold {#embed-scaffold}
 

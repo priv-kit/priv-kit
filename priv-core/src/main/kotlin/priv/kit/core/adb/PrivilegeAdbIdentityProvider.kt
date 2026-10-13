@@ -18,7 +18,6 @@ internal class PrivilegeAdbIdentityProvider(
             )
         } catch (throwable: Throwable) {
             throwable.rethrowIfInterrupted()
-            if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to load ADB identity", throwable)
         }
 

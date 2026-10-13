@@ -255,7 +255,6 @@ internal class PrivilegeAdbTcpManager(
             identityProvider.loadKey()
         } catch (throwable: Throwable) {
             throwable.rethrowIfInterrupted()
-            if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException(
                 "Failed to open ADB TCP authorization check session",
                 throwable,

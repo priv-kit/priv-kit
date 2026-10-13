@@ -18,6 +18,7 @@ description: 使用推荐的 Compose 授权界面，并配置静默启动。
   意图。
 - `PrivilegeUi.startSilently(...)` 在自动恢复开启时按上次成功的方式静默启动。
   `ignoreAutomaticRecoverySetting = true` 会显式忽略该设置。
+- `PrivilegeUi.prepareExternalShellScript(...)` 同步写入可选的外置脚本并返回其 `File`，无需 UI。
 
 ## 权限解决方案入口 {#permission-solutions}
 
@@ -66,6 +67,67 @@ Provider ID 用于保存启动方式，应用升级后保持不变。
 `startupModes` 是控制授权 Tab 顺序的有序列表，传入重复项会直接报错。存在外部
 Provider 时，`EXTERNAL` 会保留列表中的位置；如果列表中没有它，则自动追加到
 末尾。没有外部 Provider 时，即使列表包含 `EXTERNAL` 也不会显示 External Tab。
+
+## 固定的手动启动脚本 {#manual-startup-script}
+
+`manualShellScriptPath` 默认为 `null`，UI 直接显示完整 native starter 命令，不写入外置脚本。
+其他 Shell 进程可能在执行前修改外置脚本，导致被修改的代码以执行者的权限运行。
+仅在应用接受这一风险时显式启用。
+
+显式启用后，Android user 0 会在准备手动命令时使用可用的外部存储写入启动脚本。路径以应用的
+`Android/data/<包名>` 目录为基准，包含文件名。建议使用 `files/start.sh`；
+需要集中管理 Shell 脚本时，可以使用 `files/sh/start.sh`：
+
+```kotlin
+val privilegeUiConfig = PrivilegeUiConfig(
+    manualShellScriptPath = "files/sh/start.sh",
+)
+```
+
+UI 使用 `Context.getExternalFilesDir(null)?.parentFile` 返回的实际目录写入脚本并创建父目录。
+展示和复制的命令使用较短的 `/sdcard` 别名。示例显示：
+
+```shell
+adb shell sh /sdcard/Android/data/<包名>/files/sh/start.sh
+```
+
+设为 `start.sh` 则会将脚本放在 `files` 同级，显示
+`adb shell sh /sdcard/Android/data/<包名>/start.sh`。
+
+所有非 0 Android 用户（包括工作资料）都会跳过外部存储，直接显示完整 native starter 命令，
+并保留 Core 生成的 owner user ID。即使应用能够写入这些用户的外部目录，Shell 也可能无法读取，
+因此此时不会生成或使用外置脚本。
+
+UI 初始化时立即显示 sh 命令并允许复制，每个 ViewModel 仅在初始化时后台准备一次脚本，
+该任务独立于静默启动。切换 tab、页面恢复和刷新均不会重新准备，准备成功不会改变命令文本。
+准备时会比较现有内容，一致则直接复用，文件缺失或内容变化时才原子写入。同一进程内的并发
+准备会串行执行，因此应用预写和 UI 初始化不会重复写入相同内容。
+应用更新后，先调用 `PrivilegeUi.prepareExternalShellScript(config)` 或重新打开 UI，
+再使用已保存的命令，以便脚本使用最新安装路径。配置的目标文件内容不一致时会被覆盖；
+修改路径不会删除旧脚本。
+
+外部存储不可用或文件读写失败时会回退到完整 native starter 命令。
+路径必须是相对路径，不能包含空路径段、`.`/`..`、反斜杠
+或控制字符，解析后的路径也不能越出应用的外部目录。执行端的 shell 需要能够读取脚本。
+此配置仅影响 Android 手动命令的准备，自动启动方式
+和多平台预览维持现有行为。
+路径使用英文字母、数字、`/`、`.`、`_` 和 `-` 时，复制的命令可直接用于不同桌面 shell；
+其他字符会使用 POSIX 宿主 shell 的引号规则。
+
+如果希望无需 UI 即可创建或更新外置脚本，可以直接调用此同步 API，例如在应用初始化时：
+
+```kotlin
+val scriptFile: File? = PrivilegeUi.prepareExternalShellScript(privilegeUiConfig)
+val scriptPath: String? = scriptFile?.absolutePath
+```
+
+方法返回系统外部目录下脚本的实际绝对路径 `File`，不会将其路径改写为 `/sdcard`。
+配置路径为 `null` 或 Android userId 非 0 时，跳过 native 命令解析及存储访问，返回 `null`。
+外部存储不可用或文件读写失败也返回 `null`；解析 native starter 的异常会传递给调用方。
+所有操作都在调用线程同步执行，包括首次使用时的 APK 检查、内容比较，以及需要写入时的文件同步。
+调用方自行选择执行上下文，内置 UI 和 sample 在各自的调用点选择 `Dispatchers.IO`。
+命令展示和回退由 UI 单独处理。准备脚本不会启动服务，也不依赖自动恢复开关或启用的 Tab。
+`startSilently(...)` 仍是独立操作，不会准备脚本。
 
 ## 嵌入 Scaffold {#embed-scaffold}
 

@@ -13,6 +13,7 @@
 - `PrivilegeUiExternalStartProvider` connects an app-owned authorization bridge.
 - `PrivilegeUi.desiredEnabled` exposes automatic-recovery intent as a read-only process-wide flow.
 - `PrivilegeUi.startSilently(...)` replays the last successful foreground method.
+- `PrivilegeUi.prepareExternalShellScript(...)` synchronously writes the optional external script and returns its `File`.
 
 Owner-death behavior belongs to Core and is configured through `PrivilegeConfig`. Updates are
 pushed to a connected server and apply to the next owner death.
@@ -75,6 +76,33 @@ which case the page opens Android's optimization list and app details instead.
 
 The scaffold observes Core state internally. Features outside the page collect
 `Privilege.serverState`; custom automatic-recovery surfaces collect `PrivilegeUi.desiredEnabled`.
+
+## Manual startup script
+
+`PrivilegeUiConfig.manualShellScriptPath` defaults to `null`, so the UI displays the full native
+starter command without writing an external script. Other shell processes can modify external
+scripts before execution, causing altered code to run with the executing caller's privileges.
+Only enable this option if the host accepts that risk.
+
+The path is relative to the app's external `Android/data/<package>` directory and includes the
+filename. Suggested paths are `files/start.sh` or `files/sh/start.sh`; `start.sh` places the script
+alongside `files`:
+
+```kotlin
+val privilegeUiConfig = PrivilegeUiConfig(
+    manualShellScriptPath = "files/start.sh",
+)
+val scriptFile: File? = PrivilegeUi.prepareExternalShellScript(privilegeUiConfig)
+```
+
+The synchronous API creates or updates the script without UI or server startup, returning its
+actual absolute `File`. Matching content is reused, including scripts prepared before UI initialization.
+It returns `null` when disabled, for nonzero Android users, or when external storage is unavailable
+or file access fails; native starter resolution failures propagate to the caller.
+The caller chooses the execution context. The UI handles command display and fallback separately.
+
+See the [manual startup script guide](../priv-website/guide/priv-ui.md#manual-startup-script) for
+path validation, `/sdcard` commands, UI initialization, and app-update handling.
 
 ## ADB UI
 

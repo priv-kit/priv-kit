@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import priv.kit.core.Privilege
+import priv.kit.core.PrivilegeStartupException
 import priv.kit.core.adb.PrivilegeAdbAuthorizationStatus
 import priv.kit.core.adb.PrivilegeAdbPairingCheckSession
 import priv.kit.core.adb.PrivilegeAdbPairingCheckStatus
@@ -151,9 +152,13 @@ internal class PrivilegeUiAdbStatusActions(
             return@run
         }
 
-        val authorization = checkTcpAuthorization(manager, configuredTcpPort)
+        val (nextStatus, failureMessage) = try {
+            val authorization = checkTcpAuthorization(manager, configuredTcpPort)
+            authorization.status.toUiTcpAuthorizationStatus() to authorization.failureMessage
+        } catch (exception: PrivilegeStartupException) {
+            PrivilegeUiAdbTcpAuthorizationStatus.FAILED to exception.toPrivilegeUiDiagnosticString()
+        }
         val previousStatus = store.state.value.staticTcp.authorizationStatus
-        val nextStatus = authorization.status.toUiTcpAuthorizationStatus()
         store.updateStaticTcp {
             PrivilegeUiStaticTcpState(
                 activePort = activeTcpPort,
@@ -166,10 +171,10 @@ internal class PrivilegeUiAdbStatusActions(
             shouldAppendTcpAuthorizationFailureLog(
                 previousStatus = previousStatus,
                 nextStatus = nextStatus,
-                failureMessage = authorization.failureMessage,
+                failureMessage = failureMessage,
             )
         ) {
-            authorization.failureMessage?.let(store::appendStartupLog)
+            failureMessage?.let(store::appendStartupLog)
         }
     }
 
@@ -184,8 +189,7 @@ internal class PrivilegeUiAdbStatusActions(
         }
         ?: run {
             closeTcpSession()
-            val session = runCatching { manager.openTcpAuthorizationCheckSession(port) }
-                .getOrElse { return@run manager.checkTcpAuthorization(port) }
+            val session = manager.openTcpAuthorizationCheckSession(port)
             tcpSession = session
             tcpSessionPort = port
             session.check().also { result ->

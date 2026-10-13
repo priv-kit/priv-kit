@@ -46,7 +46,7 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
-    fun silentOwnerBlocksInteractiveEntryUntilRuntimeIsReconciled() = runBlocking {
+    fun silentOwnerBlocksInteractiveEntryUntilSilentStartCompletes() = runBlocking {
         var silentPermit: AutoCloseable? = PrivilegeUiStartGate.tryAcquireSilent()!!
         val viewModel = RootOnlyPrivilegeUiViewModel(application())
         try {
@@ -57,12 +57,7 @@ class PrivilegeUiViewModelTest {
 
             silentPermit?.close()
             silentPermit = null
-            withTimeout(TimeUnit.SECONDS.toMillis(2)) {
-                while (!viewModel.uiEffectsEnabled.value) {
-                    shadowOf(Looper.getMainLooper()).idle()
-                    delay(1)
-                }
-            }
+            viewModel.awaitInitialLoad()
 
             assertTrue(viewModel.uiInteractionsEnabled)
         } finally {
@@ -71,7 +66,7 @@ class PrivilegeUiViewModelTest {
     }
 
     @Test
-    fun fastSilentCompletionIsEventuallyReconciled() = runBlocking {
+    fun fastSilentCompletionRestoresInteractions() = runBlocking {
         val viewModel = RootOnlyPrivilegeUiViewModel(application())
 
         val previousCompletionSerial =
@@ -82,15 +77,7 @@ class PrivilegeUiViewModelTest {
             PrivilegeUiStartGate.state.value.silentCompletionSerial > previousCompletionSerial,
         )
 
-        withTimeout(TimeUnit.SECONDS.toMillis(2)) {
-            while (
-                !viewModel.uiEffectsEnabled.value ||
-                !viewModel.uiInteractionsEnabled
-            ) {
-                shadowOf(Looper.getMainLooper()).idle()
-                delay(1)
-            }
-        }
+        viewModel.awaitInitialLoad()
         assertTrue(viewModel.uiInteractionsEnabled)
     }
 
@@ -122,14 +109,7 @@ class PrivilegeUiViewModelTest {
 
         assertTrue(viewModel.uiInteractionsEnabled)
 
-        withTimeout(TimeUnit.SECONDS.toMillis(2)) {
-            while (!viewModel.uiEffectsEnabled.value) {
-                shadowOf(Looper.getMainLooper()).idle()
-                delay(1)
-            }
-        }
-
-        assertTrue(viewModel.uiEffectsEnabled.value)
+        viewModel.awaitInitialLoad()
         assertTrue(viewModel.uiInteractionsEnabled)
     }
 
@@ -166,7 +146,7 @@ class PrivilegeUiViewModelTest {
             ),
         )
 
-        viewModel.awaitEffectsEnabled()
+        viewModel.awaitInitialLoad()
         viewModel.registerPermissionHost("slow-provider-host")
         viewModel.selectStartupMode(PrivilegeUiStartupMode.EXTERNAL)
         shadowOf(Looper.getMainLooper()).idle()
@@ -192,7 +172,7 @@ class PrivilegeUiViewModelTest {
     @Test
     fun clearStartupLogRemovesVisibleLogContent() = runBlocking {
         val viewModel = RootOnlyPrivilegeUiViewModel(application())
-        viewModel.awaitEffectsEnabled()
+        viewModel.awaitInitialLoad()
         viewModel.storeForTest().appendStartupLog("diagnostic")
 
         viewModel.clearStartupLog()
@@ -393,7 +373,7 @@ class PrivilegeUiViewModelTest {
                 startTimeoutMillis = 250L,
             ),
         )
-        viewModel.awaitEffectsEnabled()
+        viewModel.awaitInitialLoad()
         val actions = viewModel.runtimeActionsForTest()
         val started = CountDownLatch(1)
         val release = CountDownLatch(1)
@@ -590,7 +570,7 @@ class PrivilegeUiViewModelTest {
     fun notificationPermissionSettingsRequestKeepsWarningAndOpensCurrentAppSettings() = runBlocking {
         val application = application()
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
-        viewModel.awaitEffectsEnabled()
+        viewModel.awaitInitialLoad()
         val store = viewModel.storeForTest()
         store.updateState {
             it.copy(pairingNotificationPermissionWarningVisible = true)
@@ -622,7 +602,7 @@ class PrivilegeUiViewModelTest {
     fun notificationPermissionSettingsRequestIsOverridable() = runBlocking {
         val application = application()
         val viewModel = NotificationSettingsPrivilegeUiViewModel(application)
-        viewModel.awaitEffectsEnabled()
+        viewModel.awaitInitialLoad()
         viewModel.storeForTest().updateState {
             it.copy(pairingNotificationPermissionWarningVisible = true)
         }
@@ -640,7 +620,7 @@ class PrivilegeUiViewModelTest {
         val shadowApplication = shadowOf(application)
         shadowApplication.denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
-        viewModel.awaitEffectsEnabled()
+        viewModel.awaitInitialLoad()
         val pendingStart = async(start = CoroutineStart.UNDISPATCHED) {
             viewModel.adbActionsForTest().startNotificationPairing {
                 PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
@@ -728,7 +708,7 @@ class PrivilegeUiViewModelTest {
         val application = application()
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
-        viewModel.awaitEffectsEnabled()
+        viewModel.awaitInitialLoad()
         val hostId = "permission-host"
         viewModel.registerPermissionHost(hostId)
         var permissionRequest: PrivilegeUiPermissionRequest? = null
@@ -772,7 +752,7 @@ class PrivilegeUiViewModelTest {
         val application = application()
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
-        viewModel.awaitEffectsEnabled()
+        viewModel.awaitInitialLoad()
         val hostId = "permission-host"
         viewModel.registerPermissionHost(hostId)
         viewModel.startNotificationPairing()
@@ -803,7 +783,7 @@ class PrivilegeUiViewModelTest {
         val application = application()
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
-        viewModel.awaitEffectsEnabled()
+        viewModel.awaitInitialLoad()
         val hostId = "permission-host"
         viewModel.registerPermissionHost(hostId)
         var request: PrivilegeUiPermissionRequest? = null
@@ -846,7 +826,7 @@ class PrivilegeUiViewModelTest {
         val application = application()
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
-        viewModel.awaitEffectsEnabled()
+        viewModel.awaitInitialLoad()
         val hostId = "permission-host"
         viewModel.registerPermissionHost(hostId)
         viewModel.unregisterPermissionHost(hostId, changingConfigurations = true)
@@ -865,7 +845,7 @@ class PrivilegeUiViewModelTest {
         val application = application()
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
-        viewModel.awaitEffectsEnabled()
+        viewModel.awaitInitialLoad()
         val ownerHostId = "owner-host"
         val observerHostId = "observer-host"
         viewModel.registerPermissionHost(ownerHostId)
@@ -893,7 +873,7 @@ class PrivilegeUiViewModelTest {
         val application = application()
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val viewModel = RootOnlyPrivilegeUiViewModel(application)
-        viewModel.awaitEffectsEnabled()
+        viewModel.awaitInitialLoad()
         val hostId = "permission-host"
         viewModel.registerPermissionHost(hostId)
         viewModel.unregisterPermissionHost(hostId, changingConfigurations = false)
@@ -997,9 +977,13 @@ class PrivilegeUiViewModelTest {
     private fun application(): Application =
         (RuntimeEnvironment.getApplication() as Application).also(PrivilegeContext::install)
 
-    private suspend fun PrivilegeUiViewModel.awaitEffectsEnabled() {
+    private suspend fun PrivilegeUiViewModel.awaitInitialLoad() {
+        val effects = PrivilegeUiViewModel::class.java.getDeclaredField("effectsCoordinator")
+            .apply { isAccessible = true }.get(this)
+        val initialLoadCompleted = PrivilegeUiEffectsCoordinator::class.java
+            .getDeclaredField("initialLoadCompleted").apply { isAccessible = true }
         withTimeout(TimeUnit.SECONDS.toMillis(2)) {
-            while (!uiEffectsEnabled.value) {
+            while (!initialLoadCompleted.getBoolean(effects)) {
                 shadowOf(Looper.getMainLooper()).idle()
                 delay(1)
             }

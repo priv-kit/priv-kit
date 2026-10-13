@@ -107,7 +107,6 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     internal val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
     internal val startGateState: StateFlow<PrivilegeUiStartGateState> =
         effectsCoordinator.startGateState
-    internal val uiEffectsEnabled: StateFlow<Boolean> = effectsCoordinator.enabled
     internal val uiInteractionsEnabled: Boolean
         get() = effectsCoordinator.canInteract()
     internal val snackbarTexts: SharedFlow<PrivilegeUiText> = store.snackbarTexts

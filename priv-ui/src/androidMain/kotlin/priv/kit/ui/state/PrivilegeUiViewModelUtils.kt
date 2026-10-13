@@ -7,6 +7,7 @@ import android.os.Build
 import androidx.annotation.ChecksSdkIntAtLeast
 import priv.kit.shared.toPrivilegeAdbDeviceNameText
 import priv.kit.shared.toPrivilegeDiagnosticString
+import priv.kit.shared.toPrivilegeShellArgument
 
 internal fun Context.copyToClipboard(label: String, text: String) {
     val clipboard = getSystemService(ClipboardManager::class.java) ?: return
@@ -18,6 +19,13 @@ internal fun String.toPrivilegeUiAdbDeviceNameText(): String =
 
 internal fun privilegeUiManualShellCommand(nativeStarterCommand: String): String =
     ADB_SHELL_PREFIX + nativeStarterCommand.trim()
+
+internal fun privilegeUiManualShellScriptCommand(packageName: String, scriptPath: String): String {
+    val shellScriptPath = "/sdcard/Android/data/$packageName/$scriptPath"
+    // The POSIX host shell consumes outer quoting; adb passes inner quoting to Android's shell.
+    val scriptArgument = shellScriptPath.toPrivilegeShellArgument().toPrivilegeShellArgument()
+    return privilegeUiManualShellCommand("sh $scriptArgument")
+}
 
 @ChecksSdkIntAtLeast(api = Build.VERSION_CODES.R)
 internal fun isPrivilegeUiWirelessAdbSupported(): Boolean =

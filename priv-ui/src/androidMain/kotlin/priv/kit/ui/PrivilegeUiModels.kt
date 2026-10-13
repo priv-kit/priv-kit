@@ -38,8 +38,42 @@ public data class PrivilegeUiConfig public constructor(
     public val wirelessStatusDiscoveryTimeoutMillis: Long = DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS,
     public val externalStartStatusPollIntervalMillis: Long = DEFAULT_EXTERNAL_START_STATUS_POLL_INTERVAL_MILLIS,
     public val startTimeoutMillis: Long = DEFAULT_START_TIMEOUT_MILLIS,
+    /**
+     * Defaults to `null`, using the full native starter command without writing an external script.
+     * Other shell processes can modify external scripts before execution, causing altered code to
+     * run with the executing caller's privileges. Only opt in if the host accepts this risk.
+     * Suggested opt-in paths are `files/start.sh`, or `files/sh/start.sh` to group shell scripts.
+     *
+     * Startup script path relative to `Context.getExternalFilesDir(null)?.parentFile`, the app's
+     * external `Android/data/<package>` directory, including the filename. For example,
+     * `files/sh/start.sh` uses the `files/sh` subdirectory; `start.sh` sits alongside `files`.
+     * The script command is displayed and can be copied immediately. The UI prepares the script in
+     * the background once during ViewModel initialization, independently of silent startup. Matching
+     * content is reused; missing or changed scripts are written, creating parent directories.
+     * Switching tabs or resuming the page does not prepare it again. Successful preparation leaves
+     * the displayed command unchanged.
+     * Call [PrivilegeUi.prepareExternalShellScript] to prepare the script without opening UI.
+     * Writes use the system-returned directory; the displayed command uses `/sdcard/Android/data`.
+     * Absolute paths, empty components, `.` and `..`, backslashes, and control characters are
+     * rejected.
+     * Unavailable storage or a file read/write failure falls back to the full native starter command.
+     * Nonzero Android users always use the full command without accessing external storage,
+     * because the executing shell may not be able to read their external directories.
+     * Use letters, digits, `/`, `.`, `_`, and `-` for portable desktop commands; other characters
+     * use POSIX host-shell quoting.
+     */
+    public val manualShellScriptPath: String? = null,
 ) {
     init {
+        if (manualShellScriptPath != null) {
+            require(
+                manualShellScriptPath.split('/').all { it.isNotBlank() && it != "." && it != ".." } &&
+                    manualShellScriptPath.none { it == '\\' || it.isISOControl() },
+            ) {
+                "manualShellScriptPath must be a relative file path without empty, . or .. components, " +
+                    "backslashes or control characters"
+            }
+        }
         require(startupModes.distinct().size == startupModes.size) {
             "startup modes must be unique"
         }

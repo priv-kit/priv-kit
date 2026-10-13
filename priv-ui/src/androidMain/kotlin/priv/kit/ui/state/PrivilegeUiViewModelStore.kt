@@ -1,6 +1,7 @@
 package priv.kit.ui.state
 
 import android.content.Context
+import android.os.Process
 import androidx.annotation.StringRes
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +29,7 @@ internal class PrivilegeUiViewModelStore(
 ) {
     val state = MutableStateFlow(
         initialPrivilegeUiState(
+            context = context,
             config = config,
             selectedStartupMode = persistedStartupMode(context, config),
         ),
@@ -139,15 +141,20 @@ internal class PrivilegeUiViewModelStore(
 }
 
 private fun initialPrivilegeUiState(
+    context: Context?,
     config: PrivilegeUiConfig,
     selectedStartupMode: PrivilegeUiStartupMode?,
 ): PrivilegeUiState {
     val startupModes = config.effectiveStartupModes()
+    val scriptPath = config.manualShellScriptPath
     return PrivilegeUiState(
         selectedStartupMode = selectedStartupMode?.takeIf { it in startupModes }
             ?: PrivilegeUiStartupMode.ADB.takeIf { it in startupModes }
             ?: startupModes.first(),
         startupModes = startupModes,
+        manualShellCommandLine = if (context != null && scriptPath != null && Process.myUserHandle().hashCode() == 0) {
+            privilegeUiManualShellScriptCommand(context.packageName, scriptPath)
+        } else null,
         pairingText = privilegeUiText(R.string.priv_ui_pairing_default_message),
         externalStartItems = config.externalStartProviders.map { provider ->
             PrivilegeUiExternalStartItemState(

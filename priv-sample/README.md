@@ -29,6 +29,12 @@ The sample includes Root, manual shell, Shizuku-backed external startup, Wireles
 TCP. Debug pages exercise server state, Binder death, raw system-service transactions, and both
 dedicated and embedded UserService modes.
 
+At application startup, the sample calls the synchronous `PrivilegeUi.prepareExternalShellScript(...)`
+with `manualShellScriptPath = "files/start.sh"` in an application-scoped IO coroutine, independently of
+silent recovery. For Android user 0, this prepares the external script without opening the
+authorization page; other users keep the full native command. Opening the page reuses matching
+script content without writing it again.
+
 The horizontally scrollable debug tabs include Test Permissions after Test UserService. Open it to
 query denied server permissions, select and copy permission names, or refresh the snapshot.
 Connection changes clear the result; the Permissions page reloads for the new server while selected.

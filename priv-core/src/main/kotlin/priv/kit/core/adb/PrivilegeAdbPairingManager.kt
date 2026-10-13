@@ -31,7 +31,6 @@ internal class PrivilegeAdbPairingManager(
             identityProvider.loadKey()
         } catch (throwable: Throwable) {
             throwable.rethrowIfInterrupted()
-            if (throwable is PrivilegeStartupException) throw throwable
             throw PrivilegeStartupException("Failed to check wireless ADB pairing", throwable)
         }
         return PrivilegeAdbPairingCheckSession(

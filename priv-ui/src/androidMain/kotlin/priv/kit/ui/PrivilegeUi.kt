@@ -1,5 +1,7 @@
 package priv.kit.ui
 
+import android.os.Process
+import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -15,6 +17,7 @@ import priv.kit.ui.runtime.PrivilegeUiDesiredEnabledStore
 import priv.kit.ui.runtime.PrivilegeUiSilentStartRunner
 import priv.kit.ui.runtime.PrivilegeUiStartGate
 import priv.kit.ui.runtime.PrivilegeUiStartMethodStore
+import priv.kit.ui.runtime.preparePrivilegeUiExternalShellScript
 import kotlin.time.Duration.Companion.milliseconds
 
 public object PrivilegeUi {
@@ -45,6 +48,31 @@ public object PrivilegeUi {
             mutableDesiredEnabled.value = enabled
         }
     }
+
+    /**
+     * Creates or updates the external manual startup script and returns its actual absolute file.
+     * Uses [PrivilegeUiConfig.manualShellScriptPath] under the system-provided external directory;
+     * the returned path is not rewritten to the UI's `/sdcard` alias.
+     *
+     * Returns `null` for a `null` path, a nonzero Android user, unavailable external storage, or a
+     * file read/write failure. The first two cases skip native command resolution and storage access.
+     * Failures resolving the native starter propagate to the caller.
+     *
+     * Runs synchronously on the calling thread, including native starter resolution (which may
+     * inspect APKs on first access), content comparison, and any needed directory creation and
+     * atomic write with file sync. The caller chooses the execution context. Matching content is
+     * reused; missing or changed scripts are written. Concurrent preparation in this process is
+     * serialized, so application preloading and UI initialization do not repeat the same write.
+     * This function does not create UI or start a server, and is independent of automatic recovery
+     * and the configured startup tabs.
+     */
+    public fun prepareExternalShellScript(config: PrivilegeUiConfig): File? =
+        preparePrivilegeUiExternalShellScript(
+            nativeStarterCommand = { Privilege.nativeStarterCommand },
+            ownerUserId = Process.myUserHandle().hashCode(),
+            scriptPath = config.manualShellScriptPath,
+            externalFilesDirectory = { PrivilegeContext.require().getExternalFilesDir(null) },
+        )
 
     /**
      * Replays the last successful foreground startup method with the supplied current config.

@@ -13,7 +13,7 @@ import priv.kit.sample.startup.privilegeUiConfig
 import priv.kit.ui.PrivilegeUi
 
 class App : Application() {
-    private val automaticRecoveryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun attachBaseContext(base: Context?) {
         super.attachBaseContext(base)
@@ -25,7 +25,10 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         PrivilegeConfig.crashLogDirectory = getExternalFilesDir("privilege-crashes")
-        automaticRecoveryScope.launch {
+        applicationScope.launch(Dispatchers.IO) {
+            PrivilegeUi.prepareExternalShellScript(privilegeUiConfig)
+        }
+        applicationScope.launch {
             PrivilegeUi.startSilently(
                 config = privilegeUiConfig,
             )
