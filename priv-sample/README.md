@@ -30,7 +30,7 @@ TCP. Debug pages exercise server state, Binder death, raw system-service transac
 dedicated and embedded UserService modes.
 
 At application startup, the sample calls the synchronous `PrivilegeUi.prepareExternalShellScript(...)`
-with `manualShellScriptPath = "files/start.sh"` in an application-scoped IO coroutine, independently of
+with `manualShellScriptPath = "priv.sh"` in an application-scoped IO coroutine, independently of
 silent recovery. For Android user 0, this prepares the external script without opening the
 authorization page; other users keep the full native command. Opening the page reuses matching
 script content without writing it again.

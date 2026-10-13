@@ -54,7 +54,7 @@ public object PrivilegeUi {
      * Creates or updates the external manual startup script and returns its actual absolute file.
      * Uses [scriptPath] relative to the app's external `Android/data/<package>` directory;
      * the returned path is not rewritten to the UI's `/sdcard` alias.
-     * Pass `files/start.sh`, `start.sh`, or [PrivilegeUiConfig.manualShellScriptPath].
+     * Pass `priv.sh` or [PrivilegeUiConfig.manualShellScriptPath].
      * Invalid relative paths throw [IllegalArgumentException].
      *
      * Returns `null` for a `null` path, a nonzero Android user, unavailable external storage, or a

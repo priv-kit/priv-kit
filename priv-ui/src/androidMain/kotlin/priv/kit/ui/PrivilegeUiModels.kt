@@ -43,11 +43,11 @@ public data class PrivilegeUiConfig public constructor(
      * Defaults to `null`, using the full native starter command without writing an external script.
      * Other shell processes can modify external scripts before execution, causing altered code to
      * run with the executing caller's privileges. Only opt in if the host accepts this risk.
-     * Suggested opt-in paths are `files/start.sh`, or `files/sh/start.sh` to group shell scripts.
+     * The recommended opt-in path is `priv.sh`.
      *
      * Startup script path relative to `Context.getExternalFilesDir(null)?.parentFile`, the app's
      * external `Android/data/<package>` directory, including the filename. For example,
-     * `files/sh/start.sh` uses the `files/sh` subdirectory; `start.sh` sits alongside `files`.
+     * `files/sh/priv.sh` uses the `files/sh` subdirectory; `priv.sh` sits alongside `files`.
      * The script command is displayed and can be copied immediately. The UI prepares the script in
      * the background once during ViewModel initialization, independently of silent startup. Matching
      * content is reused; missing or changed scripts are written, creating parent directories.

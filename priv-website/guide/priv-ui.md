@@ -82,11 +82,11 @@ your app accepts that risk.
 
 When explicitly enabled for Android user 0, command preparation writes a script when external storage
 is available. The path is relative to the app's `Android/data/<package>` directory and includes
-the filename. Suggested values are `files/start.sh`, or `files/sh/start.sh` to group shell scripts:
+the filename. The recommended value is `priv.sh`:
 
 ```kotlin
 val privilegeUiConfig = PrivilegeUiConfig(
-    manualShellScriptPath = "files/sh/start.sh",
+    manualShellScriptPath = "priv.sh",
 )
 ```
 
@@ -95,11 +95,10 @@ The UI writes the script and creates parent directories using the actual base di
 `/sdcard` alias. The example displays:
 
 ```shell
-adb shell sh /sdcard/Android/data/<package>/files/sh/start.sh
+adb shell sh /sdcard/Android/data/<package>/priv.sh
 ```
 
-Set the path to `start.sh` to place the script alongside `files` and display
-`adb shell sh /sdcard/Android/data/<package>/start.sh`.
+The script is placed alongside the `files` directory.
 
 For every nonzero Android user, including work profiles, the UI skips external storage entirely
 and displays the full native starter command. Core's owner user ID stays in that command. This
@@ -129,7 +128,7 @@ To create or update the external script without opening UI, call the synchronous
 during application initialization:
 
 ```kotlin
-val scriptFile: File? = PrivilegeUi.prepareExternalShellScript("files/start.sh")
+val scriptFile: File? = PrivilegeUi.prepareExternalShellScript("priv.sh")
 val scriptPath: String? = scriptFile?.absolutePath
 ```
 

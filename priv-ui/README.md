@@ -85,19 +85,19 @@ scripts before execution, causing altered code to run with the executing caller'
 Only enable this option if the host accepts that risk.
 
 The path is relative to the app's external `Android/data/<package>` directory and includes the
-filename. Suggested paths are `files/start.sh` or `files/sh/start.sh`; `start.sh` places the script
+filename. The recommended path is `priv.sh`, which places the script
 alongside `files`:
 
 ```kotlin
 val privilegeUiConfig = PrivilegeUiConfig(
-    manualShellScriptPath = "files/start.sh",
+    manualShellScriptPath = "priv.sh",
 )
 val scriptFile: File? = PrivilegeUi.prepareExternalShellScript(privilegeUiConfig.manualShellScriptPath)
 ```
 
 The synchronous API creates or updates the script without UI or server startup, returning its
 actual absolute `File`. It accepts a nullable path directly, so no config object is required:
-`PrivilegeUi.prepareExternalShellScript("files/start.sh")`. Pass `null` to skip preparation.
+`PrivilegeUi.prepareExternalShellScript("priv.sh")`. Pass `null` to skip preparation.
 Matching content is reused, including scripts prepared before UI initialization.
 It returns `null` when disabled, for nonzero Android users, or when external storage is unavailable
 or file access fails; native starter resolution failures propagate to the caller.

@@ -38,7 +38,7 @@ internal val privilegeUiConfig by lazy {
         externalStartProviders = listOf(
             PrivilegeSampleShizukuExternalStartProvider,
         ),
-        manualShellScriptPath = "files/start.sh",
+        manualShellScriptPath = "priv.sh",
     )
 }
 

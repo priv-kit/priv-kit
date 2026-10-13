@@ -75,12 +75,11 @@ Provider 时，`EXTERNAL` 会保留列表中的位置；如果列表中没有它
 仅在应用接受这一风险时显式启用。
 
 显式启用后，Android user 0 会在准备手动命令时使用可用的外部存储写入启动脚本。路径以应用的
-`Android/data/<包名>` 目录为基准，包含文件名。建议使用 `files/start.sh`；
-需要集中管理 Shell 脚本时，可以使用 `files/sh/start.sh`：
+`Android/data/<包名>` 目录为基准，包含文件名。建议使用 `priv.sh`：
 
 ```kotlin
 val privilegeUiConfig = PrivilegeUiConfig(
-    manualShellScriptPath = "files/sh/start.sh",
+    manualShellScriptPath = "priv.sh",
 )
 ```
 
@@ -88,11 +87,10 @@ UI 使用 `Context.getExternalFilesDir(null)?.parentFile` 返回的实际目录�
 展示和复制的命令使用较短的 `/sdcard` 别名。示例显示：
 
 ```shell
-adb shell sh /sdcard/Android/data/<包名>/files/sh/start.sh
+adb shell sh /sdcard/Android/data/<包名>/priv.sh
 ```
 
-设为 `start.sh` 则会将脚本放在 `files` 同级，显示
-`adb shell sh /sdcard/Android/data/<包名>/start.sh`。
+脚本放在 `files` 目录同级。
 
 所有非 0 Android 用户（包括工作资料）都会跳过外部存储，直接显示完整 native starter 命令，
 并保留 Core 生成的 owner user ID。即使应用能够写入这些用户的外部目录，Shell 也可能无法读取，
@@ -117,7 +115,7 @@ UI 初始化时立即显示 sh 命令并允许复制，每个 ViewModel 仅在�
 如果希望无需 UI 即可创建或更新外置脚本，可以直接调用此同步 API，例如在应用初始化时：
 
 ```kotlin
-val scriptFile: File? = PrivilegeUi.prepareExternalShellScript("files/start.sh")
+val scriptFile: File? = PrivilegeUi.prepareExternalShellScript("priv.sh")
 val scriptPath: String? = scriptFile?.absolutePath
 ```
 
