@@ -9,10 +9,14 @@ internal class InputShellCommandCompat(
     private val input: InputCommands,
     private val args: Array<out String>,
 ) {
-    private var index = 0
-    private var command = ""
-    private val options = mutableSetOf<String>()
-    private var source = InputDevice.SOURCE_UNKNOWN
+    // Read the shared header without converting values; native commands own value parsing.
+    private val explicitSource = args.firstOrNull()?.takeIf { it in inputSources }
+    private val displayOptionIndex = if (explicitSource == null) 0 else 1
+    private val hasDisplay = args.getOrNull(displayOptionIndex) == "-d"
+    private val commandIndex = displayOptionIndex + if (hasDisplay) 2 else 0
+    private val command = args.getOrNull(commandIndex)
+    private val source = explicitSource?.let(inputSources::getValue) ?: InputDevice.SOURCE_UNKNOWN
+    private var index = commandIndex + 1
     private var displayId = Display.INVALID_DISPLAY
 
     private fun next(): String = args.getOrNull(index++)
@@ -22,16 +26,16 @@ internal class InputShellCommandCompat(
 
     fun parse(): (suspend () -> Unit)? {
         if (args.isEmpty()) return null
-        inputSources[args[index]]?.let { source = it; index++ }
-        if (args.getOrNull(index) == "-d") {
-            index++
-            displayId = when (val value = next().uppercase(java.util.Locale.ROOT)) {
+        if (hasDisplay) {
+            val rawDisplay = requireNotNull(args.getOrNull(displayOptionIndex + 1)) { "Missing display ID" }
+            displayId = when (val value = rawDisplay.uppercase(java.util.Locale.ROOT)) {
                 "INVALID_DISPLAY" -> Display.INVALID_DISPLAY
                 "DEFAULT_DISPLAY" -> Display.DEFAULT_DISPLAY
                 else -> normalizeDisplayId(value.toInt())
             }
         }
-        command = next()
+        requireNotNull(command) { "Missing input command" }
+        index = commandIndex + 1
         val knownOptions = when (command) {
             "keyevent" -> setOf("--longpress", "--doubletap", "--async", "--duration", "--delay")
             "keycombination" -> setOf("-t")
@@ -65,7 +69,6 @@ internal class InputShellCommandCompat(
                 var duration = 0L; var delay = 0L
                 while (args.getOrNull(index)?.startsWith("--") == true) {
                     val option = next()
-                    options.add(option)
                     when (option) {
                         "--longpress" -> longPress = true
                         "--doubletap" -> doubleTap = true
@@ -82,8 +85,8 @@ internal class InputShellCommandCompat(
             }
             "keycombination" -> {
                 val duration = if (args.getOrNull(index) == "-t") {
-                    options.add(next()); next().toInt().toLong()
-                } else 0L
+                    next(); next().toInt().toLong()
+                } else null
                 if (args.drop(index).any { it.startsWith("-") }) return null
                 val keys = args.drop(index).map(input::keyCode).toIntArray()
                 index = args.size
@@ -98,9 +101,11 @@ internal class InputShellCommandCompat(
                     "CANCEL" -> MotionEvent.ACTION_CANCEL
                     else -> return null
                 }
-                if (type == MotionEvent.ACTION_CANCEL) options.add("CANCEL")
                 val x: Float; val y: Float
-                if (type == MotionEvent.ACTION_CANCEL && remaining() == 0) { x = 0f; y = 0f }
+                if (type == MotionEvent.ACTION_CANCEL && remaining() < 2) {
+                    if (remaining() == 1) next()
+                    x = 0f; y = 0f
+                }
                 else { x = number(); y = number() }
                 suspend { input.motionEvent(type, x, y, source, displayId) }
             }
@@ -124,8 +129,16 @@ internal class InputShellCommandCompat(
     }
 
     fun supportedBy(help: String): Boolean {
+        if (command == null) return false
+        val tail = args.drop(commandIndex + 1)
+        val options = when (command) {
+            "keyevent" -> tail.filter { it.startsWith("--") }.toSet()
+            "keycombination" -> if (tail.firstOrNull() == "-t") setOf("-t") else emptySet()
+            "motionevent" -> if (tail.firstOrNull()?.equals("CANCEL", ignoreCase = true) == true) setOf("CANCEL") else emptySet()
+            else -> emptySet()
+        }
         val lines = help.lineSequence().toList()
-        if (source != InputDevice.SOURCE_UNKNOWN && lines.none { it.trim() == args[0] }) return false
+        if (explicitSource != null && lines.none { it.trim() == explicitSource }) return false
         val start = lines.indexOfFirst { it.trimStart().startsWith("$command ") }
         if (start == -1) return false
         val description = lines.drop(start + 1).takeWhile { !commandLine.containsMatchIn(it) }.let { listOf(lines[start]) + it }.joinToString("\n")

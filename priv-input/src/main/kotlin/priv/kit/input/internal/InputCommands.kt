@@ -27,8 +27,7 @@ import kotlinx.coroutines.ensureActive
 internal class InputCommands(
     private val inputBinder: IBinder,
 ) {
-    private val manager by lazy { IInputManager.Stub.asInterface(inputBinder) }
-    private val injector by lazy { InputCommandInjector(manager) }
+    private val injector by lazy { InputCommandInjector(IInputManager.Stub.asInterface(inputBinder)) }
 
     fun shellCommand(args: Array<out String>): String = withClearedCallingIdentity {
         check(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { "Input service commands require Android 12 or newer" }
@@ -39,9 +38,9 @@ internal class InputCommands(
 
     fun compatShellCommand(args: Array<out String>): String {
         val parsed = InputShellCommandCompat(this, args)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && parsed.supportedBy(commandHelp)) return shellCommand(args)
         val local = parsed.parse()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-            (local == null || parsed.supportedBy(commandHelp))) return shellCommand(args)
+        if (local == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) return shellCommand(args)
         requireNotNull(local) { "Unsupported input command: ${args.joinToString(" ")}" }
         kotlinx.coroutines.runBlocking { local() }
         return ""
@@ -94,18 +93,18 @@ internal class InputCommands(
     }
 
     suspend fun scroll(x: Float, y: Float, axes: Map<Int, Float>, source: Int, displayId: Int) = execute(source, displayId) {
-        coordinates(x, y)
+        val resolved = resolveInputSource(source, InputDevice.SOURCE_ROTARY_ENCODER)
+        if (isPointerSource(resolved)) coordinates(x, y)
         require(axes.values.all { it.isFinite() }) { "Coordinates and axis values must be finite" }
         require(axes.keys.all { it == MotionEvent.AXIS_SCROLL || it == MotionEvent.AXIS_HSCROLL || it == MotionEvent.AXIS_VSCROLL }) {
             "Expected SCROLL, HSCROLL or VSCROLL axes"
         }
-        val resolved = resolveInputSource(source, InputDevice.SOURCE_ROTARY_ENCODER)
         injector.scroll(x, y, axes, resolved, displayId)
     }
 
-    suspend fun keyCombination(keyCodes: IntArray, durationMillis: Long, source: Int, displayId: Int) = execute(source, displayId) {
+    suspend fun keyCombination(keyCodes: IntArray, durationMillis: Long?, source: Int, displayId: Int) = execute(source, displayId) {
         require(keyCodes.size >= 2 && keyCodes.all { it > 0 }) { "Expected at least two known key codes" }
-        require(durationMillis in 0..Int.MAX_VALUE.toLong()) { "Duration must be a nonnegative 32-bit integer" }
+        require(durationMillis == null || durationMillis in 0..Int.MAX_VALUE.toLong()) { "Duration must be a nonnegative 32-bit integer" }
         injector.keyCombination(keyCodes, durationMillis, source, displayId)
     }
 

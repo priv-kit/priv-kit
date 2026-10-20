@@ -124,7 +124,7 @@ input.scroll(
 | `roll` → `roll` | dx、dy，压力为 0 的移动。默认 source：trackball。 |
 | `motionevent` → `motionEvent` | `MotionEvent.ACTION_DOWN/UP/MOVE/CANCEL`，DOWN/UP/MOVE 必须提供 x/y，CANCEL 可以省略两者。与命令一样，每次调用使用新的 downTime。默认 source：touchscreen。 |
 | `scroll` → `scroll` | 指针 source 必须提供 x/y，其他 source 可省略；`axes: Map<Int, Float>` 默认空，可用 `AXIS_SCROLL`、`AXIS_HSCROLL`、`AXIS_VSCROLL`。非指针 source 忽略 x/y。默认 source：rotaryencoder。 |
-| `keycombination` → `keyCombination` | 至少两个按键码/名称。`durationMillis=0` 使用系统默认时长；缺失的时长支持由本地补齐。始终异步注入。AOSP 在 source 为 0 时保留 UNKNOWN。 |
+| `keycombination` → `keyCombination` | 至少两个按键码/名称。省略时长或传入 `null` 使用版本默认行为；显式 `durationMillis=0` 使用定时组合键逻辑且不等待；缺失的时长支持由本地补齐。始终异步注入。AOSP 在 source 为 0 时保留 UNKNOWN。 |
 
 source 使用 `InputDevice.SOURCE_*`：`KEYBOARD`、`DPAD`、`GAMEPAD`、`TOUCHSCREEN`、`MOUSE`、`STYLUS`、`TRACKBALL`、`TOUCHPAD`、`TOUCH_NAVIGATION`、`JOYSTICK` 或 `ROTARY_ENCODER`。其中 `TOUCH_NAVIGATION` 和 `ROTARY_ENCODER` 对应 CLI 的 `touchnavigation` 和 `rotaryencoder`。
 

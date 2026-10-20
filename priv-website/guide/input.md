@@ -124,7 +124,7 @@ input.scroll(
 | `roll` → `roll` | dx, dy; zero-pressure move. Default source: trackball. |
 | `motionevent` → `motionEvent` | `MotionEvent.ACTION_DOWN/UP/MOVE/CANCEL`, x/y required for DOWN/UP/MOVE; CANCEL may omit both. Each call starts a new event downTime, matching the command. Default source: touchscreen. |
 | `scroll` → `scroll` | x/y required for pointer sources and optional otherwise; `axes: Map<Int, Float>` (default empty); accepts `AXIS_SCROLL`, `AXIS_HSCROLL`, `AXIS_VSCROLL`. Non-pointer sources ignore x/y. Default source: rotary encoder. |
-| `keycombination` → `keyCombination` | At least two codes/names. `durationMillis=0` uses the system default. Missing duration support is supplied locally. Always injects asynchronously; source 0 remains UNKNOWN in AOSP. |
+| `keycombination` → `keyCombination` | At least two codes/names. Omitted or `null` duration uses the version default; explicit `durationMillis=0` uses timed-chord semantics with no hold. Missing duration support is supplied locally. Always injects asynchronously; source 0 remains UNKNOWN in AOSP. |
 
 Use `InputDevice.SOURCE_*`: `KEYBOARD`, `DPAD`, `GAMEPAD`, `TOUCHSCREEN`, `MOUSE`, `STYLUS`, `TRACKBALL`, `TOUCHPAD`, `TOUCH_NAVIGATION`, `JOYSTICK`, or `ROTARY_ENCODER`. `TOUCH_NAVIGATION` and `ROTARY_ENCODER` map to `touchnavigation` and `rotaryencoder` on the CLI.
 

@@ -85,9 +85,15 @@ internal class InputCommandInjector(
         }
     }
 
-    suspend fun keyCombination(keyCodes: IntArray, durationMillis: Long, source: Int, displayId: Int) {
+    suspend fun keyCombination(keyCodes: IntArray, durationMillis: Long?, source: Int, displayId: Int) {
         // Android 12's default chord holds for tap timeout and does not synthesize modifiers.
-        val legacy = durationMillis == 0L && Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+        val legacy = durationMillis == null && Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+        val duration = if (legacy) ViewConfiguration.getTapTimeout().toLong() else durationMillis ?: 0L
+        sendChord(keyCodes, duration, source, displayId, synthesizeModifiers = !legacy)
+    }
+
+    private suspend fun sendChord(keyCodes: IntArray, duration: Long, source: Int, displayId: Int,
+                                  synthesizeModifiers: Boolean) {
         val now = SystemClock.uptimeMillis()
         var meta = 0
         val pressed = ArrayDeque<Int>()
@@ -100,7 +106,7 @@ internal class InputCommandInjector(
                 try { send(event(code, KeyEvent.ACTION_UP), INJECT_INPUT_EVENT_MODE_ASYNC) } catch (error: Exception) {
                     if (failure == null) failure = error else failure.addSuppressed(error)
                 }
-                if (!legacy) meta = meta and modifier(code).inv()
+                if (synthesizeModifiers) meta = meta and modifier(code).inv()
             }
             failure?.let { throw it }
         }
@@ -108,15 +114,14 @@ internal class InputCommandInjector(
             for (code in keyCodes) {
                 send(event(code, KeyEvent.ACTION_DOWN), INJECT_INPUT_EVENT_MODE_ASYNC)
                 pressed.addLast(code)
-                if (!legacy) meta = meta or modifier(code)
+                if (synthesizeModifiers) meta = meta or modifier(code)
             }
-            delay(if (legacy) ViewConfiguration.getTapTimeout().toLong() else durationMillis)
+            delay(duration)
             coroutineContext.ensureActive()
             withContext(NonCancellable) { release() }
         }
     }
 
-    @Suppress("DEPRECATION") // Android 12 uses this timeout for the immediate repeat timestamp.
     private suspend fun sendKey(code: Int, source: Int, displayId: Int, duration: Long, async: Boolean,
                         immediateLongPress: Boolean) {
         val now = SystemClock.uptimeMillis()
@@ -132,21 +137,31 @@ internal class InputCommandInjector(
         send(event, mode)
         cleanupOnFailure(::up) {
             if (immediateLongPress) {
-                val repeatTime = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-                    now + ViewConfiguration.getGlobalActionKeyTimeout() else now
-                send(KeyEvent.changeTimeRepeat(event, repeatTime, 1, KeyEvent.FLAG_LONG_PRESS), mode)
+                sendImmediateLongPress(event, mode)
             } else {
-                val timeout = ViewConfiguration.getLongPressTimeout().toLong()
-                val first = minOf(duration, timeout)
-                if (first > 0) {
-                    delay(first)
-                    if (duration >= timeout) {
-                        send(KeyEvent.changeTimeRepeat(event, now + timeout, 1, KeyEvent.FLAG_LONG_PRESS), mode)
-                        if (duration > first) delay(duration - first)
-                    }
-                }
+                holdKey(event, mode, duration)
             }
             up()
+        }
+    }
+
+    @Suppress("DEPRECATION") // Android 12 offsets the repeat without waiting.
+    private suspend fun sendImmediateLongPress(event: KeyEvent, mode: Int) {
+        val repeatTime = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+            event.eventTime + ViewConfiguration.getGlobalActionKeyTimeout() else event.eventTime
+        send(KeyEvent.changeTimeRepeat(event, repeatTime, 1, KeyEvent.FLAG_LONG_PRESS), mode)
+    }
+
+    /** Android 13+ long press and the duration polyfill share this waiting sequence. */
+    private suspend fun holdKey(event: KeyEvent, mode: Int, duration: Long) {
+        val timeout = ViewConfiguration.getLongPressTimeout().toLong()
+        val first = minOf(duration, timeout)
+        if (first > 0) {
+            delay(first)
+            if (duration >= timeout) {
+                send(KeyEvent.changeTimeRepeat(event, event.eventTime + timeout, 1, KeyEvent.FLAG_LONG_PRESS), mode)
+                if (duration > first) delay(duration - first)
+            }
         }
     }
 
@@ -185,28 +200,50 @@ internal class InputCommandInjector(
             // own timestamp as downTime. Android 10+ measures from the initial DOWN.
             if (drag || Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) now = SystemClock.uptimeMillis()
             val start = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) now else down
-            var injected = 1
-            while (now - start < duration) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-                    val wait = kotlin.math.floor(injected * (1000f / SWIPE_EVENTS_PER_SECOND) - (now - start)).toLong()
-                    if (wait > 0) {
-                        if (wait > duration - (now - start)) {
-                            delay(duration - (now - start))
-                            break
-                        }
-                        delay(wait)
-                    }
-                    now = SystemClock.uptimeMillis()
-                }
-                val alpha = (now - start).toFloat() / duration
+            suspend fun move(time: Long) {
+                val alpha = (time - start).toFloat() / duration
                 x = (endX - startX) * alpha + startX
                 y = (endY - startY) * alpha + startY
-                motion(resolved, displayId, MotionEvent.ACTION_MOVE, down, now, x, y, 1f)
-                injected++
-                now = SystemClock.uptimeMillis()
+                motion(resolved, displayId, MotionEvent.ACTION_MOVE, down, time, x, y, 1f)
             }
+            now = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA)
+                pacedSwipeMoves(start, now, duration, ::move)
+            else continuousSwipeMoves(start, now, duration, ::move)
             motion(resolved, displayId, MotionEvent.ACTION_UP, down, now, endX, endY, 0f)
         }
+    }
+
+    /** Android 8–15 emits another MOVE as soon as the previous injection returns. */
+    private suspend fun continuousSwipeMoves(start: Long, initialTime: Long, duration: Long,
+                                             move: suspend (Long) -> Unit): Long {
+        var now = initialTime
+        while (now - start < duration) {
+            move(now)
+            now = SystemClock.uptimeMillis()
+        }
+        return now
+    }
+
+    /** Android 16+ limits MOVE injection to the AOSP 120 Hz schedule. */
+    private suspend fun pacedSwipeMoves(start: Long, initialTime: Long, duration: Long,
+                                        move: suspend (Long) -> Unit): Long {
+        var now = initialTime
+        var injected = 1
+        while (now - start < duration) {
+            val wait = kotlin.math.floor(injected * (1000f / SWIPE_EVENTS_PER_SECOND) - (now - start)).toLong()
+            if (wait > 0) {
+                if (wait > duration - (now - start)) {
+                    delay(duration - (now - start))
+                    break
+                }
+                delay(wait)
+            }
+            now = SystemClock.uptimeMillis()
+            move(now)
+            injected++
+            now = SystemClock.uptimeMillis()
+        }
+        return now
     }
 
     suspend fun roll(dx: Float, dy: Float, source: Int, displayId: Int) {

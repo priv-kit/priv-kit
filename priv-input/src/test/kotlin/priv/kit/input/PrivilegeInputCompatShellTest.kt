@@ -15,6 +15,50 @@ import priv.kit.input.internal.InputShellCommandCompat
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28, 30], manifest = Config.NONE, shadows = [RealtimeSystemClock::class])
 class PrivilegeInputCompatShellTest {
+    @Test fun explicitZeroChordDurationKeepsTimedModifiers() {
+        for (shell in listOf(false, true)) {
+            val keys = mutableListOf<KeyEvent>()
+            val input = inputFixture(inject = { event, _ -> keys += KeyEvent(event as KeyEvent); true })
+            if (shell) input.compatShellCommand("keycombination", "-t", "0", "CTRL_LEFT", "A")
+            else kotlinx.coroutines.runBlocking {
+                input.keyCombination(intArrayOf(KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_A), durationMillis = 0)
+            }
+            val ctrl = KeyEvent.META_CTRL_LEFT_ON or KeyEvent.META_CTRL_ON
+            assertEquals(listOf(0, ctrl, ctrl, 0), keys.map { it.metaState })
+            assertEquals(listOf(0, 0, 1, 1), keys.map { it.action })
+        }
+    }
+
+    @Test fun cancelWithOneCoordinateUsesOrigin() {
+        var count = 0
+        inputFixture(inject = { event, _ ->
+            val motion = event as MotionEvent
+            assertEquals(MotionEvent.ACTION_CANCEL, motion.action)
+            assertEquals(0f, motion.x)
+            assertEquals(0f, motion.y)
+            count++
+            true
+        }).compatShellCommand("motionevent", "CANCEL", "123")
+        assertEquals(1, count)
+    }
+
+    @Test fun nativeCapabilityChecksDoNotParseValuesOrRepairNativeBugs() {
+        val commands = InputCommands(Binder())
+        val help = "tap <x> <y>\nkeyevent [--longpress|--doubletap] <key> ...\n" +
+            "motionevent <DOWN|UP|MOVE|CANCEL> <x> <y>\nkeycombination [-t duration] <key> ..."
+        for (args in listOf(
+            arrayOf("tap", "1", "1"),
+            arrayOf("tap", "native-value", "1"),
+            arrayOf("-d", "native-display", "tap", "1", "1"),
+            arrayOf("motionevent", "CANCEL", "123"),
+            arrayOf("keyevent", "--doubletap", "A", "B"),
+            arrayOf("-d", "3", "keycombination", "CTRL_LEFT", "A"),
+        )) {
+            assertTrue(args.joinToString(" "), InputShellCommandCompat(commands, args).supportedBy(help))
+        }
+        assertFalse(InputShellCommandCompat(commands, arrayOf("keyevent", "--duration", "10", "A")).supportedBy(help))
+    }
+
     @Test fun tapUsesSourceAndCoordinatesWithoutShellService() {
         val events = mutableListOf<MotionEvent>()
         val input = inputFixture(inject = { e, _ -> events.add(MotionEvent.obtain(e as MotionEvent)); true })

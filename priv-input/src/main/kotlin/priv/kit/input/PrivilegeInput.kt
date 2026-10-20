@@ -90,7 +90,7 @@ public class PrivilegeInput(binder: IBinder) {
                         source: Int = InputDevice.SOURCE_UNKNOWN, displayId: Int = Display.INVALID_DISPLAY): Unit =
         keyEvent(keyCodes.map(commands::keyCode).toIntArray(), longPress, durationMillis, doubleTap, async, delayMillis, source, displayId)
 
-    public suspend fun keyCombination(keyCodes: Array<String>, durationMillis: Long = 0, source: Int = InputDevice.SOURCE_UNKNOWN, displayId: Int = Display.INVALID_DISPLAY): Unit =
+    public suspend fun keyCombination(keyCodes: Array<String>, durationMillis: Long? = null, source: Int = InputDevice.SOURCE_UNKNOWN, displayId: Int = Display.INVALID_DISPLAY): Unit =
         keyCombination(keyCodes.map(commands::keyCode).toIntArray(), durationMillis, source, displayId)
 
     /** Trackball press at (0, 0), unless source is specified. */
@@ -109,7 +109,7 @@ public class PrivilegeInput(binder: IBinder) {
     public suspend fun scroll(x: Float, y: Float, axes: Map<Int, Float> = emptyMap(), source: Int = InputDevice.SOURCE_UNKNOWN, displayId: Int = Display.INVALID_DISPLAY): Unit =
         commands.scroll(x, y, axes, source, displayId)
 
-    /** Ordered chord. Zero duration holds for tap timeout before Android 13, otherwise no hold. */
-    public suspend fun keyCombination(keyCodes: IntArray, durationMillis: Long = 0, source: Int = InputDevice.SOURCE_UNKNOWN, displayId: Int = Display.INVALID_DISPLAY): Unit =
+    /** Ordered chord. Omitted duration holds for tap timeout before Android 13, otherwise no hold. Explicit zero uses timed-chord semantics without a hold. */
+    public suspend fun keyCombination(keyCodes: IntArray, durationMillis: Long? = null, source: Int = InputDevice.SOURCE_UNKNOWN, displayId: Int = Display.INVALID_DISPLAY): Unit =
         commands.keyCombination(keyCodes, durationMillis, source, displayId)
 }

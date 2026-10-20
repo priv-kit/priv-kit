@@ -19,6 +19,34 @@ import org.robolectric.annotation.Config
     Build.VERSION_CODES.S, Build.VERSION_CODES.S_V2, Build.VERSION_CODES.UPSIDE_DOWN_CAKE],
     manifest = Config.NONE, shadows = [RealtimeSystemClock::class, DisplayMotionEventShadow::class])
 class PrivilegeInputPolyfillTest {
+    @Test fun scrollValidatesOnlyCoordinatesUsedByItsSource() {
+        var calls = 0
+        val input = inputFixture(inject = { event, _ ->
+            val motion = event as MotionEvent
+            assertEquals(InputDevice.SOURCE_ROTARY_ENCODER, motion.source)
+            assertEquals(0f, motion.x)
+            assertEquals(0f, motion.y)
+            assertEquals(2f, motion.getAxisValue(MotionEvent.AXIS_SCROLL))
+            calls++
+            true
+        })
+        kotlinx.coroutines.runBlocking {
+            input.scroll(Float.NaN, Float.POSITIVE_INFINITY, mapOf(MotionEvent.AXIS_SCROLL to 2f))
+        }
+        assertEquals(1, calls)
+        assertThrows(IllegalArgumentException::class.java) {
+            kotlinx.coroutines.runBlocking {
+                input.scroll(Float.NaN, 1f, source = InputDevice.SOURCE_MOUSE)
+            }
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            kotlinx.coroutines.runBlocking {
+                input.scroll(axes = mapOf(MotionEvent.AXIS_SCROLL to Float.NaN))
+            }
+        }
+        assertEquals(1, calls)
+    }
+
     @Test fun durationDoubleTapAsyncAndDelayPreserveTheWholeSequence() {
         val keys = mutableListOf<KeyEvent>()
         val modes = mutableListOf<Int>()
