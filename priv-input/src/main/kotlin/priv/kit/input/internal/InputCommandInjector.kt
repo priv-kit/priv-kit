@@ -29,7 +29,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.ViewConfigurationHidden
 import android.view.ViewConfiguration
-import priv.kit.input.InputInjectionException
+import java.io.IOException
 
 /** Version-specific AOSP event sequences; newer options use their first supporting implementation. */
 internal class InputCommandInjector(
@@ -275,7 +275,7 @@ internal class InputCommandInjector(
         coroutineContext.ensureActive()
         val identity = Binder.clearCallingIdentity()
         try {
-            if (!manager.injectInputEvent(event, mode)) throw InputInjectionException()
+            if (!manager.injectInputEvent(event, mode)) throw IOException("Input event injection failed")
         } finally { Binder.restoreCallingIdentity(identity) }
     }
 

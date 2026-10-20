@@ -18,6 +18,7 @@ import priv.kit.core.internal.runtime.PrivilegeRuntimeClientLaunch
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartLease
+import priv.kit.ui.state.toPrivilegeUiDiagnosticString
 
 internal class PrivilegeUiRuntimeStartSession(
     private val startPermit: AutoCloseable,
@@ -60,7 +61,11 @@ internal class PrivilegeUiRuntimeStartSession(
                 true
             }
         }
-        if (closeNow) runCatching(closeable::close)
+        if (closeNow) {
+            runCatching(closeable::close).exceptionOrNull()?.let {
+                startupLogSink(it.toPrivilegeUiDiagnosticString())
+            }
+        }
     }
 
     fun checkActive() {
@@ -122,7 +127,8 @@ internal class PrivilegeUiRuntimeStartSession(
         try {
             startCleanup().join()
             cleanupFailures.forEach(onFailure)
-            runtimeStartLease?.let { runCatching(it::close) }
+            cleanupFailures.clear()
+            runtimeStartLease?.let { runCatching(it::close).exceptionOrNull()?.let(onFailure) }
             runtimeStartLease = null
         } finally {
             cleanupScope.cancel()

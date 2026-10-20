@@ -94,27 +94,34 @@ internal class PrivilegeSampleCommandViewModel(application: Application) : Andro
         operationJob = viewModelScope.launch {
             val runningJob = coroutineContext[Job]
             var process: PrivilegeCommandProcess? = null
-            try {
-                process = Privilege.startCommand(
-                    command = PrivilegeCommand(
-                        arguments = listOf("/system/bin/sh", "-c", commandText),
-                    ),
-                    timeoutMillis = timeoutMillis,
-                )
-                if (streaming) {
-                    collectStreaming(process)
-                } else {
-                    collectResult(process)
-                }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (throwable: Throwable) {
+            fun reportFailure(throwable: Throwable) {
                 if (operationJob === runningJob) {
                     state = state.copy(
                         isRunning = false,
                         status = getApplication<Application>().getString(R.string.sample_command_failed, throwable.toDiagnosticString()),
                     )
                 }
+            }
+            try {
+                priv.kit.core.binder.PrivilegeBinderCall.orElse(
+                    fallback = { reportFailure(it.exception) },
+                ) {
+                    process = Privilege.startCommand(
+                        command = PrivilegeCommand(
+                            arguments = listOf("/system/bin/sh", "-c", commandText),
+                        ),
+                        timeoutMillis = timeoutMillis,
+                    )
+                    if (streaming) {
+                        collectStreaming(checkNotNull(process))
+                    } else {
+                        collectResult(checkNotNull(process))
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (throwable: Throwable) {
+                reportFailure(throwable)
             } finally {
                 process?.close()
                 if (operationJob === runningJob) {

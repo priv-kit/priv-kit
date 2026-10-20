@@ -65,7 +65,7 @@ delay(1_000)
 gesture.cancelAndJoin()
 ```
 
-Cancellation or a mid-operation failure attempts to send touch CANCEL or release held keys. A `DeadObjectException` skips cleanup and propagates unchanged. When system injection returns `false`, it throws `InputInjectionException`. An in-flight synchronous Binder call finishes before cancellation can complete. Subsequent gestures can reuse the object.
+Cancellation or a mid-operation failure attempts to send touch CANCEL or release held keys. A `DeadObjectException` skips cleanup and propagates unchanged. When system injection returns `false`, it throws `IOException`. An in-flight synchronous Binder call finishes before cancellation can complete. Subsequent gestures can reuse the object.
 
 The following examples run inside a coroutine. Manually sequenced `motionEvent` calls remain caller-managed; release them in `finally` with `NonCancellable`.
 

@@ -47,15 +47,21 @@ serverLifecycle.linkToDeath(
 
 ## 处理调用失败 {#failure-semantics}
 
-Core 控制调用在服务端不可用时抛出 `PrivilegeServerUnavailableException`。Binder 转发前没有连接时抛出 `PrivilegeBinderUnavailableException`（继承 `DeadObjectException`）；实际事务异常原样传递。
+Core 控制调用和 Binder wrapper 在特权服务不可用时统一抛出 `PrivilegeServerUnavailableException`。wrapper 没有连接时会在发送事务前抛出该异常；实际事务异常原样传递。
 
 如果服务端或 UserService 的 Binder 调用失败后可以安全地改用其他方式，可以使用
 `PrivilegeBinderCall.orElse(...)`：
 
 - `PrivilegeBinderCallFailure.ServerUnavailable` 表示 Privileged Server
-  不可用，包含上述两种服务不可用异常。
-- `PrivilegeBinderCallFailure.BinderDied` 表示直接调用的 Binder 已经死亡。
+  不可用，`exception` 的类型为 `PrivilegeServerUnavailableException`。
+- `PrivilegeBinderCallFailure.BinderDied` 保留原始 `DeadObjectException`。
+  对于转发事务，仅凭该异常无法确定死亡的是特权服务还是目标端点，
+  不应仅根据这一分类将特权服务标记为断开。
 - 其他异常保持不变。
+
+该工具也可以包住挂起调用、命令结果收集和 UserService 操作。连接失效异常直接传播；
+工具不会搜索嵌套 cause，也不会自动重试。取消、权限错误、普通 I/O 失败及命令超时
+不会进入 fallback。
 
 `orElse(...)` 适合原调用结果未知时仍可安全恢复的场景。服务进程可能已经完成修改后
 才死亡。

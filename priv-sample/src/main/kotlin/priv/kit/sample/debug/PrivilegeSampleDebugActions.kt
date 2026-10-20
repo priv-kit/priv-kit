@@ -19,9 +19,9 @@ import priv.kit.core.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 import priv.kit.core.adb.PrivilegeAdbConnectionOptions
 import priv.kit.core.adb.PrivilegeAdbManager
 import priv.kit.core.binder.PrivilegeBinderWrapper
-import priv.kit.core.binder.PrivilegeServerUnavailableException
+import priv.kit.core.binder.PrivilegeBinderCall
+import priv.kit.core.binder.PrivilegeBinderCallFailure
 import priv.kit.core.binder.PrivilegeSystemServiceSource
-import priv.kit.core.userservice.PrivilegeUserServiceException
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
 import priv.kit.sample.R
 import priv.kit.sample.common.toDiagnosticString
@@ -858,7 +858,17 @@ private fun PrivilegeSampleDebugHost.runUserServiceAction(
 
     sampleViewModel.viewModelScope.launch {
         try {
-            val result = withContext(Dispatchers.IO) { action() }
+            val result = PrivilegeBinderCall.orElse(
+                fallback = { failure ->
+                    setUserServiceFailure(
+                        failure.exception,
+                        disconnected = failure is PrivilegeBinderCallFailure.ServerUnavailable,
+                    )
+                    return@launch
+                },
+            ) {
+                withContext(Dispatchers.IO) { action() }
+            }
             screenState = screenState.copy(
                 busy = false,
                 dedicatedUserServiceBound = result.dedicatedBound ?: screenState.dedicatedUserServiceBound,
@@ -874,15 +884,19 @@ private fun PrivilegeSampleDebugHost.runUserServiceAction(
             appendLog(result.message)
             result.dedicatedMessage?.let { appendLog(it) }
             result.embeddedMessage?.let { appendLog(it) }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
         } catch (throwable: Throwable) {
             setUserServiceFailure(throwable)
         }
     }
 }
 
-private fun PrivilegeSampleDebugHost.setUserServiceFailure(throwable: Throwable) {
+private fun PrivilegeSampleDebugHost.setUserServiceFailure(
+    throwable: Throwable,
+    disconnected: Boolean = false,
+) {
     val message = throwable.message ?: throwable.javaClass.name
-    val disconnected = throwable is PrivilegeServerUnavailableException
     screenState = screenState.copy(
         busy = false,
         status = if (disconnected) PrivilegeSampleStatus.DISCONNECTED else screenState.status,
@@ -936,7 +950,17 @@ private fun PrivilegeSampleDebugHost.runBinderAction(
 
     sampleViewModel.viewModelScope.launch {
         try {
-            val result = withContext(Dispatchers.IO) { action() }
+            val result = PrivilegeBinderCall.orElse(
+                fallback = { failure ->
+                    setBinderFailure(
+                        failure.exception,
+                        disconnected = failure is PrivilegeBinderCallFailure.ServerUnavailable,
+                    )
+                    return@launch
+                },
+            ) {
+                withContext(Dispatchers.IO) { action() }
+            }
             screenState = screenState.copy(
                 busy = false,
                 systemServiceBinderCached = result.systemServiceBinderCached
@@ -972,15 +996,16 @@ private fun PrivilegeSampleDebugHost.runBinderAction(
             if (result.exceptionText.isNotBlank()) {
                 appendLog(result.exceptionText)
             }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
         } catch (throwable: Throwable) {
-            setBinderFailure(throwable)
+            setBinderFailure(throwable, disconnected = false)
         }
     }
 }
 
-private fun PrivilegeSampleDebugHost.setBinderFailure(throwable: Throwable) {
+private fun PrivilegeSampleDebugHost.setBinderFailure(throwable: Throwable, disconnected: Boolean) {
     val message = throwable.message ?: throwable.javaClass.name
-    val disconnected = throwable is PrivilegeServerUnavailableException
     screenState = screenState.copy(
         busy = false,
         status = if (disconnected) PrivilegeSampleStatus.DISCONNECTED else screenState.status,
@@ -1307,18 +1332,18 @@ private fun PrivilegeSampleDebugHost.sampleUserServiceConnection(label: String):
     } else {
         sampleViewModel.dedicatedUserServiceConnection
     }
-    return connection ?: throw PrivilegeUserServiceException("$label UserService is not bound")
+    return connection ?: throw IllegalStateException("$label UserService is not bound")
 }
 
 private fun PrivilegeSampleDebugHost.describeSampleUserService(label: String): String {
     val connection = sampleUserServiceConnection(label)
     return if (label == "embedded") {
         val service = IPrivilegeSampleEmbeddedUserService.Stub.asInterface(connection.binder)
-            ?: throw PrivilegeUserServiceException("$label UserService returned an invalid Binder")
+            ?: throw IllegalStateException("$label UserService returned an invalid Binder")
         service.describe("$label call")
     } else {
         val service = IPrivilegeSampleDedicatedUserService.Stub.asInterface(connection.binder)
-            ?: throw PrivilegeUserServiceException("$label UserService returned an invalid Binder")
+            ?: throw IllegalStateException("$label UserService returned an invalid Binder")
         service.describe("$label call")
     }
 }
@@ -1329,14 +1354,14 @@ private fun PrivilegeSampleDebugHost.setSampleUserService(
 ): String =
     if (label == "embedded") {
         val service = IPrivilegeSampleEmbeddedUserService.Stub.asInterface(connection.binder)
-            ?: throw PrivilegeUserServiceException("$label UserService bind returned an invalid Binder")
+            ?: throw IllegalStateException("$label UserService bind returned an invalid Binder")
         val message = service.describe("$label bind")
         sampleViewModel.embeddedUserServiceConnection = connection
         sampleViewModel.embeddedUserService = service
         message
     } else {
         val service = IPrivilegeSampleDedicatedUserService.Stub.asInterface(connection.binder)
-            ?: throw PrivilegeUserServiceException("$label UserService bind returned an invalid Binder")
+            ?: throw IllegalStateException("$label UserService bind returned an invalid Binder")
         val message = service.describe("$label bind")
         sampleViewModel.dedicatedUserServiceConnection = connection
         sampleViewModel.dedicatedUserService = service

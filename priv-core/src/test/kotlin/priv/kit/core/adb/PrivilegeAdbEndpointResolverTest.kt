@@ -1,5 +1,7 @@
 package priv.kit.core.adb
 
+import java.io.IOException
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -56,7 +58,7 @@ class PrivilegeAdbEndpointResolverTest {
             override fun prepareAdb() = error("unused")
             override fun setWirelessDebuggingEnabled(enabled: Boolean) {
                 assertFalse(enabled)
-                throw PrivilegeAdbException("Failed to write global setting adb_wifi_enabled=0")
+                throw IOException("Failed to write global setting adb_wifi_enabled=0")
             }
         }
         val lease = PrivilegeAdbConnectEndpointLease(

@@ -4,7 +4,6 @@ import android.os.Bundle
 import android.os.IBinder
 import android.os.RemoteException
 import android.os.ResultReceiver
-import priv.kit.core.userservice.PrivilegeUserServiceException
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Future
@@ -199,7 +198,7 @@ internal class PrivilegeUserServiceManagerBinder internal constructor(
                     } catch (throwable: Throwable) {
                         if (pendingOperation.isCancelled) return@submit
                         OperationResult(
-                            response = errorBundle(throwable),
+                            response = PrivilegeUserServiceContract.errorBundle(throwable),
                             acceptance = null,
                             cleanup = null,
                         )
@@ -221,7 +220,7 @@ internal class PrivilegeUserServiceManagerBinder internal constructor(
             pendingOperation.unlinkClientDeath()
             pendingOperation.releaseSlot()
             runCatching {
-                receiver.send(RESULT_RESPONSE, errorBundle(throwable))
+                receiver.send(RESULT_RESPONSE, PrivilegeUserServiceContract.errorBundle(throwable))
             }
             return
         }
@@ -276,14 +275,6 @@ internal class PrivilegeUserServiceManagerBinder internal constructor(
     private fun runAction(action: () -> Unit) {
         runCatching(action)
     }
-
-    private fun errorBundle(throwable: Throwable): Bundle =
-        PrivilegeUserServiceContract.errorBundle(
-            throwable.message ?: when (throwable) {
-                is PrivilegeUserServiceException -> "UserService operation failed"
-                else -> throwable.javaClass.name
-            },
-        )
 
     private fun sendError(
         receiver: ResultReceiver,

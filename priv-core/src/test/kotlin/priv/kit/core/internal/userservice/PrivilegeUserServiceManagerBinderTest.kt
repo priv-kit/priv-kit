@@ -233,6 +233,28 @@ class PrivilegeUserServiceManagerBinderTest {
     }
 
     @Test
+    fun endpointDeathSurvivesManagerResponse() {
+        val host = TestDedicatedUserServiceHost(
+            process = object : TestUserServiceProcess() {
+                override fun start() {
+                    throw android.os.DeadObjectException("endpoint died")
+                }
+            },
+        )
+        val manager = manager(host)
+        try {
+            val response = start(manager, dedicatedRequest())
+            val failure = priv.kit.core.binder.PrivilegeBinderCall.orElse(fallback = { it }) {
+                PrivilegeUserServiceContract.throwFailure(response)
+            }
+            assertTrue(failure is priv.kit.core.binder.PrivilegeBinderCallFailure.BinderDied)
+            assertEquals("endpoint died", failure.exception.message)
+        } finally {
+            manager.destroyAll()
+        }
+    }
+
+    @Test
     fun startExceptionMapsToErrorBundle() {
         val host = TestDedicatedUserServiceHost(
             process = object : TestUserServiceProcess() {
@@ -249,7 +271,7 @@ class PrivilegeUserServiceManagerBinderTest {
             assertTrue(
                 response.getString(PrivilegeUserServiceContract.KEY_ERROR_MESSAGE)
                     .orEmpty()
-                    .contains("Dedicated UserService start failed"),
+                    .contains("start exploded"),
             )
         } finally {
             manager.destroyAll()
@@ -273,7 +295,7 @@ class PrivilegeUserServiceManagerBinderTest {
             assertTrue(
                 response.getString(PrivilegeUserServiceContract.KEY_ERROR_MESSAGE)
                     .orEmpty()
-                    .contains("Dedicated UserService bind failed"),
+                    .contains("bind exploded"),
             )
         } finally {
             manager.destroyAll()
@@ -343,7 +365,7 @@ class PrivilegeUserServiceManagerBinderTest {
             assertTrue(
                 response.getString(PrivilegeUserServiceContract.KEY_ERROR_MESSAGE)
                     .orEmpty()
-                    .contains("Dedicated UserService start failed"),
+                    .contains("host exploded"),
             )
         } finally {
             manager.destroyAll()

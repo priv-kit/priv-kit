@@ -92,6 +92,13 @@ val spec = PrivilegeUserServiceSpec(
 
 Embedded services share the server process. Construction is asynchronous and cancellable.
 
+Invalid UserService state and failed operation responses use `IllegalStateException`.
+Server unavailability, Binder transport errors, and coroutine cancellation retain their
+own exception types.
+Manager or service endpoint death propagates as `DeadObjectException`. The internal
+response protocol preserves connection-failure categories across processes, so
+`PrivilegeBinderCall.orElse(...)` can handle them without inspecting nested causes.
+
 ## Detect the execution environment {#execution-environment}
 
 `PrivilegeUserServiceEnvironment.isEmbedded` is `true` inside the shared server process and `false` in a dedicated child process. The value is fixed for that process.

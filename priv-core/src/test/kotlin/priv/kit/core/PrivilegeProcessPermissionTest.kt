@@ -92,21 +92,19 @@ class PrivilegeProcessPermissionTest {
     }
 
     @Test
-    fun deathDuringPermissionQueryDiscardsSuccessfulResult() {
+    fun deathDuringPermissionQueryPreservesSuccessfulResult() {
         val server = Server()
         connect(server)
         installService { _, _, _ ->
-            server.binder.killBinder(notifyDeathRecipients = false)
+            server.binder.killBinder(notifyDeathRecipients = true)
             PackageManager.PERMISSION_GRANTED
         }
-        assertThrows(PrivilegeServerUnavailableException::class.java) {
-            Privilege.checkServerPermission(GRANT)
-        }
+        assertEquals(PackageManager.PERMISSION_GRANTED, Privilege.checkServerPermission(GRANT))
         assertNull(Privilege.serverState.value)
     }
 
     @Test
-    fun replacementDuringPermissionQueryDiscardsOldResultWithoutDisconnectingReplacement() {
+    fun replacementDuringPermissionQueryPreservesResultWithoutDisconnectingReplacement() {
         val old = Server()
         connect(old)
         var replacement: PrivilegeServerInfo? = null
@@ -115,10 +113,44 @@ class PrivilegeProcessPermissionTest {
             replacement = connect(Server(), pid = 5678)
             PackageManager.PERMISSION_GRANTED
         }
-        assertThrows(PrivilegeServerUnavailableException::class.java) {
-            Privilege.checkServerPermission(GRANT)
-        }
+        assertEquals(PackageManager.PERMISSION_GRANTED, Privilege.checkServerPermission(GRANT))
         assertSame(replacement, Privilege.getServerInfo())
+    }
+
+    @Test
+    fun deathDuringFailedPermissionQueryPreservesOriginalFailure() {
+        val server = Server()
+        connect(server)
+        val failure = RemoteException("activity failed")
+        installService { _, _, _ ->
+            server.binder.killBinder(notifyDeathRecipients = true)
+            throw failure
+        }
+        assertSame(failure, assertThrows(RemoteException::class.java) {
+            Privilege.checkServerPermission(GRANT)
+        })
+        assertNull(Privilege.serverState.value)
+    }
+
+    @Test
+    fun startupPrecheckPreservesDenialAndFailureWhenServerDiesDuringQuery() {
+        for (failure in listOf(null, RemoteException("activity failed"))) {
+            val server = Server()
+            installService { _, _, _ ->
+                server.binder.killBinder(notifyDeathRecipients = false)
+                if (failure != null) throw failure
+                PackageManager.PERMISSION_DENIED
+            }
+            fun grant() = Privilege.grantRuntimePermissionForRuntime(
+                info(), server.api, "test.package", "permission.TEST", 10,
+            )
+            if (failure == null) {
+                assertFalse(grant())
+            } else {
+                assertSame(failure, assertThrows(RemoteException::class.java) { grant() })
+            }
+            assertTrue(server.grants.isEmpty())
+        }
     }
 
     @Test

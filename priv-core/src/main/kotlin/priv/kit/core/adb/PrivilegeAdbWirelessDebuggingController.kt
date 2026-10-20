@@ -1,5 +1,7 @@
 package priv.kit.core.adb
 
+import java.io.IOException
+
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -86,7 +88,7 @@ internal class AndroidPrivilegeAdbWirelessDebuggingController(
 
     private fun checkSettingWrite(name: String, value: Number, accepted: Boolean) {
         if (!accepted) {
-            throw PrivilegeAdbException("Failed to write global setting $name=$value")
+            throw IOException("Failed to write global setting $name=$value")
         }
     }
 
@@ -102,10 +104,10 @@ internal class AndroidPrivilegeAdbWirelessDebuggingController(
 
     private fun enforceWriteSecureSettingsPermission() {
         if (!hasWriteSecureSettingsDeclaration()) {
-            throw PrivilegeAdbException("WRITE_SECURE_SETTINGS must be declared to manage ADB")
+            throw IOException("WRITE_SECURE_SETTINGS must be declared to manage ADB")
         }
         if (!hasWriteSecureSettingsPermission()) {
-            throw PrivilegeAdbException("WRITE_SECURE_SETTINGS is required to manage ADB")
+            throw IOException("WRITE_SECURE_SETTINGS is required to manage ADB")
         }
     }
 

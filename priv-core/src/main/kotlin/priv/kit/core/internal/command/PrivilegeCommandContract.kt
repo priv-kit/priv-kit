@@ -2,7 +2,7 @@ package priv.kit.core.internal.command
 
 import android.os.Bundle
 import priv.kit.core.command.PrivilegeCommand
-import priv.kit.core.command.PrivilegeCommandException
+import java.io.IOException
 
 internal object PrivilegeCommandContract {
     const val RESULT_STARTED: Int = 1
@@ -37,11 +37,11 @@ internal object PrivilegeCommandContract {
         val environmentBundle = bundle.getBundle(KEY_ENVIRONMENT) ?: Bundle.EMPTY
         val environment = environmentBundle.keySet().associateWith { key ->
             environmentBundle.getString(key)
-                ?: throw PrivilegeCommandException("Environment value is missing for $key")
+                ?: throw IOException("Environment value is missing for $key")
         }
         val timeoutMillis = bundle.getLong(KEY_TIMEOUT_MILLIS, 0L)
         if (timeoutMillis < 0L) {
-            throw PrivilegeCommandException("Command timeout must not be negative")
+            throw IOException("Command timeout must not be negative")
         }
         val command = try {
             PrivilegeCommand(
@@ -50,7 +50,7 @@ internal object PrivilegeCommandContract {
                 workingDirectory = bundle.getString(KEY_WORKING_DIRECTORY),
             )
         } catch (exception: IllegalArgumentException) {
-            throw PrivilegeCommandException(
+            throw IOException(
                 exception.message ?: "Invalid command request",
                 exception,
             )

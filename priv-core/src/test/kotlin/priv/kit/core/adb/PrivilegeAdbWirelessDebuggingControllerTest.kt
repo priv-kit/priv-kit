@@ -1,5 +1,7 @@
 package priv.kit.core.adb
 
+import java.io.IOException
+
 import android.Manifest
 import android.provider.Settings
 import org.junit.Assert.assertEquals
@@ -41,7 +43,7 @@ class PrivilegeAdbWirelessDebuggingControllerTest {
             "adb_wifi_enabled=0" to { controller.setWirelessDebuggingEnabled(false) },
         )
         attempts.forEach { (setting, action) ->
-            val failure = assertThrows(PrivilegeAdbException::class.java) { action() }
+            val failure = assertThrows(IOException::class.java) { action() }
             assertTrue(failure.message.orEmpty().contains(setting))
         }
     }
@@ -62,12 +64,12 @@ class PrivilegeAdbWirelessDebuggingControllerTest {
                 false
             },
         )
-        assertThrows(PrivilegeAdbException::class.java) { controller.prepareAdb() }
+        assertThrows(IOException::class.java) { controller.prepareAdb() }
         assertEquals(listOf("adb_enabled=1"), writes)
 
         writes.clear()
         rejectAdb = false
-        val failure = assertThrows(PrivilegeAdbException::class.java) { controller.prepareAdb() }
+        val failure = assertThrows(IOException::class.java) { controller.prepareAdb() }
         assertEquals(listOf("adb_enabled=1", "adb_allowed_connection_time=0"), writes)
         assertTrue(failure.message.orEmpty().contains("adb_allowed_connection_time=0"))
     }

@@ -10,7 +10,6 @@ import priv.kit.core.internal.userservice.IPrivilegeUserServiceProcess
 import priv.kit.core.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.core.internal.userservice.PrivilegeUserServiceHost
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
-import priv.kit.core.userservice.PrivilegeUserServiceException
 
 internal class PrivilegeServerUserServiceHost(
     private val config: PrivilegeServerConfig,
@@ -147,11 +146,11 @@ internal class PrivilegeServerUserServiceProcessClaimer(
                 ?.getBinder(PrivilegeUserServiceContract.EXTRA_PROCESS_BINDER)
             if (processBinder != null) {
                 return IPrivilegeUserServiceProcess.Stub.asInterface(processBinder)
-                    ?: throw PrivilegeUserServiceException("UserService process returned an invalid Binder")
+                    ?: throw IllegalStateException("UserService process returned an invalid Binder")
             }
             Thread.sleep(CLAIM_RETRY_DELAY_MILLIS)
         }
-        throw PrivilegeUserServiceException(
+        throw IllegalStateException(
             "Timed out waiting for dedicated UserService process",
             lastFailure,
         )

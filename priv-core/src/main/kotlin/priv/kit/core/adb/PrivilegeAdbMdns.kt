@@ -66,7 +66,7 @@ internal class PrivilegeAdbMdns(
                 }
             }
         } catch (throwable: kotlinx.coroutines.TimeoutCancellationException) {
-            throw PrivilegeAdbException("Timed out discovering ADB service $serviceType", throwable)
+            throw IOException("Timed out discovering ADB service $serviceType", throwable)
         } finally {
             close()
         }
@@ -154,7 +154,7 @@ internal class PrivilegeAdbMdns(
         override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
             registered = false
             failDiscovery(
-                PrivilegeAdbException("Failed to discover ADB service $serviceType: $errorCode"),
+                IOException("Failed to discover ADB service $serviceType: $errorCode"),
             )
         }
 

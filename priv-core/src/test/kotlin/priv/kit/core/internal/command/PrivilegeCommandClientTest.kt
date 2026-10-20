@@ -33,11 +33,48 @@ import org.robolectric.annotation.Config
 import priv.kit.core.command.PrivilegeCommand
 import priv.kit.core.command.PrivilegeCommandEvent
 import priv.kit.core.command.PrivilegeCommandTimeoutException
-import priv.kit.core.command.PrivilegeCommandException
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class PrivilegeCommandClientTest {
+    @Test
+    fun executorDeathReachesFallbackForBothConsumptionModes() = runBlocking {
+        for (streaming in listOf(false, true)) {
+            val executor = object : IPrivilegeCommandExecutor {
+                val binder = priv.kit.core.testing.TestBinder(localInterface = this)
+                override fun asBinder() = binder
+                override fun cancelCommand(operationId: String) = Unit
+                override fun startCommand(
+                    operationId: String,
+                    request: Bundle,
+                    client: android.os.IBinder,
+                    stdoutSink: ParcelFileDescriptor,
+                    stderrSink: ParcelFileDescriptor,
+                    receiver: ResultReceiver,
+                ) {
+                    receiver.send(PrivilegeCommandContract.RESULT_STARTED, Bundle())
+                    binder.killBinder(notifyDeathRecipients = true)
+                    stdoutSink.close()
+                    stderrSink.close()
+                }
+            }
+            val failure = priv.kit.core.binder.PrivilegeBinderCall.orElse(
+                fallback = { it },
+            ) {
+                val process = PrivilegeCommandClient { executor }.start(
+                    PrivilegeCommand(listOf("test")), timeoutMillis = null,
+                )
+                try {
+                    if (streaming) process.stream().toList() else process.awaitResult()
+                } finally {
+                    process.close()
+                }
+                error("Expected endpoint death")
+            }
+            assertTrue(failure is priv.kit.core.binder.PrivilegeBinderCallFailure.BinderDied)
+        }
+    }
+
     @Test
     fun awaitResultDrainsBothStreamsAndReportsTruncation() = runBlocking {
         val stdout = "stdout-data".toByteArray()
@@ -139,7 +176,7 @@ class PrivilegeCommandClientTest {
             processStarter = { throw IllegalStateException("missing executable") },
         )
         try {
-            val exception = assertThrows(PrivilegeCommandException::class.java) {
+            val exception = assertThrows(IOException::class.java) {
                 runBlocking {
                     PrivilegeCommandClient { executor }.start(
                         command = PrivilegeCommand(listOf("missing")),

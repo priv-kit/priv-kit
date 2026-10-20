@@ -1,7 +1,7 @@
 package priv.kit.ui.state
 
 import androidx.annotation.StringRes
-import priv.kit.core.PrivilegeExistingServerStopException
+import priv.kit.core.isPrivilegeExistingServerStopFailure
 import priv.kit.core.PrivilegeStartupException
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
 import priv.kit.ui.R
@@ -31,7 +31,7 @@ internal fun privilegeUiRuntimeStartFailureKind(
     runtimeStartSource: PrivilegeUiRuntimeStartSource?,
     throwable: Throwable,
 ): PrivilegeUiFailureKind =
-    if (throwable.hasExistingServerStopFailure()) {
+    if (throwable.isPrivilegeExistingServerStopFailure()) {
         PrivilegeUiFailureKind.RESTART_STOP_FAILED
     } else when (runtimeStartSource) {
         PrivilegeUiRuntimeStartSource.ROOT if throwable.hasRootUnavailableDiagnostic() -> PrivilegeUiFailureKind.ROOT_UNAVAILABLE
@@ -42,11 +42,6 @@ internal fun privilegeUiRuntimeStartFailureKind(
         PrivilegeUiRuntimeStartSource.EXTERNAL ->
             PrivilegeUiFailureKind.EXTERNAL_START_FAILED
         else -> PrivilegeUiFailureKind.START_FAILED
-    }
-
-private fun Throwable.hasExistingServerStopFailure(): Boolean =
-    generateSequence(this) { it.cause }.any {
-        it is PrivilegeExistingServerStopException
     }
 
 private fun Throwable.hasRootUnavailableDiagnostic(): Boolean =

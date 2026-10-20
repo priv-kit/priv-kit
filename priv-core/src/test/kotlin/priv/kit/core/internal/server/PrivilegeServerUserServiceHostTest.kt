@@ -11,7 +11,6 @@ import org.robolectric.annotation.Config
 import priv.kit.core.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.core.testing.TestProcess
 import priv.kit.core.testing.TestUserServiceProcess
-import priv.kit.core.userservice.PrivilegeUserServiceException
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
 
 @RunWith(RobolectricTestRunner::class)
@@ -146,7 +145,7 @@ class PrivilegeServerUserServiceHostTest {
             },
         )
 
-        val throwable = assertThrows(PrivilegeUserServiceException::class.java) {
+        val throwable = assertThrows(IllegalStateException::class.java) {
             claimer.await(
                 config = config(classpath = "/data/app/base.apk"),
                 token = "token-1",

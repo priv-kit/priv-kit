@@ -281,7 +281,7 @@ class PrivilegeUserServiceRegistryTest {
             killBinder(notifyDeathRecipients = false)
         }
 
-        assertThrows(PrivilegeUserServiceException::class.java) {
+        assertThrows(android.os.DeadObjectException::class.java) {
             registry.bind(dedicatedSpec(), deadClient)
         }
 
@@ -323,7 +323,7 @@ class PrivilegeUserServiceRegistryTest {
     fun missingEmbeddedClassThrowsDeclarationException() {
         val registry = registry(TestEmbeddedUserServiceHost())
 
-        assertThrows(PrivilegeUserServiceException::class.java) {
+        assertThrows(IllegalStateException::class.java) {
             registry.bind(
                 PrivilegeUserServiceSpec(
                     serviceClassName = "missing.Service",
@@ -336,7 +336,7 @@ class PrivilegeUserServiceRegistryTest {
 
     @Test
     fun contextConstructorRequiresContextConfig() {
-        assertThrows(PrivilegeUserServiceException::class.java) {
+        assertThrows(IllegalStateException::class.java) {
             PrivilegeUserServiceLoader.instantiate(
                 serviceClassName = ContextOnlyService::class.java.name,
                 contextConfig = null,
@@ -361,7 +361,7 @@ class PrivilegeUserServiceRegistryTest {
 
     @Test
     fun dedicatedContextCreationFailureDoesNotFallbackToNoArg() {
-        assertThrows(PrivilegeUserServiceException::class.java) {
+        assertThrows(IllegalStateException::class.java) {
             PrivilegeUserServiceLoader.instantiate(
                 serviceClassName = BothConstructorsService::class.java.name,
                 contextConfig = PrivilegeUserServiceLoader.ContextConfig(

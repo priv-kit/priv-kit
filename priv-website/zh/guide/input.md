@@ -65,7 +65,7 @@ delay(1_000)
 gesture.cancelAndJoin()
 ```
 
-取消或中途失败时会尝试发送触摸 CANCEL 或释放已按下的键；遇到 `DeadObjectException` 时跳过释放并抛出原异常。系统注入返回 `false` 时抛出 `InputInjectionException`。正在进行的同步 Binder 调用结束后才能完成取消，之后可继续使用同一对象。
+取消或中途失败时会尝试发送触摸 CANCEL 或释放已按下的键；遇到 `DeadObjectException` 时跳过释放并抛出原异常。系统注入返回 `false` 时抛出 `IOException`。正在进行的同步 Binder 调用结束后才能完成取消，之后可继续使用同一对象。
 
 以下示例均在协程内调用。手动组合的 `motionEvent` 由调用方维护按下/释放序列，在 `finally` 中通过 `NonCancellable` 完成释放。
 

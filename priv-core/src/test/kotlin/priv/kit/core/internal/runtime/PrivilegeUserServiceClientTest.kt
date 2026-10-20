@@ -24,12 +24,29 @@ import priv.kit.core.binder.PrivilegeServerUnavailableException
 import priv.kit.core.internal.userservice.IPrivilegeUserServiceManager
 import priv.kit.core.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.core.testing.TestBinder
-import priv.kit.core.userservice.PrivilegeUserServiceException
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class PrivilegeUserServiceClientTest {
+    @Test
+    fun remoteEndpointDeathReachesSuspendFallback() = runBlocking {
+        val manager = RecordingManager().apply {
+            startResult = {
+                PrivilegeUserServiceContract.errorBundle(DeadObjectException("service died"))
+            }
+        }
+        val client = PrivilegeUserServiceClient { manager.binder }
+        val failure = priv.kit.core.binder.PrivilegeBinderCall.orElse(
+            fallback = { it },
+        ) {
+            client.start(spec())
+            error("Expected endpoint death")
+        }
+        assertTrue(failure is priv.kit.core.binder.PrivilegeBinderCallFailure.BinderDied)
+        assertEquals("service died", failure.exception.message)
+    }
+
     @Test
     fun startBindUnbindAndStopUseManagerProtocol() = runBlocking {
         val spec = spec()
@@ -70,7 +87,7 @@ class PrivilegeUserServiceClientTest {
         }
         val client = PrivilegeUserServiceClient { manager.binder }
 
-        val throwable = assertThrows(PrivilegeUserServiceException::class.java) {
+        val throwable = assertThrows(IllegalStateException::class.java) {
             runBlocking { client.start(spec()) }
         }
 
@@ -85,7 +102,7 @@ class PrivilegeUserServiceClientTest {
         }
         val client = PrivilegeUserServiceClient { manager.binder }
 
-        val throwable = assertThrows(PrivilegeUserServiceException::class.java) {
+        val throwable = assertThrows(IllegalStateException::class.java) {
             runBlocking { client.start(spec()) }
         }
 
@@ -190,7 +207,7 @@ class PrivilegeUserServiceClientTest {
         val firstManager = RecordingManager().apply {
             bindResult = { PrivilegeUserServiceContract.successBundle() }
         }
-        assertThrows(PrivilegeUserServiceException::class.java) {
+        assertThrows(IllegalStateException::class.java) {
             runBlocking {
                 PrivilegeUserServiceClient { firstManager.binder }.bind(spec())
             }
@@ -203,7 +220,7 @@ class PrivilegeUserServiceClientTest {
                 }
             }
         }
-        assertThrows(PrivilegeUserServiceException::class.java) {
+        assertThrows(IllegalStateException::class.java) {
             runBlocking {
                 PrivilegeUserServiceClient { secondManager.binder }.bind(spec())
             }

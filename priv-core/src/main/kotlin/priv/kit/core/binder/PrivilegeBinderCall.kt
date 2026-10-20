@@ -11,14 +11,15 @@ public sealed interface PrivilegeBinderCallFailure {
     /**
      * The current Privileged Server was missing or became unavailable.
      */
-    public class ServerUnavailable internal constructor(
-        override val exception: Exception,
+    public class ServerUnavailable @PublishedApi internal constructor(
+        override val exception: PrivilegeServerUnavailableException,
     ) : PrivilegeBinderCallFailure
 
     /**
-     * The directly called Binder endpoint died.
+     * A Binder transaction reported endpoint death. This alone does not identify
+     * whether the privileged server or the forwarded target died.
      */
-    public class BinderDied internal constructor(
+    public class BinderDied @PublishedApi internal constructor(
         override val exception: DeadObjectException,
     ) : PrivilegeBinderCallFailure
 }
@@ -33,16 +34,16 @@ public object PrivilegeBinderCall {
      *
      * Other failures, including ordinary `RemoteException` instances and application exceptions,
      * are propagated unchanged.
+     * Suspending operations may be called from [call] when used in a coroutine.
+     * This function neither unwraps causes nor retries failed operations.
      */
-    public fun <T> orElse(
+    public inline fun <T> orElse(
         fallback: (failure: PrivilegeBinderCallFailure) -> T,
         call: () -> T,
     ): T =
         try {
             call()
         } catch (exception: PrivilegeServerUnavailableException) {
-            fallback(PrivilegeBinderCallFailure.ServerUnavailable(exception))
-        } catch (exception: PrivilegeBinderUnavailableException) {
             fallback(PrivilegeBinderCallFailure.ServerUnavailable(exception))
         } catch (exception: DeadObjectException) {
             fallback(PrivilegeBinderCallFailure.BinderDied(exception))

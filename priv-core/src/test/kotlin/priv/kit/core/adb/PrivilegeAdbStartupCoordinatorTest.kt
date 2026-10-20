@@ -1,5 +1,7 @@
 package priv.kit.core.adb
 
+import java.io.IOException
+
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
@@ -11,7 +13,7 @@ class PrivilegeAdbStartupCoordinatorTest {
     fun adbKeyAuthorizationFailureIsNotRetried() {
         assertFalse(
             shouldRetryAdbConnectFailure(
-                throwable = PrivilegeAdbException("ADB key is not authorized"),
+                throwable = IOException("ADB key is not authorized"),
                 attempt = 1,
                 retryCount = 5,
             ),

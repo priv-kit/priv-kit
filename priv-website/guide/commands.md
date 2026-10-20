@@ -71,6 +71,13 @@ shutdown terminate unfinished commands.
 
 Up to four commands run concurrently; additional starts fail immediately.
 
+Command execution failures use `IOException`. A configured deadline expiring throws
+`PrivilegeCommandTimeoutException`, an `IOException` with `timeoutMillis`.
+Coroutine cancellation and Binder transport failures retain their own exception types.
+Executor death reaches the caller as `DeadObjectException`, including during `stream()`
+collection or `awaitResult()`. Wrap the operation with `PrivilegeBinderCall.orElse(...)`
+when an explicit fallback is appropriate.
+
 ## Limits {#limits}
 
 No stdin, PTY, interactive shell, or daemon management is provided. Programs may buffer output to pipes, so streamed data can still arrive in batches.

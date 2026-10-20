@@ -680,11 +680,7 @@ public object Privilege {
     ): T =
         try {
             block(connection)
-        } catch (exception: RemoteException) {
-            val unavailable =
-                exception is DeadObjectException ||
-                    !connection.server.asBinder().isBinderAlive
-            if (!unavailable) throw exception
+        } catch (exception: DeadObjectException) {
             markServerDisconnected(connection)
             serverUnavailable(exception)
         }
@@ -795,27 +791,16 @@ public object Privilege {
         protocolVersion == PrivilegeProtocol.VERSION
 
     private fun checkServerPermission(connection: ServerConnection, permission: String): Int {
-        fun requireCurrentConnection() {
-            if (!connection.server.asBinder().isBinderAlive) {
-                markServerDisconnected(connection)
-                serverUnavailable(cause = null)
-            }
-            if (synchronized(serverLock) { currentServer !== connection }) {
-                serverUnavailable(cause = null)
-            }
+        requireServerAlive(connection.server) {
+            markServerDisconnected(connection)
         }
-        requireCurrentConnection()
-        // ActivityManager failures belong to the system service, not the privileged server.
-        // Recheck our snapshot even on failure, without treating its DeadObjectException as
-        // evidence that the privileged server died.
-        return try {
-            if (connection.serverInfo.uid == PRIVILEGE_INTERNAL_ROOT_UID) {
-                return PackageManager.PERMISSION_GRANTED
-            }
-            PrivilegeProcessPermissions.check(permission, connection.serverInfo.pid, connection.serverInfo.uid)
-        } finally {
-            requireCurrentConnection()
+        if (synchronized(serverLock) { currentServer !== connection }) {
+            serverUnavailable(cause = null)
         }
+        if (connection.serverInfo.uid == PRIVILEGE_INTERNAL_ROOT_UID) {
+            return PackageManager.PERMISSION_GRANTED
+        }
+        return PrivilegeProcessPermissions.check(permission, connection.serverInfo.pid, connection.serverInfo.uid)
     }
 
     // Also used before the handshake is installed as the current connection.
@@ -824,11 +809,17 @@ public object Privilege {
         server: IPrivilegeServer,
         permission: String,
     ): Int {
-        if (!server.asBinder().isBinderAlive) serverUnavailable(cause = null)
-        return try {
-            PrivilegeProcessPermissions.check(permission, serverInfo.pid, serverInfo.uid)
-        } finally {
-            if (!server.asBinder().isBinderAlive) serverUnavailable(cause = null)
+        requireServerAlive(server)
+        return PrivilegeProcessPermissions.check(permission, serverInfo.pid, serverInfo.uid)
+    }
+
+    private inline fun requireServerAlive(
+        server: IPrivilegeServer,
+        onUnavailable: () -> Unit = {},
+    ) {
+        if (!server.asBinder().isBinderAlive) {
+            onUnavailable()
+            serverUnavailable(cause = null)
         }
     }
 

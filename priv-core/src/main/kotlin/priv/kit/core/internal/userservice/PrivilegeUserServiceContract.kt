@@ -2,7 +2,8 @@ package priv.kit.core.internal.userservice
 
 import android.os.Bundle
 import android.os.IBinder
-import priv.kit.core.userservice.PrivilegeUserServiceException
+import android.os.DeadObjectException
+import priv.kit.core.binder.PrivilegeServerUnavailableException
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
 
 internal object PrivilegeUserServiceContract {
@@ -19,6 +20,7 @@ internal object PrivilegeUserServiceContract {
     const val KEY_DAEMON: String = "privilege_user_service_daemon"
     const val KEY_SUCCESS: String = "privilege_user_service_success"
     const val KEY_ERROR_MESSAGE: String = "privilege_user_service_error_message"
+    const val KEY_CONNECTION_FAILURE: String = "privilege_user_service_connection_failure"
     const val KEY_CONNECTION_ID: String = "privilege_user_service_connection_id"
     const val KEY_SERVICE_BINDER: String = "privilege_user_service_binder"
 
@@ -41,7 +43,7 @@ internal object PrivilegeUserServiceContract {
                 daemon = bundle.getBoolean(KEY_DAEMON, false),
             )
         } catch (exception: IllegalArgumentException) {
-            throw PrivilegeUserServiceException(
+            throw IllegalStateException(
                 exception.message ?: "Invalid UserService request",
                 exception,
             )
@@ -67,10 +69,28 @@ internal object PrivilegeUserServiceContract {
             putString(KEY_ERROR_MESSAGE, message)
         }
 
+    fun errorBundle(throwable: Throwable): Bundle =
+        errorBundle(throwable.message ?: throwable.javaClass.name).apply {
+            putInt(KEY_CONNECTION_FAILURE, when (throwable) {
+                is PrivilegeServerUnavailableException -> 1
+                is DeadObjectException -> 2
+                else -> 0
+            })
+        }
+
+    fun throwFailure(response: Bundle): Nothing {
+        val message = response.getString(KEY_ERROR_MESSAGE) ?: "UserService operation failed"
+        when (response.getInt(KEY_CONNECTION_FAILURE)) {
+            1 -> throw PrivilegeServerUnavailableException(message)
+            2 -> throw DeadObjectException(message)
+            else -> throw IllegalStateException(message)
+        }
+    }
+
     private fun requireString(
         bundle: Bundle,
         key: String,
     ): String =
         bundle.getString(key)?.takeIf { it.isNotBlank() }
-            ?: throw PrivilegeUserServiceException("UserService request is missing $key")
+            ?: throw IllegalStateException("UserService request is missing $key")
 }

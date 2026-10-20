@@ -1,5 +1,7 @@
 package priv.kit.core.adb
 
+import java.io.IOException
+
 import android.annotation.SuppressLint
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -34,13 +36,13 @@ import javax.net.ssl.X509ExtendedTrustManager
 internal object PrivilegeAdbKeyBytes {
     internal fun isReadable(storedBytes: ByteArray): Boolean {
         val encryptionKey = getOrCreateEncryptionKey()
-            ?: throw PrivilegeAdbException("Failed to generate ADB encryption key")
+            ?: throw IOException("Failed to generate ADB encryption key")
         return decodePrivateKey(storedBytes, encryptionKey) != null
     }
 
     internal fun create(): ByteArray {
         val encryptionKey = getOrCreateEncryptionKey()
-            ?: throw PrivilegeAdbException("Failed to generate ADB encryption key")
+            ?: throw IOException("Failed to generate ADB encryption key")
         return createEncryptedPrivateKey(encryptionKey)
     }
 
@@ -74,7 +76,7 @@ internal object PrivilegeAdbKeyBytes {
         keyPairGenerator.initialize(RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4))
         val privateKey = keyPairGenerator.generateKeyPair().private as RSAPrivateKey
         return encrypt(privateKey.encoded, encryptionKey)
-            ?: throw PrivilegeAdbException("Failed to encrypt ADB private key")
+            ?: throw IOException("Failed to encrypt ADB private key")
     }
 
     private fun encrypt(plaintext: ByteArray, encryptionKey: Key): ByteArray? {
@@ -90,7 +92,7 @@ internal object PrivilegeAdbKeyBytes {
 
     private fun decrypt(ciphertext: ByteArray, encryptionKey: Key): ByteArray {
         if (ciphertext.size < IV_SIZE_IN_BYTES + TAG_SIZE_IN_BYTES) {
-            throw PrivilegeAdbException("Stored ADB key is too short")
+            throw IOException("Stored ADB key is too short")
         }
         val params = GCMParameterSpec(8 * TAG_SIZE_IN_BYTES, ciphertext, 0, IV_SIZE_IN_BYTES)
         val cipher = Cipher.getInstance(ADB_KEY_ENCRYPTION_TRANSFORMATION)
@@ -129,9 +131,9 @@ internal class PrivilegeAdbKeyMaterial(
     keyBytes: ByteArray,
 ) {
     private val encryptionKey: Key = PrivilegeAdbKeyBytes.getOrCreateEncryptionKey()
-        ?: throw PrivilegeAdbException("Failed to generate ADB encryption key")
+        ?: throw IOException("Failed to generate ADB encryption key")
     private val privateKey: RSAPrivateKey = PrivilegeAdbKeyBytes.decodePrivateKey(keyBytes, encryptionKey)
-        ?: throw PrivilegeAdbException("Stored ADB key is unreadable")
+        ?: throw IOException("Stored ADB key is unreadable")
     private val publicKey: RSAPublicKey =
         KeyFactory.getInstance(PrivilegeAdbKeyBytes.RSA_KEY_ALGORITHM).generatePublic(
             RSAPublicKeySpec(privateKey.modulus, RSAKeyGenParameterSpec.F4),

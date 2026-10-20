@@ -11,6 +11,8 @@
  */
 package priv.kit.input
 
+import java.io.IOException
+
 import android.os.IBinder
 import android.view.Display
 import priv.kit.input.internal.DEFAULT_SWIPE_DURATION_MILLIS
@@ -23,7 +25,7 @@ import priv.kit.input.internal.InputCommands
  * Convenience commands inject AOSP-style events and support coroutine cancellation.
  * Cancellation attempts to release active contacts/keys before returning.
  * DeadObjectException propagates without cleanup.
- * Local injection throws [InputInjectionException] when the system returns false.
+ * Local injection throws [IOException] when the system returns false.
  * Target displays require Android 10+. The caller coordinates overlapping gestures.
  * Wraps a system input-service Binder forwarded with shell/root identity. Does not own it.
  */

@@ -1,9 +1,6 @@
 package priv.kit.core.adb
 
-internal class PrivilegeAdbException : Exception {
-    constructor(message: String, cause: Throwable? = null) : super(message, cause)
-    constructor(cause: Throwable) : super(cause)
-}
+import java.io.IOException
 
 internal class PrivilegeAdbLocalNetworkAccessException(
     endpoint: PrivilegeAdbEndpoint,
@@ -14,7 +11,7 @@ public fun Throwable.isPrivilegeAdbLocalNetworkAccessFailure(): Boolean =
     generateSequence(this) { it.cause }.any { it is PrivilegeAdbLocalNetworkAccessException }
 
 internal fun privilegeAdbError(message: Any): Nothing =
-    throw PrivilegeAdbException(message.toString())
+    throw IOException(message.toString())
 
 internal fun Throwable.toLocalNetworkAccessFailure(endpoint: PrivilegeAdbEndpoint): Throwable =
     if (!endpoint.isLocalHost && !isAdbKeyNotAuthorized()) {

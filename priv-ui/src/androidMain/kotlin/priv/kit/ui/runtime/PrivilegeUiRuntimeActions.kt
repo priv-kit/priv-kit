@@ -18,6 +18,7 @@ import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.binder.PrivilegeBinderCall
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionEvent
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 
@@ -35,7 +36,7 @@ internal class PrivilegeUiRuntimeActions(
 ) : AutoCloseable {
     private val closed = AtomicBoolean(false)
     private var nextStopOperationId = 0L
-    private val activeStopOperationIds = mutableSetOf<Long>()
+    private var activeStopOperationId: Long? = null
     private val permissionRestrictionRefreshGeneration = AtomicLong(0L)
     private var scheduledPermissionRefresh: Pair<Long, Job>? = null
     private var runtimeWatcherJob: Job? = null
@@ -77,7 +78,7 @@ internal class PrivilegeUiRuntimeActions(
             val current = store.state.value
             if (
                 closed.get() ||
-                activeStopOperationIds.isNotEmpty() ||
+                (activeStopOperationId != null) ||
                 current.busy ||
                 current.runtimeStartPhase != PrivilegeUiRuntimeStartPhase.IDLE ||
                 current.runtimeStatus != PrivilegeUiRuntimeStatus.CONNECTED
@@ -86,7 +87,7 @@ internal class PrivilegeUiRuntimeActions(
             } else {
                 operationId = ++nextStopOperationId
                 connectionSerial = current.connectionSerial
-                activeStopOperationIds += operationId
+                activeStopOperationId = operationId
                 store.serverShutdownRequestedByOwner = true
                 store.updateState { it.copy(busy = true) }
                 true
@@ -129,15 +130,15 @@ internal class PrivilegeUiRuntimeActions(
             }
             job.invokeOnCompletion {
                 synchronized(store) {
-                    activeStopOperationIds -= operationId
-                    store.serverShutdownRequestedByOwner = activeStopOperationIds.isNotEmpty()
+                    if (activeStopOperationId == operationId) activeStopOperationId = null
+                    store.serverShutdownRequestedByOwner = (activeStopOperationId != null)
                 }
                 operationPermit.close()
             }
         } catch (throwable: Throwable) {
             synchronized(store) {
-                activeStopOperationIds -= operationId
-                store.serverShutdownRequestedByOwner = activeStopOperationIds.isNotEmpty()
+                if (activeStopOperationId == operationId) activeStopOperationId = null
+                store.serverShutdownRequestedByOwner = (activeStopOperationId != null)
                 store.updateState { it.copy(busy = false) }
             }
             operationPermit.close()
@@ -147,7 +148,7 @@ internal class PrivilegeUiRuntimeActions(
 
     private fun ownsStopOperationLocked(operationId: Long, connectionSerial: Long): Boolean =
         !closed.get() &&
-            operationId in activeStopOperationIds &&
+            operationId == activeStopOperationId &&
             store.state.value.connectionSerial == connectionSerial
 
     fun stopCurrentStart() {
@@ -180,13 +181,16 @@ internal class PrivilegeUiRuntimeActions(
         }
         val observedConnectionSerial = store.state.value.connectionSerial
         val serverInfo = try {
-            withContext(operationDispatcher) {
-                if (Privilege.pingServer()) Privilege.getServerInfo() else null
+            PrivilegeBinderCall.orElse(fallback = { null }) {
+                withContext(operationDispatcher) {
+                    if (Privilege.pingServer()) Privilege.getServerInfo() else null
+                }
             }
         } catch (exception: CancellationException) {
             throw exception
-        } catch (_: Throwable) {
-            null
+        } catch (exception: Exception) {
+            store.appendStartupLog(exception.toPrivilegeUiDiagnosticString())
+            return
         }
         if (closed.get()) return
         if (serverInfo == null) {
@@ -428,7 +432,11 @@ internal class PrivilegeUiRuntimeActions(
             } else current
         }
         if (restrictionStatus != PrivilegeUiPermissionRestrictionStatus.RESTRICTED || !isCurrent(store.state.value)) return
-        val permissions = withContext(operationDispatcher) { getDeniedServerPermissions() }
+        val permissions = withContext(operationDispatcher) {
+            PrivilegeBinderCall.orElse(fallback = { null }) {
+                getDeniedServerPermissions()
+            }
+        } ?: return
         store.updateState { current ->
             if (isCurrent(current)) current.copy(deniedServerPermissions = permissions) else current
         }

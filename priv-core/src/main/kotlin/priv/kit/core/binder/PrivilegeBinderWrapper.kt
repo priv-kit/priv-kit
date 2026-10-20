@@ -22,11 +22,7 @@ public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
         reply: Parcel?,
         flags: Int,
     ): Boolean {
-        val serverBinder = try {
-            Privilege.requireServerInterface().asBinder()
-        } catch (_: PrivilegeServerUnavailableException) {
-            throw PrivilegeBinderUnavailableException()
-        }
+        val serverBinder = Privilege.requireServerInterface().asBinder()
         val remoteData = Parcel.obtain()
         try {
             remoteData.writeInterfaceToken(DESCRIPTOR)

@@ -1,5 +1,7 @@
 package priv.kit.core.adb
 
+import java.io.IOException
+
 import priv.kit.core.PrivilegeStartupException
 import priv.kit.shared.isPrivilegeAdbPort
 
@@ -60,7 +62,7 @@ internal class PrivilegeAdbPairingManager(
                 ?: endpointResolver.discoverPairingEndpoint(portDiscoveryTimeoutMillis)
             PrivilegeAdbPairingClient(activeEndpoint, normalizedPairingCode, key).cancellableUse { client ->
                 if (!client.start()) {
-                    throw PrivilegeAdbException("ADB pairing failed")
+                    throw IOException("ADB pairing failed")
                 }
             }
             PrivilegeAdbPairingResult(

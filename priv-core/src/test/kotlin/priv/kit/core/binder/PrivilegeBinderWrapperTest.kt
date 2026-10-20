@@ -43,12 +43,12 @@ class PrivilegeBinderWrapperTest {
     }
 
     @Test
-    fun disconnectedForwarderThrowsBinderUnavailableBeforeTransaction() {
+    fun disconnectedForwarderThrowsServerUnavailableBeforeTransaction() {
         clearServer()
         val wrapper = PrivilegeBinderWrapper.fromBinder(Binder())
         val data = Parcel.obtain()
         try {
-            assertThrows(PrivilegeBinderUnavailableException::class.java) {
+            assertThrows(PrivilegeServerUnavailableException::class.java) {
                 wrapper.transact(1, data, null, 0)
             }
         } finally { data.recycle() }

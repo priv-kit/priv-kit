@@ -44,8 +44,6 @@ internal class Aes128Gcm(keyMaterial: ByteArray) {
             cipher.doFinal(input)
         } catch (_: AEADBadTagException) {
             null
-        } catch (_: RuntimeException) {
-            null
         }
 
     private fun nonce(sequence: Long): ByteArray {

@@ -90,6 +90,11 @@ val spec = PrivilegeUserServiceSpec(
 
 嵌入式服务共享服务端进程，构造异步且可取消。
 
+UserService 状态无效或操作返回失败时使用 `IllegalStateException`。
+服务不可用、Binder 传输错误和协程取消保留各自的异常类型。
+管理器或服务端点死亡时直接传播 `DeadObjectException`。内部响应协议跨进程保留
+连接失效分类，因此 `PrivilegeBinderCall.orElse(...)` 无需检查嵌套 cause 即可处理。
+
 ## 判断运行环境 {#execution-environment}
 
 `PrivilegeUserServiceEnvironment.isEmbedded` 在共享服务端进程中为 `true`，在独立子进程中为 `false`，进程存活期间不变。

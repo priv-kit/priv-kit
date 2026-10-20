@@ -8,7 +8,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
-import priv.kit.core.PrivilegeExistingServerStopException
 import priv.kit.core.PrivilegeStartupException
 import priv.kit.ui.state.PrivilegeUiFailureKind
 import priv.kit.ui.state.privilegeUiRuntimeStartFailureKind
@@ -70,7 +69,9 @@ class PrivilegeUiFailurePolicyTest {
     fun nestedExistingServerStopFailureUsesRestartSpecificKind() {
         val failure = IllegalStateException(
             "outer failure",
-            PrivilegeExistingServerStopException("kill denied"),
+            Class.forName("priv.kit.core.PrivilegeExistingServerStopException")
+                .getDeclaredConstructor(String::class.java, Throwable::class.java)
+                .newInstance("kill denied", null) as Throwable,
         )
 
         assertEquals(

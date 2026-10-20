@@ -48,7 +48,7 @@ owner 死亡后按 `followDeathDelayMillis` 等待，默认十分钟。通常等
 
 ## Binder 与权限
 
-Binder wrapper 转发原始 transaction，保留目标 Binder 的错误。Core 控制调用将服务端不可用统一为 `PrivilegeServerUnavailableException`。回复丢失时副作用可能已经发生，应用按幂等性决定是否重试。
+Binder wrapper 转发原始 transaction，保留目标 Binder 的错误。Core 控制调用及 wrapper 转发前的连接获取统一使用 `PrivilegeServerUnavailableException` 表示服务端不可用。`PrivilegeBinderCall.orElse` 将它分类为 `ServerUnavailable`，将原始 `DeadObjectException` 分类为 `BinderDied`；后者本身不能确定死亡的是服务端还是转发目标。回复丢失时副作用可能已经发生，应用按幂等性决定是否重试。
 
 `checkPermission`、`grantRuntimePermission`、`revokeRuntimePermission` 直接调用 framework。`getDeniedServerPermissions()` 在服务端枚举 UID 关联包、检查声明权限并过滤未定义权限；在服务端查询可避免客户端包可见性造成的遗漏。访问结果还受 AppOps、SELinux 和服务内部策略影响。
 

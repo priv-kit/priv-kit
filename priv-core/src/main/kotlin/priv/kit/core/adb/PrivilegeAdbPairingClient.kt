@@ -1,5 +1,7 @@
 package priv.kit.core.adb
 
+import java.io.IOException
+
 import com.android.org.conscrypt.Conscrypt
 import java.io.Closeable
 import java.io.DataInputStream
@@ -145,7 +147,7 @@ internal class PrivilegeAdbPairingClient(
 
         val theirMessage = ByteArray(theirHeader.payload)
         inputStream.readFully(theirMessage)
-        val decrypted = context.decrypt(theirMessage) ?: throw PrivilegeAdbException("Invalid ADB pairing code")
+        val decrypted = context.decrypt(theirMessage) ?: throw IOException("Invalid ADB pairing code")
         if (decrypted.size != MAX_PEER_INFO_SIZE) return false
         PeerInfo.readFrom(ByteBuffer.wrap(decrypted))
         return true

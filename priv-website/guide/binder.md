@@ -48,16 +48,23 @@ This death token remains stable until the server is replaced. Refresh it when `P
 
 ## Understand failures {#failure-semantics}
 
-Core control calls use `PrivilegeServerUnavailableException` for a missing or dead server. Forwarding without a connection throws `PrivilegeBinderUnavailableException`, a subclass of `DeadObjectException`. Exceptions from the actual transaction propagate unchanged.
+Core control calls and Binder wrappers use the same `PrivilegeServerUnavailableException` when the privileged server is unavailable. A wrapper without a connection throws it before sending the transaction. Exceptions from the actual transaction propagate unchanged.
 
 Use `PrivilegeBinderCall.orElse(...)` when the app has an explicit fallback for
 a server-related or UserService Binder invocation:
 
 - `PrivilegeBinderCallFailure.ServerUnavailable` means the Privileged Server
-  was unavailable, covering both unavailable-server exception types above.
-- `PrivilegeBinderCallFailure.BinderDied` means a directly called endpoint
-  died.
+  was unavailable; its `exception` is a `PrivilegeServerUnavailableException`.
+- `PrivilegeBinderCallFailure.BinderDied` preserves a `DeadObjectException`.
+  For a forwarded transaction, this exception alone cannot identify whether
+  the privileged server or the target endpoint died. Do not mark the server
+  disconnected solely from this classification.
 - Other exceptions retain their original semantics.
+
+The helper can also wrap suspending calls, command result collection, and UserService
+operations. Connection failures propagate directly; the helper does not search nested
+causes or retry the operation. Cancellation, permission errors, ordinary I/O failures,
+and command timeouts do not invoke the fallback.
 
 Fallback fits recovery paths that remain safe with an uncertain remote result.
 The remote process may have completed a mutating operation before dying.

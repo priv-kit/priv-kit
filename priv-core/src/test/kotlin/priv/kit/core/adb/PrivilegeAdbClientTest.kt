@@ -1,5 +1,7 @@
 package priv.kit.core.adb
 
+import java.io.IOException
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -276,7 +278,7 @@ class PrivilegeAdbClientTest {
                 }
             }
 
-            val exception = assertThrows(PrivilegeAdbException::class.java) {
+            val exception = assertThrows(IOException::class.java) {
                 client(
                     port = server.localPort,
                     socketReadTimeoutMillis = 1_000,
@@ -310,7 +312,7 @@ class PrivilegeAdbClientTest {
                 }
             }
 
-            val exception = assertThrows(PrivilegeAdbException::class.java) {
+            val exception = assertThrows(IOException::class.java) {
                 client(
                     port = server.localPort,
                     socketReadTimeoutMillis = 1_000,

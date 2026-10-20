@@ -70,6 +70,12 @@ EOF 后发出。非零退出码仍是正常退出事件。
 
 最多同时运行四个命令，超出后立即失败。
 
+命令执行失败使用 `IOException`。达到配置的超时时限时抛出
+`PrivilegeCommandTimeoutException`，它继承 `IOException` 并携带 `timeoutMillis`。
+协程取消和 Binder 传输失败保留各自的异常类型。
+执行器死亡时，`stream()` 收集或 `awaitResult()` 会直接收到 `DeadObjectException`。
+需要明确兜底时，可用 `PrivilegeBinderCall.orElse(...)` 包住操作。
+
 ## 限制 {#limits}
 
 不提供 stdin、PTY、交互式 shell 或 daemon 管理。程序可能对管道输出自行缓冲，因此流式数据也可能成批到达。

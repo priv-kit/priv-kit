@@ -1,7 +1,7 @@
 package priv.kit.core.internal.userservice
 
 import android.os.IBinder
-import priv.kit.core.userservice.PrivilegeUserServiceException
+import android.os.DeadObjectException
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class PrivilegeUserServiceProcessBinder(
@@ -28,7 +28,7 @@ internal class PrivilegeUserServiceProcessBinder(
 
     private fun ensureAlive() {
         if (destroyed.get()) {
-            throw PrivilegeUserServiceException("UserService was destroyed: $serviceClassName")
+            throw DeadObjectException("UserService was destroyed: $serviceClassName")
         }
     }
 }

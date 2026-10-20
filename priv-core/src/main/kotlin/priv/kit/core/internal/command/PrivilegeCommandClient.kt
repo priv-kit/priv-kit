@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
 import priv.kit.core.command.PrivilegeCommand
 import priv.kit.core.command.PrivilegeCommandEvent
-import priv.kit.core.command.PrivilegeCommandException
+import java.io.IOException
 import priv.kit.core.command.PrivilegeCommandProcess
 import priv.kit.core.command.PrivilegeCommandResult
 import priv.kit.core.command.PrivilegeCommandTimeoutException
@@ -105,12 +105,7 @@ private class PrivilegeCommandProcessState(
     private val terminalFailure = AtomicReference<Throwable?>(null)
     private val executorBinder = executor.asBinder()
     private val executorDeathRecipient = IBinder.DeathRecipient {
-        fail(
-            PrivilegeCommandException(
-                "Command executor died",
-                DeadObjectException("Command executor died"),
-            ),
-        )
+        fail(DeadObjectException("Command executor died"))
         closeDescriptors()
     }
 
@@ -122,7 +117,7 @@ private class PrivilegeCommandProcessState(
                 PrivilegeCommandContract.RESULT_EXITED -> {
                     val data = resultData
                     if (data == null || !data.containsKey(PrivilegeCommandContract.KEY_EXIT_CODE)) {
-                        fail(PrivilegeCommandException("Command exit response is incomplete"))
+                        fail(IOException("Command exit response is incomplete"))
                         unlinkExecutorDeath()
                     } else {
                         if (!started.isCompleted) started.complete(Unit)
@@ -144,12 +139,12 @@ private class PrivilegeCommandProcessState(
                         ?.getString(PrivilegeCommandContract.KEY_ERROR_MESSAGE)
                         ?.takeIf(String::isNotBlank)
                         ?: "Command execution failed"
-                    fail(PrivilegeCommandException(message))
+                    fail(IOException(message))
                     unlinkExecutorDeath()
                 }
 
                 else -> {
-                    fail(PrivilegeCommandException("Unknown command result code: $resultCode"))
+                    fail(IOException("Unknown command result code: $resultCode"))
                     unlinkExecutorDeath()
                 }
             }

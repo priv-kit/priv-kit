@@ -20,6 +20,7 @@ import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeServerLaunchUncertainException
 import priv.kit.core.PrivilegeStartupException
+import priv.kit.core.binder.PrivilegeServerUnavailableException
 import priv.kit.core.internal.runtime.PrivilegeContext
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionEvent
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
@@ -31,6 +32,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
@@ -482,6 +484,47 @@ class PrivilegeUiRuntimeActionsTest {
             } finally {
                 releaseFirstRefresh.countDown()
             }
+        }
+    }
+
+    @Test
+    fun serverDeathDuringPermissionListRefreshPreservesDetailsAndAllowsRetry() = runBlocking {
+        val failures = java.util.concurrent.CopyOnWriteArrayList<Throwable>()
+        val failQuery = AtomicBoolean(false)
+        val queries = AtomicInteger(0)
+        RuntimeActionsFixture(
+            scope = CoroutineScope(
+                SupervisorJob() + Dispatchers.Default +
+                    CoroutineExceptionHandler { _, throwable -> failures += throwable },
+            ),
+            isPermissionRestricted = { true },
+            getDeniedServerPermissions = {
+                queries.incrementAndGet()
+                if (failQuery.get()) {
+                    throw PrivilegeServerUnavailableException(cause = android.os.DeadObjectException())
+                }
+                listOf("permission.TEST")
+            },
+        ).use { (store, actions) ->
+            actions.connectForTest(shellServerInfo())
+            actions.loadInitialPermissionDetails()
+            assertEquals(listOf("permission.TEST"), store.state.value.deniedServerPermissions)
+
+            failQuery.set(true)
+            actions.refreshPermissionRestrictionStatus()
+            actions.loadInitialPermissionDetails()
+            assertEquals(2, queries.get())
+            assertTrue("Unexpected coroutine failures: $failures", failures.isEmpty())
+            assertEquals(listOf("permission.TEST"), store.state.value.deniedServerPermissions)
+
+            actions.disconnectForTest()
+            assertEquals(emptyList<String>(), store.state.value.deniedServerPermissions)
+            failQuery.set(false)
+            actions.connectForTest(shellServerInfo())
+            actions.loadInitialPermissionDetails()
+            assertEquals(3, queries.get())
+            assertEquals(listOf("permission.TEST"), store.state.value.deniedServerPermissions)
+            assertTrue("Unexpected coroutine failures: $failures", failures.isEmpty())
         }
     }
 
@@ -1429,6 +1472,21 @@ class PrivilegeUiRuntimeActionsTest {
         assertEquals(listOf("cleanup failed"), failures.map { it.message })
         session.close(failures::add)
         assertEquals(listOf("throwing", "second", "third"), closed)
+        assertEquals(1, failures.size)
+    }
+
+    @Test
+    fun lateResourceCleanupFailureIsLogged() = runBlocking {
+        val logs = mutableListOf<String>()
+        val session = PrivilegeUiRuntimeStartSession(
+            startPermit = AutoCloseable {},
+            startupLogSink = logs::add,
+        ).apply { job = Job() }
+        session.close { error("Unexpected cleanup failure") }
+
+        session.addCloseable(AutoCloseable { error("late cleanup failed") })
+
+        assertTrue(logs.single().contains("late cleanup failed"))
     }
 
     @Test
@@ -1692,10 +1750,10 @@ class PrivilegeUiRuntimeActionsTest {
         getDeniedServerPermissions: () -> List<String> = { listOf("android.permission.INJECT_EVENTS") },
         acquireStartPermit: () -> AutoCloseable? = { AutoCloseable {} },
         operationDispatcher: CoroutineDispatcher = Dispatchers.IO,
+        private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
         private val beforeClose: () -> Unit = {},
     ) : AutoCloseable {
         val store = PrivilegeUiViewModelStore(context, config)
-        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val actions = PrivilegeUiRuntimeActions(
             store = store,
             coroutineScope = scope,

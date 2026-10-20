@@ -51,10 +51,16 @@ class PrivilegeBinderCallTest {
     }
 
     @Test
-    fun unavailableForwarderUsesServerUnavailableFallback() {
-        val exception = PrivilegeBinderUnavailableException()
-        val failure = PrivilegeBinderCall.orElse(fallback = { it }) { throw exception }
-        assertSame(exception, (failure as PrivilegeBinderCallFailure.ServerUnavailable).exception)
+    fun cancellationPropagatesUnchanged() {
+        val exception = kotlinx.coroutines.CancellationException("cancelled")
+        val thrown = assertThrows(kotlinx.coroutines.CancellationException::class.java) {
+            PrivilegeBinderCall.orElse(
+                fallback = { throw AssertionError("fallback should not be called") },
+            ) {
+                throw exception
+            }
+        }
+        assertSame(exception, thrown)
     }
 
     @Test

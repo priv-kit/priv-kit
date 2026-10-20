@@ -1,5 +1,7 @@
 package priv.kit.core.adb
 
+import java.io.IOException
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -67,7 +69,7 @@ class PrivilegeAdbPairingCheckSessionTest {
         val session = session(
             explicitPort = null,
             discoverConnectEndpoint = {
-                throw PrivilegeAdbException("ADB connect port is not available")
+                throw IOException("ADB connect port is not available")
             },
             clientFactory = {
                 error("client should not be created without an ADB connect port")

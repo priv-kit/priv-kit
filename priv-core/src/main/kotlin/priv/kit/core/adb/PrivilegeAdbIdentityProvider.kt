@@ -1,5 +1,7 @@
 package priv.kit.core.adb
 
+import java.io.IOException
+
 import priv.kit.core.PrivilegeStartupException
 
 internal class PrivilegeAdbIdentityProvider(
@@ -26,6 +28,6 @@ internal class PrivilegeAdbIdentityProvider(
             key
         } catch (throwable: Throwable) {
             throwable.rethrowIfInterrupted()
-            throw PrivilegeAdbException("Failed to load ADB key", throwable)
+            throw IOException("Failed to load ADB key", throwable)
         }
 }

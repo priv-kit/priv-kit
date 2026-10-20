@@ -1,5 +1,7 @@
 package priv.kit.input
 
+import java.io.IOException
+
 import android.view.InputDevice
 import android.view.InputEvent
 import android.view.KeyEvent
@@ -103,9 +105,9 @@ class PrivilegeInputInjectionTest {
         }
     }
 
-    @Test fun falseInjectionResultThrowsInputInjectionException() {
+    @Test fun falseInjectionResultThrowsIOException() {
         val input = inputFixture(inject = { _, _ -> false })
-        val failure = assertThrows(InputInjectionException::class.java) { kotlinx.coroutines.runBlocking { input.tap(0f, 0f) } }
+        val failure = assertThrows(IOException::class.java) { kotlinx.coroutines.runBlocking { input.tap(0f, 0f) } }
         assertEquals("Input event injection failed", failure.message)
     }
 

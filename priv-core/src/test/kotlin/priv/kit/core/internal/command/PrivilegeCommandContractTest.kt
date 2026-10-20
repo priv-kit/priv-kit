@@ -7,7 +7,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import priv.kit.core.command.PrivilegeCommand
-import priv.kit.core.command.PrivilegeCommandException
+import java.io.IOException
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -48,7 +48,7 @@ class PrivilegeCommandContractTest {
             putStringArray(PrivilegeCommandContract.KEY_ARGUMENTS, emptyArray())
         }
 
-        assertThrows(PrivilegeCommandException::class.java) {
+        assertThrows(IOException::class.java) {
             PrivilegeCommandContract.requestFrom(bundle)
         }
     }

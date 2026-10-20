@@ -11,7 +11,6 @@ import kotlinx.coroutines.withContext
 import priv.kit.core.PrivilegeUserServiceConnection
 import priv.kit.core.internal.userservice.IPrivilegeUserServiceManager
 import priv.kit.core.internal.userservice.PrivilegeUserServiceContract
-import priv.kit.core.userservice.PrivilegeUserServiceException
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -44,9 +43,9 @@ internal class PrivilegeUserServiceClient(
             )
         }) { response ->
             val connectionId = response.getString(PrivilegeUserServiceContract.KEY_CONNECTION_ID)
-                ?: throw PrivilegeUserServiceException("UserService bind response is missing a connection id")
+                ?: throw IllegalStateException("UserService bind response is missing a connection id")
             val binder = response.getBinder(PrivilegeUserServiceContract.KEY_SERVICE_BINDER)
-                ?: throw PrivilegeUserServiceException("UserService bind response is missing a service Binder")
+                ?: throw IllegalStateException("UserService bind response is missing a service Binder")
             PrivilegeUserServiceConnection(
                 binder = binder,
                 unbindAction = { unbind(manager, connectionId) },
@@ -151,7 +150,7 @@ internal class PrivilegeUserServiceClient(
                 override fun onReceiveResult(resultCode: Int, resultData: Bundle?) {
                     if (resultData == null) {
                         resumeFailure(
-                            PrivilegeUserServiceException("UserService response is missing result data"),
+                            IllegalStateException("UserService response is missing result data"),
                         )
                     } else {
                         resumeResult(resultData)
@@ -201,8 +200,6 @@ internal class PrivilegeUserServiceClient(
         if (response.getBoolean(PrivilegeUserServiceContract.KEY_SUCCESS, false)) {
             return
         }
-        val message = response.getString(PrivilegeUserServiceContract.KEY_ERROR_MESSAGE)
-            ?: "UserService operation failed"
-        throw PrivilegeUserServiceException(message)
+        PrivilegeUserServiceContract.throwFailure(response)
     }
 }

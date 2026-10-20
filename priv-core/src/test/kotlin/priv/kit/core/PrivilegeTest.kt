@@ -356,7 +356,7 @@ class PrivilegeTest {
     }
 
     @Test
-    fun remoteExceptionFromConfirmedDeadServerUsesFallback() {
+    fun remoteExceptionFromConfirmedDeadServerPropagatesWithoutFallback() {
         val remoteException = RemoteException("server transport failed")
         val server = FakePrivilegeServer(
             checkPermissionCall = { throw remoteException },
@@ -374,23 +374,15 @@ class PrivilegeTest {
             startupLogListener = null,
         )
         server.killBinder()
-        var observedFailure: PrivilegeBinderCallFailure? = null
-
-        val result = PrivilegeBinderCall.orElse(
-            fallback = { failure ->
-                observedFailure = failure
-                PackageManager.PERMISSION_DENIED
-            },
-        ) {
-            Privilege.checkPermission("android.permission.GRANT_RUNTIME_PERMISSIONS", "test.package", 0)
-        }
-
-        assertEquals(PackageManager.PERMISSION_DENIED, result)
-        val failure = observedFailure as PrivilegeBinderCallFailure.ServerUnavailable
-        assertSame(remoteException, failure.exception.cause)
-        assertThrows(PrivilegeServerUnavailableException::class.java) {
-            Privilege.getServerInfo()
-        }
+        val connection = Privilege.getServerInfo()
+        assertSame(remoteException, assertThrows(RemoteException::class.java) {
+            PrivilegeBinderCall.orElse(
+                fallback = { error("Other RemoteExceptions must not use the disconnect fallback") },
+            ) {
+                Privilege.checkPermission("android.permission.GRANT_RUNTIME_PERMISSIONS", "test.package", 0)
+            }
+        })
+        assertSame(connection, Privilege.getServerInfo())
     }
 
     @Test

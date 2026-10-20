@@ -1,5 +1,7 @@
 package priv.kit.core.adb
 
+import java.io.IOException
+
 import android.net.nsd.NsdManager
 import android.os.Build
 import priv.kit.core.PrivilegeStartupException
@@ -61,7 +63,7 @@ internal class PrivilegeAdbEndpointResolver(
         } else if (status.wirelessDebuggingEnabled) {
             output.append("diag", "Wireless debugging already enabled")
         } else if (shouldRejectWirelessDebuggingForStart(options.wirelessDebuggingControl, status)) {
-            throw PrivilegeAdbException(
+            throw IOException(
                 status.failureMessage ?: if (!status.permissionDeclared) {
                     "WRITE_SECURE_SETTINGS must be declared to manage Wireless debugging"
                 } else {
