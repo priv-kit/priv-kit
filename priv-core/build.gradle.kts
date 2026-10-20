@@ -36,7 +36,7 @@ dependencies {
     api(libs.kotlinx.coroutines.android)
     api(libs.kotlinx.serialization.core)
     testImplementation(libs.kotlinx.serialization.json)
-    compileOnly(project(":hidden-api"))
+    remapApi(project(":hidden-api"))
     compileOnly(libs.androidx.annotation)
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

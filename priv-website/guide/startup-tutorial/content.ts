@@ -2,8 +2,8 @@
 export default {
   "sections": {
     "restart": {
-      "title": "Starting again and rebooting",
-      "html": "<ul>\n<li><strong>Service connected:</strong> no need to pair or start again.</li>\n<li><strong>Service stopped, pairing valid:</strong> restore Wi-Fi and wireless debugging, then try Start before deleting any pairing record.</li>\n<li><strong>Phone rebooted:</strong> check service status and start again if needed. Automatic recovery is not guaranteed on every system.</li>\n<li><strong>App reinstalled or debugging authorization revoked:</strong> pairing may be required again.</li>\n<li><strong>Manual startup:</strong> run the app's current command again after the service stops.</li>\n</ul>\n"
+      "title": "Start again",
+      "html": "<ul>\n<li><strong>Service connected:</strong> no need to pair or start again.</li>\n<li><strong>Service stopped, pairing valid:</strong> restore Wi-Fi and wireless debugging, then try Start before deleting any pairing record.</li>\n<li><strong>Phone rebooted:</strong> check service status and start again if needed.</li>\n<li><strong>App reinstalled or debugging authorization revoked:</strong> pairing may be required again.</li>\n<li><strong>Manual startup:</strong> run the app's current command again after the service stops.</li>\n</ul>\n"
     },
     "tcp-ip": {
       "title": "Advanced: Static port",
@@ -27,7 +27,7 @@ export default {
     },
     "feature-failed": {
       "title": "Connected but features still fail",
-      "html": "<p>If the app reports restricted permissions, choose your device brand to view its settings. Even without a warning, the system may restrict particular operations. Report your device model, system version, and operation error to the app maintainer.</p>\n"
+      "html": "<p>If the app reports restricted permissions, choose your device brand to view its settings. Report your device model, system version, and operation error to the app maintainer.</p>\n"
     },
     "permission-restrictions": {
       "title": "Resolve ADB permission restrictions",
@@ -70,7 +70,7 @@ export default {
       "actions": [
         {
           "device": "phone",
-          "html": "Tap <strong>Start</strong> in this app. You are done when the service shows <strong>Connected</strong>."
+          "html": "Tap <strong>Start</strong> and check that the service shows <strong>Connected</strong>."
         }
       ]
     },
@@ -79,7 +79,7 @@ export default {
       "actions": [
         {
           "device": "phone",
-          "html": "First enable Developer options, then enable <strong>USB debugging</strong> there and connect the phone to the computer with a USB data cable."
+          "html": "Enable <strong>USB debugging</strong> in Developer options and connect the phone with a USB data cable."
         },
         {
           "device": "computer",
@@ -87,7 +87,7 @@ export default {
         },
         {
           "device": "computer",
-          "html": "Follow the page to add a USB device, select your phone in the browser device picker, and connect."
+          "html": "Add a USB device, select your phone, and connect."
         },
         {
           "device": "phone",
@@ -100,7 +100,7 @@ export default {
       "actions": [
         {
           "device": "computer",
-          "html": "In Tango, click the <strong>+</strong> button at the far right of the top tab bar, then select <strong>Terminal</strong> from the dropdown menu."
+          "html": "In Tango, select <strong>+ → Terminal</strong> at the right of the top tab bar."
         },
         {
           "device": "phone",
@@ -259,13 +259,13 @@ export default {
     ],
     "pairing-discovery": [
       "Connect to Wi-Fi.",
-      "Open and keep open Pair device with pairing code; enabling the wireless debugging switch alone is not enough.",
+      "Open Pair device with pairing code and keep the window open.",
       "Allow local network access if requested, then retry.",
       "Reopen the pairing window or try another trusted Wi-Fi network if discovery still fails."
     ],
     "pairing-failed": [
       "Reopen the system pairing window to get a new six-digit code.",
-      "Use the pairing code, not a screen-lock credential or a connection or pairing port.",
+      "Enter the code shown in the Pair device with pairing code window.",
       "Keep the window open while entering the code using the notification, split screen or a floating window."
     ]
   },
@@ -277,7 +277,7 @@ export default {
     ],
     "static": [
       "Reopen the static port as prompted by the app.",
-      "Use the static port, not a pairing port.",
+      "Enter the configured static port.",
       "Return to the app and tap Start again."
     ]
   }

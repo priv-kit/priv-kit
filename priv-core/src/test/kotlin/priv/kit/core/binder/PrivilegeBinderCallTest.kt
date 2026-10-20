@@ -51,6 +51,13 @@ class PrivilegeBinderCallTest {
     }
 
     @Test
+    fun unavailableForwarderUsesServerUnavailableFallback() {
+        val exception = PrivilegeBinderUnavailableException()
+        val failure = PrivilegeBinderCall.orElse(fallback = { it }) { throw exception }
+        assertSame(exception, (failure as PrivilegeBinderCallFailure.ServerUnavailable).exception)
+    }
+
+    @Test
     fun deadBinderInvokesTypedFallback() {
         val exception = DeadObjectException("endpoint died")
         var observedFailure: PrivilegeBinderCallFailure? = null

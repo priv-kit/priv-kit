@@ -4,9 +4,7 @@ description: Use explicit Binder primitives through an app-owned Priv Kit server
 
 # Binder {#binder}
 
-Priv Kit connects applications to explicit Binder endpoints and system services
-while preserving raw transaction contracts. The application supplies the
-framework interface and defines the domain behavior built on top of it.
+Priv Kit forwards Binder transactions through the privileged server. Your app supplies the Android service interfaces.
 
 ## Access a system service {#system-service}
 
@@ -31,9 +29,6 @@ val binder = PrivilegeBinderWrapper.fromSystemService(
 )
 ```
 
-The integrating app owns the framework interface and the meaning of each
-transaction.
-
 ## Bind resources to the server lifetime {#server-lifecycle}
 
 Some Binder APIs accept an owner or death token so that the remote process can
@@ -49,25 +44,17 @@ serverLifecycle.linkToDeath(
 )
 ```
 
-The token exposes no privileged operations or custom transactions. Its Binder
-identity remains stable for one server process and changes when the server is
-replaced. It belongs to the same server snapshot as the other
-`PrivilegeServerInfo` fields. Refresh the value whenever `Privilege.serverState`
-changes. `Privilege.getServerInfo()` raises `PrivilegeServerUnavailableException`
-when no live server is connected.
+This death token remains stable until the server is replaced. Refresh it when `Privilege.serverState` changes. `getServerInfo()` throws `PrivilegeServerUnavailableException` if disconnected.
 
 ## Understand failures {#failure-semantics}
 
-Project-owned control calls normalize a missing or dead server to
-`PrivilegeServerUnavailableException`. Raw wrapper calls keep forwarded Binder
-failures unchanged, preserving the uncertainty between a target Binder death and
-a Privileged Server death for application-specific recovery.
+Core control calls use `PrivilegeServerUnavailableException` for a missing or dead server. Forwarding without a connection throws `PrivilegeBinderUnavailableException`, a subclass of `DeadObjectException`. Exceptions from the actual transaction propagate unchanged.
 
 Use `PrivilegeBinderCall.orElse(...)` when the app has an explicit fallback for
 a server-related or UserService Binder invocation:
 
 - `PrivilegeBinderCallFailure.ServerUnavailable` means the Privileged Server
-  was unavailable.
+  was unavailable, covering both unavailable-server exception types above.
 - `PrivilegeBinderCallFailure.BinderDied` means a directly called endpoint
   died.
 - Other exceptions retain their original semantics.

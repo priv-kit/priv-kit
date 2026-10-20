@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Priv Kit
-  text: An app-owned privileged Android runtime
-  tagline: Priv Kit supports startup through Root, ADB, Manual, and external authorization bridges, with a Compose UI for quick authorization.
+  text: Privileged processes for Android apps
+  tagline: Start with Root or ADB. Access Binder, files, commands, and your own services.
   image:
     src: /priv-kit-mark.svg
     alt: Android
@@ -21,18 +21,18 @@ hero:
 
 features:
   - title: Privilege UI
-    details: Embed the Compose authorization page for startup status, pairing, permissions, and exact silent replay.
+    details: A Compose page for startup, pairing, permissions, and automatic recovery.
     link: /guide/priv-ui
   - title: Startup methods
     details: Start through Root, wireless ADB, static TCP, Manual, or an app-provided external bridge.
     link: /guide/activation
   - title: Binder access
-    details: Connect to explicit system services while preserving raw Binder contracts and failure semantics.
+    details: Call system services through the privileged process.
     link: /guide/binder
   - title: Built-in file proxy
-    details: Access files and stream directory walks in the privileged process without defining a UserService.
+    details: Access files and stream directory walks in the privileged process.
     link: /guide/file-proxy
   - title: App-defined UserService
-    details: Run application-owned privileged work in an embedded or dedicated process.
+    details: Run your AIDL service inside the server or in a separate process.
     link: /guide/user-service
 ---

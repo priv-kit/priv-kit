@@ -4,8 +4,7 @@ description: Run app-defined AIDL services in embedded or dedicated privileged p
 
 # UserService {#user-service}
 
-UserService runs application-owned code under the privileged runtime and
-returns the raw Binder for the app's own AIDL interface.
+UserService runs your code in a privileged process and returns the Binder for your AIDL interface.
 
 ## Define the AIDL contract {#define-aidl-contract}
 
@@ -46,20 +45,6 @@ The runtime supports a no-argument constructor or a `Context` constructor.
 Dedicated processes prefer application initialization and fall back to a
 package context. Embedded services receive a package context.
 
-## Detect the execution environment {#execution-environment}
-
-`PrivilegeUserServiceEnvironment.isEmbedded` tells code running inside a
-UserService which process model owns the current instance. It returns `true`
-when the service is embedded in the Privileged Server process and `false` when
-the service runs in its own dedicated `app_process` child. The value is stable
-for the lifetime of the process and is cached after its first read.
-
-Use it before process-wide actions such as termination or global cleanup. In
-the implementation above, a dedicated child exits from `destroy()`, while an
-embedded service limits cleanup to its own resources because it shares the
-Privileged Server process. The host selects the mode with
-`PrivilegeUserServiceSpec.embedded`.
-
 ## Use a dedicated process {#dedicated-process}
 
 This is the default. The service runs in a separate `app_process` child:
@@ -86,15 +71,7 @@ lifecycleScope.launch {
 }
 ```
 
-`startUserService`, `bindUserService`, and `stopUserService` are suspending,
-cancellable operations. Service-lock waits and dedicated-process startup run
-outside the caller thread. If the coroutine is cancelled
-before an operation is accepted, the runtime removes pending work and disposes
-of a process or connection created only for that cancelled operation.
-`connection.unbind()` is an idempotent suspending operation. Once invoked, it
-runs in a non-cancellable context so mandatory resource cleanup is not abandoned,
-while the server performs the work through the same bounded asynchronous protocol
-outside Binder threads.
+`startUserService`, `bindUserService`, and `stopUserService` suspend and support cancellation. Cancellation removes pending work and unaccepted resources. `connection.unbind()` is idempotent and completes cleanup in a non-cancellable context.
 
 Each instance is identified by `serviceClassName + tag`. The `version` value
 expresses whether the runtime can reuse the instance or replaces it. Change the
@@ -102,7 +79,7 @@ value when the implementation becomes incompatible.
 
 ## Use an embedded service {#embedded-service}
 
-Set `embedded = true` to run directly inside the Privileged Server:
+Set `embedded = true` to run directly inside the Privileged Server, saving process startup and memory overhead by sharing the existing process:
 
 ```kotlin
 val spec = PrivilegeUserServiceSpec(
@@ -113,7 +90,10 @@ val spec = PrivilegeUserServiceSpec(
 )
 ```
 
-Embedded mode avoids an extra process and suits small, low-risk work.
-`destroy()` cleans up service-owned resources and leaves the shared Privileged
-Server running. Binding is usually faster because it skips child-process launch
-and claim, while construction remains asynchronous and cancellable.
+Embedded services share the server process. Construction is asynchronous and cancellable.
+
+## Detect the execution environment {#execution-environment}
+
+`PrivilegeUserServiceEnvironment.isEmbedded` is `true` inside the shared server process and `false` in a dedicated child process. The value is fixed for that process.
+
+Check this before terminating a process: embedded services must only release their own resources and must not call `exitProcess`, which terminates the entire privileged process. Select the mode with `PrivilegeUserServiceSpec.embedded`.

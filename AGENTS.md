@@ -18,6 +18,10 @@ Read these files before changing product behavior or public APIs:
 1. `docs/architecture.md`
 2. The README of every affected Gradle module
 
+For Release validation, run only `:priv-sample:assembleLegacyRelease` by default.
+Validate other variants when explicitly requested or when investigating an issue
+specific to another variant or consuming application.
+
 Keep user-facing manual startup commands short and clean. Obtain the user's
 explicit consent before adding any extra arguments, options, or environment
 variable assignments to these commands.
@@ -90,8 +94,8 @@ source-level override declarations, compilation success, and Debug behavior
 are not sufficient evidence. Limit checks to affected paths unless a broader
 audit is requested or the evidence warrants one.
 
-Use the affected `:priv-sample` minified Release variants (`legacyRelease` and
-`api29Release`) or the actual consuming application's variant for validation.
+Use `:priv-sample`'s minified `legacyRelease` variant by default, following the
+Release validation scope above.
 Verify that required `:hidden-api` declarations reach final R8 analysis while
 compilation stubs remain absent from the APK. Ship required consumer keep rules
 with the library that owns the callback contract and validate them in the

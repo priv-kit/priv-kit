@@ -1,19 +1,16 @@
 ---
-description: 将 Priv Kit 接入 Android 应用，并启动第一个应用自有的特权运行时。
+description: 将 Priv Kit 接入 Android 应用。
 ---
 
 # 快速接入 {#getting-started}
 
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.priv-kit/priv-core.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.priv-kit/priv-core)
 
-Priv Kit 支持 Android API 26 及以上版本。它为单个应用提供启动、连接并使用
-自有 Privileged Server 的基础能力。应用可以使用内置文件代理、通过 Binder 或
-自己的 UserService 实现特权功能。
+支持 Android API 26 及以上版本。
 
 ## 添加依赖 {#add-dependencies}
 
-优先使用 `priv-ui`。它提供 Compose 授权页面，并通过传递依赖公开 `priv-core`，
-应用只声明这一个模块即可使用运行时、文件代理、Binder 和 UserService API。
+`priv-ui` 包含 Compose 授权页面并传递依赖 `priv-core`，无需重复声明 Core。
 
 ```kotlin
 dependencies {
@@ -84,14 +81,11 @@ class App : Application() {
 PrivilegeScaffold()
 ```
 
-默认配置会展示 Root、ADB 和手动启动。ADB 界面会定期检查状态，并处理无线调试配对、
-前台权限请求、TCP/IP 确认和启动。配置方式和静默启动见
-[Privilege UI 指南](./priv-ui)。
+默认页面提供 Root、ADB 和手动启动，配对、配置及静默启动见 [Privilege UI](./priv-ui)。
 
 ## 使用 priv-core 自定义界面 {#custom-interface}
 
-使用 `priv-core` 替换自带授权界面时，应用自行处理
-权限请求、配对码输入、确认界面、定期检查状态和错误展示。
+使用 `priv-core` 时，应用自行处理权限、配对、确认、状态检查和错误。
 
 最短的 Root 与无线调试调用如下：
 
@@ -107,13 +101,12 @@ val adbServer = Privilege.startAdb()
 ## 选择使用方式 {#usage-mode}
 
 - 使用 [Binder](./binder) 访问系统服务或执行底层 Binder 调用。
-- 使用[文件代理](./file-proxy)执行基础的绝对路径文件操作，无需定义 UserService。
+- 使用[文件代理](./file-proxy)执行基础的绝对路径文件操作。
 - 使用[命令执行](./commands)启动有界的非交互进程，并流式读取或汇总输出。
 - 使用 [UserService](./user-service) 运行应用自定义 AIDL 服务。
 - 使用 [Privilege UI](./priv-ui) 接入自带授权页面。
 - 需要用 `priv-core` 替换该页面时阅读[启动方式](./activation)。
 
 ::: warning 仍在活跃开发
-请使用正式发布的版本。`priv-core` 和 `priv-ui` 是受支持的公开 API，
-其他类和方法即使可以从字节码中访问，也属于实现细节。
+使用发布版本及文档中的公开 API。`priv-evdev` 为实验模块，内部类不承诺兼容性。
 :::

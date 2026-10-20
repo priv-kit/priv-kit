@@ -4,8 +4,7 @@ description: 通过应用自有的 Priv Kit 服务端访问 Binder 服务。
 
 # Binder {#binder}
 
-Priv Kit 可以连接 Binder 服务和系统服务。通过它执行 Binder transaction 时，
-原有的调用格式不会改变。应用提供对应的系统接口，并负责实现自己的业务逻辑。
+Priv Kit 通过特权服务端转发 Binder 调用，Android 服务接口由应用提供。
 
 ## 访问系统服务 {#system-service}
 
@@ -30,8 +29,6 @@ val binder = PrivilegeBinderWrapper.fromSystemService(
 )
 ```
 
-应用需要提供对应的系统接口，并定义每个 transaction 的调用格式和含义。
-
 ## 将资源绑定到服务端生命周期 {#server-lifecycle}
 
 部分 Binder API 接收 owner 或 death token，以便远端进程在 owner 退出时释放资源。
@@ -46,24 +43,17 @@ serverLifecycle.linkToDeath(
 )
 ```
 
-这个 token 不提供特权操作或自定义 transaction。同一个服务端进程内，它的 Binder
-identity 保持不变；服务端被替换后，新服务端会返回不同的 token。它与
-`PrivilegeServerInfo` 的其他字段属于同一个服务端快照。每次
-`Privilege.serverState` 变化后更新这个值。服务端不存在或已经死亡时，
-`Privilege.getServerInfo()` 会抛出 `PrivilegeServerUnavailableException`。
+该 token 在服务端被替换前保持不变。`Privilege.serverState` 变化后重新获取；未连接时 `getServerInfo()` 抛出 `PrivilegeServerUnavailableException`。
 
 ## 处理调用失败 {#failure-semantics}
 
-Priv Kit 自己的控制调用在服务端未连接或已经死亡时，都会抛出
-`PrivilegeServerUnavailableException`。通过 `PrivilegeBinderWrapper` 转发的
-调用会保留 Binder 原本的异常。调用失败时，应用可能无法确定是目标 Binder
-还是 Privileged Server 已经死亡，需要根据自身情况决定是否改用其他方式。
+Core 控制调用在服务端不可用时抛出 `PrivilegeServerUnavailableException`。Binder 转发前没有连接时抛出 `PrivilegeBinderUnavailableException`（继承 `DeadObjectException`）；实际事务异常原样传递。
 
 如果服务端或 UserService 的 Binder 调用失败后可以安全地改用其他方式，可以使用
 `PrivilegeBinderCall.orElse(...)`：
 
 - `PrivilegeBinderCallFailure.ServerUnavailable` 表示 Privileged Server
-  不可用。
+  不可用，包含上述两种服务不可用异常。
 - `PrivilegeBinderCallFailure.BinderDied` 表示直接调用的 Binder 已经死亡。
 - 其他异常保持不变。
 

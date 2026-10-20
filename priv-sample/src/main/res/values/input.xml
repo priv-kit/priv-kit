@@ -1,0 +1,9 @@
+<resources>
+    <string name="sample_test_input">Test Input</string>
+    <string name="sample_input_description">Test system injection and evdev. A five-second swipe is cancelled after one second, followed by another tap.</string>
+    <string name="sample_input_query">Query input devices</string>
+    <string name="sample_input_inject">Test all input commands</string>
+    <string name="sample_input_display">Switch display (current: %1$d)</string>
+    <string name="sample_input_target">Input test area (events appear below)</string>
+    <string name="sample_input_evdev">Test evdev tap, swipe and drag</string>
+</resources>

@@ -1,0 +1,9 @@
+<resources>
+    <string name="sample_test_input">测试输入</string>
+    <string name="sample_input_description">测试系统注入和 evdev；五秒滑动会在一秒后取消，再验证后续点击。</string>
+    <string name="sample_input_query">查询输入设备</string>
+    <string name="sample_input_inject">测试全部输入命令</string>
+    <string name="sample_input_target">输入测试区（接收的事件显示在下方）</string>
+    <string name="sample_input_display">切换显示屏（当前：%1$d）</string>
+    <string name="sample_input_evdev">测试 evdev 点击、滑动和拖动</string>
+</resources>

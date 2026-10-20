@@ -1,22 +1,14 @@
 ---
-description: 无需定义 UserService，直接通过已连接的 Privileged Server 执行基础文件操作。
+description: 通过已连接的服务端读写和管理文件。
 ---
 
 # 文件代理 {#file-proxy}
 
-内置文件代理可以直接在已连接的 Privileged Server 中执行基础的绝对路径文件操作。
-应用不需要为此定义、启动或绑定 UserService。
+通过 `Privilege.file(absolutePath)` 在已连接的服务端访问文件。
 
-`PrivilegeFile` 是不可变的路径句柄，不是 `java.io.File` 子类。创建和拼接句柄、
-读取路径属性以及调用 `isHidden()` 都只在客户端计算。访问文件系统的方法会发起同步
-Binder 调用，可以在任意线程调用，但调用方需要等待 Binder 调度和服务端文件系统
-I/O，通常应放在工作线程执行。文件服务 Binder 已随服务端握手安装，因此一次文件系统
-方法通常只增加一次到对应文件操作的 Binder 往返。
+`PrivilegeFile` 是不可变的路径句柄。路径属性、`resolve()` 和 `isHidden()` 在本地计算；文件系统方法通过同步 Binder 调用，应放在工作线程。
 
-`walk()` 和 `deleteRecursively()` 不同。目录遍历会在 `Dispatchers.IO` 中
-发起 Binder 请求并读取 pipe；`deleteRecursively()` 会挂起调用方，并由服务端有界
-协程执行遍历，因此两者都不会阻塞调用方线程。打开文件内容时仍需要同步完成 Binder
-交接，之后的内容通过 pipe 传输，不会为每个数据块发起一次 Binder transaction。
+`walk()` 在 `Dispatchers.IO` 读取；`deleteRecursively()` 挂起等待服务端遍历。打开流是同步操作，后续数据通过管道传输。
 
 ## 创建句柄 {#create-handle}
 
@@ -72,9 +64,7 @@ if (!deleted) {
 }
 ```
 
-`deleteRecursively()` 是挂起操作。最初的 Binder 调用只负责校验和受理请求，实际文件
-遍历在 Privileged Server 的有界 IO 协程调度器中执行。服务端最多同时受理四个递归
-删除且不设置等待队列；达到上限后，新请求直接返回 `false`，不会开始删除。
+`deleteRecursively()` 挂起等待服务端删除。最多同时执行四个，超出的请求返回 `false`。
 
 普通文件和符号链接会被直接删除。目录使用安全的描述符相对操作按“子项优先”顺序
 遍历，符号链接按叶子条目处理。客户端公开方法会在连接服务端前按词法合并重复分隔符及
@@ -132,15 +122,10 @@ withContext(Dispatchers.IO) {
 }
 ```
 
-目标文件描述符会留在 Privileged Server 中，因为应用自身的 SELinux 域无权访问
-底层目标时，Android 会拒绝把该描述符传给应用。文件内容改用 reliable pipe 流式
-传输，仍然不会为每个数据块发起 Binder 调用。输入流在到达 EOF 时传播服务端读取
-错误；关闭输出流会等待服务端消费全部字节并关闭目标，服务端写入失败会以
-`IOException` 报告。需要在关闭前额外等待 `fsync(2)` 时，传入
-`syncOnClose = true`。
+目标 fd 留在服务端，避免 SELinux 对描述符传递的限制；数据通过 reliable pipe 传输。输入错误在 EOF 时报告，输出流关闭会等待服务端写完，失败抛出 `IOException`。`syncOnClose = true` 还会等待 `fsync(2)`。
 
 文件内容传输使用独立的有界执行器，同时最多执行四个且不排队；继续打开会以
-`EBUSY` 失败，因此应及时关闭流。该 API 提供顺序流，不提供随机访问文件描述符。
+`EBUSY` 失败，因此应及时关闭流。该 API 通过顺序流读写文件。
 
 ## 遍历目录树 {#walk-directory}
 
@@ -151,9 +136,7 @@ directory.walk(maxDepth = 2).collect { entry ->
 }
 ```
 
-目录条目较多时，可用 `flushBatchSize` 控制服务端每累计多少个条目显式刷新一次 pipe。
-默认值为 32，必须为正数。首个条目会立即刷新；pipe 缓冲区写满时也可能提前写入。
-该参数只影响结果的送达时机，不改变返回的条目或 Binder 调用次数：
+`flushBatchSize` 指定每次显式刷新之间的条目数，默认 32，必须为正数。首项立即刷新，缓冲区满时可能提前刷新。
 
 ```kotlin
 directory.walk(maxDepth = 2, flushBatchSize = 64).collect { entry ->
@@ -172,10 +155,7 @@ directory.walk(
 }
 ```
 
-每次收集都会启动一次新的无排序、弱一致、深度优先先序遍历。接收者目录本身不会
-输出，直接子项的深度为 1。默认最大深度为 `Int.MAX_VALUE`；传入 `maxDepth = 1` 时
-只列出直接子项。条目通过 pipe 流式返回，不会装进一个 Binder 响应，也不会在内存中
-缓存完整目录树。
+每次收集启动一次无排序、弱一致、深度优先先序遍历。根目录不输出，子项深度从 1 开始。`maxDepth` 默认 `Int.MAX_VALUE`，设为 1 只列直接子项。结果通过管道返回。
 
 跳过规则会区分大小写地匹配目录的完整 basename。`*` 匹配零个或多个字符，`?` 匹配
 一个字符，`\` 用于转义 `*`、`?` 或 `\`，且规则不能包含 `/`。命中的目录本身仍会
@@ -188,8 +168,4 @@ directory.walk(
 读取属性前消失时会跳过；起始目录或任一已进入的后代目录无法打开或迭代时，Flow 会
 终止并保留对应 Linux 错误。
 
-取消收集会关闭 pipe 和所有已打开的目录流。一次 walk 无论深度只使用一个服务端
-协程和一个并发槽位。服务端最多同时执行四个 walk 且不设置等待队列；继续发起会以
-`EBUSY` 失败。
-
-应用为递归删除提供一个明确目标，并负责路径发现、保留规则、调度和存储清理策略。
+取消会关闭管道和已打开目录。每次遍历只占一个槽位，与深度无关；最多同时四个，超出时抛出 `EBUSY`。

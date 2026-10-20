@@ -1,26 +1,20 @@
 ---
-description: 了解 Priv Kit 提供什么、为何采用应用自有运行时，以及它的适用范围。
+description: Priv Kit 的功能与模块选择。
 ---
 
 # Priv Kit 是什么？ {#what-is-priv-kit}
 
-Priv Kit 是面向 Android 的应用自有特权运行时。它让单个应用可以通过 Root、ADB、
-手动或外部授权器启动、连接并管理自己的 Privileged Server。连接成功后，
-应用可以访问 Binder 服务、使用内置文件代理或运行自己的 UserService，业务逻辑仍由
-应用自己实现。
+Priv Kit 让 Android 应用通过 Root、ADB、手动命令或外部授权器启动和管理自己的特权进程，用于 Binder 调用、文件操作、命令执行和自定义 UserService。
 
-大多数应用从 `priv-ui` 开始，它提供 Compose 授权页面，并处理启动、授权和状态
-展示。自定义授权界面可以直接使用更底层的 `priv-core`。
+使用 `priv-ui` 接入 Compose 授权页面，或通过 `priv-core` 自建界面。
 
-想直接尝试？跳到[快速接入](./getting-started)。
+接入步骤见[快速接入](./getting-started)。
 
-## Priv Kit 提供什么 {#what-priv-kit-provides}
+## 功能 {#what-priv-kit-provides}
 
-### 用 Privilege UI 完成常规接入 {#privilege-ui}
+### Privilege UI {#privilege-ui}
 
-`priv-ui` 提供可直接嵌入的授权页面，包含启动状态、无线调试配对、权限请求、
-TCP/IP 确认、手动和静默启动。应用可以直接使用这套流程，不必重新实现
-这些交互。
+`priv-ui` 处理启动、无线调试配对、权限请求、TCP/IP 确认和静默启动。
 
 <table>
   <tr>
@@ -41,30 +35,21 @@ API。自定义界面负责权限请求、配对码输入、确认和错误展�
 
 ### 通过 Binder 访问服务 {#binder}
 
-Priv Kit 可以按服务名获取系统服务并执行底层 Binder transaction。应用负责提供
-服务接口、定义每个 transaction 的调用格式，并处理调用失败。具体用法见
-[Binder 指南](./binder)。
+按名称获取系统服务并转发 Binder 调用。应用提供服务接口并处理错误，见 [Binder](./binder)。
 
 ### 内置文件代理 {#file-proxy}
 
-基础的绝对路径文件操作可以直接在 Privileged Server 中执行，不需要应用定义
-UserService。文件内容通过真实文件描述符传递，目录项通过 pipe 流式返回。
-[文件代理指南](./file-proxy)说明了与 `java.io.File` 一致的返回语义和明确的安全边界。
+[文件代理](./file-proxy)在服务端执行文件操作，内容和目录项通过管道传输。
 
 ### 应用自定义 UserService {#user-service}
 
-如果直接执行 Binder transaction 不方便，应用可以定义自己的 AIDL 接口和特权
-实现。Priv Kit 负责启动 UserService、选择进程模式并把 Binder 返回给应用，接口
-及其功能由应用自己实现。如何选择嵌入式或独立进程见
-[UserService 指南](./user-service)。
+应用定义 AIDL 接口和特权实现，Priv Kit 负责启动 [UserService](./user-service)、管理生命周期并返回 Binder。
 
-## 为什么是应用自有运行时？ {#app-owned-runtime}
+## 每个应用独立运行 {#app-owned-runtime}
 
-一个应用拥有一个 Privileged Server，并掌握启动方式、服务端身份、连接状态、断线
-恢复和特权功能。跨应用共享服务属于另一种运行时模型。
+每个应用独立管理自己的服务端，包括启动、连接和恢复。
 
-所有启动方式最终都使用同一套连接流程。连接失败或服务端死亡时，运行时会返回失败，
-不会把无法确认的结果当作成功。
+各启动方式使用相同的连接检查，并报告断连和服务端死亡。
 
 ## 从哪里开始 {#where-to-start}
 

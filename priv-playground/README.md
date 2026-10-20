@@ -1,80 +1,47 @@
 # priv-playground
 
-An unpublished UI demonstration host under `priv.kit.playground`. It consumes `:priv-ui` on
-Desktop/JVM and Browser/WasmJS. Android integration remains in `:priv-sample`.
+JVM and WasmJS previews using `PrivilegePreviewScaffold()`. Android examples live in `priv-sample`.
 
-`commonMain` provides the Material 3 theme and renders `PrivilegePreviewScaffold()`. The Desktop
-entry point creates a resizable window. The Wasm entry point exports `renderPrivilegePlayground`,
-which accepts a host element, resource URL resolver, theme, `useLegacyPackaging`, and `adbRestricted`. The website owns the element lifecycle.
-Root, Wireless ADB, static TCP, manual startup, and external authorization use an in-memory simulation.
-Operations default to success, pairing accepts any six digits, and confirmation/cancellation dialogs
-drive the same shared page components. No privileged runtime, networking, or system changes occur.
-Copy buttons copy sample text to the host clipboard. Closing the page or window discards the session.
+Startup, pairing, and confirmations are simulated. Any six-digit pairing code works; Copy uses the host clipboard. Closing the host ends the session.
 
-Run the desktop app:
+## Run
+
+Desktop:
 
 ```shell
 ./gradlew :priv-playground:run
 ```
 
-Run the website from the repository root:
+Website, from the repository root:
 
 ```shell
 pnpm dev
 ```
 
-Set the `PRIV_KIT_SKIP_ANDROID` environment variable to build or run the website without an
-Android SDK or NDK. Only its presence matters; its value is ignored.
-This mode loads only `:priv-ui` and `:priv-playground` and disables the UI module's Android
-target. Java is still required for Gradle. The website workflow enables this mode; leave
-the variable unset for Android builds and publishing.
+Set `PRIV_KIT_SKIP_ANDROID` to build without Android SDK/NDK. This mode still requires Java and loads only UI and playground. Leave it unset for Android builds and publishing.
 
-Open `/playground/` or `/zh/playground/`. The Vue page provides
-language, appearance, `useLegacyPackaging`, and ADB permission restriction controls outside the canvas. `priv-playground/scripts/build-playground.ts` builds the Wasm executable and assembles
-the entry module, Wasm, Skiko, and Compose resources in the ignored `priv-playground/dist` directory.
-The private workspace package exposes `renderPrivilegePlayground(container, dark, useLegacyPackaging, adbRestricted)` with its resource resolver
-already configured. The Vue page loads it with `import('@priv-kit/playground')`; Vite bundles its dependencies and
-fingerprints the Wasm, font, and string resources into `priv-website/.vitepress/dist/assets`.
-The `@priv-kit/playground/wasm-assets` export contains build-time Wasm sizes without loading the runtime.
-The Vue loading overlay tracks streamed Wasm response bytes to show download progress, then switches
-to startup status. Fetch tracking is removed on readiness, failure, or unmount.
-Thin localized Markdown pages mount the component through `ClientOnly` with `layout: false`.
-VitePress handles routing and the single website build; no separate Vite build or dev server is needed.
-The route selects the UI language, and appearance follows the website theme. Leaving the page
-clears the Compose host and restores the browser language settings used by Compose resources.
-The Wasm mount function returns an options updater, so switching the theme or packaging preserves simulation data.
-The ADB restriction switch defaults to on and immediately updates the warning and permission list
-for simulated Shell connections, including manual startup. It also applies to subsequent connections;
-Root connections remain unrestricted. Toggling it preserves the current connection and session.
-The manual command uses a session-local installation path with two URL-safe Base64 tokens encoding 16 random bytes each
-and the fixed package name `priv.kit.sample`. Packaging defaults to `true` (extracted ARM64 library); `false`
-shows the `linker64` command for the library inside `base.apk`. Switching formats retains the installation path.
-Changing the language opens a new localized page session.
-Build the package with `pnpm --filter @priv-kit/playground build:wasm` before importing it outside the website scripts.
-No npm or Maven artifact is published for this module.
+## Browser
 
-The playground downloads Noto Sans SC from a pinned Google Fonts commit to render Chinese in Wasm.
-The Gradle `:priv-playground:prepareFont` task runs the Node download script before Compose resource
-processing for both Desktop and Wasm, verifies its SHA-256, and reuses a valid local copy.
-Node.js 24.15 or newer must be on `PATH`, including for direct Gradle builds.
-The full font is ignored by Git. The first build requires network access;
-`HTTPS_PROXY` and `HTTP_PROXY` are supported by the Node scripts.
-Its SIL Open Font License is included under `src/commonMain/composeResources/files/NotoSansSC-OFL.txt`.
-The font is demonstration-host data and is not shipped in `priv-ui`.
-While copying Gradle resources, the browser build reads the source font and writes its subset
-directly into `dist`, retaining all ASCII code points
-(`U+0000–U+007F`) and every character found in repository `.kt` and `.xml` files.
-Each file contributes only its unique non-ASCII characters; ASCII is seeded once globally.
-Git's standard ignore rules apply, including nested `.gitignore` files; untracked source files
-are included, while ignored files are excluded even when tracked. Source text is scanned
-literally, without decoding Kotlin escapes or XML entities. Characters absent from the original
-font cannot be added by subsetting, and arbitrary user input may still need font fallback.
-Run `pnpm --filter @priv-kit/playground check` to check the TypeScript tooling and scan behavior.
+`/playground/` and `/zh/playground/` mount the Wasm page through Vue, with language, theme, packaging, and permission controls. Theme/config updates retain the session; language changes start a new one.
 
-The preview also accepts `batteryOptimizationExempt` and `localNetworkPermissionGranted`
-(default `true`). Turning either off shows its ADB prompt card; ADB operations
-remain available without local network permission. Simulated permission requests notify the host through
-`onPermissionsChanged`, keeping the website switches in sync without restarting the session.
+`renderPrivilegePlayground(container, dark, useLegacyPackaging, adbRestricted)` mounts the page and returns an updater. Manual commands use a random installation path. Packaging defaults to extracted libraries; `false` shows the APK command. ADB restrictions default to on and affect simulated Shell connections only.
 
-The Desktop integration tests also consume `PrivilegeScreen` directly through the public API,
-verifying host-owned transitions and shared system prompts without internal API access.
+`batteryOptimizationExempt` and `localNetworkPermissionGranted` default to `true`. Simulated grants notify the host through `onPermissionsChanged`.
+
+`build-playground.ts` writes Wasm, Skiko, fonts, and Compose resources to ignored `dist`. The website imports `@priv-kit/playground`; Vite handles asset paths. `wasm-assets` exports sizes for download progress. Build before importing outside website scripts:
+
+```shell
+pnpm --filter @priv-kit/playground build:wasm
+```
+
+## Fonts and checks
+
+`prepareFont` downloads a pinned Noto Sans SC version and checks SHA-256. It needs Node.js 24.15+; the first build needs network access and supports `HTTPS_PROXY`/`HTTP_PROXY`. The font is playground-only; its license is in `src/commonMain/composeResources/files/NotoSansSC-OFL.txt`.
+
+Browser builds subset the font to ASCII and characters in repository `.kt`/`.xml` files. Scanning reads source literals as written, follows Git ignore rules, and includes untracked files. The original font stays intact; arbitrary user input may need fallback.
+
+```shell
+pnpm --filter @priv-kit/playground check
+```
+
+Desktop tests use public `PrivilegeScreen` APIs to verify host state changes and prompts.

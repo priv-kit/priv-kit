@@ -31,11 +31,6 @@ internal class PrivilegeUiEffectsCoordinator(
     private val adbActions: PrivilegeUiAdbActions,
     private val externalStartActions: PrivilegeUiExternalStartActions,
     private val coroutineScope: CoroutineScope,
-    private val refreshWirelessStatus: suspend () -> Unit = {
-        adbActions.refreshWirelessAdbStatusNow(markChecking = false)
-    },
-    private val pollWirelessStatus: suspend () -> Unit = { adbActions.pollWirelessAdbStatus() },
-    private val loadInitialManualShellCommand: suspend () -> Unit = { store.loadManualShellCommand() },
 ) : AutoCloseable {
     private val resumedHosts = mutableSetOf<String>()
     private val pageVisible = MutableStateFlow(false)
@@ -52,7 +47,7 @@ internal class PrivilegeUiEffectsCoordinator(
         observerJob = coroutineScope.launch(CoroutineName("priv-ui-effects")) {
             val manualCommandJob = launch(CoroutineName("priv-ui-initial-manual-command")) {
                 if (PrivilegeUiStartupMode.MANUAL_SHELL in store.state.value.startupModes) {
-                    loadInitialManualShellCommand()
+                    store.loadManualShellCommand()
                 }
             }
             startGateState
@@ -142,7 +137,7 @@ internal class PrivilegeUiEffectsCoordinator(
         when (page.mode) {
             PrivilegeUiStartupMode.ADB -> {
                 if (page.wirelessDiscoveryAllowed && isPrivilegeUiWirelessAdbSupported()) launch {
-                    refreshWirelessStatus()
+                    adbActions.refreshWirelessAdbStatusNow(markChecking = false)
                 }
                 if (store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED) launch {
                     adbActions.refreshTcpModeEnabledNow(markChecking = false)
@@ -157,7 +152,7 @@ internal class PrivilegeUiEffectsCoordinator(
 
     private suspend fun pollAdbStatus(wirelessDiscoveryAllowed: Boolean): Unit = coroutineScope {
         if (wirelessDiscoveryAllowed && isPrivilegeUiWirelessAdbSupported()) launch {
-            pollWirelessStatus()
+            adbActions.pollWirelessAdbStatus()
         }
         if (store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED) launch {
             adbActions.pollTcpModeStatus()

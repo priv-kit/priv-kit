@@ -6,25 +6,18 @@ description: Start with Privilege UI, or use priv-core to build a custom authori
 
 Using an app and need help starting or pairing? Read the [startup tutorial](./startup-tutorial).
 
-Every startup method starts the same app-owned Privileged Server and converges
-on the same Binder handoff. The difference is how the initial privileged
-process is created.
+All methods start the app's Privileged Server and return its Binder. They differ only in how they obtain the privileged process.
 
 ## Start with Privilege UI {#privilege-ui}
 
-Most applications should use `priv-ui`. Embed `PrivilegeScaffold` to get the
-Root, Wireless Debugging, TCP/IP, Manual, and external-provider flows with their
-status, permissions, pairing, confirmations, and error presentation already
-coordinated. See [Privilege UI](./priv-ui) for setup and configuration.
+Embed `PrivilegeScaffold` for startup, permissions, pairing, confirmations, and errors. See [Privilege UI](./priv-ui).
 
 The APIs below are for applications that replace the supplied authorization
 page.
 
 ## Build a custom interface with priv-core {#priv-core-custom-interface}
 
-When an application uses `priv-core` directly, the host owns every permission
-prompt, pairing input, confirmation surface, polling loop, and error state.
-`priv-core` provides the runtime and transport operations only.
+With `priv-core`, your app implements permission prompts, pairing input, confirmations, polling, and error display.
 
 ### Observe the connection state {#connection-state}
 
@@ -33,11 +26,7 @@ prompt, pairing input, confirmation surface, polling loop, and error state.
 is connected; `null` means it is disconnected. Every new collector immediately
 receives the current value.
 
-`PrivilegeServerInfo` is a data class with a diagnostic-friendly `toString`.
-Its `selinuxContext` contains the SELinux context read and cached once per
-server process, or `null` when the platform cannot provide it. Owner reconnects
-reuse the cached diagnostic value. Core constructs connection snapshots and
-keeps both the constructor and `copy` internal.
+`PrivilegeServerInfo` describes the connection. Its nullable `selinuxContext` is cached per server process for diagnostics.
 
 #### Application-wide observation {#application-observation}
 
@@ -86,19 +75,11 @@ Privilege.prepareOwnerRestart(
 Process.killProcess(Process.myPid())
 ```
 
-The call returns after the server acknowledges the plan. If the owner dies within five seconds,
-the server waits passively for the requested interval so the application's restart policy remains
-the only process-start source. Give the interval enough headroom for the scheduled restart. If the
-owner does not reconnect before it expires, configured active reconnect resumes for the remainder
-of `PrivilegeConfig.followDeathDelayMillis`. A plan expires without effect when the owner does not
-die within five seconds, and a matched planned restart does not count toward the crash-loop circuit.
+The call waits for server acknowledgement. The plan applies only if the owner dies within five seconds and excludes that death from crash-loop counting. The server waits passively for the requested interval, then resumes configured active reconnect for the remaining `followDeathDelayMillis`. Allow enough time for your app to restart.
 
 ### Inspect denied server permissions {#denied-server-permissions}
 
-The built-in UI fetches the permission list in the background when it detects restricted
-permissions. Select **View restricted permissions** on the warning card to open a dialog.
-Permission names can be selected freely; **Copy** copies the full list and **Close** dismisses
-the dialog. Returning to the page refreshes the list.
+The UI's **View restricted permissions** action opens a selectable, copyable list. Returning to the page refreshes it.
 
 After the server connects, a custom host can inspect permissions declared by
 packages associated with the server UID but denied to the server process:
@@ -109,17 +90,9 @@ val deniedPermissions = withContext(Dispatchers.IO) {
 }
 ```
 
-Permissions not defined on the current device are filtered out. The method checks
-grant status first, then looks up definitions only for denied permissions.
-The result is a distinct list sorted by permission name. Root servers return an
-empty list. Failure to resolve package metadata for a non-root server is
-reported instead of being treated as an unrestricted result.
+Results are deduplicated and sorted, excluding permissions undefined on the device. Root returns an empty list. Package lookup failures on non-root servers are reported as errors.
 
-This inventory covers Android permission grants only. It does not inspect
-AppOps, SELinux policy, or authorization enforced inside individual system
-services, so an empty list does not guarantee that every operation will
-succeed. Use `Privilege.checkServerPermission(permission)` when the host needs
-to test one known permission directly.
+Access also depends on AppOps, SELinux, and service-specific rules. Use `Privilege.checkServerPermission(permission)` to check one Android permission.
 
 #### Redmi K40 example {#denied-permissions-device-example}
 
@@ -170,13 +143,7 @@ android.permission.WRITE_SECURE_SETTINGS
 android.permission.WRITE_SETTINGS
 ```
 
-On this device, disabling the setting prevents the privileged process running as Shell from
-performing operations protected by these permissions, such as simulating screen taps, changing
-system settings, or granting and revoking app permissions.
-
-Both outputs list **denied permissions**, not granted permissions. They describe only the device
-and system version above and are not fixed expectations for other devices. Use the actual result
-of each call in your application.
+These are denied permissions on this device and OS version. Query the current device rather than hard-coding the list.
 
 ### Root {#root}
 
@@ -242,8 +209,7 @@ alive between calls. Close the session when polling stops.
 val serverInfo = Privilege.startAdb()
 ```
 
-Pairing and startup are separate operations, so a successful `pair()` does not
-start the server.
+After `pair()` succeeds, call `startAdb()` to start the server.
 
 When the host declares and already holds `WRITE_SECURE_SETTINGS`, the default
 `PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE` policy can temporarily
@@ -307,7 +273,7 @@ check(request.authorized) {
 
 ##### Start on the static port {#tcp-ip-start}
 
-Pass the port explicitly. A non-null `port` skips Wireless Debugging discovery:
+Set `port` to connect directly to that port:
 
 ```kotlin
 val serverInfo = Privilege.startAdb(
@@ -332,26 +298,9 @@ val nativeStarterCommand = withContext(Dispatchers.IO) {
 YourApp.showCommandToUser("adb shell $nativeStarterCommand")
 ```
 
-`priv-core` returns a device-side command. On Android 10 and later it can use the
-platform linker to run the starter directly from an APK, or execute the
-installed SO when legacy packaging extracted it. The host adds `adb shell` when
-presenting the command for a development machine. The starter accepts root
-(UID 0), system (UID 1000), and shell (UID 2000). See
-[native library packaging](./getting-started#native-library-packaging) for the
-Android-version requirements. Resolve the command off the main thread because
-first access inspects the installed APKs. User 0 uses the default owner scope
-without an owner-user environment variable. A non-primary Android user is
-embedded explicitly, so the command remains correctly scoped when it is
-executed while the application process is not running.
+`Privilege.nativeStarterCommand` returns a device-side command; add `adb shell` for a computer terminal. Resolve it off the main thread because first access inspects APKs. It accepts root (0), system (1000), or shell (2000) and includes the owner user ID when nonzero. See [native library packaging](./getting-started#native-library-packaging).
 
-Running the starter again first sends `SIGKILL` to the exact owner-scoped
-server process and verifies that it exited. Its readable name ends with
-`<package>:priv-server` for user 0 and adds `-u<ownerUserId>` only for a
-non-primary user. An internal package/user token keeps discovery scoped even
-when only `/proc/<pid>/comm` is readable.
-The replacement starts after that verification. A failed stop leaves the old
-server in place. Packages installed for other Android users have different
-scoped process names and stay outside the match.
+Re-running the starter kills the old server for this package and Android user, verifies its exit, then starts a replacement. If stopping fails, no replacement starts. Other users' servers are unaffected.
 
 With modern packaging on Android 10 or later, a rendered command can look like:
 
@@ -367,16 +316,9 @@ adb shell /data/app/~~-YKUdRFBwGAwYBVzJRt7pA==/priv.kit.sample.debug-A-2guZlsvRZ
 
 ### External {#external}
 
-External startup is an extension of `Manual`. Instead of asking the user to run
-the native starter command, the application uses an external authorizer to
-execute the same command inside its privileged process. Both methods enter the
-same Privileged Server startup and Binder handoff path.
+External startup runs the same native command through an authorizer's privileged process.
 
-The external authorizer can be any app-owned privileged entry capable of
-running that command as root, system, or shell. The application owns third-party
-authorization, binding, and access control, while `priv-core` supplies the command bridge.
-The following example assumes Shizuku is already available and authorized. Its
-key step is a Shizuku UserService that exposes the Priv Kit startup bridge.
+The authorizer must run the command as root, system, or shell. Your app handles authorization, binding, and access control. The example below uses an already-authorized Shizuku UserService.
 
 #### Define the UserService {#define-user-service}
 

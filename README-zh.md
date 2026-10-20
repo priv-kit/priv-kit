@@ -4,11 +4,14 @@
 
 [English](./README.md)
 
-Priv Kit 是一个轻量 Android 库，应用可以通过 Root、ADB、手动 shell 命令或
-外部授权桥启动并管理自己的特权进程，然后使用显式 Binder 原语、通过内置特权文件
-代理访问文件，或在嵌入式、独立进程中运行自己的 UserService。
+Priv Kit 让 Android 应用通过 Root、ADB、手动命令或外部授权服务启动自己的特权进程。
 
-Priv Kit 提供特权运行时基础设施，不封装 Android 系统操作的高级 API。
+- Binder 访问
+- 文件操作
+- 命令执行
+- 自定义 UserService
+- Android 输入事件注入
+- Linux evdev 访问（实验性）
 
 [阅读完整文档](https://priv-kit.pages.dev/zh/)
 

@@ -1,29 +1,20 @@
 ---
-description: Learn what Priv Kit provides, why its runtime is app-owned, and where its responsibility ends.
+description: Priv Kit features and module choices.
 ---
 
 # What is Priv Kit? {#what-is-priv-kit}
 
-Priv Kit is an app-owned privileged runtime for Android. It lets a single
-application start, connect to, and manage its own Privileged Server through
-Root, ADB, Manual, or an external authorization bridge. Once
-connected, the application can use explicit Binder primitives, the built-in
-file proxy, or its own UserService while keeping domain logic under its control.
+Priv Kit lets an Android app start and manage its own privileged process through Root, ADB, a shell command, or an external authorizer. Use it for Binder calls, file operations, commands, and app-defined UserServices.
 
-Most applications start with `priv-ui`, which provides the Compose authorization
-page and coordinates the runtime. `priv-core` is the lower-level option for a
-custom authorization interface.
+Use `priv-ui` for the Compose authorization page, or `priv-core` to build your own interface.
 
-Want to try it? Jump to [Getting started](./getting-started).
+See [Getting started](./getting-started).
 
-## What Priv Kit provides {#what-priv-kit-provides}
+## Features {#what-priv-kit-provides}
 
-### Privilege UI for standard integration {#privilege-ui}
+### Privilege UI {#privilege-ui}
 
-`priv-ui` provides the ready-to-embed authorization page. It presents startup
-status, Wireless Debugging pairing, permissions, TCP/IP confirmation, Manual
-commands, and exact silent replay. Applications can use the supplied flow
-without rebuilding those interactions.
+`priv-ui` handles startup, Wireless Debugging pairing, permission requests, TCP/IP confirmation, and silent startup.
 
 <table>
   <tr>
@@ -43,38 +34,23 @@ static TCP, Manual, and app-provided external bridges. A custom interface adds
 its own permission prompts, pairing input, confirmations, and error presentation.
 See [startup methods](./activation) for the underlying flows.
 
-### Binder building blocks {#binder}
+### Binder access {#binder}
 
-Priv Kit can resolve an explicit system service and perform raw Binder
-transactions without hiding the original contract or failure semantics. The
-application remains responsible for the service interface, transaction format,
-and domain behavior. Read the [Binder guide](./binder) for the available
-primitives.
+Resolve system services and forward Binder transactions. Your app supplies the service interfaces and handles errors. See [Binder](./binder).
 
 ### Built-in file proxy {#file-proxy}
 
-Basic absolute-path file operations can run directly in the Privileged Server
-without an application-defined UserService. Content uses real file descriptors,
-and directory entries stream over a pipe. Read the [file proxy guide](./file-proxy)
-for its `java.io.File`-compatible return semantics and deliberate safety limits.
+The [file proxy](./file-proxy) runs file operations in the server. File contents and directory entries travel through pipes.
 
 ### Application-defined UserService {#user-service}
 
-When raw transactions are not the right boundary, an application can define its
-own AIDL interface and privileged implementation. Priv Kit manages the
-UserService lifecycle, process mode, and Binder handoff while the application
-owns the API and behavior. Read the [UserService guide](./user-service) to choose
-an embedded or dedicated process.
+Define an AIDL interface and its privileged implementation. Priv Kit starts the [UserService](./user-service), manages its lifecycle, and returns its Binder.
 
-## Why is the runtime app-owned? {#app-owned-runtime}
+## One server per app {#app-owned-runtime}
 
-One application owns one Privileged Server and controls its startup, identity,
-connection state, recovery, and domain logic. Shared, device-wide services sit
-outside this runtime model.
+Each app owns its server and controls startup, connection, and recovery.
 
-Every startup method still converges on the same validated connection model.
-The runtime observes server death and connection failures instead of presenting
-an uncertain result as success.
+All startup methods use the same connection checks and report server death or connection failure.
 
 ## Where to start {#where-to-start}
 

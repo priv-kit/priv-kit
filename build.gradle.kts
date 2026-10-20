@@ -16,6 +16,7 @@ plugins {
     alias(libs.plugins.android.library) apply false
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.kotlin.serialization) apply false
+    alias(libs.plugins.kotlin.parcelize) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.kotlin.multiplatform) apply false
     alias(libs.plugins.android.kotlin.multiplatform.library) apply false
@@ -38,13 +39,15 @@ private object Cfg {
 private val publishedModuleNames = setOf(
     "priv-shared",
     "priv-core",
+    "priv-input",
+    "priv-evdev",
     "priv-adb-crypto",
     "priv-ui",
 )
 
 allprojects {
     group = "io.github.priv-kit"
-    version = "0.17.8" + if (rootProject.file("local.properties").isFile) "-SNAPSHOT" else ""
+    version = "0.17.8" + if (!providers.environmentVariable("CI").isPresent) "-SNAPSHOT" else ""
 }
 
 subprojects {
@@ -58,6 +61,13 @@ subprojects {
         }
         extensions.configure(KotlinBaseExtension::class.java) {
             explicitApi()
+        }
+    }
+
+    tasks.withType<Test>().configureEach {
+        if (name.endsWith("UnitTest") || name.endsWith("HostTest")) {
+            // Robolectric 4.17 accesses SharedSecrets when initializing recent Android SDKs.
+            jvmArgs("--add-exports=java.base/jdk.internal.access=ALL-UNNAMED")
         }
     }
 

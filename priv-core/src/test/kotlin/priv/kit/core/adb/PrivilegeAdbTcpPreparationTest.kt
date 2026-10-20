@@ -19,7 +19,6 @@ class PrivilegeAdbTcpPreparationTest {
             canManageAdb = true,
             enableAdb = { enableCalls += 1 },
             checkAuthorization = { error("authorization should not be checked again") },
-            sleep = { error("recovery should not wait") },
             retryCount = TEST_RETRY_COUNT,
             retryDelayMillis = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
         )
@@ -40,7 +39,6 @@ class PrivilegeAdbTcpPreparationTest {
             canManageAdb = false,
             enableAdb = { enableCalls += 1 },
             checkAuthorization = { error("authorization should not be checked again") },
-            sleep = { error("recovery should not wait") },
             retryCount = TEST_RETRY_COUNT,
             retryDelayMillis = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
         )
@@ -61,7 +59,6 @@ class PrivilegeAdbTcpPreparationTest {
             canManageAdb = true,
             enableAdb = { enableCalls += 1 },
             checkAuthorization = { error("authorization should not be checked again") },
-            sleep = { error("recovery should not wait") },
             retryCount = TEST_RETRY_COUNT,
             retryDelayMillis = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
         )
@@ -82,7 +79,6 @@ class PrivilegeAdbTcpPreparationTest {
             canManageAdb = true,
             enableAdb = { enableCalls += 1 },
             checkAuthorization = { error("authorization should not be checked again") },
-            sleep = { error("recovery should not wait") },
             retryCount = TEST_RETRY_COUNT,
             retryDelayMillis = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
         )
@@ -101,7 +97,7 @@ class PrivilegeAdbTcpPreparationTest {
             ),
         )
         var enableCalls = 0
-        var sleepCalls = 0
+        var checkCalls = 0
 
         val result = recoverTcpAuthorizationForStart(
             initialResult = initial,
@@ -111,16 +107,12 @@ class PrivilegeAdbTcpPreparationTest {
             retryCount = 5,
             retryDelayMillis = 10L,
             enableAdb = { enableCalls += 1 },
-            checkAuthorization = { checks.removeFirst() },
-            sleep = { delayMillis ->
-                assertEquals(10L, delayMillis)
-                sleepCalls += 1
-            },
+            checkAuthorization = { checkCalls++; checks.removeFirst() },
         )
 
         assertEquals(PrivilegeAdbAuthorizationStatus.AUTHORIZED, result.status)
         assertEquals(1, enableCalls)
-        assertEquals(2, sleepCalls)
+        assertEquals(2, checkCalls)
     }
 
     @Test
@@ -140,7 +132,6 @@ class PrivilegeAdbTcpPreparationTest {
                 checkCalls += 1
                 authorizationResult(PrivilegeAdbAuthorizationStatus.UNAUTHORIZED, null)
             },
-            sleep = { error("zero-delay recovery should not sleep") },
         )
 
         assertEquals(PrivilegeAdbAuthorizationStatus.UNAUTHORIZED, result.status)
@@ -167,7 +158,6 @@ class PrivilegeAdbTcpPreparationTest {
                     failureMessage = "attempt $checkCalls",
                 )
             },
-            sleep = { error("zero-delay recovery should not sleep") },
         )
 
         assertEquals(PrivilegeAdbAuthorizationStatus.UNAVAILABLE, result.status)
@@ -186,7 +176,6 @@ class PrivilegeAdbTcpPreparationTest {
             canManageAdb = true,
             enableAdb = { error("denied") },
             checkAuthorization = { error("authorization should not be checked after preparation failure") },
-            sleep = { error("recovery should not wait after preparation failure") },
             retryCount = TEST_RETRY_COUNT,
             retryDelayMillis = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
         )

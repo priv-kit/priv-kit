@@ -1,13 +1,7 @@
 # priv-shared
 
-`priv-shared` is the internal Android implementation library used by `priv-core` and `priv-ui`.
-Applications depend on those product modules instead. Its bytecode-public symbols live under
-`priv.kit.shared` and carry no compatibility promise for direct consumers.
+Internal Android library used by `priv-core`, `priv-input`, `priv-evdev` and `priv-ui`. Applications access these utilities through those modules; `priv.kit.shared` is internal API.
 
-The module contains stateless invariants, low-level Android/JDK primitives, and hidden API
-compatibility logic. Runtime signature detection handles Android maintenance-release differences;
-narrow `IBinder` wrappers isolate hidden interfaces that are absent on part of the supported API
-range. Framework declarations come from the compile-only `:hidden-api` module.
+Provides Android/JDK utilities and hidden API compatibility. Runtime signature checks handle maintenance-release differences; `IBinder` wrappers isolate interfaces missing on some versions. Framework declarations come from compile-only `:hidden-api`.
 
-Resources, components, UI, startup policy, and transport orchestration belong to the product
-modules.
+Remap automatically generates exact hidden-type `dontwarn` rules and exports them with the AAR as consumer rules. No separate rule file or generation script is needed.

@@ -6,21 +6,17 @@ description: 优先使用 Privilege UI，或通过 priv-core 构建自定义授�
 
 使用应用时遇到启动或配对问题？请阅读[启动使用教程](./startup-tutorial)。
 
-所有启动方式都会启动同一个应用自有 Privileged Server，最终都与应用建立同样的
-Binder 连接。区别只在 Privileged Server 最初通过哪种方式启动。
+各方式都启动应用自己的 Privileged Server 并返回 Binder，区别在于如何获得特权进程。
 
 ## 优先使用 Privilege UI {#privilege-ui}
 
-大多数应用应直接使用 `priv-ui`。嵌入 `PrivilegeScaffold` 后，即可获得 Root、
-无线调试、TCP/IP、手动和外部 Provider，以及对应的状态展示、权限请求、配对、
-确认和错误提示。接入与配置见 [Privilege UI](./priv-ui)。
+嵌入 `PrivilegeScaffold` 即可使用启动、权限请求、配对、确认和错误提示，见 [Privilege UI](./priv-ui)。
 
 下面的 API 只面向需要替换自带授权页面的应用。
 
 ## 使用 priv-core 构建自定义界面 {#priv-core-custom-interface}
 
-应用直接使用 `priv-core` 时，权限请求、配对码输入、确认界面、定期检查状态和错误
-展示都需要自行实现。`priv-core` 只提供启动和连接 API。
+使用 `priv-core` 时，应用自行实现权限请求、配对输入、确认、状态检查和错误展示。
 
 ### 监听连接状态 {#connection-state}
 
@@ -28,9 +24,7 @@ Binder 连接。区别只在 Privileged Server 最初通过哪种方式启动。
 非 `null` 表示 Privileged Server 已连接，`null` 表示已断开。每个新的收集者
 都会立即收到当前值。
 
-`PrivilegeServerInfo` 是 data class，并提供便于诊断的 `toString`。其中的
-`selinuxContext` 在每个服务端进程中读取并缓存一次，owner reconnect 会复用该诊断值；
-平台无法提供时为 `null`。连接快照由 Core 构造，构造函数和 `copy` 都保持 internal。
+`PrivilegeServerInfo` 描述连接。`selinuxContext` 按服务端进程缓存，仅用于诊断，无法读取时为 `null`。
 
 #### 应用级持续监听 {#application-observation}
 
@@ -78,17 +72,11 @@ Privilege.prepareOwnerRestart(
 Process.killProcess(Process.myPid())
 ```
 
-调用会在服务端确认计划后返回。如果 owner 在五秒内死亡，服务端会在指定时间内保持
-被动等待，让应用自己的重启策略成为唯一的进程启动来源。指定时间应为计划重启预留足够
-余量；到期仍未重连时，服务端会在 `PrivilegeConfig.followDeathDelayMillis` 原总截止时间
-剩余的范围内恢复既定的主动重连。owner 未在五秒内死亡时计划自动失效；命中的计划重启
-不会计入 crash-loop 熔断统计。
+调用等待服务端确认。计划仅匹配五秒内的 owner 死亡，且不计入 crash-loop。服务端先按指定时间被动等待，再在 `followDeathDelayMillis` 剩余时间内恢复配置的主动重连。等待时间应足够应用完成重启。
 
 ### 检查服务端被拒绝的权限 {#denied-server-permissions}
 
-内置界面检测到权限受限后，会在后台获取权限列表。点击提示卡片上的**查看受限权限**
-即可打开弹窗。权限文本可自由选择，底部的**复制**按钮复制完整列表，**关闭**按钮关闭
-弹窗。返回页面时会刷新列表。
+内置界面的**查看受限权限**展示可选择、复制的列表，返回页面时刷新。
 
 服务端连接后，自定义界面可以读取其 UID 关联包已经声明、但服务端进程实际未获授予的
 权限：
@@ -99,13 +87,9 @@ val deniedPermissions = withContext(Dispatchers.IO) {
 }
 ```
 
-方法会过滤当前系统不支持（未定义）的权限：先检查授予状态，仅对被拒绝的权限查询定义。
-返回结果会去重并按权限名排序。Root 服务端返回空列表；非 Root 服务端无法解析关联包
-元数据时会报告失败，不会将其误判为不受限制。
+结果去重、排序并过滤系统未定义的权限。Root 返回空列表；非 Root 的关联包查询失败会报错。
 
-该清单只覆盖 Android permission grant，不检查 AppOps、SELinux 策略或各系统服务内部
-执行的授权，因此空列表不保证所有操作都能成功。如果应用只需确认一个已知权限，请直接
-调用 `Privilege.checkServerPermission(permission)`。
+实际访问还受 AppOps、SELinux 和服务内部规则影响。检查单项 Android 权限使用 `Privilege.checkServerPermission(permission)`。
 
 #### Redmi K40 实测示例 {#denied-permissions-device-example}
 
@@ -153,11 +137,7 @@ android.permission.WRITE_SECURE_SETTINGS
 android.permission.WRITE_SETTINGS
 ```
 
-这意味着，在上述设备上关闭此设置后，以 Shell 身份运行的特权进程无法执行模拟点击
-屏幕、修改系统设置、授予或撤销应用权限等受这些权限保护的操作。
-
-两组输出都是**被拒绝的权限**，不是已授予的权限列表。这些结果只代表上述设备和系统
-版本，不应作为其他设备的固定预期值；应用应以每次调用的实际返回值为准。
+该列表仅代表此设备和系统版本被拒绝的权限，应用应实时查询。
 
 ### Root {#root}
 
@@ -219,7 +199,7 @@ if (!pairing.paired) {
 val serverInfo = Privilege.startAdb()
 ```
 
-配对与启动是两个独立操作，`pair()` 成功后不会自动启动服务端。
+`pair()` 成功后，调用 `startAdb()` 启动服务端。
 
 如果应用仍然声明并已经持有 `WRITE_SECURE_SETTINGS`，默认值
 `PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE` 可以临时打开无线调试、发现
@@ -278,7 +258,7 @@ check(request.authorized) {
 
 ##### 通过静态端口启动 {#tcp-ip-start}
 
-直接传入端口。`port` 非 `null` 时，启动流程不会发现无线调试端口：
+指定 `port` 后直接连接该端口：
 
 ```kotlin
 val serverInfo = Privilege.startAdb(
@@ -303,21 +283,9 @@ val nativeStarterCommand = withContext(Dispatchers.IO) {
 YourApp.showCommandToUser("adb shell $nativeStarterCommand")
 ```
 
-`priv-core` 返回设备端命令。在 Android 10 及以上版本，它可以通过系统 linker
-直接执行 APK 中的 starter，也可以执行旧式打包解压出的 SO。应用向开发机器展示
-命令时，在前面添加 `adb shell`。Starter 接受 root（UID 0）、system
-（UID 1000）和 shell（UID 2000）身份。不同 Android 版本的要求见
-[native 库打包](./getting-started#native-library-packaging)。首次读取会检查已安装的
-APK，因此需要在非主线程解析命令。User 0 使用默认 owner 作用域，不写入 userId
-环境变量；非 0 Android user 显式携带 userId，因此即使应用主进程没有运行，
-从外部执行命令也能保持正确的用户作用域。
+`Privilege.nativeStarterCommand` 返回设备端命令，在电脑终端使用时添加 `adb shell`。首次读取需检查 APK，应放在工作线程。命令支持 root（0）、system（1000）和 shell（2000），非 0 用户会携带 owner user ID。见[原生库打包](./getting-started#native-library-packaging)。
 
-再次执行 starter 时，它会先向精确匹配 owner 作用域的服务进程发送 `SIGKILL`，
-确认旧进程退出后再创建新进程。User 0 的可读进程名以
-`<package>:priv-server` 结尾，非 0 user 添加 `-u<ownerUserId>`。内部的
-package/user token 在只能读取 `/proc/<pid>/comm` 时仍能限定发现范围。旧进程结束
-失败时保持原服务端，不创建替代进程。另一 Android user 下的同包名应用使用独立作用域，
-不参与匹配。
+再次执行会结束当前包和 Android 用户的旧服务端，确认退出后再启动新进程。停止失败则不创建新进程，其他用户的服务端不受影响。
 
 Android 10 及以上版本使用现代打包时，实际命令可能如下：
 
@@ -333,14 +301,9 @@ adb shell /data/app/~~-YKUdRFBwGAwYBVzJRt7pA==/priv.kit.sample.debug-A-2guZlsvRZ
 
 ### 外部 {#external}
 
-外部启动是手动启动的扩展。手动需要用户执行 native starter 命令，外部则借助外部
-授权器，在它提供的特权进程中执行同一条命令。两种方式最终进入同一条
-Privileged Server 启动流程，并与应用建立同样的 Binder 连接。
+外部启动通过授权器的特权进程执行同一条 native 命令。
 
-外部授权器可以是应用提供的任何服务或工具，只要它能以 root、system 或 shell
-身份执行该命令。应用负责接入第三方授权器、绑定服务和控制访问权限，`priv-core`
-负责把命令传给授权器。下面以 Shizuku UserService 为例。这里假设 Shizuku 已经可用并完成授权，
-只说明启动 Priv Kit 需要用到的 UserService 代码。
+授权器需以 root、system 或 shell 执行命令，应用负责授权、绑定和访问控制。下面使用已完成授权的 Shizuku UserService。
 
 #### 定义 UserService {#define-user-service}
 

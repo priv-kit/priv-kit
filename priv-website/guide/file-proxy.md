@@ -1,27 +1,14 @@
 ---
-description: Perform basic file operations in the connected Privileged Server without defining a UserService.
+description: Read, write, and manage files through the connected server.
 ---
 
 # File proxy {#file-proxy}
 
-The built-in file proxy performs basic absolute-path operations directly in the
-connected Privileged Server. The application does not define, start, or bind a
-UserService for these operations.
+Use `Privilege.file(absolutePath)` to access files in the connected server.
 
-`PrivilegeFile` is an immutable path handle, not a `java.io.File` subclass.
-Constructing and resolving a handle, reading path properties, and evaluating
-`isHidden()` are local. Filesystem methods use synchronous Binder calls. They
-can run on any thread, but should normally run on a worker thread because the
-caller waits for Binder dispatch and server-side filesystem I/O. The
-file-service Binder is installed with the server handshake, so a filesystem
-method normally adds one Binder round trip to the corresponding filesystem call.
+`PrivilegeFile` is an immutable path handle. Path properties, `resolve()` and `isHidden()` are local; filesystem methods make synchronous Binder calls and should run on a worker thread.
 
-`walk()` and `deleteRecursively()` are different. Directory walking runs its
-Binder request and pipe reader on `Dispatchers.IO`.
-`deleteRecursively()` suspends while a bounded server-side coroutine performs
-the traversal, so neither operation blocks the caller's thread. Opening file
-content requires a synchronous Binder handoff, but the content then moves
-through pipes without one Binder transaction per data chunk.
+`walk()` reads on `Dispatchers.IO`; `deleteRecursively()` suspends while the server traverses. Opening a stream is synchronous; subsequent bytes travel through a pipe.
 
 ## Create a handle {#create-handle}
 
@@ -80,11 +67,7 @@ if (!deleted) {
 }
 ```
 
-`deleteRecursively()` is a suspending operation. Its initial Binder call only
-validates and admits the request; filesystem traversal runs in the Privileged
-Server on a bounded IO coroutine dispatcher. The server accepts at most four
-recursive deletes at once and has no waiting queue. A request rejected at that
-limit returns `false` without starting.
+`deleteRecursively()` suspends while the server deletes the tree. At most four deletes run concurrently; excess requests return `false`.
 
 A regular file or symbolic link is deleted directly. Directories use secure,
 descriptor-relative, children-first traversal, with symbolic links treated as
@@ -150,18 +133,11 @@ withContext(Dispatchers.IO) {
 }
 ```
 
-The target file descriptor remains in the Privileged Server because Android may
-reject a transfer when the application SELinux domain lacks access to the
-underlying target. Bytes instead stream through reliable pipes; this
-still avoids one Binder call per chunk. Input errors propagate when the reader
-reaches EOF. Closing an output stream waits for the server to consume all bytes
-and close the target, and reports a server write failure as `IOException`.
-Pass `syncOnClose = true` when close must also wait for `fsync(2)`.
+The target fd stays in the server to avoid SELinux restrictions on fd transfer. Reliable pipes carry the data. Input errors appear at EOF; output close waits for the server to finish writing and reports failures as `IOException`. `syncOnClose = true` also waits for `fsync(2)`.
 
 File content transfers use a separate bounded executor. Four transfers may be
-active at once without a waiting queue; another open fails with `EBUSY`. Close
-streams promptly. This API provides sequential streams rather than random-access
-descriptors.
+active at once; another open fails with `EBUSY`. Close
+streams promptly. This API reads and writes files through sequential streams.
 
 ## Walk a directory tree {#walk-directory}
 
@@ -172,11 +148,7 @@ directory.walk(maxDepth = 2).collect { entry ->
 }
 ```
 
-For large directories, `flushBatchSize` controls how many entries the server
-accumulates between explicit pipe flushes. It defaults to 32 and must be positive.
-The first entry is flushed immediately; a full pipe buffer may be written sooner.
-This setting affects delivery timing, not the entries returned or the number of
-Binder calls:
+`flushBatchSize` sets the number of entries between explicit flushes (default 32, must be positive). The first entry is flushed immediately; a full buffer may flush earlier.
 
 ```kotlin
 directory.walk(maxDepth = 2, flushBatchSize = 64).collect { entry ->
@@ -195,11 +167,7 @@ directory.walk(
 }
 ```
 
-Each collection starts a new unsorted, weakly-consistent depth-first pre-order
-walk. The receiving directory is not emitted; direct children have depth 1.
-The default maximum depth is `Int.MAX_VALUE`, while `maxDepth = 1` lists only
-direct children. Entries stream over a pipe instead of being packed into one
-Binder response or buffered as a complete tree.
+Each collection starts a new unsorted, weakly consistent depth-first pre-order walk. The root is omitted; children start at depth 1. `maxDepth` defaults to `Int.MAX_VALUE`; set 1 for direct children only. Entries stream over a pipe.
 
 Skip globs match a directory's complete basename case-sensitively. `*` matches
 zero or more characters, `?` matches one character, and `\` escapes `*`, `?`,
@@ -215,10 +183,4 @@ also not entered. An entry that disappears before `lstat` is skipped. Failure
 to open or iterate the starting directory or any entered descendant terminates
 the flow and preserves the Linux error.
 
-Cancelling collection closes the pipe and the open directory streams. One walk
-uses one server coroutine and one concurrency slot regardless of depth. The
-server permits four active walks without a waiting queue; another walk fails
-with `EBUSY`.
-
-The application supplies one explicit deletion target and owns discovery,
-retention, scheduling, and storage-cleanup policy.
+Cancellation closes the pipe and open directories. Each walk uses one server slot regardless of depth; at most four run concurrently, with excess requests failing with `EBUSY`.

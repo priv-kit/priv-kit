@@ -4,14 +4,14 @@
 
 [中文介绍](./README-zh.md)
 
-Priv Kit is a lightweight Android library for an application to start and
-manage its own privileged process through Root, ADB, a manual shell command, or
-an external authorization bridge. The application can then use explicit Binder
-primitives, access files through the built-in privileged file proxy, or run its
-own UserService in an embedded or dedicated process.
+Priv Kit lets Android apps start and manage their own privileged process through Root, ADB, a shell command, or an external authorization service.
 
-Priv Kit provides privileged runtime infrastructure, not high-level wrappers
-for Android system operations.
+- Binder access
+- File operations
+- Command execution
+- App-defined UserServices
+- Android input injection
+- Linux evdev access (experimental)
 
 [Read the documentation](https://priv-kit.pages.dev)
 

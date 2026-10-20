@@ -1,70 +1,43 @@
 # priv-sample
 
-`priv-sample` demonstrates the public Core and UI APIs under the `priv.kit.sample` namespace.
+Android examples under `priv.kit.sample`: startup, Binder, files, commands, and UserService.
 
 ## Build variants
 
-| Flavor | Minimum Android version | Native library packaging | Release application id |
+| Flavor | Minimum Android | Native packaging | Release application ID |
 | --- | --- | --- | --- |
-| `legacy` | Android 8.0 (API 26) | `useLegacyPackaging = true` | `priv.kit.sample` |
-| `api29` | Android 10 (API 29) | AGP modern packaging | `priv.kit.sample.api29` |
+| `legacy` | 8.0 / API 26 | Extracted libraries | `priv.kit.sample` |
+| `api29` | 10 / API 29 | Load from APK | `priv.kit.sample.api29` |
 
-Use `assembleLegacyDebug` to exercise the extracted starter and `assembleApi29Debug` to exercise
-linker startup from the APK.
+Use `assembleLegacyDebug` or `assembleApi29Debug` for Debug; use `assembleLegacyRelease` and `assembleApi29Release` for minified validation.
 
-## Source layout
+## Packages
 
-- `priv.kit.sample` contains the app entry point, navigation, and theme.
-- `priv.kit.sample.home` contains the Home page.
-- `priv.kit.sample.file` contains File API tests and the read-only device-file browser.
-- `priv.kit.sample.command` contains streaming and captured command-execution tests.
-- `priv.kit.sample.debug` contains Connection, Binder, and UserService diagnostics.
-- `priv.kit.sample.userservice` contains app-owned UserService implementations and AIDL.
-- `priv.kit.sample.startup` contains Privilege UI setup, automatic recovery, notification pairing,
-  and the app-owned Shizuku bridge.
+| Package | Contents |
+| --- | --- |
+| `home` | Home page |
+| `file` | File tests and read-only browser |
+| `command` | Output, timeout, and cancellation |
+| `debug` | Connection, Binder, UserService, permission, and input tests |
+| `userservice` | App AIDL and implementations |
+| `startup` | UI config, recovery, notification pairing, and Shizuku |
 
-## Covered flows
+## Test pages
 
-The sample includes Root, manual shell, Shizuku-backed external startup, Wireless ADB, and static
-TCP. Debug pages exercise server state, Binder death, raw system-service transactions, and both
-dedicated and embedded UserService modes.
+Startup supports Root, manual commands, Shizuku, Wireless ADB, and TCP. App initialization prepares user 0's `priv.sh` on IO; other users use the full native command.
 
-At application startup, the sample calls the synchronous `PrivilegeUi.prepareExternalShellScript(...)`
-with `manualShellScriptPath = "priv.sh"` in an application-scoped IO coroutine, independently of
-silent recovery. For Android user 0, this prepares the external script without opening the
-authorization page; other users keep the full native command. Opening the page reuses matching
-script content without writing it again.
+File tests cover creation, reads, rename, atomic replacement, walking, and recursive deletion. The browser retains visible names when metadata is inaccessible. Command tests use `/system/bin/sh -c` and support streaming or captured output.
 
-The horizontally scrollable debug tabs include Test Permissions after Test UserService. Open it to
-query denied server permissions, select and copy permission names, or refresh the snapshot.
-Connection changes clear the result; the Permissions page reloads for the new server while selected.
-Root returns an empty list.
-The query covers denied manifest permissions of packages associated with the server UID, not
-AppOps, SELinux, or service-specific restrictions; an empty list is not a capability guarantee.
+Permissions lists denied server manifest permissions with refresh and copy. It excludes AppOps, SELinux, and service-specific rules. Root returns an empty list.
 
-File examples cover creation, streams, metadata, rename, atomic replacement, directory walking,
-recursive deletion, and bounded text or hexadecimal previews. The device browser keeps names
-visible when enumeration succeeds but metadata access is denied.
+The sample depends on both `priv-input` and `priv-evdev`. Android input tests use a system-service proxy Binder for input commands. Evdev tests use `PrivilegeSampleInputService` for device queries, display matching, and touch gestures. Secondary displays have a Presentation test window with live event reports. Calls run on IO; controllers and service bindings are released after use.
 
-The command page starts shell text explicitly through `/system/bin/sh -c`. It exercises the
-single-use process handle through both live stdout/stderr events and a bounded final result, and
-exposes timeout and cancellation controls.
+The Shizuku example owns third-party bindings and AIDL. Its endpoint uses `PrivilegeExternalStartupHost`; the main process uses `PrivilegeExternalStartup.runThroughBridge(...)`.
 
-The Shizuku example keeps third-party binding and AIDL in the app. Its privileged endpoint delegates
-startup execution to `PrivilegeExternalStartupHost`, while the main process uses
-`PrivilegeExternalStartup.runThroughBridge(...)` for pipes, completion, and server handoff.
+## Crash logs
 
-## Crash browser
+The browser reads the app's configured directory and, while connected, `/data/local/tmp`. It filters `.json` reports by app/user and validates identity and schema. Invalid, unreadable, unsupported, or over-1-MiB reports appear as error rows. Reports are sorted newest first and are not deleted automatically.
 
-The Home page opens Crash Logs. The page reads the configured app directory without a privileged
-connection, then additionally scans `/data/local/tmp` while connected. It filters published `.json`
-files by the current application and Android user, accepts short filenames only in the app directory,
-validates report identity and schema, and sorts
-newest crashes first. Refresh reloads both available sources; opening a row shows selectable
-metadata and the complete exception stack. Unreadable, malformed, unsupported, or larger-than-1-MiB
-reports remain visible as error rows instead of preventing the other reports from loading.
-The sample depends on `kotlinx-serialization-json` to consume Core's public `PrivilegeCrashLog` model.
+To create a report, bind the embedded service in Test UserService and press Crash Privileged Process. This kills the server through an uncaught exception. Reconnect before reading fallback files.
 
-To produce a report, bind the embedded service in Test UserService and press Crash Privileged
-Process. This terminates the privileged server through an uncaught worker-thread exception.
-Return Home and open Crash Logs; fallback files require a privileged connection again.
+See the [guides](../priv-website/guide/getting-started.md) for API usage.

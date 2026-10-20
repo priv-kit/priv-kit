@@ -1,11 +1,10 @@
 ---
-description: 在 Privileged Server 中运行非交互命令，并以流式事件或有界结果消费一次输出。
+description: 运行命令并读取输出。
 ---
 
 # 命令执行 {#commands}
 
-命令 API 在已连接的 Privileged Server 中启动一个非交互进程。它直接执行参数列表，保持
-stdout 和 stderr 分离，不会隐式增加 shell。
+命令 API 在已连接的服务端直接执行参数列表，分别返回 stdout 和 stderr。
 
 ## 启动进程 {#start-process}
 
@@ -32,7 +31,7 @@ val process = Privilege.startCommand(
 )
 ```
 
-## 选择一种消费方式 {#consume-once}
+## 读取输出 {#consume-once}
 
 每个进程只能选择一种输出消费方式。只需要进程退出后的输出时使用 `awaitResult()`：
 
@@ -43,9 +42,7 @@ println(result.stdout.toString(Charsets.UTF_8))
 println(result.stderr.toString(Charsets.UTF_8))
 ```
 
-默认最多分别返回 1 MiB 的 stdout 和 stderr。超出的数据仍会被排空，保证进程能够结束，
-同时对应的 `stdoutTruncated` 或 `stderrTruncated` 会变为 true。可以通过正数
-`maxBytesPerStream` 调整限制。
+每条流默认最多保留 1 MiB，超出内容继续排空但不保存，`stdoutTruncated` 或 `stderrTruncated` 标记截断。通过正数 `maxBytesPerStream` 调整上限。
 
 需要实时输出时使用 `stream()`：
 
@@ -67,14 +64,12 @@ EOF 后发出。非零退出码仍是正常退出事件。
 
 ## 超时和取消 {#timeout-cancellation}
 
-默认超时为 30 秒，从远端进程启动成功后开始计算，新输出不会重置倒计时。慢速命令可以
+默认超时为远端进程启动成功后的 30 秒，截止时间固定。慢速命令可以
 传入更大的值，传入 `null` 可禁用截止时间。取消 Flow 收集、取消 `awaitResult`、调用
 `cancel()` 或 `close()`、owner 死亡以及服务端关闭都会终止尚未完成的命令。
 
-最多同时运行四个命令，超出后立即失败，不进入等待队列。
+最多同时运行四个命令，超出后立即失败。
 
-## 明确限制 {#limits}
+## 限制 {#limits}
 
-命令 API 不提供 stdin 或 PTY，不支持交互式 shell、终端尺寸、终端信号、ANSI 渲染或
-daemon 管理。部分程序在 stdout 连接 pipe 而非终端时会自行缓存，因此即使传输是流式的，
-数据仍可能成批到达。
+不提供 stdin、PTY、交互式 shell 或 daemon 管理。程序可能对管道输出自行缓冲，因此流式数据也可能成批到达。

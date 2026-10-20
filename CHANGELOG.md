@@ -7,5 +7,5 @@ Replace the content when preparing the next release; release history is preserve
 
 - Support optional external startup scripts and simplify UI initialization.
 - Accept a path when preparing external shell scripts.
-- Redesign the English and Chinese startup tutorials with scenario selection, step navigation, inline troubleshooting, brand-specific settings, and operation illustrations.
-- Preserve tutorial deep links and full-text search, and improve selected brand styling and Chinese setting labels.
+- Redesign startup tutorials with step-by-step instructions, device settings, and troubleshooting.
+- Keep tutorial deep links and search; improve brand selection and Chinese setting labels.

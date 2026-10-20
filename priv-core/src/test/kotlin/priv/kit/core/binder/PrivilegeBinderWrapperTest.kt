@@ -43,6 +43,18 @@ class PrivilegeBinderWrapperTest {
     }
 
     @Test
+    fun disconnectedForwarderThrowsBinderUnavailableBeforeTransaction() {
+        clearServer()
+        val wrapper = PrivilegeBinderWrapper.fromBinder(Binder())
+        val data = Parcel.obtain()
+        try {
+            assertThrows(PrivilegeBinderUnavailableException::class.java) {
+                wrapper.transact(1, data, null, 0)
+            }
+        } finally { data.recycle() }
+    }
+
+    @Test
     fun currentProcessSystemServiceLookupUsesProcessCache() {
         val serviceName = "priv.kit.test.wrapper-cache"
         val service = object : IInterface {

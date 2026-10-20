@@ -1,13 +1,10 @@
 ---
-description: Use the recommended Compose authorization surface and configure exact silent replay.
+description: Add the Compose authorization page and configure automatic recovery.
 ---
 
 # Privilege UI {#privilege-ui}
 
-`priv-ui` is the recommended starting point for Priv Kit integration. It
-provides runtime authorization status, startup entry points, and exact replay
-of the last successful foreground method through a Compose interface. The
-custom interfaces can use `priv-core` directly.
+`priv-ui` provides a Compose authorization page and can restart the server using the last successful method. Use `priv-core` to build your own interface.
 
 ## Public entry points {#public-entry-points}
 
@@ -15,8 +12,7 @@ custom interfaces can use `priv-core` directly.
 - `PrivilegeUiViewModel` is an open `AndroidViewModel` controller.
 - `PrivilegeUiConfig` enables startup modes and external providers.
 - `PrivilegeUiExternalStartProvider` integrates an app-owned external path.
-- `PrivilegeUi.desiredEnabled` exposes the persisted automatic-recovery intent
-  as a read-only process-wide `StateFlow<Boolean>`.
+- `PrivilegeUi.desiredEnabled` exposes the saved recovery setting as a read-only `StateFlow<Boolean>`.
 - `PrivilegeUi.startSilently(...)` replays the last successful method while
   automatic recovery is enabled. `ignoreAutomaticRecoverySetting = true`
   explicitly bypasses that setting.
@@ -24,9 +20,7 @@ custom interfaces can use `priv-core` directly.
 
 ## Permission troubleshooting action {#permission-solutions}
 
-The restriction warning shows **View solutions** on the left and **View restricted permissions**
-on the right. By default, View solutions opens the [ADB permission troubleshooting page](./startup-tutorial#permission-restrictions)
-in the interface language (English or Simplified Chinese).
+**View solutions** opens the localized [permission guide](./startup-tutorial#permission-restrictions); **View restricted permissions** shows the denied list.
 
 Pass `onViewPermissionSolutions` to replace the link with your own navigation:
 
@@ -39,10 +33,10 @@ PrivilegeScaffold(
 )
 ```
 
-When provided, only your callback runs; the default website is not opened.
+Your callback replaces the default website navigation.
 `PrivilegePreviewScaffold` supports the same callback. Omitting it or passing `null` uses the default link.
 
-## Keep one process-scoped configuration {#application-scoped-config}
+## Share one configuration {#application-scoped-config}
 
 Create external providers and `PrivilegeUiConfig` once at process scope, then
 pass the same instance to the foreground ViewModel and the headless entry point:
@@ -64,25 +58,15 @@ val serverInfo = PrivilegeUi.startSilently(
 )
 ```
 
-The top-level property and its external providers use process-safe application
-state rather than retaining an `Activity`. Provider identifiers are persistent
-keys and stay stable across app upgrades.
+Use application-scoped state. Keep provider IDs stable across upgrades.
 
-`startupModes` is an ordered list that controls the authorization tab order,
-and duplicate modes are rejected. With configured external providers,
-`EXTERNAL` keeps its listed position or is appended when omitted. With no
-external providers, the External tab is hidden even when `EXTERNAL` is listed.
+`startupModes` sets tab order and rejects duplicates. External providers use the listed `EXTERNAL` position or append it; without providers the tab is hidden.
 
 ## Fixed manual startup script {#manual-startup-script}
 
-`manualShellScriptPath` defaults to `null`: the UI displays the full native starter command without
-writing an external script. Other shell processes can modify external scripts before execution,
-causing altered code to run with the executing caller's privileges. Only enable this option if
-your app accepts that risk.
+`manualShellScriptPath = null` displays the full native command. Set a path to use an external script. Other shell processes can modify that script before execution, so enable it only if acceptable for your app.
 
-When explicitly enabled for Android user 0, command preparation writes a script when external storage
-is available. The path is relative to the app's `Android/data/<package>` directory and includes
-the filename. The recommended value is `priv.sh`:
+For Android user 0, the path is relative to `Android/data/<package>` and includes the filename. Use `priv.sh` to place it beside `files`:
 
 ```kotlin
 val privilegeUiConfig = PrivilegeUiConfig(
@@ -90,58 +74,26 @@ val privilegeUiConfig = PrivilegeUiConfig(
 )
 ```
 
-The UI writes the script and creates parent directories using the actual base directory from
-`Context.getExternalFilesDir(null)?.parentFile`. Displayed and copied commands use the shorter
-`/sdcard` alias. The example displays:
+The UI writes under `Context.getExternalFilesDir(null)?.parentFile` and displays the shorter `/sdcard` alias:
 
 ```shell
 adb shell sh /sdcard/Android/data/<package>/priv.sh
 ```
 
-The script is placed alongside the `files` directory.
+Nonzero users, including work profiles, use the full native command because Shell may not be able to read their external storage.
 
-For every nonzero Android user, including work profiles, the UI skips external storage entirely
-and displays the full native starter command. Core's owner user ID stays in that command. This
-avoids depending on Shell being able to read another user's external directory, even when the
-app itself can write there.
+The UI displays the script command immediately and prepares it once per ViewModel in the background. Matching content is reused; changes are written atomically. After an app update, reopen the UI or call `prepareExternalShellScript(...)` to refresh installation paths. A changed target is overwritten; changing the configured path leaves the old file in place.
 
-The script command is displayed and can be copied immediately. The UI prepares the script in the
-background once during ViewModel initialization, independently of silent startup. Switching tabs,
-resuming the page, or refreshing it does not prepare it again. Successful preparation leaves the
-command text unchanged. Existing content is compared with the current script and reused when it
-matches; missing or changed scripts are written atomically. Concurrent preparation in the same
-process is serialized, so application preloading and UI initialization do not repeat the same write.
-After an app update, call `PrivilegeUi.prepareExternalShellScript(config.manualShellScriptPath)` or open the UI again before
-reusing the saved command so the script contains the current installation paths. Changed content at
-the configured path is overwritten; changing its path does not remove the old script.
+Storage failures fall back to the native command. Use a relative path within the app's external directory, with nonempty segments excluding `.`, `..`, backslashes, and control characters. The shell must be able to read the script. For desktop-shell compatibility, use letters, digits, `/`, `.`, `_`, and `-`; other characters use POSIX quoting.
 
-The UI falls back to the full native starter command if external storage is unavailable or file
-access fails. Paths must be relative, with
-no empty components, `.`/`..`, backslashes, or control characters, and must resolve inside the app's
-external directory. The executing shell must be able
-to read the script. This setting only affects Android's manual command preparation; automatic startup methods
-and the multiplatform preview keep their existing behavior.
-Use letters, digits, `/`, `.`, `_`, and `-` for commands that work unchanged across desktop shells;
-other characters use POSIX host-shell quoting.
-
-To create or update the external script without opening UI, call the synchronous API, for example
-during application initialization:
+To prepare the script without opening the UI:
 
 ```kotlin
 val scriptFile: File? = PrivilegeUi.prepareExternalShellScript("priv.sh")
 val scriptPath: String? = scriptFile?.absolutePath
 ```
 
-The API accepts a nullable path directly without a config object; you can also pass
-`privilegeUiConfig.manualShellScriptPath`. It returns the actual absolute `File` under the system-provided external directory, without
-rewriting its path to `/sdcard`. A `null` path or a nonzero Android user skips native
-command resolution and storage access, returning `null`. Unavailable storage and file read/write failures
-also return `null`; native starter resolution failures propagate to the caller.
-All work runs on the calling thread, including first-use APK inspection, content comparison, and file
-sync when writing is needed. The caller chooses the execution context. The built-in UI and sample choose `Dispatchers.IO`
-at their call sites. The UI handles command display and fallback separately.
-Preparation does not start a server or depend on the automatic-recovery setting or enabled tabs.
-`startSilently(...)` remains a separate operation and does not prepare the script.
+The API returns the actual absolute `File`. It returns `null` for a null path, nonzero user, unavailable storage, or file access failure; starter-resolution errors propagate. Run it on `Dispatchers.IO`: preparation is synchronous and may inspect APKs or sync a file. Prepare scripts and start the server as separate operations.
 
 ## Embed the scaffold {#embed-scaffold}
 
@@ -165,15 +117,7 @@ PrivilegeScaffold(
 The scaffold owns its Activity Result launchers and returns permission results
 to the same suspended ViewModel operation.
 
-When a server is already connected, pressing a built-in Root, ADB, or external
-start button opens a restart confirmation. Cancelling leaves the current server
-untouched. Continuing asks the selected starter identity to kill the old
-process before starting its replacement. If that identity lacks permission to
-kill the old process, the attempt stops and the scaffold reports the failure in
-a Snackbar. Custom surfaces collect `serverRestartConfirmation`, render their
-own confirmation UX, then call `confirmServerRestart()` or `cancelServerRestart()`.
-The requesting start operation stays suspended until that decision returns, so
-the selected workflow continues in its original coroutine.
+Starting while connected asks for restart confirmation. Cancel keeps the server; confirm stops it before replacement. Insufficient kill permission is reported in a Snackbar. Custom hosts collect `serverRestartConfirmation` and call `confirmServerRestart()` or `cancelServerRestart()` to resume the waiting operation.
 
 ## Observe the server state {#server-state}
 
@@ -181,9 +125,7 @@ the selected workflow continues in its original coroutine.
 status. When other application features depend on the connection, observe the
 process-wide `Privilege.serverState` instead of a UI-specific callback.
 
-The state remains available whether or not `PrivilegeScaffold` is currently
-composed. [Startup methods](./activation#connection-state) shows
-both application-wide collection and screen-local rendering.
+The flow is available without the UI. See [connection observation](./activation#connection-state).
 
 Observe `PrivilegeUi.desiredEnabled` separately when a custom surface needs to
 show whether the user still wants automatic recovery:
@@ -195,7 +137,7 @@ val desiredEnabled by PrivilegeUi.desiredEnabled.collectAsStateWithLifecycle()
 This read-only state persists across disconnections and failed replay. Server
 connectivity remains in `Privilege.serverState`.
 
-## ADB UI orchestration {#adb-ui}
+## ADB settings {#adb-ui}
 
 `priv-core` owns pairing, discovery, authorization, TCP/IP, and startup.
 `priv-ui` presents those operations and their user interactions through
@@ -221,21 +163,9 @@ selected. Its foreground flow can:
 - request `ACCESS_LOCAL_NETWORK` when the platform requires it;
 - start Wireless Debugging after the saved ADB key is paired.
 
-The notification pairing service is internal to `priv-ui`; hosts interact with
-it through `PrivilegeScaffold`.
-When notification input is unavailable, the scaffold keeps the foreground
-pairing dialog available for a split-screen flow with Android Settings. Its
-warning returns continue-without-notifications, granted-in-settings, or cancel
-to the same suspended pairing operation.
+The scaffold handles notification pairing. If notification input is unavailable, use the foreground dialog alongside Android Settings in split-screen.
 
-Hosts can reserve their own notification namespace through
-`PrivilegeUiConfig.notificationPairingChannelId` and
-`notificationPairingNotificationId`. The defaults are `priv_ui_adb_pairing`
-and `201`. The notification ID reserves two consecutive values: the configured
-value for foreground status and the next value for pairing-code input. Keep the
-channel ID stable and dedicated to this flow, and choose a notification ID from
-`1` through `Int.MAX_VALUE - 1` that does not collide with host notifications.
-`priv-ui` creates the configured channel on demand and does not delete it.
+Set `notificationPairingChannelId` (default `priv_ui_adb_pairing`) and `notificationPairingNotificationId` (default `201`) to avoid host conflicts. The ID must be `1..Int.MAX_VALUE - 1` and reserves two consecutive values. The dedicated channel is created on demand and is not deleted.
 
 Managed Wireless Debugging remains a `priv-core` capability. `priv-ui` reads
 its status and passes the selected policy to Core, which owns
@@ -258,11 +188,7 @@ The UI can request local ADB key authorization and continue the same suspended
 foreground operation after the system result. Passive status polling does not
 change ADB settings.
 
-Silent replay expects pairing, permissions, TCP authorization, and the static
-port to be ready. Otherwise it returns `null` and leaves interaction to the
-foreground flow.
-
-## Understand exact replay {#exact-replay}
+## Silent startup {#exact-replay}
 
 After a matching foreground operation receives its initial Binder connection,
 the UI stores one method identifier:
@@ -272,18 +198,9 @@ the UI stores one method identifier:
 - `adb-tcpip`
 - `external:<providerId>`
 
-Silent replay is a headless, method-exact operation. It uses the saved method
-and returns `null` when history, authorization, or startup prerequisites are
-unavailable, leaving permission prompts, pairing, and external authorization to
-the foreground flow.
+Silent startup uses the saved method. It returns `null` when history, authorization, or startup prerequisites are unavailable. Complete permission requests, pairing, and external authorization in the foreground.
 
-Foreground and silent attempts share a process-local start gate. Multi-process
-apps choose one process to initialize and invoke Priv Kit startup.
-Accepted foreground effects retain their interactive lease until completion.
-While a silent attempt owns the gate, the built-in UI disables side-effecting
-entries and reconciles runtime state before enabling them again. A root manager
-may still show its own authorization UI when a remembered grant is no longer
-valid.
+Foreground and silent starts share a process-wide lock. Choose one startup process in multi-process apps. During silent startup, the UI disables conflicting actions. A root manager may still show its own prompt if its saved grant has expired.
 
 A matching successful foreground launch enables automatic recovery. Initial
 connections outside a UI-owned foreground operation leave it unchanged. A
@@ -316,20 +233,15 @@ a complete
 
 ## Multiplatform preview {#multiplatform-preview}
 
-`PrivilegePreviewScaffold()` displays the same page on Android, JVM, and WasmJS inside the host's Material 3 theme. In-memory simulation drives its normal states, buttons, and dialogs. It does not initialize a runtime or request permissions. Use `PrivilegeScaffold` for real Android integration.
+`PrivilegePreviewScaffold()` previews the page on Android, JVM, and WasmJS in the host's Material 3 theme. Use `PrivilegeScaffold` for real Android operations.
 
-Startup, pairing, external authorization, and confirmation dialogs are interactive by default. Operations simulate success; pairing accepts any six digits. The manual tab provides a sample command, and the top Start service action simulates its execution. Copy buttons use the host clipboard, but no commands or system operations run. Closing the host discards the session. Try it in the [UI playground](/playground/).
+Startup, pairing, and dialogs simulate success; pairing accepts any six digits. Copy uses the host clipboard. Closing the host ends the session. Try the [playground](/playground/).
 
-The manual command uses a randomly generated installation path for `priv.kit.sample`. Set `useLegacyPackaging = false` to show the `linker64` command for the library inside the APK; the default `true` shows the extracted library path. The playground provides this switch outside the canvas. Switching formats preserves the path and simulation state.
+The manual command uses a random installation path for `priv.kit.sample`. `useLegacyPackaging = true` (default) shows the extracted library; `false` shows the APK's `linker64` command. Switching preserves the path and session.
 
-Open the independent Vue playground using the **UI playground** navigation link.
+## Host-controlled page {#host-controlled-page}
 
-## Host-controlled multiplatform page {#host-controlled-page}
-
-Use `PrivilegeScreen` when the host owns the state, such as a Desktop simulation controller.
-It accepts `PrivilegeUiScreenState`, `PrivilegeUiActions`, and a required `showFeedback` callback.
-It renders the same page as `PrivilegeScaffold` and `PrivilegePreviewScaffold` on Android, JVM,
-and WasmJS, without creating a runtime or automatically completing operations.
+`PrivilegeScreen` renders host-provided `PrivilegeUiScreenState` and `PrivilegeUiActions` on Android, JVM, and WasmJS. The host must provide `showFeedback` and perform the operations.
 
 ```kotlin
 PrivilegeScreen(
@@ -341,23 +253,14 @@ PrivilegeScreen(
 )
 ```
 
-The host implements every `PrivilegeUiActions` callback explicitly, updates its observable state,
-and owns cancellation and asynchronous work. Unsupported operations should produce host feedback.
-Clipboard callbacks should use the host clipboard. `requestBatteryOptimization` returns whether
-it opened a request or settings surface. `interactionEnabled` controls the displayed availability;
-`canInteract` checks the current interaction lease when clicked and should still permit cancellation
-while busy. `busy` separately prevents conflicting starts.
+Implement all action callbacks, state updates, and cancellation. Report unsupported actions and use the host clipboard. `requestBatteryOptimization` reports whether it opened a request or settings page. `interactionEnabled` controls display availability; `canInteract` checks permission at click time and should allow cancellation while busy. `busy` prevents conflicting starts.
 
 Keep `startupModes` nonempty. A selected mode absent from that list falls back to its first entry.
 Host-provided messages and `PrivilegeUiPromptState` text must already be localized. Increment
 `connectionSerial` when replacing a connection to reset connection-specific presentation.
 Lists are snapshots: publish a new state instead of mutating a list in place.
 
-The host may inject connection failures, pairing stages, permission restrictions, startup logs,
-restart/TCP confirmations, and a display-only system prompt. Platform permission requests and prompt
-ownership remain the host's responsibility. The Android adapter retains its existing lifecycle and
-permission handling. HTTP control endpoints and application-specific simulation models belong in
-the consuming application. Internal screen scopes and components are not public API.
+The host handles platform permission requests and supplies prompt text.
 
 `systemPromptWindowInsets` controls prompt placement independently of `contentWindowInsets`.
 It defaults to the top of `WindowInsets.safeDrawing`. Desktop simulation hosts can pass their
@@ -380,7 +283,4 @@ sections of one user guide. `PrivilegeScaffold`, `PrivilegePreviewScaffold`, and
 For example: `PrivilegeScaffold(startupTutorialUrl = "https://example.com/help/startup")`.
 When a callback applies, only that callback runs. Guide links remain available while busy.
 
-The guide uses ordinary Markdown and HTML anchors, without VitePress components. Copy
-`startup-tutorial.md` for the desired
-language to self-host it. Preserve its anchors,
-including `adb`, `pairing`, `manual`, `tcp-ip`, and `permission-restrictions`.
+The guide is rendered by `guide/startup-tutorial/StartupGuide.vue` with localized content in `content.ts`. Self-host those files with their components and styles. Preserve anchors such as `adb`, `pairing`, `manual`, `tcp-ip`, and `permission-restrictions`.

@@ -3,7 +3,7 @@ export default {
   "sections": {
     "restart": {
       "title": "下次怎么启动",
-      "html": "<ul>\n<li><strong>仍已连接：</strong>不用操作。</li>\n<li><strong>服务停止或手机重启：</strong>恢复 Wi-Fi、开启无线调试，再点启动；手动方式则重新执行当前命令。</li>\n<li><strong>配对失效、重装应用或撤销授权：</strong>再配对。不是每次重启都要配对，也不保证自动恢复。</li>\n</ul>\n"
+      "html": "<ul>\n<li><strong>仍已连接：</strong>不用操作。</li>\n<li><strong>服务停止或手机重启：</strong>恢复 Wi-Fi、开启无线调试，再点启动；手动方式则重新执行当前命令。</li>\n<li><strong>配对失效、重装应用或撤销授权：</strong>再配对。</li>\n</ul>\n"
     },
     "tcp-ip": {
       "title": "进阶：静态端口",
@@ -27,7 +27,7 @@ export default {
     },
     "feature-failed": {
       "title": "已连接，但功能不能用",
-      "html": "<p>出现“权限受限”时，选择设备品牌查看设置。仍有问题，把手机型号、系统版本和错误信息发给应用维护者；没有警告也不保证所有功能都被系统允许。</p>\n"
+      "html": "<p>出现“权限受限”时，选择设备品牌查看设置。仍有问题，把手机型号、系统版本和错误信息发给应用维护者。</p>\n"
     },
     "permission-restrictions": {
       "title": "解决 ADB 权限限制",
@@ -70,7 +70,7 @@ export default {
       "actions": [
         {
           "device": "phone",
-          "html": "返回本应用点击<strong>启动</strong>，看到服务<strong>已连接</strong>就完成了。"
+          "html": "点击<strong>启动</strong>，确认服务显示<strong>已连接</strong>。"
         }
       ]
     },
@@ -79,7 +79,7 @@ export default {
       "actions": [
         {
           "device": "phone",
-          "html": "先开启开发者模式，再开启 <strong>USB 调试</strong>，用数据线连接电脑。"
+          "html": "在开发者选项中开启 <strong>USB 调试</strong>，用数据线连接电脑。"
         },
         {
           "device": "computer",
@@ -108,7 +108,7 @@ export default {
         },
         {
           "device": "phone",
-          "html": "返回本应用，看到服务<strong>已连接</strong>就完成了。"
+          "html": "返回应用，确认服务显示<strong>已连接</strong>。"
         }
       ]
     }
@@ -255,13 +255,13 @@ export default {
     ],
     "pairing-discovery": [
       "连接 Wi-Fi。",
-      "打开“使用配对码配对设备”窗口并保持打开，不能只开启无线调试开关。",
+      "打开“使用配对码配对设备”窗口并保持打开。",
       "若应用请求本地网络权限，允许后重试。",
       "仍搜索不到时，重新打开配对窗口，或换一个可信的 Wi-Fi。"
     ],
     "pairing-failed": [
       "重新打开系统配对窗口，获取新的六位配对码。",
-      "输入配对码，不是锁屏密码、连接端口或配对端口。",
+      "输入“使用配对码配对设备”窗口中显示的配对码。",
       "输入期间保持窗口打开，可使用通知栏、分屏或小窗。"
     ]
   },
@@ -273,7 +273,7 @@ export default {
     ],
     "static": [
       "按应用提示重新开启静态端口。",
-      "确认使用的是静态端口，不是配对端口。",
+      "填写已配置的静态端口。",
       "返回应用，再点击启动。"
     ]
   }

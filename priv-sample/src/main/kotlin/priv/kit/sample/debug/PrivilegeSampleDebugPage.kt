@@ -10,6 +10,7 @@ internal fun PrivilegeSampleDebugPage(
     callbacks: PrivilegeSampleDebugCallbacks,
 ) {
     when (selectedDestination) {
+        PrivilegeSampleDebugDestination.Input -> InputTestPage(state, callbacks)
         PrivilegeSampleDebugDestination.Permissions -> PermissionsTestPage(state, callbacks)
         PrivilegeSampleDebugDestination.Connection -> ConnectionTestPage(
             state = state,

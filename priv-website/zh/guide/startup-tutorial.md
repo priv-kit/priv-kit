@@ -8,6 +8,6 @@ next: false
 import StartupGuide from './startup-tutorial/StartupGuide.vue';
 </script>
 
-# 跟着步骤启动应用 {#startup-tutorial}
+# 启动特权服务 {#startup-tutorial}
 
 <StartupGuide chinese />

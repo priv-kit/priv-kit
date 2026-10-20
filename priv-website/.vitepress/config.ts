@@ -31,9 +31,10 @@ const englishSidebar = [
     text: 'Use the runtime',
     items: [
       { text: 'Binder', link: '/guide/binder' },
-      { text: 'File proxy', link: '/guide/file-proxy' },
-      { text: 'Commands', link: '/guide/commands' },
       { text: 'UserService', link: '/guide/user-service' },
+      { text: 'Commands', link: '/guide/commands' },
+      { text: 'File proxy', link: '/guide/file-proxy' },
+      { text: 'Input', link: '/guide/input' },
     ],
   },
   {
@@ -57,9 +58,10 @@ const chineseSidebar = [
     text: '使用',
     items: [
       { text: 'Binder', link: '/zh/guide/binder' },
-      { text: '文件代理', link: '/zh/guide/file-proxy' },
-      { text: '命令执行', link: '/zh/guide/commands' },
       { text: 'UserService', link: '/zh/guide/user-service' },
+      { text: '命令执行', link: '/zh/guide/commands' },
+      { text: '文件代理', link: '/zh/guide/file-proxy' },
+      { text: '输入', link: '/zh/guide/input' },
     ],
   },
   {

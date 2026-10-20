@@ -12,7 +12,7 @@ public sealed interface PrivilegeBinderCallFailure {
      * The current Privileged Server was missing or became unavailable.
      */
     public class ServerUnavailable internal constructor(
-        override val exception: PrivilegeServerUnavailableException,
+        override val exception: Exception,
     ) : PrivilegeBinderCallFailure
 
     /**
@@ -41,6 +41,8 @@ public object PrivilegeBinderCall {
         try {
             call()
         } catch (exception: PrivilegeServerUnavailableException) {
+            fallback(PrivilegeBinderCallFailure.ServerUnavailable(exception))
+        } catch (exception: PrivilegeBinderUnavailableException) {
             fallback(PrivilegeBinderCallFailure.ServerUnavailable(exception))
         } catch (exception: DeadObjectException) {
             fallback(PrivilegeBinderCallFailure.BinderDied(exception))

@@ -3,10 +3,10 @@
   "skills": {
     "android-api-diff": {
       "source": "android-cs/android-api-diff",
-      "ref": "v0.4.1",
+      "ref": "v0.5.1",
       "sourceType": "github",
       "skillPath": "skills/android-api-diff/SKILL.md",
-      "computedHash": "1dcdc7e450ceb0bf24e300a9bdda06a1a0852714596f809a6d7af62c45e3db82"
+      "computedHash": "6149316f87029670b9052550b6a5467cbeb839e5529fa1bb894d21a13b342ce7"
     },
     "android-hidden-api-r8": {
       "source": "lisonge/remap",

@@ -8,6 +8,6 @@ next: false
 import StartupGuide from './startup-tutorial/StartupGuide.vue';
 </script>
 
-# Start your app, step by step {#startup-tutorial}
+# Start the privileged service {#startup-tutorial}
 
 <StartupGuide />

@@ -27,7 +27,7 @@ const brand = computed(() => content.brands.find(item => item.id === props.model
           <div class="setting-switches"><div v-for="setting in brand.settings" :key="setting.label"><strong>{{ setting.label }}</strong><span>{{ setting.on ? (chinese ? '开启' : 'Turn on') : (chinese ? '关闭' : 'Turn off') }}</span></div></div>
         </template>
         <div v-if="brand?.html" v-html="brand.html" />
-        <p v-else-if="!brand?.settings.length">{{ chinese ? '当前教程没有该品牌的专用设置说明。请记录手机型号、系统版本及错误信息，联系应用维护者；没有权限警告也不代表所有功能都能使用。' : 'This guide has no brand-specific setting for this device. Send the model, system version and error to the app maintainer. An absent permission warning does not guarantee that every feature will work.' }}</p>
+        <p v-else-if="!brand?.settings.length">{{ chinese ? '当前教程没有该品牌的专用设置说明。请记录手机型号、系统版本及错误信息，联系应用维护者。' : 'This guide has no brand-specific setting for this device. Send the model, system version and error to the app maintainer.' }}</p>
       </template>
     </div>
   </div>

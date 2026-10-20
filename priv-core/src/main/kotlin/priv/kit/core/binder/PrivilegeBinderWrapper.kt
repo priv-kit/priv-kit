@@ -1,15 +1,13 @@
 package priv.kit.core.binder
 
 import android.os.IBinder
-import android.os.IBinderHidden
 import android.os.IInterface
 import android.os.Parcel
 import android.os.ResultReceiver
 import android.os.ServiceManager
 import android.os.ShellCallback
-import androidx.annotation.Keep
 import priv.kit.core.Privilege
-import priv.kit.shared.toHidden
+import priv.kit.shared.transactShellCommand
 import java.io.FileDescriptor
 
 public enum class PrivilegeSystemServiceSource {
@@ -24,7 +22,11 @@ public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
         reply: Parcel?,
         flags: Int,
     ): Boolean {
-        val serverBinder = Privilege.requireServerInterface().asBinder()
+        val serverBinder = try {
+            Privilege.requireServerInterface().asBinder()
+        } catch (_: PrivilegeServerUnavailableException) {
+            throw PrivilegeBinderUnavailableException()
+        }
         val remoteData = Parcel.obtain()
         try {
             remoteData.writeInterfaceToken(DESCRIPTOR)
@@ -67,7 +69,6 @@ public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
         }
     }
 
-    @Keep
     public fun shellCommand(
         input: FileDescriptor?,
         output: FileDescriptor?,
@@ -76,20 +77,11 @@ public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
         shellCallback: ShellCallback?,
         resultReceiver: ResultReceiver,
     ) {
-        val data = Parcel.obtain()
         val reply = Parcel.obtain()
         try {
-            val hiddenData = data.toHidden
-            hiddenData.writeFileDescriptor(input)
-            hiddenData.writeFileDescriptor(output)
-            hiddenData.writeFileDescriptor(error)
-            data.writeStringArray(args)
-            ShellCallback.writeToParcel(shellCallback, data)
-            resultReceiver.writeToParcel(data, 0)
-            transact(IBinderHidden.SHELL_COMMAND_TRANSACTION, data, reply, 0)
+            transactShellCommand(input, output, error, args, shellCallback, resultReceiver, reply)
             reply.readException()
         } finally {
-            data.recycle()
             reply.recycle()
         }
     }

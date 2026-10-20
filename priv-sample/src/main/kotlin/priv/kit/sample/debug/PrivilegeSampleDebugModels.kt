@@ -23,8 +23,12 @@ internal sealed interface PrivilegeSampleDebugDestination {
         override val titleRes: Int = R.string.sample_test_permissions
     }
 
+    data object Input : PrivilegeSampleDebugDestination {
+        override val titleRes: Int = R.string.sample_test_input
+    }
+
     companion object {
-        val entries: List<PrivilegeSampleDebugDestination> = listOf(Connection, Binder, UserService, Permissions)
+        val entries: List<PrivilegeSampleDebugDestination> = listOf(Connection, Binder, UserService, Permissions, Input)
     }
 }
 

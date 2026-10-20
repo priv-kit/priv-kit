@@ -7,7 +7,6 @@ import kotlinx.coroutines.withContext
 import priv.kit.core.PrivilegeStartupException
 import priv.kit.shared.isPrivilegeAdbPort
 import java.net.SocketTimeoutException
-import kotlin.time.Duration.Companion.milliseconds
 
 internal class PrivilegeAdbTcpManager(
     private val identityProvider: PrivilegeAdbIdentityProvider,
@@ -38,7 +37,6 @@ internal class PrivilegeAdbTcpManager(
             canManageAdb = canManageAdb,
             enableAdb = controller::enableAdb,
             checkAuthorization = { checkTcpAuthorization(tcpPort = tcpPort) },
-            sleep = { delayMillis -> delay(delayMillis.milliseconds) },
             retryCount = PRIVILEGE_ADB_TCP_PREPARATION_RETRY_COUNT,
             retryDelayMillis = PRIVILEGE_ADB_DEFAULT_CONNECT_RETRY_DELAY_MILLIS,
         )
@@ -355,7 +353,6 @@ internal suspend fun recoverTcpAuthorizationForStart(
     retryDelayMillis: Long,
     enableAdb: () -> Unit,
     checkAuthorization: suspend () -> PrivilegeAdbAuthorizationCheckResult,
-    sleep: suspend (Long) -> Unit,
 ): PrivilegeAdbAuthorizationCheckResult {
     if (
         initialResult.status != PrivilegeAdbAuthorizationStatus.UNAVAILABLE ||
@@ -371,7 +368,7 @@ internal suspend fun recoverTcpAuthorizationForStart(
         enableAdb()
         var result = initialResult
         repeat(retryCount) {
-            if (retryDelayMillis > 0L) sleep(retryDelayMillis)
+            if (retryDelayMillis > 0L) delay(retryDelayMillis)
             result = checkAuthorization()
             if (result.status != PrivilegeAdbAuthorizationStatus.UNAVAILABLE) return result
         }

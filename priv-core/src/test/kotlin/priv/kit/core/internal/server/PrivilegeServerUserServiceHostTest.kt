@@ -119,8 +119,6 @@ class PrivilegeServerUserServiceHostTest {
     fun claimerReturnsClaimedProcessBinder() {
         val process = TestUserServiceProcess()
         val claimer = PrivilegeServerUserServiceProcessClaimer(
-            elapsedRealtime = { 0L },
-            sleep = { error("sleep should not be needed") },
             providerCall = { _, _ ->
                 Bundle().apply {
                     putBoolean(PrivilegeUserServiceContract.KEY_SUCCESS, true)
@@ -140,12 +138,12 @@ class PrivilegeServerUserServiceHostTest {
 
     @Test
     fun claimerTimeoutKeepsLastProviderFailure() {
-        var now = 0L
         val providerFailure = IllegalStateException("provider exploded")
         val claimer = PrivilegeServerUserServiceProcessClaimer(
-            elapsedRealtime = { now },
-            sleep = { delayMillis -> now += delayMillis },
-            providerCall = { _, _ -> throw providerFailure },
+            providerCall = { _, _ ->
+                org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofMillis(50))
+                throw providerFailure
+            },
         )
 
         val throwable = assertThrows(PrivilegeUserServiceException::class.java) {

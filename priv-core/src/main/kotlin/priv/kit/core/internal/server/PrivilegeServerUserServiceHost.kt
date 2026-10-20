@@ -125,8 +125,6 @@ internal object PrivilegeServerUserServiceProcessCommand {
 }
 
 internal class PrivilegeServerUserServiceProcessClaimer(
-    private val elapsedRealtime: () -> Long = SystemClock::elapsedRealtime,
-    private val sleep: (Long) -> Unit = { Thread.sleep(it) },
     private val providerCall: (PrivilegeServerConfig, String) -> Bundle? =
         PrivilegeServerUserServiceProcessClaimer::claimProcess,
 ) {
@@ -135,9 +133,9 @@ internal class PrivilegeServerUserServiceProcessClaimer(
         token: String,
         timeoutMillis: Long,
     ): IPrivilegeUserServiceProcess {
-        val deadline = elapsedRealtime() + timeoutMillis
+        val deadline = SystemClock.elapsedRealtime() + timeoutMillis
         var lastFailure: Throwable? = null
-        while (elapsedRealtime() < deadline) {
+        while (SystemClock.elapsedRealtime() < deadline) {
             val response = runCatching {
                 providerCall(config, token)
             }.onFailure {
@@ -151,7 +149,7 @@ internal class PrivilegeServerUserServiceProcessClaimer(
                 return IPrivilegeUserServiceProcess.Stub.asInterface(processBinder)
                     ?: throw PrivilegeUserServiceException("UserService process returned an invalid Binder")
             }
-            sleep(CLAIM_RETRY_DELAY_MILLIS)
+            Thread.sleep(CLAIM_RETRY_DELAY_MILLIS)
         }
         throw PrivilegeUserServiceException(
             "Timed out waiting for dedicated UserService process",
