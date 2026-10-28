@@ -47,7 +47,7 @@ private val publishedModuleNames = setOf(
 
 allprojects {
     group = "io.github.priv-kit"
-    version = "0.17.8" + if (!providers.environmentVariable("CI").isPresent) "-SNAPSHOT" else ""
+    version = "0.17.9" + if (!providers.environmentVariable("CI").isPresent) "-SNAPSHOT" else ""
 }
 
 subprojects {

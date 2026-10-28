@@ -5,7 +5,8 @@ Keep only the changes for the current release in this file.
 Replace the content when preparing the next release; release history is preserved by GitHub Releases.
 -->
 
-- Support optional external startup scripts and simplify UI initialization.
-- Accept a path when preparing external shell scripts.
-- Redesign startup tutorials with step-by-step instructions, device settings, and troubleshooting.
-- Keep tutorial deep links and search; improve brand selection and Chinese setting labels.
+- Add an optional `onShowToast` callback to route authorization-page feedback and controller errors to the host application.
+- Improve exception handling and error reporting for input injection, commands, ADB access, and Binder calls.
+- Add input-service examples and localized input controls, with expanded input and evdev documentation.
+- Refine key-combination duration handling and document its behavior.
+- Recommend `priv.sh` for manual startup scripts.
