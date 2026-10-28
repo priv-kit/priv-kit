@@ -36,6 +36,8 @@ PrivilegeScaffold(
 
 The page handles Root, ADB, manual and external startup, pairing, permissions, and restart confirmation. Other app features observe `Privilege.serverState`.
 
+Pass `onShowToast = { message -> appToast(message) }` to `PrivilegeScaffold` to route all transient page messages, including action feedback and controller errors, to the host application's toast. The callback runs on the UI thread and receives localized text. Omit it to keep the built-in Snackbar behavior.
+
 ## Lifecycle
 
 Foreground and silent starts are mutually exclusive. Silent startup uses the last successful method and existing authorization. A root manager may still show its own prompt.

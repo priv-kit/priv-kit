@@ -18,6 +18,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,6 +39,8 @@ import java.util.UUID
  * [startupTutorialUrl] replaces the localized guide URL for every help topic.
  * [onViewStartupTutorial] overrides guide navigation; [onViewPermissionSolutions] takes
  * precedence for permission help. Topic anchors are stable across guide languages.
+ * [onShowToast] handles all transient page messages on the UI thread, including action
+ * feedback and controller errors. When null, messages use the built-in snackbar host.
  */
 @Composable
 public fun PrivilegeScaffold(
@@ -58,6 +61,7 @@ public fun PrivilegeScaffold(
     onViewPermissionSolutions: (() -> Unit)? = null,
     startupTutorialUrl: String? = null,
     onViewStartupTutorial: ((PrivilegeUiTutorialTopic) -> Unit)? = null,
+    onShowToast: ((String) -> Unit)? = null,
 ) {
     val activity = LocalActivity.current!!
     val context = LocalContext.current
@@ -115,7 +119,12 @@ public fun PrivilegeScaffold(
     }
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
+    val currentOnShowToast by rememberUpdatedState(onShowToast)
     fun showFeedback(message: String) {
+        currentOnShowToast?.let { showToast ->
+            showToast(message)
+            return
+        }
         snackbarScope.launch {
             snackbarHostState.currentSnackbarData?.dismiss()
             snackbarHostState.showSnackbar(message = message)
@@ -180,10 +189,19 @@ public fun PrivilegeScaffold(
             }
         }
     }
-    LaunchedEffect(Unit) {
-        viewModel.snackbarTexts.collect { text ->
+    LaunchedEffect(viewModel, context, onShowToast != null) {
+        if (currentOnShowToast != null) {
             snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(message = text.asString(context))
+        }
+        viewModel.snackbarTexts.collect { text ->
+            val message = text.asString(context)
+            val showToast = currentOnShowToast
+            if (showToast != null) {
+                showToast(message)
+            } else {
+                snackbarHostState.currentSnackbarData?.dismiss()
+                snackbarHostState.showSnackbar(message = message)
+            }
         }
     }
     LifecycleEventEffect(
