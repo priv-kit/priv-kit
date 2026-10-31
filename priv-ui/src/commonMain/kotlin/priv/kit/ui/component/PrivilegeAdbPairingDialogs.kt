@@ -1,21 +1,48 @@
 package priv.kit.ui.component
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.Layout
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import priv.kit.ui.PrivilegeUiAdbPairingStatus
 import priv.kit.ui.PrivilegeUiScreenScope
@@ -66,7 +93,16 @@ internal fun PrivilegeUiScreenScope.WirelessAdbPairingNotificationPermissionWarn
 
 @Composable
 internal fun PrivilegeUiScreenScope.WirelessAdbPairingDialog() {
-    val defaultPairingMessage = stringResource(Res.string.priv_ui_pairing_default_message)
+    var inputMethodsExpanded by rememberSaveable { mutableStateOf(false) }
+    val inputMethodsState = stringResource(
+        if (inputMethodsExpanded) Res.string.priv_ui_expanded else Res.string.priv_ui_collapsed,
+    )
+    val defaultPairingMessage = stringResource(Res.string.priv_ui_pairing_dialog_searching)
+    val statusText = when (state.pairingStatus) {
+        PrivilegeUiAdbPairingStatus.SEARCHING -> defaultPairingMessage
+        PrivilegeUiAdbPairingStatus.FOUND -> stringResource(Res.string.priv_ui_pairing_dialog_found)
+        else -> state.pairingText?.takeIf(String::isNotBlank) ?: defaultPairingMessage
+    }
     val pairingInputHint = stringResource(
         privilegeUiPairingInputHint(state.notificationPairingRunning),
     )
@@ -78,47 +114,95 @@ internal fun PrivilegeUiScreenScope.WirelessAdbPairingDialog() {
     fun dismissOrStop() {
         if (interactionEnabled) actions.stopNotificationPairing()
     }
-    AlertDialog(
+    PairingDialog(
         onDismissRequest = ::dismissOrStop,
-        properties = DialogProperties(dismissOnClickOutside = false),
-        title = {
-            Text(stringResource(Res.string.priv_ui_wireless_pair_dialog_title))
-        },
+        title = stringResource(Res.string.priv_ui_wireless_pair_dialog_title),
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.medium)) {
-                Column(verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.extraSmall)) {
-                    Text(
-                        text = state.pairingText
-
-                            ?.takeIf(String::isNotBlank)
-                            ?: defaultPairingMessage,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Text(
-                        text = pairingInputHint,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(PrivilegeUiSpacing.small),
+            ) {
+                Text(
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    text = statusText,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                     value = state.pairingCode,
-                    enabled = interactionEnabled,
                     onValueChange = actions.updatePairingCode,
+                    enabled = interactionEnabled,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.NumberPassword,
                         imeAction = ImeAction.Done,
                     ),
                     keyboardActions = KeyboardActions(
                         onDone = {
-                            if (canSubmit) {
-                                actions.submitNotificationPairingCode()
-                            }
+                            if (canSubmit) actions.submitNotificationPairingCode()
                         },
                     ),
                     label = { Text(stringResource(Res.string.priv_ui_pairing_code)) },
                     singleLine = true,
                 )
+                if (state.notificationPairingRunning) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .clip(MaterialTheme.shapes.medium)
+                                .semantics { stateDescription = inputMethodsState }
+                                .clickable(role = Role.Button) { inputMethodsExpanded = !inputMethodsExpanded }
+                                .heightIn(min = 40.dp)
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text = stringResource(Res.string.priv_ui_pairing_input_methods),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Icon(
+                                imageVector = if (inputMethodsExpanded) PrivilegeUiIcons.KeyboardArrowUp
+                                    else PrivilegeUiIcons.KeyboardArrowDown,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        AnimatedVisibility(
+                            visible = inputMethodsExpanded,
+                            enter = expandVertically(expandFrom = Alignment.Top),
+                            exit = shrinkVertically(shrinkTowards = Alignment.Top),
+                        ) {
+                            Surface(
+                                shape = MaterialTheme.shapes.medium,
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    Text(
+                                        text = pairingInputHint,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    PairingInputMethod(Res.string.priv_ui_pairing_method_typing, Res.string.priv_ui_pairing_method_typing_hint)
+                                    PairingInputMethod(Res.string.priv_ui_pairing_method_buttons, Res.string.priv_ui_pairing_method_buttons_hint)
+                                    PairingInputMethod(Res.string.priv_ui_pairing_method_split, Res.string.priv_ui_pairing_method_split_hint)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        text = pairingInputHint,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
             }
         },
         confirmButton = {
@@ -147,6 +231,57 @@ internal fun PrivilegeUiScreenScope.WirelessAdbPairingDialog() {
             }
         },
     )
+}
+
+@Composable
+private fun PairingDialog(
+    onDismissRequest: () -> Unit,
+    title: String,
+    text: @Composable () -> Unit,
+    confirmButton: @Composable () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(dismissOnClickOutside = false),
+    ) {
+        Surface(
+            modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth()
+                .semantics { paneTitle = title },
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 16.dp)) {
+                Text(
+                    text = title,
+                    modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)
+                        .semantics { heading() },
+                    style = MaterialTheme.typography.headlineSmall,
+                )
+                Box(modifier = Modifier.weight(1f, fill = false)) {
+                    text()
+                }
+                Box(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                    confirmButton()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PairingInputMethod(title: StringResource, description: StringResource) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = stringResource(title),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = stringResource(description),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 /** Keeps help at the start and actions at the end, wrapping help above when necessary. */

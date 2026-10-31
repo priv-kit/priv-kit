@@ -12,6 +12,46 @@ import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 
 internal object PrivilegeUiIcons {
+    val KeyboardArrowDown: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "KeyboardArrowDown",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            path(fill = SolidColor(Color.Black)) {
+                moveTo(7.41f, 8.59f)
+                lineTo(12.0f, 13.17f)
+                lineTo(16.59f, 8.59f)
+                lineTo(18.0f, 10.0f)
+                lineTo(12.0f, 16.0f)
+                lineTo(6.0f, 10.0f)
+                close()
+            }
+        }.build()
+    }
+
+    val KeyboardArrowUp: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "KeyboardArrowUp",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            path(fill = SolidColor(Color.Black)) {
+                moveTo(7.41f, 15.41f)
+                lineTo(12.0f, 10.83f)
+                lineTo(16.59f, 15.41f)
+                lineTo(18.0f, 14.0f)
+                lineTo(12.0f, 8.0f)
+                lineTo(6.0f, 14.0f)
+                close()
+            }
+        }.build()
+    }
+
     val OpenInNew: ImageVector by lazy {
         ImageVector.Builder(
             name = "open_in_new",
