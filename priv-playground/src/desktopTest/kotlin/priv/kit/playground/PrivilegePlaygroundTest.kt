@@ -131,7 +131,7 @@ class PrivilegePlaygroundTest {
                 onNodeWithText("ADB").performClick().assertIsSelected()
                 onNodeWithText("Pair").performClick()
                 onNodeWithText("Pair wireless debugging").assertExists()
-                onNodeWithText("Pairing service found. Enter the pairing code").assertExists()
+                onNodeWithText("Service found. Keep the pairing code window open").assertExists()
                 onNode(hasSetTextAction()).performTextInput("123456")
                 onNode(hasText("Pair") and hasAnyAncestor(isDialog())).performClick()
                 waitUntil(timeoutMillis = 10_000) { onAllNodesWithText("Pair wireless debugging").fetchSemanticsNodes().isEmpty() }
