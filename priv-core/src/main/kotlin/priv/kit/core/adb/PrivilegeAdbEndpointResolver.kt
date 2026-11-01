@@ -10,6 +10,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 internal class PrivilegeAdbEndpointResolver(
     private val nsdManagerProvider: () -> NsdManager,
     private val wirelessDebuggingControllerProvider: () -> PrivilegeAdbWirelessDebuggingController,
+    private val connectEndpointDiscovery: suspend (Long) -> PrivilegeAdbEndpoint = { timeoutMillis ->
+        PrivilegeAdbMdns(nsdManagerProvider(), PrivilegeAdbMdns.TLS_CONNECT).discoverEndpoint(timeoutMillis)
+    },
 ) {
     fun getWirelessDebuggingControlStatus(): PrivilegeAdbWirelessDebuggingControlStatus =
         wirelessDebuggingControllerProvider().status()
@@ -31,8 +34,7 @@ internal class PrivilegeAdbEndpointResolver(
         timeoutMillis: Long,
     ): PrivilegeAdbEndpoint {
         return try {
-            PrivilegeAdbMdns(nsdManagerProvider(), PrivilegeAdbMdns.TLS_CONNECT)
-                .discoverEndpoint(timeoutMillis)
+            connectEndpointDiscovery(timeoutMillis)
         } catch (throwable: Throwable) {
             throwable.rethrowIfInterrupted()
             if (throwable is PrivilegeStartupException) throw throwable
@@ -54,12 +56,27 @@ internal class PrivilegeAdbEndpointResolver(
                 "declared=${status.permissionDeclared}, permission=${status.permissionGranted}, " +
                 "enabled=${status.wirelessDebuggingEnabled}",
         )
-        val managedWirelessDebuggingEnabled =
+        var managementFailure: IOException? = null
+        var managedWirelessDebuggingEnabled =
             shouldEnableWirelessDebuggingForStart(options.wirelessDebuggingControl, status)
         if (managedWirelessDebuggingEnabled) {
             output.append("adb", "Temporarily enabling Wireless debugging")
-            controller.prepareAdb()
-            controller.setWirelessDebuggingEnabled(true)
+            try {
+                controller.prepareAdb()
+                controller.setWirelessDebuggingEnabled(true)
+            } catch (failure: IOException) {
+                output.append("diag", "Automatic Wireless debugging control failed: ${failure.toFailureMessage()}")
+                val actionableFailure = IOException(
+                    "Unable to automatically enable Wireless debugging. " +
+                        "Enable it manually in Developer options and retry. ${failure.message}",
+                    failure,
+                )
+                if (options.wirelessDebuggingControl == PrivilegeAdbWirelessDebuggingControl.REQUIRE) {
+                    throw actionableFailure
+                }
+                managementFailure = actionableFailure
+                managedWirelessDebuggingEnabled = false
+            }
         } else if (status.wirelessDebuggingEnabled) {
             output.append("diag", "Wireless debugging already enabled")
         } else if (shouldRejectWirelessDebuggingForStart(options.wirelessDebuggingControl, status)) {
@@ -90,6 +107,11 @@ internal class PrivilegeAdbEndpointResolver(
                 controller = cleanupController,
                 output = output,
             )
+            throwable.rethrowIfInterrupted()
+            managementFailure?.let { failure ->
+                failure.addSuppressed(throwable)
+                throw failure
+            }
             throw throwable
         }
     }

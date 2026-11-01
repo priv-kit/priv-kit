@@ -20,6 +20,7 @@ public data class PrivilegeAdbWirelessDebuggingControlStatus internal constructo
     public val permissionDeclared: Boolean,
     public val permissionGranted: Boolean,
     public val wirelessDebuggingEnabled: Boolean,
+    /** Permission preflight permits an attempt; the system may still reject individual writes. */
     public val canManage: Boolean,
     public val failureMessage: String? = null,
 )
@@ -72,21 +73,26 @@ internal class AndroidPrivilegeAdbWirelessDebuggingController(
 
     override fun enableAdb() {
         enforceWriteSecureSettingsPermission()
-        checkSettingWrite(Settings.Global.ADB_ENABLED, 1, writeGlobalInt(Settings.Global.ADB_ENABLED, 1))
+        checkSettingWrite(Settings.Global.ADB_ENABLED, 1) { writeGlobalInt(Settings.Global.ADB_ENABLED, 1) }
     }
 
     override fun prepareAdb() {
         enableAdb()
-        checkSettingWrite(ADB_ALLOWED_CONNECTION_TIME, 0L, writeGlobalLong(ADB_ALLOWED_CONNECTION_TIME, 0L))
+        checkSettingWrite(ADB_ALLOWED_CONNECTION_TIME, 0L) { writeGlobalLong(ADB_ALLOWED_CONNECTION_TIME, 0L) }
     }
 
     override fun setWirelessDebuggingEnabled(enabled: Boolean) {
         enforceWriteSecureSettingsPermission()
         val value = if (enabled) 1 else 0
-        checkSettingWrite(ADB_WIFI_ENABLED, value, writeGlobalInt(ADB_WIFI_ENABLED, value))
+        checkSettingWrite(ADB_WIFI_ENABLED, value) { writeGlobalInt(ADB_WIFI_ENABLED, value) }
     }
 
-    private fun checkSettingWrite(name: String, value: Number, accepted: Boolean) {
+    private fun checkSettingWrite(name: String, value: Number, write: () -> Boolean) {
+        val accepted = try {
+            write()
+        } catch (denied: SecurityException) {
+            throw IOException("System denied global setting $name=$value: ${denied.message}", denied)
+        }
         if (!accepted) {
             throw IOException("Failed to write global setting $name=$value")
         }

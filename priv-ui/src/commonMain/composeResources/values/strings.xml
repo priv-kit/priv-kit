@@ -111,6 +111,7 @@
     <string name="priv_ui_wifi_required_for_wireless_adb_start">Connect to any Wi-Fi before starting</string>
     <string name="priv_ui_wireless_debugging_required_for_wireless_adb_start">Turn on Wireless debugging before starting</string>
     <string name="priv_ui_wireless_pair_required_for_wireless_adb_start">Pair before starting</string>
+    <string name="priv_ui_wireless_debugging_control_restricted">The system restricts automatic Wireless debugging control. Enable Wireless debugging manually in Developer options and retry.</string>
     <string name="priv_ui_wireless_pair_action">Pair</string>
     <string name="priv_ui_wireless_pair_dialog_title">Pair wireless debugging</string>
     <string name="priv_ui_checking_wireless_adb">Checking whether Wireless debugging is paired...</string>

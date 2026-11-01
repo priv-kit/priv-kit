@@ -598,6 +598,19 @@ internal class PrivilegeUiAdbActions(
     private fun handleWirelessAdbStartFailure(
         throwable: Throwable,
     ): PrivilegeUiRuntimeStartFailureDisposition? {
+        if (generateSequence(throwable) { it.cause }.any {
+                it is SecurityException && it.message.orEmpty().contains("android.permission.MANAGE_DEBUGGING")
+            }
+        ) {
+            val text = store.resourceText(R.string.priv_ui_wireless_debugging_control_restricted)
+            return PrivilegeUiRuntimeStartFailureDisposition(
+                stateTransform = { current ->
+                    current.copy(managedWirelessAdbStatus = PrivilegeUiManagedWirelessAdbStatus.FAILED)
+                },
+                snackbarText = text,
+                startupLogLines = listOf(store.resolveText(text), throwable.toPrivilegeUiDiagnosticString()),
+            )
+        }
         if (!throwable.isAdbKeyNotAuthorizedFailure()) return null
         val text = store.resourceText(R.string.priv_ui_wireless_pair_required_for_wireless_adb_start)
         val message = store.resolveText(text)

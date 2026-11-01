@@ -7,10 +7,74 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CancellationException
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import priv.kit.core.PrivilegeStartupException
 import priv.kit.shared.PRIVILEGE_INTERNAL_ADB_LOOPBACK_HOST
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class PrivilegeAdbEndpointResolverTest {
+    @Test
+    fun deniedManagementHonorsControlPolicyAndDoesNotCleanUpUnmanagedDebugging() = runBlocking {
+        for (discoveryFailure in listOf(null, IOException("No endpoint"), CancellationException("cancelled"))) {
+            for (mode in PrivilegeAdbWirelessDebuggingControl.entries) {
+                var preparations = 0
+                var discoveries = 0
+                val denied = SecurityException("android.permission.MANAGE_DEBUGGING")
+                val controller = object : PrivilegeAdbWirelessDebuggingController {
+                    override fun status() = PrivilegeAdbWirelessDebuggingControlStatus(
+                        true, true, true, false, true,
+                    )
+                    override fun enableAdb() = Unit
+                    override fun prepareAdb() {
+                        preparations++
+                        throw IOException("System denied global setting adb_enabled=1", denied)
+                    }
+                    override fun setWirelessDebuggingEnabled(enabled: Boolean) = error("Unexpected write")
+                }
+                val resolver = PrivilegeAdbEndpointResolver(
+                    nsdManagerProvider = { error("unused") },
+                    wirelessDebuggingControllerProvider = { controller },
+                    connectEndpointDiscovery = {
+                        discoveries++
+                        discoveryFailure?.let { throw it }
+                        PrivilegeAdbEndpoint.local(PRIVILEGE_ADB_DEFAULT_TCP_PORT)
+                    },
+                )
+                val result = runCatching {
+                    resolver.acquireConnectEndpointForStart(
+                        PrivilegeAdbConnectionOptions(wirelessDebuggingControl = mode),
+                        PrivilegeAdbOutput(),
+                        true,
+                    ).close()
+                }
+                assertEquals(if (mode == PrivilegeAdbWirelessDebuggingControl.NEVER) 0 else 1, preparations)
+                if (mode == PrivilegeAdbWirelessDebuggingControl.REQUIRE) {
+                    assertEquals(0, discoveries)
+                    assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("Developer options"))
+                    assertTrue(result.exceptionOrNull()?.cause?.cause === denied)
+                } else {
+                    assertEquals(1, discoveries)
+                    when {
+                        discoveryFailure == null -> result.getOrThrow()
+                        discoveryFailure is CancellationException ->
+                            assertTrue(result.exceptionOrNull() === discoveryFailure)
+                        mode == PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE -> {
+                            assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("Developer options"))
+                            assertTrue(result.exceptionOrNull()?.cause?.cause === denied)
+                            assertEquals(1, result.exceptionOrNull()?.suppressed?.size)
+                        }
+                        else -> assertTrue(result.isFailure)
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     fun connectEndpointLeaseRejectsRepeatedCloseWithoutRepeatingCleanup() {
         var disableCalls = 0

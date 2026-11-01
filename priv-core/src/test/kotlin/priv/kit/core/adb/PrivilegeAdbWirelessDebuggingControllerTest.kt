@@ -82,7 +82,9 @@ class PrivilegeAdbWirelessDebuggingControllerTest {
             writeGlobalInt = { _, _ -> throw denied },
         )
 
-        assertSame(denied, assertThrows(SecurityException::class.java) { controller.enableAdb() })
+        val failure = assertThrows(IOException::class.java) { controller.enableAdb() }
+        assertSame(denied, failure.cause)
+        assertTrue(failure.message.orEmpty().contains("adb_enabled=1"))
     }
 
     @Test

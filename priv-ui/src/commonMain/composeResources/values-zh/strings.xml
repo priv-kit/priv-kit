@@ -1,4 +1,5 @@
 <resources>
+    <string name="priv_ui_wireless_debugging_control_restricted">系统限制应用自动管理无线调试，请在开发者选项中手动开启无线调试后重试。</string>
     <string name="priv_ui_title">特权服务</string>
     <string name="priv_ui_nav_back">返回</string>
     <string name="priv_ui_auth_method_root">Root</string>
