@@ -6,6 +6,8 @@
 
 Priv Kit lets Android apps start and manage their own privileged process through Root, ADB, a shell command, or an external authorization service.
 
+Free your app from dependencies on standalone authorization apps such as Shizuku.
+
 - Binder access
 - File operations
 - Command execution

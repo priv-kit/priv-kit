@@ -6,6 +6,8 @@
 
 Priv Kit 让 Android 应用通过 Root、ADB、手动命令或外部授权服务启动自己的特权进程。
 
+让你的应用摆脱对 Shizuku 等独立授权应用的依赖。
+
 - Binder 访问
 - 文件操作
 - 命令执行

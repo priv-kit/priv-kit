@@ -6,6 +6,8 @@ description: Priv Kit 的功能与模块选择。
 
 Priv Kit 让 Android 应用通过 Root、ADB、手动命令或外部授权器启动和管理自己的特权进程，用于 Binder 调用、文件操作、命令执行和自定义 UserService。
 
+让你的应用摆脱对 Shizuku 等独立授权应用的依赖。
+
 使用 `priv-ui` 接入 Compose 授权页面，或通过 `priv-core` 自建界面。
 
 接入步骤见[快速接入](./getting-started)。

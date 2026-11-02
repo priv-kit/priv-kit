@@ -6,6 +6,8 @@ description: Priv Kit features and module choices.
 
 Priv Kit lets an Android app start and manage its own privileged process through Root, ADB, a shell command, or an external authorizer. Use it for Binder calls, file operations, commands, and app-defined UserServices.
 
+Free your app from dependencies on standalone authorization apps such as Shizuku.
+
 Use `priv-ui` for the Compose authorization page, or `priv-core` to build your own interface.
 
 See [Getting started](./getting-started).
