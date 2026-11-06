@@ -15,6 +15,7 @@ import androidx.annotation.StringRes
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.PendingIntentCompat
 import priv.kit.ui.PrivilegeAdbPairingService
+import priv.kit.ui.PrivilegeUi
 import priv.kit.ui.R
 import priv.kit.ui.asString
 import priv.kit.ui.privilegeUiText
@@ -246,7 +247,8 @@ internal class PrivilegeAdbPairingNotificationFactory(
     private val notificationManager: NotificationManagerCompat
         get() = NotificationManagerCompat.from(context)
 
-    private fun text(@StringRes id: Int): String = privilegeUiText(id).asString(context)
+    private fun text(@StringRes id: Int): String =
+        privilegeUiText(id).asString(context, PrivilegeUi.localeOverride)
 
     private companion object {
         val pairingInputTextViewIds = intArrayOf(

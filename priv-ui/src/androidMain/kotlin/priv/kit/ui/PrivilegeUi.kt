@@ -1,7 +1,9 @@
 package priv.kit.ui
 
 import android.os.Process
+import androidx.annotation.MainThread
 import java.io.File
+import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -22,6 +24,25 @@ import priv.kit.ui.runtime.requireValidManualShellScriptPath
 import kotlin.time.Duration.Companion.milliseconds
 
 public object PrivilegeUi {
+    internal var localeOverride: Locale? = null
+        private set
+
+    /**
+     * Sets the language used by the pairing service, including its notification channel,
+     * actions and accessibility text. Refreshes active notifications without restarting pairing
+     * or clearing the entered code. Compose content continues to use the host's language context.
+     *
+     * Call on the main thread at application initialization and when the host language changes.
+     * This setting is process-local and is not persisted. The default, `null`, follows Android's
+     * application language configuration. Already-materialized external text is not translated.
+     */
+    @MainThread
+    public fun setLocale(locale: Locale?) {
+        if (localeOverride == locale) return
+        localeOverride = locale
+        PrivilegeAdbPairingService.refreshLocale()
+    }
+
     private val desiredEnabledLock = Any()
     private val desiredEnabledStore by lazy {
         PrivilegeUiDesiredEnabledStore(PrivilegeContext.require())

@@ -10,6 +10,7 @@ Compose Multiplatform authorization UI under `priv.kit.ui`. Android uses Core; J
 | `PrivilegeUiViewModel` | Extensible Android controller |
 | `PrivilegeUiConfig` | Startup modes, polling, notification pairing, and providers |
 | `PrivilegeUi.desiredEnabled` | Automatic-recovery setting |
+| `PrivilegeUi.setLocale(...)` | Android pairing-service language and live notification refresh |
 | `PrivilegeUi.startSilently(...)` | Restart using the last successful method |
 | `PrivilegeUi.prepareExternalShellScript(...)` | Prepare the optional manual-start script |
 
@@ -45,6 +46,8 @@ Foreground and silent starts are mutually exclusive. Silent startup uses the las
 Passive checks follow the selected tab and host lifecycle. See the [UI guide](../priv-website/guide/priv-ui.md) for recovery, notification IDs, and permission handling.
 
 ## Resources and preview
+
+On Android, call `PrivilegeUi.setLocale(locale)` on the main thread at application initialization and when the host language changes. The process-local setting refreshes active pairing notifications, including their channel name, actions, and accessibility text, while preserving the pairing session and entered code. Pass `null` (the default) to follow Android's application language configuration. Compose pages continue to use the host's language context; external literal messages are not translated. The host persists its own language preference.
 
 `commonMain` contains pages, presentation state, and English/Chinese strings; `androidMain` adapts Core, permissions, and lifecycle. RemoteViews XML is used only for notifications.
 

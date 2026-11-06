@@ -144,6 +144,10 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        refreshNotifications()
+    }
+
+    private fun refreshNotifications() {
         if (notificationOwnerId == null) return
         notificationFactory.ensureNotificationChannel()
         showPairingNotifications()?.let(::startForegroundSafely)
@@ -192,7 +196,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
     private fun showPairingNotifications(): Notification? {
         if (notificationOwnerId == null || !showInputNotification()) return null
         val text = (notificationStatusText ?: privilegeUiText(R.string.priv_ui_pairing_search_text))
-            .asString(this)
+            .asString(this, PrivilegeUi.localeOverride)
         return if (notificationAcceptsPairingCode) {
             notificationFactory.statusNotification(text)
         } else {
@@ -239,7 +243,7 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         if (notificationOwnerId == null || !ensureNotificationUiAvailable()) return
         notificationStatusText = text
         notificationAcceptsPairingCode = acceptsPairingCode
-        val resolvedText = text.asString(this)
+        val resolvedText = text.asString(this, PrivilegeUi.localeOverride)
         val notification = if (acceptsPairingCode) {
             notificationFactory.statusNotification(resolvedText)
         } else {
@@ -277,7 +281,8 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
             notificationEventState.tryEmit(
                 PrivilegeAdbPairingNotificationEvent.Unavailable(
                     ownerId = ownerId,
-                    message = privilegeUiText(failureKind.messageResId).asString(this),
+                    message = privilegeUiText(failureKind.messageResId)
+                        .asString(this, PrivilegeUi.localeOverride),
                     reason = reason,
                 ),
             )
@@ -297,7 +302,8 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
         notificationEventState.tryEmit(
             PrivilegeAdbPairingNotificationEvent.Unavailable(
                 ownerId = ownerId,
-                message = privilegeUiText(reason.toPrivilegeUiFailureKind().messageResId).asString(this),
+                message = privilegeUiText(reason.toPrivilegeUiFailureKind().messageResId)
+                    .asString(this, PrivilegeUi.localeOverride),
                 reason = reason,
             ),
         )
@@ -409,6 +415,10 @@ public class PrivilegeAdbPairingService public constructor() : LifecycleService(
 
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
     public companion object {
+        internal fun refreshLocale() {
+            activeService?.refreshNotifications()
+        }
+
         @Volatile
         private var activeService: PrivilegeAdbPairingService? = null
 

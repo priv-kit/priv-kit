@@ -167,6 +167,18 @@ Scaffold 处理通知配对；通知输入不可用时，可将前台配对弹�
 `priv-core` 可以在具备权限时临时打开和关闭无线调试。`priv-ui` 读取状态并把
 对应配置传给 Core，由 Core 负责 `Settings.Global` 变更。
 
+#### 配对通知语言 {#pairing-notification-language}
+
+宿主自行管理语言时，在应用初始化和每次语言切换时，于主线程同步 Android 配对服务的语言：
+
+```kotlin
+PrivilegeUi.setLocale(Locale.SIMPLIFIED_CHINESE) // java.util.Locale
+PrivilegeUi.setLocale(Locale.ENGLISH)
+PrivilegeUi.setLocale(null) // 跟随 Android 应用语言配置。
+```
+
+默认为 `null`。设置仅在当前进程内有效，语言偏好由宿主自行持久化。运行中的通知会刷新渠道名称、文案、操作按钮、输入提示和无障碍文案，不重启配对会话，也不清空已输入的配对码。Compose 页面继续使用宿主的语言环境，外部传入的字面量消息不会自动翻译。
+
 ### TCP/IP 界面 {#tcp-ip-ui}
 
 `PrivilegeUiConfig.tcpPort` 指定静态端口。

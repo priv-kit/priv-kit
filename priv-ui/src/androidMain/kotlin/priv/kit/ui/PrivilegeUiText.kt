@@ -1,10 +1,12 @@
 package priv.kit.ui
 
 import android.content.Context
+import android.content.res.Configuration
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
+import java.util.Locale
 
 /**
  * Text owned by Privilege UI that is resolved only at a presentation boundary.
@@ -33,8 +35,14 @@ internal fun PrivilegeUiText.asString(): String =
     }
 
 /** Resolves this text at a non-Compose presentation boundary. */
-internal fun PrivilegeUiText.asString(context: Context): String {
-    val localizedContext = ContextCompat.getContextForLanguage(context)
+internal fun PrivilegeUiText.asString(context: Context, locale: Locale? = null): String {
+    val localizedContext = if (locale == null) {
+        ContextCompat.getContextForLanguage(context)
+    } else {
+        context.createConfigurationContext(
+            Configuration(context.resources.configuration).apply { setLocale(locale) },
+        )
+    }
     return when (this) {
         is PrivilegeUiText.Resource -> localizedContext.getString(id, *formatArgs.toTypedArray())
         is PrivilegeUiText.Literal -> value

@@ -171,6 +171,18 @@ Managed Wireless Debugging remains a `priv-core` capability. `priv-ui` reads
 its status and passes the selected policy to Core, which owns
 `Settings.Global` changes.
 
+#### Pairing notification language {#pairing-notification-language}
+
+If the host manages its own language, synchronize the Android pairing service on the main thread at application initialization and whenever that language changes:
+
+```kotlin
+PrivilegeUi.setLocale(Locale.SIMPLIFIED_CHINESE) // java.util.Locale
+PrivilegeUi.setLocale(Locale.ENGLISH)
+PrivilegeUi.setLocale(null) // Follow Android's application language configuration.
+```
+
+The default is `null`. The setting lasts for the current process; the host persists its language preference. Active notifications refresh their channel name, text, actions, input hints, and accessibility text without restarting the pairing session or clearing the entered code. Compose pages continue to use the host's language context. External literal messages are not translated.
+
 ### TCP/IP UI {#tcp-ip-ui}
 
 `PrivilegeUiConfig.tcpPort` selects the static port.
