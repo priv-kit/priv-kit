@@ -55,6 +55,9 @@ class PrivilegeTest {
         val unbindCalls = AtomicInteger(0)
         val connection = PrivilegeUserServiceConnection(
             binder = TestBinder(),
+            forwardingBinder = TestBinder(),
+            lifecycleBinder = TestBinder(),
+            uid = 2000,
             unbindAction = { unbindCalls.incrementAndGet() },
         )
 
@@ -69,6 +72,9 @@ class PrivilegeTest {
         val unbindCalls = AtomicInteger(0)
         val connection = PrivilegeUserServiceConnection(
             binder = TestBinder(),
+            forwardingBinder = TestBinder(),
+            lifecycleBinder = TestBinder(),
+            uid = 2000,
             unbindAction = {
                 if (unbindCalls.incrementAndGet() == 1) {
                     throw IllegalStateException("unbind failed")

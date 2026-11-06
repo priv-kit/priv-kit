@@ -26,6 +26,7 @@ internal fun UserServiceTestPage(
     selectedDestination: PrivilegeSampleDebugDestination,
     onDestinationSelected: (PrivilegeSampleDebugDestination) -> Unit,
     onBackToHome: () -> Unit,
+    onTestBinderForwarding: (Int?) -> Unit,
     onBindDedicatedUserService: () -> Unit,
     onCallDedicatedUserService: () -> Unit,
     onStopDedicatedUserService: () -> Unit,
@@ -46,6 +47,7 @@ internal fun UserServiceTestPage(
         StatusPanel(state, onStopServer)
         UserServicePage(
             state = state,
+            onTestBinderForwarding = onTestBinderForwarding,
             onBindDedicatedUserService = onBindDedicatedUserService,
             onCallDedicatedUserService = onCallDedicatedUserService,
             onStopDedicatedUserService = onStopDedicatedUserService,
@@ -60,6 +62,7 @@ internal fun UserServiceTestPage(
 @Composable
 private fun UserServicePage(
     state: PrivilegeSampleScreenState,
+    onTestBinderForwarding: (Int?) -> Unit,
     onBindDedicatedUserService: () -> Unit,
     onCallDedicatedUserService: () -> Unit,
     onStopDedicatedUserService: () -> Unit,
@@ -70,6 +73,18 @@ private fun UserServicePage(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         UserServicePanel(state)
+        SectionTitle(stringResource(R.string.sample_binder_forwarding))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf<Int?>(null, 1000, 2000).forEach { uid ->
+                SampleAction(
+                    label = uid?.let { "UID $it" } ?: stringResource(R.string.sample_inherit_uid),
+                    enabled = !state.busy && state.status == PrivilegeSampleStatus.CONNECTED,
+                    tone = SampleActionTone.Secondary,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onTestBinderForwarding(uid) },
+                )
+            }
+        }
         SectionTitle(stringResource(R.string.sample_dedicated_process))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SampleAction(

@@ -658,7 +658,7 @@ internal fun PrivilegeSampleDebugHost.checkSystemServiceAvailability() {
         )
         val serverProcessResult = checkSystemService(
             serviceName = serviceName,
-            source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+            source = PrivilegeSystemServiceSource.REMOTE_PROCESS,
         )
         BinderActionResult(
             message = buildString {
@@ -727,6 +727,43 @@ internal fun PrivilegeSampleDebugHost.runImqsNative() {
             mqsNativeRemoteDescriptor = result.remoteDescriptor,
             mqsNativeRemoteError = result.remoteError,
         )
+    }
+}
+
+internal fun PrivilegeSampleDebugHost.testUserServiceBinderForwarding(uid: Int?) {
+    runUserServiceAction("Binder forwarding: uid=${uid ?: "inherit"}", requireConnected = true) {
+        val connection = Privilege.bindUserService(
+            PrivilegeUserServiceSpec(
+                tag = "binder-${uid ?: "inherit"}",
+                process = priv.kit.core.userservice.PrivilegeUserServiceProcess(uid),
+            ),
+        )
+        try {
+            val target = object : android.os.Binder() {
+                override fun onTransact(code: Int, data: android.os.Parcel, reply: android.os.Parcel?, flags: Int): Boolean {
+                    if (code != android.os.IBinder.FIRST_CALL_TRANSACTION) return super.onTransact(code, data, reply, flags)
+                    reply!!.writeNoException()
+                    reply.writeInt(android.os.Binder.getCallingUid())
+                    return true
+                }
+            }
+            val wrapper = PrivilegeBinderWrapper.fromBinder(target, userService = connection)
+            val data = android.os.Parcel.obtain()
+            val reply = android.os.Parcel.obtain()
+            val callingUid = try {
+                check(wrapper.transact(android.os.IBinder.FIRST_CALL_TRANSACTION, data, reply, 0))
+                reply.readException()
+                reply.readInt()
+            } finally {
+                data.recycle()
+                reply.recycle()
+            }
+            check(callingUid == connection.uid) { "Expected UID ${connection.uid}, got $callingUid" }
+            val packageBinder = checkNotNull(PrivilegeBinderWrapper.fromSystemService("package", userService = connection))
+            UserServiceActionResult("Binder forwarding passed: uid=$callingUid, package=${connection.callingPackageName}, descriptor=${packageBinder.interfaceDescriptor}")
+        } finally {
+            connection.unbind()
+        }
     }
 }
 
@@ -1316,7 +1353,8 @@ private fun sampleUserServiceSpec(
         serviceClassName = sampleUserServiceClassName(label),
         tag = label,
         version = 1,
-        embedded = embedded,
+        process = if (embedded) priv.kit.core.userservice.PrivilegeUserServiceProcess.EMBEDDED
+            else priv.kit.core.userservice.PrivilegeUserServiceProcess.DEDICATED,
     )
 
 private fun sampleUserServiceClassName(label: String): String =

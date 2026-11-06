@@ -1,10 +1,11 @@
 package priv.kit.core.userservice
 
 public data class PrivilegeUserServiceSpec public constructor(
-    public val serviceClassName: String,
+    /** Null uses the built-in Binder forwarding service, with no application AIDL required. */
+    public val serviceClassName: String? = null,
     public val tag: String = DEFAULT_TAG,
     public val version: Int = 1,
-    public val embedded: Boolean = false,
+    public val process: PrivilegeUserServiceProcess = PrivilegeUserServiceProcess.DEDICATED,
     /**
      * Controls if the service should run in daemon mode.
      *
@@ -15,7 +16,7 @@ public data class PrivilegeUserServiceSpec public constructor(
     public val daemon: Boolean = false,
 ) {
     init {
-        require(serviceClassName.isNotBlank()) { "serviceClassName must not be blank" }
+        require(serviceClassName == null || serviceClassName.isNotBlank()) { "serviceClassName must not be blank" }
         require(tag.isNotBlank()) { "tag must not be blank" }
         require(version >= 0) { "version must not be negative" }
     }

@@ -5,6 +5,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import priv.kit.core.testing.TestBinder
 import priv.kit.core.testing.TestDedicatedUserServiceHost
 import priv.kit.core.testing.TestEmbeddedUserServiceHost
@@ -15,12 +18,14 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28])
 class PrivilegeUserServiceRegistryTest {
     @Test
     fun specDefaultsToDedicatedProcess() {
         val spec = PrivilegeUserServiceSpec(serviceClassName = EmbeddedService::class.java.name)
 
-        assertEquals(false, spec.embedded)
+        assertEquals(false, spec.process.isEmbedded)
         assertEquals(false, spec.daemon)
     }
 
@@ -327,7 +332,7 @@ class PrivilegeUserServiceRegistryTest {
             registry.bind(
                 PrivilegeUserServiceSpec(
                     serviceClassName = "missing.Service",
-                    embedded = true,
+                    process = priv.kit.core.userservice.PrivilegeUserServiceProcess.EMBEDDED,
                 ),
                 TestBinder(),
             )
@@ -383,7 +388,7 @@ class PrivilegeUserServiceRegistryTest {
             serviceClassName = EmbeddedService::class.java.name,
             tag = tag,
             version = version,
-            embedded = true,
+            process = priv.kit.core.userservice.PrivilegeUserServiceProcess.EMBEDDED,
             daemon = daemon,
         )
 

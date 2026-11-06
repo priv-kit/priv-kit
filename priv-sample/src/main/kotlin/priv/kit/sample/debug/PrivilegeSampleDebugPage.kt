@@ -36,6 +36,7 @@ internal fun PrivilegeSampleDebugPage(
             selectedDestination = selectedDestination,
             onDestinationSelected = callbacks.destinationSelected,
             onBackToHome = callbacks.backToHome,
+            onTestBinderForwarding = callbacks.userService.testBinderForwarding,
             onBindDedicatedUserService = callbacks.userService.bindDedicated,
             onCallDedicatedUserService = callbacks.userService.callDedicated,
             onStopDedicatedUserService = callbacks.userService.stopDedicated,

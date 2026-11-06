@@ -115,6 +115,7 @@ internal class PrivilegeSampleDebugController(
                 runImqsNative = { runImqsNative() },
             ),
             userService = PrivilegeSampleUserServiceCallbacks(
+                testBinderForwarding = { testUserServiceBinderForwarding(it) },
                 bindDedicated = { bindDedicatedUserService() },
                 callDedicated = { callDedicatedUserService() },
                 stopDedicated = { stopDedicatedUserService() },

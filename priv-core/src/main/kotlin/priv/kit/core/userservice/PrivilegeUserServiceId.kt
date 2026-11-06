@@ -1,7 +1,7 @@
 package priv.kit.core.userservice
 
 internal data class PrivilegeUserServiceId(
-    val serviceClassName: String,
+    val serviceClassName: String?,
     val tag: String,
 ) {
     internal companion object {

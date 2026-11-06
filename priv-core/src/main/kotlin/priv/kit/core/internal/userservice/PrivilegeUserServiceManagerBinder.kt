@@ -66,6 +66,9 @@ internal class PrivilegeUserServiceManagerBinder internal constructor(
                 response = PrivilegeUserServiceContract.bindSuccessBundle(
                     connectionId = result.connectionId,
                     binder = result.binder,
+                    forwardingBinder = result.forwardingBinder,
+                    lifecycleBinder = result.lifecycleBinder,
+                    uid = result.uid,
                 ),
                 acceptance = result::accept,
                 cleanup = result::cancel,

@@ -145,7 +145,11 @@ internal object PrivilegeContentProviderCall {
     }
 
     private fun callingPackageName(): String? =
-        if (Process.myUid() == PRIVILEGE_INTERNAL_SHELL_UID) SHELL_PACKAGE_NAME else null
+        when (Process.myUid()) {
+            1000 -> "android"
+            PRIVILEGE_INTERNAL_SHELL_UID -> SHELL_PACKAGE_NAME
+            else -> null
+        }
 
     private object Api31 {
         @RequiresApi(Build.VERSION_CODES.S)

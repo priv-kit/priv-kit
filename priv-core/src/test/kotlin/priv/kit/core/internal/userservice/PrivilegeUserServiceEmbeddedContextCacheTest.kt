@@ -58,7 +58,7 @@ class PrivilegeUserServiceEmbeddedContextCacheTest {
         val connection = registry.bind(
             PrivilegeUserServiceSpec(
                 serviceClassName = NoArgService::class.java.name,
-                embedded = true,
+                process = priv.kit.core.userservice.PrivilegeUserServiceProcess.EMBEDDED,
             ),
             TestBinder(),
         )
@@ -71,7 +71,7 @@ class PrivilegeUserServiceEmbeddedContextCacheTest {
         PrivilegeUserServiceSpec(
             serviceClassName = ContextService::class.java.name,
             tag = tag,
-            embedded = true,
+            process = priv.kit.core.userservice.PrivilegeUserServiceProcess.EMBEDDED,
         )
 
     class ContextService(

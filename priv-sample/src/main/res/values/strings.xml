@@ -264,4 +264,6 @@
     <string name="sample_crash_occurred_at">Crashed at: %1$s</string>
     <string name="sample_crash_started_at">Recorder initialized at: %1$s</string>
     <string name="sample_crash_stack_trace">Stack trace</string>
+    <string name="sample_binder_forwarding">Binder forwarding</string>
+    <string name="sample_inherit_uid">Inherit UID</string>
 </resources>

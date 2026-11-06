@@ -1,6 +1,10 @@
 package priv.kit.core.internal.server
 
 import android.os.Bundle
+import android.os.IBinder
+import android.os.Binder
+import priv.kit.core.internal.runtime.PrivilegeNativeStarterResolver
+import priv.kit.core.internal.userservice.PrivilegeUserServiceLoader
 import priv.kit.core.internal.runtime.PrivilegeCrashRecorder
 import android.os.SystemClock
 import priv.kit.core.internal.core.PrivilegeContentProviderCall
@@ -10,14 +14,17 @@ import priv.kit.core.internal.userservice.IPrivilegeUserServiceProcess
 import priv.kit.core.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.core.internal.userservice.PrivilegeUserServiceHost
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
+import java.util.concurrent.ConcurrentHashMap
 
 internal class PrivilegeServerUserServiceHost(
     private val config: PrivilegeServerConfig,
+    private val serverLifecycle: IBinder = Binder(),
     private val processClaimer: PrivilegeServerUserServiceProcessClaimer =
         PrivilegeServerUserServiceProcessClaimer(),
     private val processStarter: (PrivilegeServerUserServiceProcessStartCommand) -> java.lang.Process =
         PrivilegeServerUserServiceHost::startProcess,
 ) : PrivilegeUserServiceHost {
+    private val startingProcesses = ConcurrentHashMap<String, Process>()
     override val packageName: String
         get() = config.packageName
 
@@ -32,21 +39,35 @@ internal class PrivilegeServerUserServiceHost(
             config = config,
             spec = spec,
             token = token,
-            serverPid = AndroidProcess.myPid(),
+            currentUid = AndroidProcess.myUid(),
+            uidLauncher = {
+                val context = PrivilegeUserServiceLoader.createPackageContext(config.packageName, config.userId)
+                PrivilegeNativeStarterResolver.commandArguments(
+                    PrivilegeNativeStarterResolver.resolve(context.applicationInfo),
+                )
+            },
             crashLogDirectory = PrivilegeCrashRecorder.currentDirectory?.absolutePath,
         )
-        return processStarter(command)
+        return processStarter(command).also { startingProcesses[token] = it }
     }
 
     override fun awaitDedicatedProcess(
         token: String,
         timeoutMillis: Long,
-    ): IPrivilegeUserServiceProcess =
-        processClaimer.await(
+    ): IPrivilegeUserServiceProcess {
+        val process = startingProcesses.remove(token)
+        return processClaimer.await(
             config = config,
             token = token,
             timeoutMillis = timeoutMillis,
-        )
+            checkProcess = {
+                if (process != null && !process.isAlive) {
+                    val output = process.inputStream.bufferedReader().readText().trim()
+                    error("UserService exited with code ${process.exitValue()}: $output")
+                }
+            },
+        ).also { it.attachServer(serverLifecycle) }
+    }
 
     override fun killDedicatedProcess(process: Process) {
         PrivilegeServerUserServiceProcessKiller.kill(process)
@@ -71,13 +92,20 @@ internal object PrivilegeServerUserServiceProcessCommand {
         config: PrivilegeServerConfig,
         spec: PrivilegeUserServiceSpec,
         token: String,
-        serverPid: Int,
+        currentUid: Int,
         crashLogDirectory: String? = null,
+        uidLauncher: () -> List<String> = { error("UID launcher was not supplied") },
     ): PrivilegeServerUserServiceProcessStartCommand {
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(config.packageName)
         val processName = buildProcessName(config.packageName, spec)
+        require(!spec.process.isEmbedded) { "Embedded services do not have a dedicated process" }
+        val targetUid = spec.process.uid ?: currentUid
+        require(currentUid == 0 || currentUid == targetUid) {
+            "Cannot start UserService as UID $targetUid from UID $currentUid"
+        }
+        val launcher = if (targetUid == currentUid) emptyList() else uidLauncher() + listOf("--user-service", targetUid.toString())
         return PrivilegeServerUserServiceProcessStartCommand(
-            arguments = listOf(
+            arguments = launcher + listOf(
                 "/system/bin/app_process",
                 "/system/bin",
                 "--nice-name=$processName",
@@ -90,11 +118,7 @@ internal object PrivilegeServerUserServiceProcessCommand {
                 config.packageName,
                 "--user-id",
                 config.userId.toString(),
-                "--service-class",
-                spec.serviceClassName,
-                "--server-pid",
-                serverPid.toString(),
-            ),
+            ) + (spec.serviceClassName?.let { listOf("--service-class", it) } ?: emptyList()),
             environment = mapOf(
                 "CLASSPATH" to config.classpath,
                 // Override any stale directory inherited from the original server launch.
@@ -108,7 +132,7 @@ internal object PrivilegeServerUserServiceProcessCommand {
         spec: PrivilegeUserServiceSpec,
     ): String {
         val tagSuffix = spec.tag.takeUnless { it == DEDICATED_PROCESS_TAG }
-        val suffix = listOfNotNull(spec.serviceClassName.substringAfterLast('.'), tagSuffix)
+        val suffix = listOfNotNull(spec.serviceClassName?.substringAfterLast('.') ?: "binder", tagSuffix)
             .joinToString("-")
             .map { char ->
                 if (char.isLetterOrDigit() || char == '_' || char == '-') char else '-'
@@ -131,10 +155,12 @@ internal class PrivilegeServerUserServiceProcessClaimer(
         config: PrivilegeServerConfig,
         token: String,
         timeoutMillis: Long,
+        checkProcess: () -> Unit = {},
     ): IPrivilegeUserServiceProcess {
         val deadline = SystemClock.elapsedRealtime() + timeoutMillis
         var lastFailure: Throwable? = null
         while (SystemClock.elapsedRealtime() < deadline) {
+            checkProcess()
             val response = runCatching {
                 providerCall(config, token)
             }.onFailure {

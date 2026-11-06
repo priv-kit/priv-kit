@@ -666,7 +666,12 @@ namespace {
 
 } // namespace
 
+int start_user_service(int argc, char **argv);
+
 int main(int argc, char **argv) {
+    if (argc > 1 && strcmp(argv[1], "--user-service") == 0) {
+        return start_user_service(argc - 1, argv + 1);
+    }
     const uid_t uid = getuid();
     if (!is_supported_starter_uid(uid)) {
         fprintf(

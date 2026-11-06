@@ -70,7 +70,11 @@ PID/UID 权限检查通过 Shared 直接调用 ActivityManager，绕过 Context 
 
 ## UserService
 
-应用定义 AIDL 和实现，Core 管理启动、绑定、停止及 Binder 交付。实例由 `serviceClassName + tag` 标识，version 变化控制替换。
+Core 管理启动、绑定、停止及 Binder 交付。`serviceClassName = null` 使用内置 Binder 转发，无需应用业务 AIDL；提供类名时加载应用实现。实例由 `serviceClassName + tag` 标识，version、process 或 daemon 变化控制替换。
+
+`PrivilegeUserServiceProcess.uid` 为 null 时独立进程继承身份，-1 为嵌入式，0/1000/2000 显式指定独立进程 UID。只有 root 可以切换 UID。原生启动器在 app_process 前设置组、GID、UID 并清空 capabilities；shell 附加组读取当前 adbd，system 附加组清空，SELinux 域保持继承。独立子进程通过 server lifecycle Binder 观察服务端死亡。
+
+每个 connection 交付业务 Binder、带连接门控的独立转发 Binder、进程生命周期 Binder 及实际 UID。wrapper 的 `userService` 参数选择转发端，默认在所选进程查找系统服务，清除入站调用身份后转发原始 transaction；返回的 Binder 不自动包装。解绑关闭该连接的转发门控，不影响其他连接，也不回退到主服务端。
 
 生命周期操作通过 operation id、异步回调和接收确认完成。Binder 线程只提交任务，执行器和配额限制并发，固定条带锁按服务串行化。取消回收未接收的进程或连接；unbind 幂等，在不可取消上下文完成。
 

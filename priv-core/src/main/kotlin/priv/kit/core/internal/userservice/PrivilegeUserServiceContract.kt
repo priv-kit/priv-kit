@@ -16,7 +16,10 @@ internal object PrivilegeUserServiceContract {
     const val KEY_SERVICE_CLASS_NAME: String = "privilege_user_service_class_name"
     const val KEY_TAG: String = "privilege_user_service_tag"
     const val KEY_VERSION: String = "privilege_user_service_version"
-    const val KEY_EMBEDDED: String = "privilege_user_service_embedded"
+    const val KEY_PROCESS_UID: String = "privilege_user_service_process_uid"
+    const val KEY_FORWARDING_BINDER: String = "privilege_user_service_forwarding_binder"
+    const val KEY_LIFECYCLE_BINDER: String = "privilege_user_service_lifecycle_binder"
+    const val KEY_UID: String = "privilege_user_service_uid"
     const val KEY_DAEMON: String = "privilege_user_service_daemon"
     const val KEY_SUCCESS: String = "privilege_user_service_success"
     const val KEY_ERROR_MESSAGE: String = "privilege_user_service_error_message"
@@ -29,17 +32,19 @@ internal object PrivilegeUserServiceContract {
             putString(KEY_SERVICE_CLASS_NAME, spec.serviceClassName)
             putString(KEY_TAG, spec.tag)
             putInt(KEY_VERSION, spec.version)
-            putBoolean(KEY_EMBEDDED, spec.embedded)
+            spec.process.uid?.let { putInt(KEY_PROCESS_UID, it) }
             putBoolean(KEY_DAEMON, spec.daemon)
         }
 
     fun specFrom(bundle: Bundle): PrivilegeUserServiceSpec =
         try {
             PrivilegeUserServiceSpec(
-                serviceClassName = requireString(bundle, KEY_SERVICE_CLASS_NAME),
+                serviceClassName = bundle.getString(KEY_SERVICE_CLASS_NAME),
                 tag = requireString(bundle, KEY_TAG),
                 version = bundle.getInt(KEY_VERSION, 1),
-                embedded = bundle.getBoolean(KEY_EMBEDDED, false),
+                process = priv.kit.core.userservice.PrivilegeUserServiceProcess(
+                    if (bundle.containsKey(KEY_PROCESS_UID)) bundle.getInt(KEY_PROCESS_UID) else null,
+                ),
                 daemon = bundle.getBoolean(KEY_DAEMON, false),
             )
         } catch (exception: IllegalArgumentException) {
@@ -57,10 +62,16 @@ internal object PrivilegeUserServiceContract {
     fun bindSuccessBundle(
         connectionId: String,
         binder: IBinder,
+        forwardingBinder: IBinder,
+        lifecycleBinder: IBinder,
+        uid: Int,
     ): Bundle =
         successBundle().apply {
             putString(KEY_CONNECTION_ID, connectionId)
             putBinder(KEY_SERVICE_BINDER, binder)
+            putBinder(KEY_FORWARDING_BINDER, forwardingBinder)
+            putBinder(KEY_LIFECYCLE_BINDER, lifecycleBinder)
+            putInt(KEY_UID, uid)
         }
 
     fun errorBundle(message: String): Bundle =

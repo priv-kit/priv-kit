@@ -1,6 +1,9 @@
 package priv.kit.core.internal.userservice
 
 import android.os.IBinder
+import android.os.Binder
+import android.os.Process
+import priv.kit.core.internal.binder.PrivilegeBinderForwarder
 import android.os.IInterface
 import android.os.DeadObjectException
 import android.os.RemoteException
@@ -62,6 +65,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
                     null
                 }
                 val binder = ensured.record.bind()
+                val forwardingBinder = PrivilegeUserServiceGateBinder(ensured.record.forwardingBinder())
                 ensureNotInterrupted()
                 linkConnection(
                     record = ensured.record,
@@ -69,12 +73,16 @@ internal class PrivilegeUserServiceRegistry internal constructor(
                     connectionId = connectionId,
                     client = client,
                     lifecycleMutation = lifecycleMutation,
+                    forwardingBinder = forwardingBinder,
                 )
                 linked = true
                 ensureNotInterrupted()
                 BindResult(
                     connectionId = connectionId,
                     binder = binder,
+                    forwardingBinder = forwardingBinder,
+                    lifecycleBinder = ensured.record.lifecycleBinder,
+                    uid = ensured.record.uid,
                     acceptAction = {
                         lifecycleMutation?.let { mutation ->
                             acceptStart(id, ensured.record, mutation)
@@ -165,7 +173,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         if (
             current != null &&
             current.spec.version == spec.version &&
-            current.spec.embedded == spec.embedded &&
+            current.spec.process == spec.process &&
             current.spec.daemon == spec.daemon &&
             current.isRunning
         ) {
@@ -178,7 +186,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         }
 
         ensureNotInterrupted()
-        val record = if (spec.embedded) createEmbeddedRecord(spec) else createDedicatedRecord(spec)
+        val record = if (spec.process.isEmbedded) createEmbeddedRecord(spec) else createDedicatedRecord(spec)
         synchronized(stateLock) {
             records[id] = record
         }
@@ -199,23 +207,20 @@ internal class PrivilegeUserServiceRegistry internal constructor(
     private fun createDedicatedRecord(spec: PrivilegeUserServiceSpec): Record {
         val token = UUID.randomUUID().toString()
         val handle = host.startDedicatedProcess(spec, token)
-        val process = try {
-            host.awaitDedicatedProcess(token, dedicatedStartTimeoutMillis).also {
-                ensureNotInterrupted()
-            }
+        return try {
+            val process = host.awaitDedicatedProcess(token, dedicatedStartTimeoutMillis)
+            ensureNotInterrupted()
+            DedicatedRecord(spec = spec, process = process)
         } catch (throwable: Throwable) {
             host.killDedicatedProcess(handle)
             throw throwable
         }
-        return DedicatedRecord(
-            spec = spec,
-            process = process,
-        )
     }
 
     private fun createEmbeddedRecord(spec: PrivilegeUserServiceSpec): Record {
-        val instance = PrivilegeUserServiceLoader.instantiate(
-            serviceClassName = spec.serviceClassName,
+        val serviceClassName = spec.serviceClassName
+        val instance = if (serviceClassName == null) Binder() else PrivilegeUserServiceLoader.instantiate(
+            serviceClassName = serviceClassName,
             contextConfig = PrivilegeUserServiceLoader.ContextConfig(
                 packageName = host.packageName,
                 userId = host.userId,
@@ -223,7 +228,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
                 contextRuntimeProvider = embeddedContextRuntimeProvider,
             ),
         )
-        val binder = binderFrom(instance, spec.serviceClassName)
+        val binder = binderFrom(instance, spec.serviceClassName ?: "built-in")
         return EmbeddedRecord(
             spec = spec,
             binder = binder,
@@ -251,6 +256,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         connectionId: String,
         client: IBinder,
         lifecycleMutation: LifecycleMutation?,
+        forwardingBinder: PrivilegeUserServiceGateBinder,
     ) {
         val deathRecipient = IBinder.DeathRecipient {
             runCatching {
@@ -263,6 +269,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             client = client,
             deathRecipient = deathRecipient,
             lifecycleMutation = lifecycleMutation,
+            forwardingBinder = forwardingBinder,
         )
         synchronized(stateLock) {
             connections[connectionId] = connection
@@ -325,6 +332,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         runCatching {
             connection.client.unlinkToDeath(connection.deathRecipient, 0)
         }
+        connection.forwardingBinder.close()
         connection.record.boundCount -= 1
         if (cancelLifecycle) {
             connection.lifecycleMutation?.let(connection.record::rollbackStarted)
@@ -413,6 +421,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             }
         } ?: return false
         removedConnections.forEach { connection ->
+            connection.forwardingBinder.close()
             runCatching {
                 connection.client.unlinkToDeath(connection.deathRecipient, 0)
             }
@@ -481,6 +490,9 @@ internal class PrivilegeUserServiceRegistry internal constructor(
     internal class BindResult internal constructor(
         val connectionId: String,
         val binder: IBinder,
+        val forwardingBinder: IBinder,
+        val lifecycleBinder: IBinder,
+        val uid: Int,
         private val acceptAction: () -> Unit,
         private val cancelAction: () -> Unit,
     ) {
@@ -539,6 +551,10 @@ internal class PrivilegeUserServiceRegistry internal constructor(
             }
         }
 
+        abstract val uid: Int
+        abstract val lifecycleBinder: IBinder
+        abstract fun forwardingBinder(): IBinder
+
         abstract fun start()
 
         abstract fun bind(): IBinder
@@ -596,11 +612,15 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         private val binder: IBinder,
     ) : Record(spec) {
         private var gate: PrivilegeUserServiceGateBinder? = null
+        private val forwarder = PrivilegeBinderForwarder()
+        override val uid: Int get() = Process.myUid()
+        override val lifecycleBinder: IBinder = Binder()
+        override fun forwardingBinder(): IBinder = forwarder
 
         override fun start() = Unit
 
         override fun bind(): IBinder =
-            gate ?: PrivilegeUserServiceGateBinder(binder).also {
+            gate ?: PrivilegeUserServiceGateBinder(if (spec.serviceClassName == null) forwarder else binder).also {
                 gate = it
             }
 
@@ -619,6 +639,9 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         private val process: IPrivilegeUserServiceProcess,
     ) : Record(spec) {
         private val processBinder = process.asBinder()
+        override val uid: Int = process.uid
+        override val lifecycleBinder: IBinder get() = processBinder
+        override fun forwardingBinder(): IBinder = process.forwardingBinder
         private var processLinked = false
         private var gate: PrivilegeUserServiceGateBinder? = null
         private val processDeathRecipient = IBinder.DeathRecipient {
@@ -693,6 +716,7 @@ internal class PrivilegeUserServiceRegistry internal constructor(
         val client: IBinder,
         val deathRecipient: IBinder.DeathRecipient,
         val lifecycleMutation: LifecycleMutation?,
+        val forwardingBinder: PrivilegeUserServiceGateBinder,
     )
 
     companion object {

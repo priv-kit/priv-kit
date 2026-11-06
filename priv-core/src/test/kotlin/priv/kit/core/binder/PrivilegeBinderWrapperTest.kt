@@ -66,11 +66,11 @@ class PrivilegeBinderWrapperTest {
             service,
         )
 
-        assertNotNull(PrivilegeBinderWrapper.fromSystemService(serviceName))
+        assertNotNull(PrivilegeBinderWrapper.fromSystemService(serviceName, PrivilegeSystemServiceSource.CURRENT_PROCESS))
         ShadowServiceManager.setServiceAvailability(serviceName, false)
 
-        assertTrue(PrivilegeBinderWrapper.hasSystemService(serviceName))
-        assertNotNull(PrivilegeBinderWrapper.fromSystemService(serviceName))
+        assertTrue(PrivilegeBinderWrapper.hasSystemService(serviceName, PrivilegeSystemServiceSource.CURRENT_PROCESS))
+        assertNotNull(PrivilegeBinderWrapper.fromSystemService(serviceName, PrivilegeSystemServiceSource.CURRENT_PROCESS))
     }
 
     @Test
@@ -78,7 +78,7 @@ class PrivilegeBinderWrapperTest {
         withServer(FakePrivilegeServer(hasSystemService = true)) { server ->
             val wrapper = PrivilegeBinderWrapper.fromSystemService(
                 serviceName = "activity",
-                source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+                source = PrivilegeSystemServiceSource.REMOTE_PROCESS,
             )!!
             val recipient = IBinder.DeathRecipient { }
 
@@ -93,7 +93,7 @@ class PrivilegeBinderWrapperTest {
         withServer(FakePrivilegeServer(hasSystemService = true)) { server ->
             val wrapper = PrivilegeBinderWrapper.fromSystemService(
                 serviceName = "activity",
-                source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+                source = PrivilegeSystemServiceSource.REMOTE_PROCESS,
             )!!
             val recipient = IBinder.DeathRecipient { }
             server.binder.kill()
@@ -166,7 +166,7 @@ class PrivilegeBinderWrapperTest {
             ) {
                 val wrapper = PrivilegeBinderWrapper.fromSystemService(
                     serviceName = serviceName,
-                    source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+                    source = PrivilegeSystemServiceSource.REMOTE_PROCESS,
                 )!!
 
                 wrapper.dump(pipe[1].fileDescriptor, arrayOf("--checkin"))
@@ -201,7 +201,7 @@ class PrivilegeBinderWrapperTest {
             ) {
                 val wrapper = PrivilegeBinderWrapper.fromSystemService(
                     serviceName = serviceName,
-                    source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+                    source = PrivilegeSystemServiceSource.REMOTE_PROCESS,
                 )!!
 
                 wrapper.dumpAsync(pipe[1].fileDescriptor, null)
@@ -243,7 +243,7 @@ class PrivilegeBinderWrapperTest {
             ) {
                 val wrapper = PrivilegeBinderWrapper.fromSystemService(
                     serviceName = serviceName,
-                    source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+                    source = PrivilegeSystemServiceSource.REMOTE_PROCESS,
                 )!!
 
                 wrapper.shellCommand(

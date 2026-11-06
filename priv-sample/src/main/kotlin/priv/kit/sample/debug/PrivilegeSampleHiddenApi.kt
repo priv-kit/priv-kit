@@ -44,7 +44,7 @@ internal object PrivilegeSampleMqsNative {
     fun createRemoteBinder(): IBinder =
         PrivilegeBinderWrapper.fromSystemService(
             serviceName = SERVICE_NAME,
-            source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+            source = PrivilegeSystemServiceSource.REMOTE_PROCESS,
         )
             ?: throw IllegalStateException("Server process system service not found: $SERVICE_NAME")
 

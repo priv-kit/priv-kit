@@ -25,9 +25,17 @@ Log.d(
 ```kotlin
 val binder = PrivilegeBinderWrapper.fromSystemService(
     serviceName = "miui.mqsas.IMQSNative",
-    source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+    source = PrivilegeSystemServiceSource.REMOTE_PROCESS,
 )
 ```
+
+## 通过 UserService 转发 {#user-service}
+
+向 `fromSystemService`、`fromBinder` 或 `hasSystemService` 传入 `userService = connection`，即可选择已绑定的 UserService 进程。默认的 `REMOTE_PROCESS` 在该进程查找系统服务；未传 connection 时使用主服务端。`CURRENT_PROCESS` 显式在应用进程查找，transaction 仍由所选进程转发。
+
+[内置 UserService](./user-service#binder-forwarding) 无需自定义类或 AIDL，可指定 UID 1000 或 2000。已有自定义 UserService 也可直接用 connection 转发，无需修改业务 AIDL。目标 API 需要调用包名时可使用 `connection.callingPackageName`。
+
+指定 UserService connection 的 wrapper，其 `linkToDeath` 观察所选进程的生命周期。解绑会使后续调用失效，但不会因此触发进程死亡通知。返回的 Binder 接口不会自动包装。已关闭连接抛出 `DeadObjectException`，不会回退到其他进程。
 
 ## 将资源绑定到服务端生命周期 {#server-lifecycle}
 

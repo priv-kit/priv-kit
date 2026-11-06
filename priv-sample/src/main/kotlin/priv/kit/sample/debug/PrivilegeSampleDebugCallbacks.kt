@@ -40,6 +40,7 @@ internal data class PrivilegeSampleBinderCallbacks(
 )
 
 internal data class PrivilegeSampleUserServiceCallbacks(
+    val testBinderForwarding: (Int?) -> Unit,
     val bindDedicated: () -> Unit,
     val callDedicated: () -> Unit,
     val stopDedicated: () -> Unit,

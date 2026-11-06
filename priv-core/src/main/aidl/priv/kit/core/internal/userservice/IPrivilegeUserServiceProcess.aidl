@@ -6,4 +6,7 @@ interface IPrivilegeUserServiceProcess {
     void start();
     IBinder bind();
     void destroy();
+    IBinder getForwardingBinder();
+    int getUid();
+    void attachServer(IBinder lifecycle);
 }

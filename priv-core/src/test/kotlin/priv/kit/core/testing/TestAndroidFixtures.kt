@@ -93,6 +93,9 @@ open class TestUserServiceProcess : IPrivilegeUserServiceProcess {
     override fun asBinder(): IBinder = binder
 
     open override fun start() = Unit
+    override fun getUid(): Int = 2000
+    override fun getForwardingBinder(): IBinder = binder
+    override fun attachServer(lifecycle: IBinder) = Unit
 
     open override fun bind(): IBinder = binder
 

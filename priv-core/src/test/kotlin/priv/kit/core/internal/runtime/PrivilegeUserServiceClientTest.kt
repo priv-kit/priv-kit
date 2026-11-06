@@ -56,6 +56,9 @@ class PrivilegeUserServiceClientTest {
             PrivilegeUserServiceContract.bindSuccessBundle(
                 connectionId = "connection-1",
                 binder = serviceBinder,
+                forwardingBinder = serviceBinder,
+                lifecycleBinder = serviceBinder,
+                uid = 2000,
             )
         }
         val client = PrivilegeUserServiceClient { manager.binder }
@@ -253,6 +256,9 @@ class PrivilegeUserServiceClientTest {
             PrivilegeUserServiceContract.bindSuccessBundle(
                 connectionId = "connection",
                 binder = TestBinder(),
+                forwardingBinder = TestBinder(),
+                lifecycleBinder = TestBinder(),
+                uid = 2000,
             )
         }
 

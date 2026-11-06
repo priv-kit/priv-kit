@@ -20,6 +20,7 @@ endif ()
 
 add_executable(libprivkitstarter.so
     priv_kit_starter.cpp
+    priv_kit_user_service.cpp
 )
 
 target_link_libraries(libprivkitstarter.so

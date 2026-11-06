@@ -25,9 +25,17 @@ Some services must be resolved inside the shell or root server process:
 ```kotlin
 val binder = PrivilegeBinderWrapper.fromSystemService(
     serviceName = "miui.mqsas.IMQSNative",
-    source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+    source = PrivilegeSystemServiceSource.REMOTE_PROCESS,
 )
 ```
+
+## Forward through a UserService {#user-service}
+
+Pass `userService = connection` to `fromSystemService`, `fromBinder`, or `hasSystemService` to select a bound UserService process. The default `REMOTE_PROCESS` resolves names inside that process; without a connection it uses the main server. `CURRENT_PROCESS` explicitly resolves names in the app while still forwarding transactions through the selected process.
+
+A [built-in UserService](./user-service#binder-forwarding) needs no custom class or AIDL and can request UID 1000 or 2000. Existing custom UserServices support forwarding through their connection without changing their AIDL. `connection.callingPackageName` supplies the corresponding package identity when required by the target API.
+
+For wrappers with a UserService connection, `linkToDeath` observes that process's lifecycle. Unbind invalidates further calls but does not itself produce a process death notification. Returned Binder interfaces are not automatically wrapped. A closed connection throws `DeadObjectException`; the wrapper never falls back to a different process.
 
 ## Bind resources to the server lifetime {#server-lifecycle}
 

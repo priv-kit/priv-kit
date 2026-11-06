@@ -8,7 +8,7 @@ import androidx.annotation.RestrictTo
 import priv.kit.core.internal.core.PrivilegeContentProviderCall
 import priv.kit.core.internal.core.preparePrivilegeMainLooper
 import priv.kit.core.internal.runtime.PrivilegeCrashRecorder
-import java.io.File
+import android.os.Binder
 import kotlin.system.exitProcess
 
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
@@ -22,10 +22,10 @@ public object PrivilegeUserServiceMain {
             crashLog = PrivilegeCrashRecorder.install(
                 config.packageName,
                 config.userId,
-                config.serviceClassName,
+                config.serviceClassName ?: "built-in",
             )
             preparePrivilegeMainLooper()
-            val instance = PrivilegeUserServiceLoader.instantiate(
+            val instance = if (config.serviceClassName == null) Binder() else PrivilegeUserServiceLoader.instantiate(
                 serviceClassName = config.serviceClassName,
                 contextConfig = PrivilegeUserServiceLoader.ContextConfig(
                     packageName = config.packageName,
@@ -42,7 +42,6 @@ public object PrivilegeUserServiceMain {
                 System.err.println("Privilege UserService handshake was rejected")
                 exitProcess(2)
             }
-            watchServer(config.serverPid)
             Looper.loop()
         } catch (throwable: Throwable) {
             crashLog?.recordOrLog(Thread.currentThread(), throwable)
@@ -70,30 +69,12 @@ public object PrivilegeUserServiceMain {
         return response?.getBoolean(PrivilegeUserServiceContract.KEY_SUCCESS, false) == true
     }
 
-    private fun watchServer(serverPid: Int) {
-        if (serverPid <= 0) return
-        Thread {
-            while (true) {
-                Thread.sleep(SERVER_WATCH_INTERVAL_MILLIS)
-                if (!File("/proc/$serverPid").exists()) {
-                    Log.i(TAG, "Privilege server process disappeared; exiting UserService")
-                    exitProcess(0)
-                }
-            }
-        }.apply {
-            name = "priv-kit-user-service-server-watch"
-            isDaemon = true
-            start()
-        }
-    }
-
     private data class Arguments(
         val token: String,
         val providerAuthority: String,
         val packageName: String,
         val userId: Int,
-        val serviceClassName: String,
-        val serverPid: Int,
+        val serviceClassName: String?,
     ) {
         companion object {
             fun parse(args: Array<String>): Arguments {
@@ -112,19 +93,12 @@ public object PrivilegeUserServiceMain {
                     providerAuthority = values.required("provider-authority"),
                     packageName = values.required("package-name"),
                     userId = values.optionalInt("user-id", 0),
-                    serviceClassName = values.required("service-class"),
-                    serverPid = values.requiredInt("server-pid"),
+                    serviceClassName = values["service-class"],
                 )
             }
 
             private fun Map<String, String>.required(key: String): String =
                 requireNotNull(this[key]?.takeIf { it.isNotBlank() }) { "Missing required argument --$key" }
-
-            private fun Map<String, String>.requiredInt(key: String): Int {
-                val rawValue = required(key)
-                return rawValue.toIntOrNull()
-                    ?: throw IllegalArgumentException("--$key must be an integer")
-            }
 
             private fun Map<String, String>.optionalInt(
                 key: String,
@@ -138,5 +112,4 @@ public object PrivilegeUserServiceMain {
     }
 
     private const val TAG = "PrivKitUserService"
-    private const val SERVER_WATCH_INTERVAL_MILLIS = 1_000L
 }

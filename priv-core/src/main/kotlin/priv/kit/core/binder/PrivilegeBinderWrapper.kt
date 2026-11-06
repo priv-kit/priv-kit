@@ -7,22 +7,29 @@ import android.os.ResultReceiver
 import android.os.ServiceManager
 import android.os.ShellCallback
 import priv.kit.core.Privilege
+import priv.kit.core.PrivilegeUserServiceConnection
+import priv.kit.core.internal.binder.PrivilegeBinderForwarder
 import priv.kit.shared.transactShellCommand
 import java.io.FileDescriptor
 
 public enum class PrivilegeSystemServiceSource {
     CURRENT_PROCESS,
-    SERVER_PROCESS,
+    REMOTE_PROCESS,
 }
 
-public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
+public abstract class PrivilegeBinderWrapper internal constructor(
+    protected val userService: PrivilegeUserServiceConnection? = null,
+) : IBinder {
+    protected fun forwardingBinder(): IBinder =
+        userService?.requireForwardingBinder() ?: Privilege.requireServerInterface().asBinder()
+
     override fun transact(
         code: Int,
         data: Parcel,
         reply: Parcel?,
         flags: Int,
     ): Boolean {
-        val serverBinder = Privilege.requireServerInterface().asBinder()
+        val serverBinder = forwardingBinder()
         val remoteData = Parcel.obtain()
         try {
             remoteData.writeInterfaceToken(DESCRIPTOR)
@@ -108,25 +115,29 @@ public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
         internal const val TARGET_BINDER: Int = 1
         internal const val TARGET_SYSTEM_SERVICE: Int = 2
 
-        public fun fromBinder(targetBinder: IBinder): PrivilegeBinderWrapper =
-            TargetBinderWrapper(targetBinder)
+        public fun fromBinder(
+            targetBinder: IBinder,
+            userService: PrivilegeUserServiceConnection? = null,
+        ): PrivilegeBinderWrapper = TargetBinderWrapper(targetBinder, userService)
 
         public fun fromSystemService(
             serviceName: String,
-            source: PrivilegeSystemServiceSource = PrivilegeSystemServiceSource.CURRENT_PROCESS,
+            source: PrivilegeSystemServiceSource = PrivilegeSystemServiceSource.REMOTE_PROCESS,
+            userService: PrivilegeUserServiceConnection? = null,
         ): PrivilegeBinderWrapper? {
             require(serviceName.isNotBlank()) { "serviceName must not be blank" }
             return when (source) {
                 PrivilegeSystemServiceSource.CURRENT_PROCESS ->
-                    getCurrentProcessSystemService(serviceName)?.let(::fromBinder)
+                    getCurrentProcessSystemService(serviceName)?.let { fromBinder(it, userService) }
 
-                PrivilegeSystemServiceSource.SERVER_PROCESS ->
+                PrivilegeSystemServiceSource.REMOTE_PROCESS ->
                     if (hasSystemServiceUnchecked(
                             serviceName = serviceName,
-                            source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+                            source = PrivilegeSystemServiceSource.REMOTE_PROCESS,
+                            userService = userService,
                         )
                     ) {
-                        ServerProcessSystemServiceWrapper(serviceName)
+                        RemoteProcessSystemServiceWrapper(serviceName, userService)
                     } else {
                         null
                     }
@@ -135,10 +146,11 @@ public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
 
         public fun hasSystemService(
             serviceName: String,
-            source: PrivilegeSystemServiceSource = PrivilegeSystemServiceSource.CURRENT_PROCESS,
+            source: PrivilegeSystemServiceSource = PrivilegeSystemServiceSource.REMOTE_PROCESS,
+            userService: PrivilegeUserServiceConnection? = null,
         ): Boolean {
             require(serviceName.isNotBlank()) { "serviceName must not be blank" }
-            return hasSystemServiceUnchecked(serviceName, source)
+            return hasSystemServiceUnchecked(serviceName, source, userService)
         }
     }
 }
@@ -146,14 +158,17 @@ public abstract class PrivilegeBinderWrapper internal constructor() : IBinder {
 private fun hasSystemServiceUnchecked(
     serviceName: String,
     source: PrivilegeSystemServiceSource,
+    userService: PrivilegeUserServiceConnection? = null,
 ): Boolean =
     when (source) {
         PrivilegeSystemServiceSource.CURRENT_PROCESS ->
             getCurrentProcessSystemService(serviceName) != null
 
-        PrivilegeSystemServiceSource.SERVER_PROCESS -> {
-            Privilege.callServer { server ->
-                server.hasSystemService(serviceName)
+        PrivilegeSystemServiceSource.REMOTE_PROCESS -> {
+            if (userService != null) {
+                PrivilegeBinderForwarder.hasSystemService(userService.requireForwardingBinder(), serviceName)
+            } else {
+                Privilege.callServer { server -> server.hasSystemService(serviceName) }
             }
         }
     }
@@ -169,7 +184,8 @@ private fun getCurrentProcessSystemService(serviceName: String): IBinder? =
 
 private class TargetBinderWrapper(
     private val binder: IBinder,
-) : PrivilegeBinderWrapper() {
+    userService: PrivilegeUserServiceConnection?,
+) : PrivilegeBinderWrapper(userService) {
     override fun writeTargetToRemoteData(data: Parcel) {
         data.writeInt(TARGET_BINDER)
         data.writeStrongBinder(binder)
@@ -179,28 +195,30 @@ private class TargetBinderWrapper(
         binder.interfaceDescriptor
 
     override fun pingBinder(): Boolean =
-        binder.pingBinder()
+        binder.pingBinder() && (userService?.isForwardingAlive() ?: true)
 
     override fun isBinderAlive(): Boolean =
-        binder.isBinderAlive
+        binder.isBinderAlive && (userService?.isForwardingAlive() ?: true)
 
     override fun linkToDeath(
         recipient: IBinder.DeathRecipient,
         flags: Int,
     ) {
-        binder.linkToDeath(recipient, flags)
+        userService?.requireForwardingBinder()
+        (userService?.lifecycleBinder ?: binder).linkToDeath(recipient, flags)
     }
 
     override fun unlinkToDeath(
         recipient: IBinder.DeathRecipient,
         flags: Int,
     ): Boolean =
-        binder.unlinkToDeath(recipient, flags)
+        (userService?.lifecycleBinder ?: binder).unlinkToDeath(recipient, flags)
 }
 
-private class ServerProcessSystemServiceWrapper(
+private class RemoteProcessSystemServiceWrapper(
     private val serviceName: String,
-) : PrivilegeBinderWrapper() {
+    userService: PrivilegeUserServiceConnection?,
+) : PrivilegeBinderWrapper(userService) {
     override fun writeTargetToRemoteData(data: Parcel) {
         data.writeInt(TARGET_SYSTEM_SERVICE)
         data.writeString(serviceName)
@@ -213,7 +231,8 @@ private class ServerProcessSystemServiceWrapper(
         runCatching {
             hasSystemServiceUnchecked(
                 serviceName = serviceName,
-                source = PrivilegeSystemServiceSource.SERVER_PROCESS,
+                source = PrivilegeSystemServiceSource.REMOTE_PROCESS,
+                userService = userService,
             )
         }.getOrDefault(false)
 
@@ -224,8 +243,11 @@ private class ServerProcessSystemServiceWrapper(
         recipient: IBinder.DeathRecipient,
         flags: Int,
     ) {
-        Privilege.callServer { server ->
-            server.asBinder().linkToDeath(recipient, flags)
+        if (userService != null) {
+            userService.requireForwardingBinder()
+            userService.lifecycleBinder.linkToDeath(recipient, flags)
+        } else {
+            Privilege.callServer { server -> server.asBinder().linkToDeath(recipient, flags) }
         }
     }
 
@@ -234,6 +256,6 @@ private class ServerProcessSystemServiceWrapper(
         flags: Int,
     ): Boolean =
         runCatching {
-            Privilege.requireServerInterface().asBinder().unlinkToDeath(recipient, flags)
+            (userService?.lifecycleBinder ?: Privilege.requireServerInterface().asBinder()).unlinkToDeath(recipient, flags)
         }.getOrDefault(false)
 }

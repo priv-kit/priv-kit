@@ -260,4 +260,6 @@
     <string name="sample_crash_occurred_at">崩溃时间：%1$s</string>
     <string name="sample_crash_started_at">记录器初始化时间：%1$s</string>
     <string name="sample_crash_stack_trace">异常堆栈</string>
+    <string name="sample_binder_forwarding">Binder 转发</string>
+    <string name="sample_inherit_uid">继承 UID</string>
 </resources>

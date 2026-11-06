@@ -17,6 +17,34 @@ import priv.kit.core.userservice.PrivilegeUserServiceSpec
 @Config(sdk = [28])
 class PrivilegeServerUserServiceHostTest {
     @Test
+    fun explicitUidUsesNativeLauncherOnlyWhenIdentityChanges() {
+        for (uid in listOf(1000, 2000)) {
+            val spec = PrivilegeUserServiceSpec(
+                process = priv.kit.core.userservice.PrivilegeUserServiceProcess(uid),
+            )
+            val command = PrivilegeServerUserServiceProcessCommand.build(
+                config(), spec, "token", currentUid = 0,
+                uidLauncher = { listOf("/system/bin/linker64", "/app/base.apk!/lib/arm64-v8a/libprivkitstarter.so") },
+            )
+            assertEquals("--user-service", command.arguments[2])
+            assertEquals(uid.toString(), command.arguments[3])
+            assertEquals("/system/bin/app_process", command.arguments[4])
+            assertEquals(false, "--service-class" in command.arguments)
+            val inherited = PrivilegeServerUserServiceProcessCommand.build(config(), spec, "token", currentUid = uid)
+            assertEquals("/system/bin/app_process", inherited.arguments.first())
+        }
+    }
+
+    @Test
+    fun nonRootCannotSwitchToDifferentUid() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PrivilegeServerUserServiceProcessCommand.build(
+                config(), PrivilegeUserServiceSpec(process = priv.kit.core.userservice.PrivilegeUserServiceProcess(1000)),
+                "token", currentUid = 2000,
+            )
+        }
+    }
+    @Test
     fun buildsDedicatedProcessCommand() {
         val spec = PrivilegeUserServiceSpec(
             serviceClassName = $$"com.example.My$Service",
@@ -27,7 +55,7 @@ class PrivilegeServerUserServiceHostTest {
             config = config(classpath = "/data/app/base.apk"),
             spec = spec,
             token = "token-1",
-            serverPid = 2468,
+            currentUid = 0,
         )
 
         assertEquals("/data/app/base.apk", command.environment["CLASSPATH"])
@@ -48,8 +76,6 @@ class PrivilegeServerUserServiceHostTest {
                 "10",
                 "--service-class",
                 $$"com.example.My$Service",
-                "--server-pid",
-                "2468",
             ),
             command.arguments,
         )
@@ -61,7 +87,7 @@ class PrivilegeServerUserServiceHostTest {
             config = config(classpath = "/data/app/base.apk"),
             spec = PrivilegeUserServiceSpec(serviceClassName = "example.Service"),
             token = "token",
-            serverPid = 1,
+            currentUid = 0,
             crashLogDirectory = "/storage/emulated/10/Android/data/example.app/files/crashes",
         )
         assertEquals(
@@ -81,7 +107,7 @@ class PrivilegeServerUserServiceHostTest {
             config = config(classpath = "/data/app/base.apk"),
             spec = spec,
             token = "token-1",
-            serverPid = 2468,
+            currentUid = 0,
         )
 
         val niceName = command.arguments.single { it.startsWith("--nice-name=") }
@@ -182,7 +208,7 @@ class PrivilegeServerUserServiceHostTest {
     }
 
     private companion object {
-        fun config(classpath: String): PrivilegeServerConfig =
+        fun config(classpath: String = "/app/base.apk"): PrivilegeServerConfig =
             PrivilegeServerConfig(
                 packageName = "priv.kit.sample",
                 userId = 10,

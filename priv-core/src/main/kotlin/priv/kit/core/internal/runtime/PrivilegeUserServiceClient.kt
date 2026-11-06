@@ -48,6 +48,15 @@ internal class PrivilegeUserServiceClient(
                 ?: throw IllegalStateException("UserService bind response is missing a service Binder")
             PrivilegeUserServiceConnection(
                 binder = binder,
+                forwardingBinder = response.getBinder(PrivilegeUserServiceContract.KEY_FORWARDING_BINDER)
+                    ?: throw IllegalStateException("UserService response is missing a forwarding Binder"),
+                lifecycleBinder = response.getBinder(PrivilegeUserServiceContract.KEY_LIFECYCLE_BINDER)
+                    ?: throw IllegalStateException("UserService response is missing a lifecycle Binder"),
+                uid = if (response.containsKey(PrivilegeUserServiceContract.KEY_UID)) {
+                    response.getInt(PrivilegeUserServiceContract.KEY_UID)
+                } else {
+                    throw IllegalStateException("UserService response is missing its UID")
+                },
                 unbindAction = { unbind(manager, connectionId) },
             )
         }

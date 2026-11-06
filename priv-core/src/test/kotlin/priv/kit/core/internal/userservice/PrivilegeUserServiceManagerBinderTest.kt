@@ -199,7 +199,7 @@ class PrivilegeUserServiceManagerBinderTest {
                 PrivilegeUserServiceContract.requestBundle(
                     PrivilegeUserServiceSpec(
                         serviceClassName = "missing.UserService",
-                        embedded = true,
+                        process = priv.kit.core.userservice.PrivilegeUserServiceProcess.EMBEDDED,
                     ),
                 ),
             )
@@ -219,13 +219,16 @@ class PrivilegeUserServiceManagerBinderTest {
     fun malformedRequestMapsToDeclarationErrorBundle() {
         val manager = manager(TestEmbeddedUserServiceHost())
         try {
-            val response = start(manager, Bundle())
+            val response = start(manager, Bundle().apply {
+                putString(PrivilegeUserServiceContract.KEY_SERVICE_CLASS_NAME, "")
+                putString(PrivilegeUserServiceContract.KEY_TAG, "invalid")
+            })
 
             assertError(response)
             assertTrue(
                 response.getString(PrivilegeUserServiceContract.KEY_ERROR_MESSAGE)
                     .orEmpty()
-                    .contains(PrivilegeUserServiceContract.KEY_SERVICE_CLASS_NAME),
+                    .contains("serviceClassName must not be blank"),
             )
         } finally {
             manager.destroyAll()
@@ -309,7 +312,7 @@ class PrivilegeUserServiceManagerBinderTest {
         val request = PrivilegeUserServiceContract.requestBundle(
             PrivilegeUserServiceSpec(
                 serviceClassName = CountingEmbeddedService::class.java.name,
-                embedded = true,
+                process = priv.kit.core.userservice.PrivilegeUserServiceProcess.EMBEDDED,
             ),
         )
         try {
@@ -333,7 +336,7 @@ class PrivilegeUserServiceManagerBinderTest {
         val request = PrivilegeUserServiceContract.requestBundle(
             PrivilegeUserServiceSpec(
                 serviceClassName = CountingEmbeddedService::class.java.name,
-                embedded = true,
+                process = priv.kit.core.userservice.PrivilegeUserServiceProcess.EMBEDDED,
             ),
         )
         try {
@@ -422,7 +425,7 @@ class PrivilegeUserServiceManagerBinderTest {
         val request = PrivilegeUserServiceContract.requestBundle(
             PrivilegeUserServiceSpec(
                 serviceClassName = CountingEmbeddedService::class.java.name,
-                embedded = true,
+                process = priv.kit.core.userservice.PrivilegeUserServiceProcess.EMBEDDED,
             ),
         )
         val callback = ResultCallback()
@@ -446,7 +449,7 @@ class PrivilegeUserServiceManagerBinderTest {
         val request = PrivilegeUserServiceContract.requestBundle(
             PrivilegeUserServiceSpec(
                 serviceClassName = CountingEmbeddedService::class.java.name,
-                embedded = true,
+                process = priv.kit.core.userservice.PrivilegeUserServiceProcess.EMBEDDED,
             ),
         )
         val client = TestBinder()
