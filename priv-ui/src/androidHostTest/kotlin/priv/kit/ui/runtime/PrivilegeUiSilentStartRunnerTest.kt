@@ -29,6 +29,7 @@ import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.testServerInfo
 import priv.kit.ui.PrivilegeUiExternalStartProvider
 import priv.kit.ui.PrivilegeUiExternalStartSnapshot
+import priv.kit.ui.PrivilegeUiStartMethod
 import priv.kit.ui.PrivilegeUiStartupMode
 
 @RunWith(RobolectricTestRunner::class)

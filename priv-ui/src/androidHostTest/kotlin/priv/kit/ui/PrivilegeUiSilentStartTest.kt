@@ -14,7 +14,6 @@ import org.robolectric.annotation.Config
 import priv.kit.core.internal.runtime.PrivilegeContext
 import priv.kit.ui.runtime.PrivilegeUiDesiredEnabledStore
 import priv.kit.ui.runtime.PrivilegeUiStartGate
-import priv.kit.ui.runtime.PrivilegeUiStartMethod
 import priv.kit.ui.runtime.PrivilegeUiStartMethodStore
 
 @RunWith(RobolectricTestRunner::class)
@@ -41,6 +40,17 @@ class PrivilegeUiSilentStartTest {
         temporaryFile.delete()
         desiredFile.delete()
         desiredTemporaryFile.delete()
+    }
+
+    @Test
+    fun lastStartMethodReadsHistoryWithAutomaticRecoveryDisabled() {
+        PrivilegeUiDesiredEnabledStore(application).write(false)
+        assertNull(PrivilegeUi.getLastStartMethod())
+
+        val method = PrivilegeUiStartMethod.External("provider:child")
+        PrivilegeUiStartMethodStore(application).write(method)
+
+        assertEquals(method, PrivilegeUi.getLastStartMethod())
     }
 
     @Test

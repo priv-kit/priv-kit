@@ -18,6 +18,7 @@ import priv.kit.core.internal.runtime.PrivilegeRuntimeClientLaunch
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartLease
+import priv.kit.ui.PrivilegeUiStartMethod
 import priv.kit.ui.state.toPrivilegeUiDiagnosticString
 
 internal class PrivilegeUiRuntimeStartSession(

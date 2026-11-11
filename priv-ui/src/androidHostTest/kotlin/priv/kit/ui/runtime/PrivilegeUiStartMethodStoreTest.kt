@@ -15,6 +15,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import priv.kit.ui.PrivilegeUiConfig
+import priv.kit.ui.PrivilegeUiStartMethod
 import priv.kit.ui.PrivilegeUiStartupMode
 import priv.kit.ui.state.PrivilegeUiViewModelStore
 
@@ -41,22 +42,22 @@ class PrivilegeUiStartMethodStoreTest {
 
     @Test
     fun parsesKnownMethodIds() {
-        assertEquals(PrivilegeUiStartMethod.Root, PrivilegeUiStartMethod.parse("root"))
+        assertEquals(PrivilegeUiStartMethod.Root, parsePrivilegeUiStartMethod("root"))
         assertEquals(
             PrivilegeUiStartMethod.AdbWireless,
-            PrivilegeUiStartMethod.parse("adb-wireless"),
+            parsePrivilegeUiStartMethod("adb-wireless"),
         )
         assertEquals(
             PrivilegeUiStartMethod.AdbTcpip,
-            PrivilegeUiStartMethod.parse("adb-tcpip"),
+            parsePrivilegeUiStartMethod("adb-tcpip"),
         )
         assertEquals(
             PrivilegeUiStartMethod.External("provider:child"),
-            PrivilegeUiStartMethod.parse("external:provider:child"),
+            parsePrivilegeUiStartMethod("external:provider:child"),
         )
         assertEquals(
             PrivilegeUiStartMethod.External(""),
-            PrivilegeUiStartMethod.parse("external:"),
+            parsePrivilegeUiStartMethod("external:"),
         )
     }
 
@@ -73,10 +74,10 @@ class PrivilegeUiStartMethodStoreTest {
 
     @Test
     fun rejectsEmptyAndUnknownMethodIdsWithoutTrimmingKnownIds() {
-        assertNull(PrivilegeUiStartMethod.parse(""))
-        assertNull(PrivilegeUiStartMethod.parse("adb"))
-        assertNull(PrivilegeUiStartMethod.parse("root\n"))
-        assertNull(PrivilegeUiStartMethod.parse(" root"))
+        assertNull(parsePrivilegeUiStartMethod(""))
+        assertNull(parsePrivilegeUiStartMethod("adb"))
+        assertNull(parsePrivilegeUiStartMethod("root\n"))
+        assertNull(parsePrivilegeUiStartMethod(" root"))
     }
 
     @Test

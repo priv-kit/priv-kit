@@ -195,12 +195,10 @@ UI 可以请求本机 ADB 密钥授权，并在系统返回结果后继续之前
 
 ## 静默启动 {#exact-replay}
 
-前台启动成功并建立 Binder 连接后，UI 会保存一个启动方式 ID：
-
-- `root`
-- `adb-wireless`
-- `adb-tcpip`
-- `external:<providerId>`
+前台启动成功并建立 Binder 连接后，UI 会保存启动方式。调用
+`PrivilegeUi.getLastStartMethod()` 可同步读取，即使自动恢复已关闭也可以查询。
+返回的 `PrivilegeUiStartMethod` 为 `Root`、`AdbWireless`、`AdbTcpip` 或
+`External(providerId)`。没有可读取且可识别的记录时返回 `null`。
 
 静默启动使用已保存的方式。已保存的方式、授权或其他启动
 条件不可用时返回 `null`，权限请求、配对和外部授权仍需在前台界面中完成。

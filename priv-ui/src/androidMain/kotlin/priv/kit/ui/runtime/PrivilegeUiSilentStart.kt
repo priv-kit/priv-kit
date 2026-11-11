@@ -13,6 +13,7 @@ import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiExternalStartProvider
+import priv.kit.ui.PrivilegeUiStartMethod
 import priv.kit.ui.PrivilegeUiStartupMode
 import priv.kit.ui.effectiveStartupModes
 import priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported

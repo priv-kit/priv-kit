@@ -10,6 +10,7 @@ Compose Multiplatform authorization UI under `priv.kit.ui`. Android uses Core; J
 | `PrivilegeUiViewModel` | Extensible Android controller |
 | `PrivilegeUiConfig` | Startup modes, polling, notification pairing, and providers |
 | `PrivilegeUi.desiredEnabled` | Automatic-recovery setting |
+| `PrivilegeUi.getLastStartMethod()` | Read the saved method of the last successful UI startup |
 | `PrivilegeUi.setLocale(...)` | Android pairing-service language and live notification refresh |
 | `PrivilegeUi.startSilently(...)` | Restart using the last successful method |
 | `PrivilegeUi.prepareExternalShellScript(...)` | Prepare the optional manual-start script |

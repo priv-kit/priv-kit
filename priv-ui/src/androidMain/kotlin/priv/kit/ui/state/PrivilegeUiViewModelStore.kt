@@ -19,7 +19,7 @@ import priv.kit.ui.R
 import priv.kit.ui.asString
 import priv.kit.ui.effectiveStartupModes
 import priv.kit.ui.privilegeUiText
-import priv.kit.ui.runtime.PrivilegeUiStartMethod
+import priv.kit.ui.PrivilegeUiStartMethod
 import priv.kit.ui.runtime.PrivilegeUiStartMethodStore
 import java.util.UUID
 

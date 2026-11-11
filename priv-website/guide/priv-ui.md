@@ -203,12 +203,11 @@ change ADB settings.
 ## Silent startup {#exact-replay}
 
 After a matching foreground operation receives its initial Binder connection,
-the UI stores one method identifier:
-
-- `root`
-- `adb-wireless`
-- `adb-tcpip`
-- `external:<providerId>`
+the UI saves the startup method. Call `PrivilegeUi.getLastStartMethod()` to read
+it synchronously, even when automatic recovery is disabled. The result is a
+`PrivilegeUiStartMethod`: `Root`, `AdbWireless`, `AdbTcpip`, or
+`External(providerId)`. The function returns `null` if there is no readable,
+recognized record.
 
 Silent startup uses the saved method. It returns `null` when history, authorization, or startup prerequisites are unavailable. Complete permission requests, pairing, and external authorization in the foreground.
 

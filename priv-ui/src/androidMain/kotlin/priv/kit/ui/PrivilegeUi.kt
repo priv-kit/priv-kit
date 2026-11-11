@@ -3,6 +3,7 @@ package priv.kit.ui
 import android.os.Process
 import androidx.annotation.MainThread
 import java.io.File
+import java.io.IOException
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -98,6 +99,20 @@ public object PrivilegeUi {
             scriptPath = scriptPath,
             externalFilesDirectory = { PrivilegeContext.require().getExternalFilesDir(null) },
         )
+    }
+
+    /**
+     * Reads the method saved by the last successful foreground start in this UI. Returns `null`
+     * when there is no readable, recognized record. Reads synchronously on the calling thread,
+     * independently of the automatic recovery setting and current startup configuration.
+     */
+    public fun getLastStartMethod(): PrivilegeUiStartMethod? {
+        val context = PrivilegeContext.require()
+        return try {
+            PrivilegeUiStartMethodStore(context).read()
+        } catch (_: IOException) {
+            null
+        }
     }
 
     /**

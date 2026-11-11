@@ -4,46 +4,28 @@ import android.content.Context
 import priv.kit.shared.PrivilegeBinaryFileStore
 import priv.kit.shared.PrivilegeStoragePaths
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
+import priv.kit.ui.PrivilegeUiStartMethod
 import java.nio.charset.StandardCharsets
 
-internal sealed interface PrivilegeUiStartMethod {
-    val methodId: String
+private const val EXTERNAL_METHOD_ID_PREFIX = "external:"
 
-    data object Root : PrivilegeUiStartMethod {
-        override val methodId: String = "root"
+internal val PrivilegeUiStartMethod.methodId: String
+    get() = when (this) {
+        PrivilegeUiStartMethod.Root -> "root"
+        PrivilegeUiStartMethod.AdbWireless -> "adb-wireless"
+        PrivilegeUiStartMethod.AdbTcpip -> "adb-tcpip"
+        is PrivilegeUiStartMethod.External -> EXTERNAL_METHOD_ID_PREFIX + providerId
     }
 
-    data object AdbWireless : PrivilegeUiStartMethod {
-        override val methodId: String = "adb-wireless"
+internal fun parsePrivilegeUiStartMethod(methodId: String): PrivilegeUiStartMethod? =
+    when {
+        methodId == PrivilegeUiStartMethod.Root.methodId -> PrivilegeUiStartMethod.Root
+        methodId == PrivilegeUiStartMethod.AdbWireless.methodId -> PrivilegeUiStartMethod.AdbWireless
+        methodId == PrivilegeUiStartMethod.AdbTcpip.methodId -> PrivilegeUiStartMethod.AdbTcpip
+        methodId.startsWith(EXTERNAL_METHOD_ID_PREFIX) ->
+            PrivilegeUiStartMethod.External(methodId.removePrefix(EXTERNAL_METHOD_ID_PREFIX))
+        else -> null
     }
-
-    data object AdbTcpip : PrivilegeUiStartMethod {
-        override val methodId: String = "adb-tcpip"
-    }
-
-    data class External(val providerId: String) : PrivilegeUiStartMethod {
-        override val methodId: String = METHOD_ID_PREFIX + providerId
-
-        companion object {
-            private const val METHOD_ID_PREFIX = "external:"
-
-            fun parse(methodId: String): External? {
-                if (!methodId.startsWith(METHOD_ID_PREFIX)) return null
-                return External(providerId = methodId.removePrefix(METHOD_ID_PREFIX))
-            }
-        }
-    }
-
-    companion object {
-        fun parse(methodId: String): PrivilegeUiStartMethod? =
-            when (methodId) {
-                Root.methodId -> Root
-                AdbWireless.methodId -> AdbWireless
-                AdbTcpip.methodId -> AdbTcpip
-                else -> External.parse(methodId)
-            }
-    }
-}
 
 internal class PrivilegeUiStartMethodStore(context: Context) {
     private val file = PrivilegeStoragePaths.file(
@@ -55,7 +37,7 @@ internal class PrivilegeUiStartMethodStore(context: Context) {
         synchronized(lock) {
             PrivilegeBinaryFileStore.readIfExists(file)
                 ?.let { bytes ->
-                    PrivilegeUiStartMethod.parse(
+                    parsePrivilegeUiStartMethod(
                         String(bytes, StandardCharsets.UTF_8),
                     )
                 }
