@@ -88,8 +88,8 @@ internal object PrivilegeServerHandshakeSender {
             }
         }
         if (accepted) {
-            PrivilegeCrashRecorder.updateDirectory(
-                response?.getString(PrivilegeHandshakeContract.EXTRA_CRASH_LOG_DIRECTORY),
+            PrivilegeCrashRecorder.updateDirectories(
+                response?.getStringArrayList(PrivilegeHandshakeContract.EXTRA_CRASH_LOG_DIRECTORIES).orEmpty(),
             )
         }
         val ownerConfig = if (

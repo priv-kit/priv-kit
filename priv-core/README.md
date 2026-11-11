@@ -9,6 +9,7 @@ Android privileged runtime under `priv.kit.core`.
 | `Privilege.serverState` | Observe the connection |
 | `Privilege.prepareOwnerRestart(...)` | Notify the server before restarting the app |
 | `Privilege.file(path)` | File operations |
+| `Privilege.listFallbackCrashLogFiles()` | List fallback crash reports with the app's filesystem access |
 | `Privilege.startCommand(...)` | Command execution and output |
 | UserService APIs | Manage custom services or built-in Binder forwarding with a selected process UID |
 | `PrivilegeBinderWrapper` | Forward Binder transactions |

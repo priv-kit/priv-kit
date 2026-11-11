@@ -14,6 +14,7 @@ import priv.kit.core.internal.userservice.IPrivilegeUserServiceProcess
 import priv.kit.core.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.core.internal.userservice.PrivilegeUserServiceHost
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 internal class PrivilegeServerUserServiceHost(
@@ -46,7 +47,7 @@ internal class PrivilegeServerUserServiceHost(
                     PrivilegeNativeStarterResolver.resolve(context.applicationInfo),
                 )
             },
-            crashLogDirectory = PrivilegeCrashRecorder.currentDirectory?.absolutePath,
+            crashLogDirectories = PrivilegeCrashRecorder.currentDirectories,
         )
         return processStarter(command).also { startingProcesses[token] = it }
     }
@@ -93,7 +94,7 @@ internal object PrivilegeServerUserServiceProcessCommand {
         spec: PrivilegeUserServiceSpec,
         token: String,
         currentUid: Int,
-        crashLogDirectory: String? = null,
+        crashLogDirectories: List<File> = emptyList(),
         uidLauncher: () -> List<String> = { error("UID launcher was not supplied") },
     ): PrivilegeServerUserServiceProcessStartCommand {
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(config.packageName)
@@ -121,8 +122,9 @@ internal object PrivilegeServerUserServiceProcessCommand {
             ) + (spec.serviceClassName?.let { listOf("--service-class", it) } ?: emptyList()),
             environment = mapOf(
                 "CLASSPATH" to config.classpath,
-                // Override any stale directory inherited from the original server launch.
-                PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORY to crashLogDirectory.orEmpty(),
+                // Override any stale list inherited from the original server launch.
+                PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORIES to
+                    PrivilegeCrashRecorder.encodeDirectories(crashLogDirectories),
             ),
         )
     }

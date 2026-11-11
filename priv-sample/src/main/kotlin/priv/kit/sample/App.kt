@@ -11,6 +11,7 @@ import org.lsposed.hiddenapibypass.HiddenApiBypass
 import priv.kit.core.PrivilegeConfig
 import priv.kit.sample.startup.privilegeUiConfig
 import priv.kit.ui.PrivilegeUi
+import java.io.File
 
 class App : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -24,7 +25,10 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        PrivilegeConfig.crashLogDirectory = getExternalFilesDir("privilege-crashes")
+        PrivilegeConfig.crashLogDirectories = listOfNotNull(
+            File(filesDir, "privilege-crashes").apply { mkdirs() },
+            getExternalFilesDir("privilege-crashes"),
+        )
         applicationScope.launch(Dispatchers.IO) {
             PrivilegeUi.prepareExternalShellScript(privilegeUiConfig.manualShellScriptPath)
         }

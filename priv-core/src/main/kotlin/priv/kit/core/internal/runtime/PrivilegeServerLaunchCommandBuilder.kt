@@ -28,7 +28,7 @@ internal object PrivilegeServerLaunchCommandBuilder {
         baseNativeStarterCommand: String,
         launchCorrelationId: String?,
         ownerUserId: Int = ownerUserId(),
-        crashLogDirectory: File? = null,
+        crashLogDirectories: List<File> = emptyList(),
     ): String {
         require(ownerUserId >= 0) { "ownerUserId must not be negative" }
         val ownerUserEnvironment = if (ownerUserId == 0) {
@@ -44,10 +44,12 @@ internal object PrivilegeServerLaunchCommandBuilder {
                     " "
             }
             .orEmpty()
-        val crashLogEnvironment = crashLogDirectory?.let {
-            "${PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORY}=" +
-                it.absolutePath.toPrivilegeShellArgument() + " "
-        }.orEmpty()
+        val crashLogEnvironment = if (crashLogDirectories.isEmpty()) {
+            ""
+        } else {
+            val encoded = PrivilegeCrashRecorder.encodeDirectories(crashLogDirectories)
+            "${PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORIES}=" + encoded.toPrivilegeShellArgument() + " "
+        }
         return ownerUserEnvironment + launchCorrelationEnvironment + crashLogEnvironment + baseNativeStarterCommand
     }
 

@@ -29,6 +29,7 @@ import priv.kit.core.internal.runtime.PrivilegeRootProcess
 import priv.kit.core.internal.runtime.PrivilegeRootStarter
 import priv.kit.core.internal.runtime.PrivilegeStarterContract
 import priv.kit.core.internal.runtime.PrivilegeContext
+import priv.kit.core.internal.runtime.PrivilegeFallbackCrashLogs
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionEvent
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
@@ -41,6 +42,8 @@ import priv.kit.shared.PrivilegeProcessPermissions
 import priv.kit.shared.toPrivilegeAdbDeviceNameText
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
 import java.io.Closeable
+import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.BufferOverflow
@@ -81,6 +84,24 @@ public object Privilege {
     public fun file(absolutePath: String): PrivilegeFile {
         PrivilegeFilePath.validateAbsolute(absolutePath)
         return PrivilegeFile(absolutePath)
+    }
+
+    /**
+     * Lists fallback crash report files for the host application and Android user.
+     *
+     * Performs blocking I/O on the calling thread with the app's filesystem access and can run
+     * while the server is disconnected. If directory listing fails, tries the crash index.
+     * Returns an empty list if the directory is absent or the listing contains no reports.
+     *
+     * @throws IOException if both the directory listing and the index read fail.
+     * @throws PrivilegeStartupException if the runtime context has not been initialized.
+     */
+    @Throws(IOException::class, PrivilegeStartupException::class)
+    public fun listFallbackCrashLogFiles(): List<File> {
+        val context = PrivilegeContext.require()
+        val userId = PrivilegeAndroidUsers.userIdFromUid(context.applicationInfo.uid)
+        val directory = PrivilegeFallbackCrashLogs.directory(context.packageName, userId)
+        return PrivilegeFallbackCrashLogs.listFiles(directory)
     }
 
     /**
@@ -204,7 +225,7 @@ public object Privilege {
         PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
             baseNativeStarterCommand = baseNativeStarterCommand,
             launchCorrelationId = launchCorrelationId,
-            crashLogDirectory = PrivilegeConfig.crashLogDirectory,
+            crashLogDirectories = PrivilegeConfig.crashLogDirectories,
         )
 
     @Throws(PrivilegeStartupException::class)

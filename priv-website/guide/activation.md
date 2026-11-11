@@ -404,28 +404,39 @@ and [AIDL contract](https://github.com/priv-kit/priv-kit/blob/main/priv-sample/s
 
 ## Crash logs {#crash-logs}
 
-Configure a preferred directory during application initialization, before starting a server or
-first reading `Privilege.nativeStarterCommand`:
+Configure the directory list during application initialization, before starting the server.
 
 ```kotlin
-PrivilegeConfig.crashLogDirectory = context.getExternalFilesDir("privilege-crashes")
+val internalCrashDir = File(context.filesDir, "privilege-crashes").apply { mkdirs() }
+PrivilegeConfig.crashLogDirectories = listOfNotNull(
+    internalCrashDir,
+    context.getExternalFilesDir("privilege-crashes"),
+)
 ```
 
-The host creates the directory. A null value uses `/data/local/tmp` only. The server receives this
-path at launch and refreshes it on owner handshakes; dedicated UserServices inherit it at launch,
-before their constructors run. Already-running dedicated processes keep their original directory.
-If writing the preferred directory fails, including work-profile storage denied to shell, the
-recorder retries `/data/local/tmp`. Writes remain subject to filesystem and SELinux permissions.
+The host creates each directory and supplies its absolute path. The recorder tries the directories
+in order and stops after the first successful write. If the list is empty or all writes fail,
+the recorder creates and tries `/data/local/tmp/priv-kit/<appId>/<userId>/crashes/`.
+Writes remain subject to filesystem and SELinux permissions.
 
-Fatal Java/Kotlin exceptions produce one UTF-8 JSON file. The configured directory belongs to one
-app and Android user, and files there use `priv-crash_uid<uid>_<yyyyMMddHHmmss>.json`.
-The shared fallback directory `/data/local/tmp` uses
-`priv-crash_<applicationId>_u<userId>_uid<uid>_<yyyyMMddHHmmss>.json`.
+App-initiated launches pass the list at launch. Manual launches receive it on the owner handshake,
+which also refreshes the list for an existing server. A dedicated UserService inherits the list at
+launch, before its constructor runs, and keeps that snapshot.
+
+Fatal Java/Kotlin exceptions produce one UTF-8 JSON file named
+`priv-crash_uid<uid>_<yyyyMMddHHmmss>.json`. Each directory belongs to one app and Android user.
 The filename uses the crash time in the device local timezone, with second precision, assuming at most one crash per second for each app/user/UID. Process type, PID,
 and timestamps remain in the JSON. The recorder syncs and closes a temporary `.json.tmp` file before atomically renaming it. Scan only
 `.json` files; an interrupted write can leave a temporary file. The host owns scanning and cleanup.
-Read the app's external directory directly at startup, then scan the fallback directory through
-`Privilege.file()` once a privileged connection is available. Root-owned files may require root.
+Use `Privilege.listFallbackCrashLogFiles()` to get absolute `File` paths for the app's
+fallback reports, including while disconnected. The call performs blocking I/O on the calling
+thread with the app's filesystem access. It tries `crashes/index.txt` if opening or listing the
+directory fails. A missing directory or a successful listing with no reports returns an empty list. If neither listing
+method succeeds, the API throws `IOException`.
+
+After publishing a fallback report, the recorder appends its filename to the index as one UTF-8
+line. An index write failure leaves the published report available for a directory scan.
+Opening the returned files depends on filesystem and SELinux permissions.
 
 Reports use the public `@Serializable` data class `PrivilegeCrashLog`. Core exposes
 `kotlinx-serialization-core` and a generated serializer, but uses Android `JSONObject` to write
@@ -442,6 +453,6 @@ if (report.schemaVersion == 1) {
 The model contains the host application ID and Android user ID, process UID/PID and type,
 optional service class name, recorder initialization and crash times in epoch milliseconds,
 thread name, exception type, nullable message, and the stack trace with causes and suppressed
-exceptions. It does not contain preceding Logcat messages. Persistence is best effort; both
-failed destinations still allow process exit. Failures before launch configuration parsing,
+exceptions. It does not contain preceding Logcat messages. If all destinations fail, the recorder
+logs the crash and write failure to Logcat and the process exits. Failures before launch configuration parsing,
 native crashes, and `SIGKILL` are not captured.

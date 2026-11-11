@@ -2,28 +2,28 @@ package priv.kit.core
 
 import priv.kit.core.internal.core.PrivilegeProtocol
 import java.io.File
+import java.util.Collections
 
 public object PrivilegeConfig {
     private val lock = Any()
     private var current = PrivilegeConfigSnapshot()
 
     /**
-     * Preferred existing directory for privileged-process crash JSON files, or null for
-     * `/data/local/tmp` only. Configure during application initialization, before startup.
-     * A failed write falls back to `/data/local/tmp`. Manual startup receives the directory
-     * through the owner handshake; the public starter command does not include it.
+     * Existing directories for privileged-process crash JSON files, in write order.
+     * Configure during application initialization, before startup. If the list is empty or
+     * every write fails, the recorder tries `/data/local/tmp/priv-kit/<appId>/<userId>/crashes`.
+     * Manual startup receives the list through the owner handshake.
      *
-     * The host creates an app/user-specific directory, for example with
-     * `getExternalFilesDir("privilege-crashes")`. Filenames there omit application and user IDs;
-     * fallback filenames in `/data/local/tmp` include both.
+     * The host creates each app/user-specific directory and supplies its absolute path.
      * Changes reach an existing server on its next owner handshake. Dedicated UserServices
-     * inherit the directory when launched. Scanning and cleanup belong to the host.
+     * inherit the list when launched. Scanning and cleanup belong to the host.
      */
     @Volatile
-    public var crashLogDirectory: File? = null
+    public var crashLogDirectories: List<File> = emptyList()
         set(value) {
-            require(value == null || value.isAbsolute) { "crashLogDirectory must be absolute" }
-            field = value
+            val directories = value.toList()
+            require(directories.all { it.isAbsolute }) { "crashLogDirectories must contain only absolute paths" }
+            field = Collections.unmodifiableList(directories)
         }
 
     /**

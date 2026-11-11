@@ -387,25 +387,34 @@ PrivilegeExternalStartup.runThroughBridge(
 
 ## 崩溃日志 {#crash-logs}
 
-在应用初始化阶段配置首选目录，早于启动服务端或首次读取 `Privilege.nativeStarterCommand`：
+在应用初始化阶段配置目录列表，早于启动服务端。
 
 ```kotlin
-PrivilegeConfig.crashLogDirectory = context.getExternalFilesDir("privilege-crashes")
+val internalCrashDir = File(context.filesDir, "privilege-crashes").apply { mkdirs() }
+PrivilegeConfig.crashLogDirectories = listOfNotNull(
+    internalCrashDir,
+    context.getExternalFilesDir("privilege-crashes"),
+)
 ```
 
-目录由宿主创建。配置为 `null` 时仅使用 `/data/local/tmp`。服务端启动时接收路径，并在
-owner 握手时刷新；独立 UserService 在启动时继承路径，早于业务构造函数执行。
-已经运行的独立进程保留原目录。首选目录写入失败时（例如 shell 无权访问工作资料的
-外置目录），记录器重试 `/data/local/tmp`。实际写入仍受文件系统和 SELinux 权限限制。
+宿主创建各个目录并提供绝对路径。记录器按顺序尝试写入，首次成功即停止。列表为空或全部
+写入失败时，记录器创建并尝试 `/data/local/tmp/priv-kit/<appId>/<userId>/crashes/`。
+实际写入受文件系统和 SELinux 权限限制。
 
-Java/Kotlin 致命异常会生成一个 UTF-8 JSON 文件。配置的目录应由当前应用和 Android 用户独享，
-其中使用短文件名 `priv-crash_uid<uid>_<yyyyMMddHHmmss>.json`。
-公共兜底目录 `/data/local/tmp` 中的文件名保留应用和用户标识：
-`priv-crash_<applicationId>_u<userId>_uid<uid>_<yyyyMMddHHmmss>.json`。
+应用内启动时传递目录列表。手动启动通过 owner 握手接收列表，已有服务端也在握手时刷新列表。
+独立 UserService 在业务构造函数执行前继承启动时的列表，并在本次运行中使用该列表。
+
+Java/Kotlin 致命异常会生成一个 UTF-8 JSON 文件，文件名为
+`priv-crash_uid<uid>_<yyyyMMddHHmmss>.json`。每个目录由单个应用和 Android 用户使用。
 文件名使用设备本地时区的崩溃时间，精确到秒，假定同一应用、用户和 UID 每秒最多一次崩溃。进程类型、PID 和毫秒时间戳保留在 JSON 中。
 记录器先写入 `.json.tmp` 临时文件，同步并关闭后原子重命名。宿主只扫描 `.json`，
-中途退出可能留下临时文件。扫描和清理由宿主负责：应用启动时直接读取自己的外置目录，
-特权连接恢复后通过 `Privilege.file()` 扫描兜底目录。Root 创建的文件可能需要 Root 读取。
+中途退出可能留下临时文件。宿主负责扫描和清理。调用 `Privilege.listFallbackCrashLogFiles()`
+可获取当前应用的兜底报告，返回绝对路径的 `File`。特权服务断开时也可以调用。该方法在
+调用线程上以应用身份执行阻塞式 I/O，打开或遍历目录失败时会尝试读取 `crashes/index.txt`。目录不存在，
+或成功列出但没有报告时返回空列表。两种列出方式都失败时抛出 `IOException`。
+
+兜底日志落盘后，记录器将文件名作为一行 UTF-8 文本追加到索引。索引写入失败时，
+已落盘的报告仍可通过目录扫描找到。能否打开返回的文件取决于文件系统和 SELinux 权限。
 
 日志对应公开的 `@Serializable` 数据类 `PrivilegeCrashLog`。Core 暴露
 `kotlinx-serialization-core` 和生成的序列化器，内部使用 Android `JSONObject` 写入。
@@ -421,5 +430,6 @@ if (report.schemaVersion == 1) {
 
 字段包括宿主包名和 Android userId、特权进程 UID/PID 与类型、可空的服务类名、
 记录器初始化和崩溃时刻（Unix 毫秒时间戳）、线程名、异常类型、可空的异常消息，以及
-包含 cause 和 suppressed 异常的完整堆栈。不包含崩溃前的 Logcat。落盘为尽力执行，
-两处均失败也不会阻止进程退出。启动配置解析前的失败、Native 崩溃和 `SIGKILL` 不在覆盖范围内。
+包含 cause 和 suppressed 异常的完整堆栈。不包含崩溃前的 Logcat。所有目录都写入失败时，
+记录器将原始异常和写入错误输出到 Logcat，进程随后退出。启动配置解析前的失败、Native 崩溃和
+`SIGKILL` 不在覆盖范围内。

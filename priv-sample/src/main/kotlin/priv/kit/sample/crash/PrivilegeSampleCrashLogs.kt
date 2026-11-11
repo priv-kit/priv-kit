@@ -6,17 +6,10 @@ import kotlinx.serialization.json.Json
 import priv.kit.core.PrivilegeCrashLog
 
 private val crashJson = Json { ignoreUnknownKeys = true }
+private val scopedCrashLogName = Regex("priv-crash_uid[0-9]+_[0-9]{14}\\.json")
 internal const val MAX_CRASH_LOG_BYTES = 1024 * 1024
 
-internal fun isCrashLogFile(
-    name: String,
-    applicationId: String,
-    userId: Int,
-    appDirectory: Boolean = false,
-): Boolean =
-    ((appDirectory && name.matches(Regex("priv-crash_uid[0-9]+_[0-9]{14}\\.json"))) ||
-        name.startsWith("priv-crash_${applicationId}_u${userId}_uid") ||
-        name.startsWith("priv-crash_${applicationId}_user${userId}_uid")) && name.endsWith(".json")
+internal fun isCrashLogFile(name: String): Boolean = scopedCrashLogName.matches(name)
 
 internal fun readCrashLog(input: InputStream, applicationId: String, userId: Int): PrivilegeCrashLog {
     val output = ByteArrayOutputStream()

@@ -133,9 +133,9 @@ internal class PrivilegeHandshakeProvider : ContentProvider() {
                     PrivilegeHandshakeContract.RESULT_OWNER_BINDER,
                     ownerBinder,
                 )
-                putString(
-                    PrivilegeHandshakeContract.EXTRA_CRASH_LOG_DIRECTORY,
-                    PrivilegeConfig.crashLogDirectory?.absolutePath,
+                putStringArrayList(
+                    PrivilegeHandshakeContract.EXTRA_CRASH_LOG_DIRECTORIES,
+                    ArrayList(PrivilegeConfig.crashLogDirectories.map { it.absolutePath }),
                 )
                 if (!ownerReconnect) {
                     val runtimeConfig = Privilege.runtimeConfig()

@@ -18,20 +18,20 @@ import priv.kit.core.internal.runtime.PrivilegeServerLaunchCommandBuilder
 @Config(sdk = [28])
 class PrivilegeNativeStarterCommandTest {
     @After
-    fun resetCrashLogDirectory() {
-        PrivilegeConfig.crashLogDirectory = null
+    fun resetCrashLogDirectories() {
+        PrivilegeConfig.crashLogDirectories = emptyList()
     }
 
     @Test
     fun publicNativeStarterCommandCachesInstalledLibrary() {
         installRuntimeContext()
-        PrivilegeConfig.crashLogDirectory = File(RuntimeEnvironment.getApplication().cacheDir, "crashes")
+        PrivilegeConfig.crashLogDirectories = listOf(File(RuntimeEnvironment.getApplication().cacheDir, "crashes"))
 
         val nativeStarterCommand = Privilege.nativeStarterCommand
 
         assertTrue(PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID !in nativeStarterCommand)
         assertTrue(PrivilegeHandshakeContract.ENV_OWNER_USER_ID !in nativeStarterCommand)
-        assertTrue(PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORY !in nativeStarterCommand)
+        assertTrue(PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORIES !in nativeStarterCommand)
 
         RuntimeEnvironment.getApplication().applicationInfo.nativeLibraryDir =
             "/data/app/reinstalled/lib/arm64"
@@ -57,17 +57,21 @@ class PrivilegeNativeStarterCommandTest {
     }
 
     @Test
-    fun coordinatedCommandReadsCurrentCrashDirectoryAfterPublicCommandWasCached() {
+    fun coordinatedCommandReadsCurrentCrashDirectoriesAfterPublicCommandWasCached() {
         installRuntimeContext()
         val manualCommand = Privilege.nativeStarterCommand
-        val directory = File(RuntimeEnvironment.getApplication().cacheDir, "crashes with 'quotes'")
-        PrivilegeConfig.crashLogDirectory = directory
+        val directories = listOf(
+            File(RuntimeEnvironment.getApplication().cacheDir, "crashes with 'quotes'"),
+            File(RuntimeEnvironment.getApplication().filesDir, "other crashes"),
+        )
+        PrivilegeConfig.crashLogDirectories = directories
 
         assertEquals(manualCommand, Privilege.nativeStarterCommand)
         assertEquals(
             "${PrivilegeHandshakeContract.ENV_LAUNCH_CORRELATION_ID}=launch-1 " +
-                "${PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORY}=" +
-                directory.absolutePath.toPrivilegeShellArgument() + " " + manualCommand,
+                "${PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORIES}=" +
+                org.json.JSONArray(directories.map { it.absolutePath }).toString().toPrivilegeShellArgument() +
+                " " + manualCommand,
             Privilege.createNativeStarterCommand("launch-1"),
         )
     }
@@ -97,17 +101,17 @@ class PrivilegeNativeStarterCommandTest {
     }
 
     @Test
-    fun startupDirectoryUsesShellEscaping() {
+    fun startupDirectoryListUsesShellEscaping() {
         val directory = File(System.getProperty("java.io.tmpdir"), "crashes with 'quotes'")
         val command = PrivilegeServerLaunchCommandBuilder.buildNativeStarterCommand(
             baseNativeStarterCommand = "/starter",
             launchCorrelationId = null,
             ownerUserId = 0,
-            crashLogDirectory = directory,
+            crashLogDirectories = listOf(directory),
         )
         assertEquals(
-            "${PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORY}=" +
-                directory.absolutePath.toPrivilegeShellArgument() + " /starter",
+            "${PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORIES}=" +
+                org.json.JSONArray(listOf(directory.absolutePath)).toString().toPrivilegeShellArgument() + " /starter",
             command,
         )
     }

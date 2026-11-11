@@ -34,7 +34,8 @@ class PrivilegeCrashRecorderTest {
         val report = Json.decodeFromString(PrivilegeCrashLog.serializer(), file.readText())
 
         val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.ROOT).format(Date(report.crashedAtEpochMillis))
-        assertEquals("priv-crash_example.app_u10_uid2000_${timestamp}.json", file.name)
+        assertEquals("priv-crash_uid2000_${timestamp}.json", file.name)
+        assertEquals(File(temporaryFolder.root, "priv-kit/example.app/10/crashes"), file.parentFile)
         assertEquals("json", file.extension)
         assertEquals(1, report.schemaVersion)
         assertEquals("example.app", report.applicationId)
@@ -50,7 +51,9 @@ class PrivilegeCrashRecorderTest {
         assertTrue(report.startedAtEpochMillis > Int.MAX_VALUE.toLong())
         assertTrue(report.crashedAtEpochMillis >= report.startedAtEpochMillis)
         assertNull(recorder.record(Thread.currentThread(), error).getOrThrow())
-        assertEquals(listOf(file), temporaryFolder.root.listFiles()!!.toList())
+        val index = File(file.parentFile, "index.txt")
+        assertEquals("${file.name}\n", index.readText())
+        assertEquals(setOf(file, index), file.parentFile!!.listFiles()!!.toSet())
 
         val extended = JSONObject(file.readText()).put("futureField", true).toString()
         assertEquals(report, forwardCompatibleJson.decodeFromString(PrivilegeCrashLog.serializer(), extended))
@@ -72,55 +75,91 @@ class PrivilegeCrashRecorderTest {
     fun prefersHostDirectoryAndLeavesNoTemporaryFile() {
         val preferred = temporaryFolder.newFolder("preferred")
         val fallback = temporaryFolder.newFolder("fallback")
-        val file = recorder(fallback, { preferred }).record(Thread.currentThread(), Exception()).getOrThrow()!!
+        val second = temporaryFolder.newFolder("second")
+        val file = recorder(fallback, { listOf(preferred, second) })
+            .record(Thread.currentThread(), Exception()).getOrThrow()!!
         assertEquals(preferred, file.parentFile)
         val report = Json.decodeFromString(PrivilegeCrashLog.serializer(), file.readText())
         val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.ROOT).format(Date(report.crashedAtEpochMillis))
         assertEquals("priv-crash_uid2000_${timestamp}.json", file.name)
         assertEquals(listOf(file), preferred.listFiles()!!.toList())
+        assertTrue(second.listFiles()!!.isEmpty())
         assertTrue(fallback.listFiles()!!.isEmpty())
     }
 
     @Test
-    fun unavailableHostDirectoryFallsBackAtCrashTime() {
+    fun unavailableFirstDirectoryTriesNextDirectoryBeforeFallback() {
+        val unavailable = temporaryFolder.newFile("not-a-directory")
+        val next = temporaryFolder.newFolder("next")
+        val fallback = temporaryFolder.newFolder("fallback")
+        val file = recorder(fallback, { listOf(unavailable, next) })
+            .record(Thread.currentThread(), Exception()).getOrThrow()!!
+        assertEquals(next, file.parentFile)
+        assertTrue(fallback.listFiles()!!.isEmpty())
+    }
+
+    @Test
+    fun unavailableHostDirectoriesCreateFallbackAtCrashTime() {
         val unavailable = temporaryFolder.newFile("not-a-directory")
         val fallback = temporaryFolder.newFolder("fallback")
-        val file = recorder(fallback, { unavailable }).record(Thread.currentThread(), Exception()).getOrThrow()!!
-        assertEquals(fallback, file.parentFile)
-        assertTrue(file.name.startsWith("priv-crash_example.app_u10_uid2000_"))
+        val missing = File(temporaryFolder.root, "missing")
+        val file = recorder(fallback, { listOf(unavailable, missing) })
+            .record(Thread.currentThread(), Exception()).getOrThrow()!!
+        assertEquals(File(fallback, "priv-kit/example.app/10/crashes"), file.parentFile)
+        assertTrue(file.name.startsWith("priv-crash_uid2000_"))
+        assertFalse(missing.exists())
         Json.decodeFromString(PrivilegeCrashLog.serializer(), file.readText())
     }
 
     @Test
-    fun observesDirectoryUpdatedAfterRecorderInitialization() {
-        var directory: File? = null
-        val recorder = recorder(preferred = { directory })
-        directory = temporaryFolder.newFolder("reconnected")
+    fun fallbackIndexAppendsReportsFromDifferentProcesses() {
+        val first = recorder(uid = 0).record(Thread.currentThread(), Exception()).getOrThrow()!!
+        val second = recorder().record(Thread.currentThread(), Exception()).getOrThrow()!!
+        assertEquals("${first.name}\n${second.name}\n", File(first.parentFile, "index.txt").readText())
+    }
+
+    @Test
+    fun failedIndexAppendPreservesPublishedReport() {
+        val directory = temporaryFolder.newFolder("priv-kit", "example.app", "10", "crashes")
+        assertTrue(File(directory, "index.txt").mkdir())
+
+        val file = recorder().record(Thread.currentThread(), Exception()).getOrThrow()!!
+
+        assertTrue(file.isFile)
+    }
+
+    @Test
+    fun observesDirectoriesUpdatedAfterRecorderInitialization() {
+        var directories = emptyList<File>()
+        val recorder = recorder(preferred = { directories })
+        val directory = temporaryFolder.newFolder("reconnected")
+        directories = listOf(directory)
         val file = recorder.record(Thread.currentThread(), Exception()).getOrThrow()!!
         assertEquals(directory, file.parentFile)
     }
 
     @Test
-    fun bothDirectoriesFailWithoutEscapingOrCreatingDirectories() {
+    fun failedFallbackKeepsAllPreferredWriteErrors() {
         val missing = File(temporaryFolder.root, "missing")
-        val result = recorder(missing, { File(missing, "preferred") })
+        val result = recorder(missing, { listOf(File(missing, "first"), File(missing, "second")) })
             .record(Thread.currentThread(), Exception("fatal"))
         assertTrue(result.isFailure)
-        assertEquals(1, result.exceptionOrNull()!!.suppressed.size)
+        assertEquals(2, result.exceptionOrNull()!!.suppressed.size)
         assertFalse(missing.exists())
     }
 
     private fun recorder(
         fallback: File = temporaryFolder.root,
-        preferred: () -> File? = { null },
+        preferred: () -> List<File> = { emptyList() },
         serviceClassName: String? = null,
+        uid: Int = 2000,
     ) = PrivilegeCrashRecorder(
         packageName = "example.app",
         userId = 10,
-        uid = 2000,
+        uid = uid,
         pid = 123,
         serviceClassName = serviceClassName,
-        preferredDirectory = preferred,
-        fallbackDirectory = fallback,
+        preferredDirectories = preferred,
+        fallbackRoot = fallback,
     )
 }

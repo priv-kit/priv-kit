@@ -18,21 +18,12 @@ class PrivilegeSampleCrashLogsTest {
     )
 
     @Test
-    fun filtersByExactOwnerAndOnlyPublishedJsonFiles() {
-        val shortName = "priv-crash_uid2000_20261005203357.json"
-        assertTrue(isCrashLogFile(shortName, "example.app", 10, appDirectory = true))
-        assertFalse(isCrashLogFile(shortName, "example.app", 10))
-        assertFalse(isCrashLogFile("$shortName.tmp", "example.app", 10, appDirectory = true))
-        assertTrue(isCrashLogFile("priv-crash_example.app_u10_uid2000_20261005203357.json", "example.app", 10))
-        assertFalse(isCrashLogFile("priv-crash_example.app_u100_uid2000_20261005203357.json", "example.app", 10))
-        assertFalse(isCrashLogFile("priv-crash_example.app.other_u10_uid2000_20261005203357.json", "example.app", 10))
-        assertFalse(isCrashLogFile("priv-crash_example.app_u10_uid2000_20261005203357.json.tmp", "example.app", 10))
-        assertTrue(isCrashLogFile("priv-crash_example.app_user10_uid2000_server_1.json", "example.app", 10))
-        assertTrue(isCrashLogFile("priv-crash_example.app_user10_uid2000_abcdefghijklmnopqrstuv.json", "example.app", 10))
-        assertTrue(isCrashLogFile("priv-crash_example.app_user10_uid2000_20261005203357.json", "example.app", 10))
-        assertFalse(isCrashLogFile("priv-crash_example.app_user100_uid2000_server_1.json", "example.app", 10))
-        assertFalse(isCrashLogFile("priv-crash_example.app.other_user10_uid2000_1.json", "example.app", 10))
-        assertFalse(isCrashLogFile("priv-crash_example.app_user10_uid2000_1.json.tmp", "example.app", 10))
+    fun acceptsOnlyCurrentPublishedReportNames() {
+        val name = "priv-crash_uid2000_20261005203357.json"
+        assertTrue(isCrashLogFile(name))
+        assertFalse(isCrashLogFile("$name.tmp"))
+        assertFalse(isCrashLogFile("priv-crash_example.app_u10_uid2000_20261005203357.json"))
+        assertFalse(isCrashLogFile("priv-crash_example.app_user10_uid2000_20261005203357.json"))
     }
 
     @Test

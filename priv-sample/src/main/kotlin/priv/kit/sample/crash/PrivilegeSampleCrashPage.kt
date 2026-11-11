@@ -41,7 +41,7 @@ internal fun PrivilegeSampleCrashPage(
     val selected = viewModel.selected
     val back = { if (selected != null) viewModel.closeDetails() else onBack() }
     BackHandler(onBack = back)
-    LaunchedEffect(serverRunning) { viewModel.refresh(serverRunning) }
+    LaunchedEffect(viewModel, serverRunning) { viewModel.refresh() }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -53,7 +53,7 @@ internal fun PrivilegeSampleCrashPage(
                 },
                 actions = {
                     if (selected == null) {
-                        TextButton(enabled = !viewModel.loading, onClick = { viewModel.refresh(serverRunning) }) {
+                        TextButton(enabled = !viewModel.loading, onClick = viewModel::refresh) {
                             Text(stringResource(R.string.sample_refresh))
                         }
                     }
@@ -70,9 +70,6 @@ internal fun PrivilegeSampleCrashPage(
                 item { CrashDetails(selected) }
             } else {
                 if (viewModel.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-                if (!serverRunning) item {
-                    Text(stringResource(R.string.sample_crash_fallback_disconnected), style = MaterialTheme.typography.bodyMedium)
-                }
                 items(viewModel.errors) { message ->
                     Text(message, color = MaterialTheme.colorScheme.error)
                 }

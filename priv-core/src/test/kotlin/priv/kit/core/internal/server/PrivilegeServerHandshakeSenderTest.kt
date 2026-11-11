@@ -159,10 +159,11 @@ class PrivilegeServerHandshakeSenderTest {
     }
 
     @Test
-    fun reconnectUpdatesAndClearsCrashDirectory() {
+    fun reconnectUpdatesAndClearsCrashDirectories() {
         val config = PrivilegeServerConfig(packageName = "example.app", classpath = "/data/app/base.apk")
-        val directory = java.io.File(System.getProperty("java.io.tmpdir"), "crashes").absolutePath
-        listOf(directory, null).forEach { path ->
+        val root = java.io.File(System.getProperty("java.io.tmpdir"))
+        val directories = listOf(java.io.File(root, "internal"), java.io.File(root, "external"))
+        listOf(directories, emptyList()).forEach { paths ->
             PrivilegeServerHandshakeSender.send(
                 config = config,
                 serverBinder = PrivilegeServerBinder(config),
@@ -171,12 +172,15 @@ class PrivilegeServerHandshakeSenderTest {
                     Bundle().apply {
                         putBoolean(PrivilegeHandshakeContract.RESULT_ACCEPTED, true)
                         putBinder(PrivilegeHandshakeContract.RESULT_OWNER_BINDER, Binder())
-                        putString(PrivilegeHandshakeContract.EXTRA_CRASH_LOG_DIRECTORY, path)
+                        putStringArrayList(
+                            PrivilegeHandshakeContract.EXTRA_CRASH_LOG_DIRECTORIES,
+                            ArrayList(paths.map { it.absolutePath }),
+                        )
                     }
                 },
                 replacementStarter = { error("unexpected replacement") },
             )
-            assertEquals(path, priv.kit.core.internal.runtime.PrivilegeCrashRecorder.currentDirectory?.path)
+            assertEquals(paths, priv.kit.core.internal.runtime.PrivilegeCrashRecorder.currentDirectories)
         }
     }
 

@@ -36,8 +36,8 @@ The Shizuku example owns third-party bindings and AIDL. Its endpoint uses `Privi
 
 ## Crash logs
 
-The browser reads the app's configured directory and, while connected, `/data/local/tmp`. It filters `.json` reports by app/user and validates identity and schema. Invalid, unreadable, unsupported, or over-1-MiB reports appear as error rows. Reports are sorted newest first and are not deleted automatically.
+The browser uses the app's filesystem access to read its internal and external crash directories and uses `Privilege.listFallbackCrashLogFiles()` to discover fallback reports. It works while the server is disconnected. It validates report identity and schema. Invalid, unreadable, unsupported, or over-1-MiB reports appear as error rows. Reports are sorted newest first and are not deleted automatically.
 
-To create a report, bind the embedded service in Test UserService and press Crash Privileged Process. This kills the server through an uncaught exception. Reconnect before reading fallback files.
+To create a report, bind the embedded service in Test UserService and press Crash Privileged Process. This kills the server through an uncaught exception. Open Crash Logs to check reports the app can read while disconnected.
 
 See the [guides](../priv-website/guide/getting-started.md) for API usage.

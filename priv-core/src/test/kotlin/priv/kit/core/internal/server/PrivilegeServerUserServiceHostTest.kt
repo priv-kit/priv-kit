@@ -1,6 +1,8 @@
 package priv.kit.core.internal.server
 
 import android.os.Bundle
+import java.io.File
+import org.json.JSONArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
@@ -8,6 +10,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.core.testing.TestProcess
 import priv.kit.core.testing.TestUserServiceProcess
@@ -59,7 +62,7 @@ class PrivilegeServerUserServiceHostTest {
         )
 
         assertEquals("/data/app/base.apk", command.environment["CLASSPATH"])
-        assertEquals("", command.environment[priv.kit.core.internal.core.PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORY])
+        assertEquals("[]", command.environment[PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORIES])
         assertEquals(
             listOf(
                 "/system/bin/app_process",
@@ -82,18 +85,18 @@ class PrivilegeServerUserServiceHostTest {
     }
 
     @Test
-    fun forwardsCrashDirectoryToDedicatedProcess() {
+    fun forwardsCrashDirectoriesToDedicatedProcess() {
+        val root = File(System.getProperty("java.io.tmpdir"))
+        val directories = listOf(File(root, "internal"), File(root, "external"))
         val command = PrivilegeServerUserServiceProcessCommand.build(
             config = config(classpath = "/data/app/base.apk"),
             spec = PrivilegeUserServiceSpec(serviceClassName = "example.Service"),
             token = "token",
             currentUid = 0,
-            crashLogDirectory = "/storage/emulated/10/Android/data/example.app/files/crashes",
+            crashLogDirectories = directories,
         )
-        assertEquals(
-            "/storage/emulated/10/Android/data/example.app/files/crashes",
-            command.environment[priv.kit.core.internal.core.PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORY],
-        )
+        val paths = JSONArray(command.environment.getValue(PrivilegeHandshakeContract.ENV_CRASH_LOG_DIRECTORIES))
+        assertEquals(directories.map { it.absolutePath }, List(paths.length()) { paths.getString(it) })
     }
 
     @Test
