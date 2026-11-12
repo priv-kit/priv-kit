@@ -50,6 +50,7 @@ class PrivilegeInputInjectionTest {
         assertEquals(MotionEvent.ACTION_UP, motion.last().action)
         assertEquals(12.5f, motion[0].x)
         assertEquals(24f, motion[1].y)
+        assertEquals(motion[0].eventTime, motion[1].eventTime)
         assertEquals(10f, motion[2].x)
         assertEquals(20f, motion[2].y)
         assertEquals(110f, motion.last().x)
@@ -60,9 +61,21 @@ class PrivilegeInputInjectionTest {
         assertEquals(0f, motion.last().pressure)
     }
 
+    @Test fun timedTapHoldsAtTheSameCoordinates() {
+        kotlinx.coroutines.runBlocking { input.tap(12.5f, 24f, durationMillis = 64) }
+        val motion = events.map { it as MotionEvent }
+        assertEquals(listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP), motion.map { it.action })
+        val (down, up) = motion
+        assertEquals(down.x, up.x)
+        assertEquals(down.y, up.y)
+        assertEquals(down.downTime, up.downTime)
+        assertTrue(up.eventTime - down.eventTime >= 64)
+    }
+
     @Test fun invalidInputIsRejectedBeforeInjection() {
         assertThrows(IllegalArgumentException::class.java) { kotlinx.coroutines.runBlocking { input.keyEvent(-1) } }
         assertThrows(IllegalArgumentException::class.java) { kotlinx.coroutines.runBlocking { input.tap(Float.NaN, 1f) } }
+        assertThrows(IllegalArgumentException::class.java) { kotlinx.coroutines.runBlocking { input.tap(0f, 0f, durationMillis = -1) } }
         assertThrows(IllegalArgumentException::class.java) { kotlinx.coroutines.runBlocking { input.swipe(0f, 0f, Float.POSITIVE_INFINITY, 1f, 1) } }
         assertThrows(IllegalArgumentException::class.java) { kotlinx.coroutines.runBlocking { input.motionEvent(99, 0f, 0f) } }
         assertTrue(events.isEmpty())

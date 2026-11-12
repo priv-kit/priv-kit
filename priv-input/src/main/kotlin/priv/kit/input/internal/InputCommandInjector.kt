@@ -177,11 +177,19 @@ internal class InputCommandInjector(
         else -> 0
     }
 
-    suspend fun tap(x: Float, y: Float, source: Int, displayId: Int) {
-        val now = SystemClock.uptimeMillis()
-        motion(source, displayId, MotionEvent.ACTION_DOWN, now, now, x, y, 1f)
-        cleanupOnFailure({ motion(source, displayId, MotionEvent.ACTION_CANCEL, now, SystemClock.uptimeMillis(), x, y, 0f) }) {
-            motion(source, displayId, MotionEvent.ACTION_UP, now, now, x, y, 0f)
+    suspend fun tap(x: Float, y: Float, source: Int, displayId: Int, durationMillis: Long = 0) {
+        val down = SystemClock.uptimeMillis()
+        val timed = durationMillis > 0
+        motion(source, displayId, MotionEvent.ACTION_DOWN, down, down, x, y, 1f)
+        cleanupOnFailure({
+            motion(source, displayId, MotionEvent.ACTION_CANCEL, down, SystemClock.uptimeMillis(), x, y, 0f,
+                preserveDownTime = timed)
+        }) {
+            val up = if (timed) {
+                delay(durationMillis)
+                SystemClock.uptimeMillis()
+            } else down
+            motion(source, displayId, MotionEvent.ACTION_UP, down, up, x, y, 0f, preserveDownTime = timed)
         }
     }
 
@@ -278,13 +286,13 @@ internal class InputCommandInjector(
     }
 
     private suspend fun motion(source: Int, displayId: Int, action: Int, down: Long, time: Long, x: Float, y: Float,
-                       pressure: Float) {
+                       pressure: Float, preserveDownTime: Boolean = false) {
         val event = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val properties = MotionEvent.PointerProperties().apply { id = 0; toolType = toolType(source) }
             val coords = MotionEvent.PointerCoords().apply { this.x = x; this.y = y; this.pressure = pressure; size = 1f }
             MotionEvent.obtain(down, time, action, 1, arrayOf(properties), arrayOf(coords),
                 0, 0, 1f, 1f, deviceId(source), 0, source, 0)
-        } else MotionEvent.obtain(if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) time else down,
+        } else MotionEvent.obtain(if (!preserveDownTime && Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) time else down,
             time, action, x, y, pressure, 1f, 0, 1f, 1f, deviceId(source), 0).apply { this.source = source }
         try {
             display(event, motionDisplayId(source, displayId))

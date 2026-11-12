@@ -63,9 +63,10 @@ internal class InputCommands(
         injector.text(text, source, displayId)
     }
 
-    suspend fun tap(x: Float, y: Float, source: Int, displayId: Int) = execute(source, displayId) {
+    suspend fun tap(x: Float, y: Float, source: Int, displayId: Int, durationMillis: Long = 0) = execute(source, displayId) {
         coordinates(x, y)
-        injector.tap(x, y, resolveInputSource(source, InputDevice.SOURCE_TOUCHSCREEN), displayId)
+        require(durationMillis >= 0) { "Duration must be nonnegative" }
+        injector.tap(x, y, resolveInputSource(source, InputDevice.SOURCE_TOUCHSCREEN), displayId, durationMillis)
     }
 
     suspend fun press(source: Int, displayId: Int) = execute(source, displayId) {

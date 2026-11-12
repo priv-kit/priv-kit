@@ -54,9 +54,17 @@ public class PrivilegeInput(binder: IBinder) {
     public suspend fun text(text: String, source: Int = InputDevice.SOURCE_UNKNOWN, displayId: Int = Display.INVALID_DISPLAY): Unit =
         commands.text(text, source, displayId)
 
-    /** Tap in display pixels. Pointer sources default to display 0; keys default to the focused display. */
-    public suspend fun tap(x: Float, y: Float, source: Int = InputDevice.SOURCE_UNKNOWN, displayId: Int = Display.INVALID_DISPLAY): Unit =
-        commands.tap(x, y, source, displayId)
+    /**
+     * Tap in display pixels. [durationMillis] is a nonnegative hold time between DOWN and UP.
+     * The default of zero releases immediately. Pointer sources default to display 0.
+     */
+    public suspend fun tap(
+        x: Float,
+        y: Float,
+        source: Int = InputDevice.SOURCE_UNKNOWN,
+        displayId: Int = Display.INVALID_DISPLAY,
+        durationMillis: Long = 0,
+    ): Unit = commands.tap(x, y, source, displayId, durationMillis)
 
     /** Swipe; negative duration selects 300 ms. Android 16+ paces moves at 120 Hz. */
     public suspend fun swipe(startX: Float, startY: Float, endX: Float, endY: Float, durationMillis: Long = DEFAULT_SWIPE_DURATION_MILLIS, source: Int = InputDevice.SOURCE_UNKNOWN, displayId: Int = Display.INVALID_DISPLAY): Unit = commands.swipe(startX, startY, endX, endY, durationMillis, source, displayId, drag = false)

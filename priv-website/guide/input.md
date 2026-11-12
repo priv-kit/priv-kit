@@ -117,7 +117,7 @@ input.scroll(
 | --- | --- |
 | `text` → `text` | String; `%s` becomes a space. Character support follows the virtual keyboard mapping. Default source: keyboard. |
 | `keyevent` → `keyEvent` | One Android key code (`KeyEvent.KEYCODE_*`) or an array pressed and released sequentially. Also accepts names (`A`, `KEYCODE_A`, `29`). `longPress=false`, `durationMillis=0`, `doubleTap=false`, `async=false`, `delayMillis=0`. Default source varies by version; KEYBOARD on Android 8–9, UNKNOWN on Android 10+. |
-| `tap` → `tap` | x, y. Default source: touchscreen. |
+| `tap` → `tap` | x, y. The suspend method accepts a nonnegative `durationMillis` hold between DOWN and UP, defaulting to 0 for immediate release. Default source: touchscreen. |
 | `swipe` → `swipe` | Start/end x/y, `durationMillis=300`; negative duration also selects 300 ms. Default source: touchscreen. |
 | `draganddrop` → `dragAndDrop` | Same arguments as swipe, with an initial long press. Default source: touchscreen. |
 | `press` → `press` | No command-specific arguments; tap at (0, 0). Default source: trackball. |

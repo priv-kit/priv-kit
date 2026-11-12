@@ -117,7 +117,7 @@ input.scroll(
 | --- | --- |
 | `text` → `text` | 字符串；`%s` 转为空格。字符范围由虚拟键盘映射决定。默认 source：keyboard。 |
 | `keyevent` → `keyEvent` | 单个或一组 Android 按键码（`KeyEvent.KEYCODE_*`），数组按顺序逐个按下并释放。也接受名称（`A`、`KEYCODE_A`、`29`）；`longPress=false`、`durationMillis=0`、`doubleTap=false`、`async=false`、`delayMillis=0`。默认 source 因版本而异，Android 8–9 为 KEYBOARD，Android 10+ 为 UNKNOWN。 |
-| `tap` → `tap` | x、y。默认 source：touchscreen。 |
+| `tap` → `tap` | x、y。协程方法的 `durationMillis` 指定 DOWN 到 UP 之间的按住时长，须为非负数，默认 0（立即释放）。默认 source：touchscreen。 |
 | `swipe` → `swipe` | 起止 x/y，`durationMillis=300`；负时长也按 300 ms 处理。默认 source：touchscreen。 |
 | `draganddrop` → `dragAndDrop` | 与 swipe 相同，先执行长按。默认 source：touchscreen。 |
 | `press` → `press` | 无专用参数，在 (0, 0) 按下并释放。默认 source：trackball。 |
