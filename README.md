@@ -4,9 +4,20 @@
 
 [中文介绍](./README-zh.md)
 
-Priv Kit lets Android apps start a privileged process through Root, ADB, a shell command, or Shizuku. Use it for Binder, files, commands, UserServices, and input.
+Priv Kit lets Android apps start and manage their own privileged process through Root, ADB, a shell command, or an external authorization service.
 
-[Get started](https://priv-kit.pages.dev/guide/getting-started) · [Try the UI](https://priv-kit.pages.dev/playground/)
+Free your app from dependencies on standalone authorization apps such as Shizuku.
+
+- Binder access
+- File operations
+- Command execution
+- App-defined UserServices
+- Android input injection
+- Linux evdev access (experimental)
+
+[Read the documentation](https://priv-kit.pages.dev)
+
+[Try priv-playground online](https://priv-kit.pages.dev/playground/)
 
 <table>
   <tr>

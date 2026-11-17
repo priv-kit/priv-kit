@@ -4,9 +4,20 @@
 
 [English](./README.md)
 
-Priv Kit 让 Android 应用通过 Root、ADB、手动命令或 Shizuku 启动自己的特权进程，用于 Binder 调用、文件操作、命令执行、UserService 和输入控制。
+Priv Kit 让 Android 应用通过 Root、ADB、手动命令或外部授权服务启动自己的特权进程。
 
-[快速接入](https://priv-kit.pages.dev/zh/guide/getting-started) · [在线体验界面](https://priv-kit.pages.dev/zh/playground/)
+让你的应用摆脱对 Shizuku 等独立授权应用的依赖。
+
+- Binder 访问
+- 文件操作
+- 命令执行
+- 自定义 UserService
+- Android 输入事件注入
+- Linux evdev 访问（实验性）
+
+[阅读完整文档](https://priv-kit.pages.dev/zh/)
+
+[在线体验 priv-playground](https://priv-kit.pages.dev/zh/playground/)
 
 <table>
   <tr>
