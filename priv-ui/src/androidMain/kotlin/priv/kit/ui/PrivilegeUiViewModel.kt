@@ -492,6 +492,10 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         requestServerStart(PrivilegeUiServerRestartRequest.External(providerId))
     }
 
+    internal fun refreshExternalStartLabels(context: Context) {
+        store.refreshExternalStartLabels(context)
+    }
+
     public open fun confirmServerRestart() {
         if (!uiInteractionsEnabled) return
         resolveServerRestartDecision(confirmed = true)

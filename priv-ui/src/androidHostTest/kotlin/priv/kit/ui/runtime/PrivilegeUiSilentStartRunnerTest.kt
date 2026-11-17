@@ -18,7 +18,10 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import priv.kit.core.PrivilegeExternalStartProvider
+import priv.kit.core.PrivilegeExternalStartResult
 import priv.kit.core.PrivilegeServerInfo
+import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.core.adb.PrivilegeAdbConnectionOptions
 import priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl
 import priv.kit.core.internal.runtime.PrivilegeRuntimeClientLaunch
@@ -27,8 +30,6 @@ import priv.kit.core.internal.runtime.PrivilegeRuntimeStartLease
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.testServerInfo
-import priv.kit.ui.PrivilegeUiExternalStartProvider
-import priv.kit.ui.PrivilegeUiExternalStartSnapshot
 import priv.kit.ui.PrivilegeUiStartMethod
 import priv.kit.ui.PrivilegeUiStartupMode
 
@@ -111,7 +112,7 @@ class PrivilegeUiSilentStartRunnerTest {
             override suspend fun startExternal(
                 launch: PrivilegeRuntimeClientLaunch,
                 context: Context,
-                provider: PrivilegeUiExternalStartProvider,
+                provider: PrivilegeExternalStartProvider,
                 timeoutMillis: Long,
             ): PrivilegeServerInfo? = error("unexpected external start")
         }
@@ -233,7 +234,7 @@ class PrivilegeUiSilentStartRunnerTest {
     fun authorizedExternalMethodStartsExactProviderWithoutRequestingAuthorization() = runBlocking {
         val provider = RecordingExternalProvider(
             id = "provider:child",
-            snapshot = PrivilegeUiExternalStartSnapshot(available = true, authorized = true),
+            authorization = PrivilegeExternalStartResult(authorized = true),
         )
         val backend = RecordingBackend(serverInfo)
         val runner = runner(
@@ -256,7 +257,7 @@ class PrivilegeUiSilentStartRunnerTest {
     fun unauthorizedOrMissingExternalMethodFailsWithoutAuthorizationOrFallback() = runBlocking {
         val provider = RecordingExternalProvider(
             id = "provider",
-            snapshot = PrivilegeUiExternalStartSnapshot(available = true, authorized = false),
+            authorization = PrivilegeExternalStartResult(authorized = false),
         )
         val backend = RecordingBackend(serverInfo)
         val runner = runner(
@@ -275,7 +276,7 @@ class PrivilegeUiSilentStartRunnerTest {
     fun externalSnapshotAndBackendShareOneOverallTimeout() = runBlocking {
         val provider = RecordingExternalProvider(
             id = "provider",
-            snapshot = PrivilegeUiExternalStartSnapshot(available = true, authorized = true),
+            authorization = PrivilegeExternalStartResult(authorized = true),
         )
         val backend = object : PrivilegeUiSilentStartBackend {
             override suspend fun startRoot(
@@ -294,7 +295,7 @@ class PrivilegeUiSilentStartRunnerTest {
             override suspend fun startExternal(
                 launch: PrivilegeRuntimeClientLaunch,
                 context: Context,
-                provider: PrivilegeUiExternalStartProvider,
+                provider: PrivilegeExternalStartProvider,
                 timeoutMillis: Long,
             ): PrivilegeServerInfo? = awaitCancellation()
         }
@@ -329,7 +330,7 @@ class PrivilegeUiSilentStartRunnerTest {
         var externalCalls = 0
         var lastLaunch: PrivilegeRuntimeClientLaunch? = null
         var lastAdbOptions: PrivilegeAdbConnectionOptions? = null
-        var lastExternalProvider: PrivilegeUiExternalStartProvider? = null
+        var lastExternalProvider: PrivilegeExternalStartProvider? = null
 
         val totalCalls: Int
             get() = rootCalls + adbCalls + externalCalls
@@ -358,7 +359,7 @@ class PrivilegeUiSilentStartRunnerTest {
         override suspend fun startExternal(
             launch: PrivilegeRuntimeClientLaunch,
             context: Context,
-            provider: PrivilegeUiExternalStartProvider,
+            provider: PrivilegeExternalStartProvider,
             timeoutMillis: Long,
         ): PrivilegeServerInfo {
             externalCalls++
@@ -370,22 +371,26 @@ class PrivilegeUiSilentStartRunnerTest {
 
     private class RecordingExternalProvider(
         override val id: String,
-        private val snapshot: PrivilegeUiExternalStartSnapshot,
-    ) : PrivilegeUiExternalStartProvider {
-        override val label: CharSequence = id
+        private val authorization: PrivilegeExternalStartResult,
+    ) : PrivilegeExternalStartProvider {
+        override fun getLabel(context: Context): CharSequence = id
         var snapshotCalls = 0
         var authorizationCalls = 0
 
-        override suspend fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot {
+        override suspend fun checkAuthorization(context: Context): PrivilegeExternalStartResult {
             snapshotCalls++
-            return snapshot
+            return authorization
         }
 
-        override suspend fun requestAuthorization(context: Context): PrivilegeUiExternalStartSnapshot {
+        override suspend fun requestAuthorization(context: Context): PrivilegeExternalStartResult {
             authorizationCalls++
-            return snapshot
+            return authorization
         }
 
-        override suspend fun start(context: Context, commandLine: String) = Unit
+        override suspend fun runStarter(
+            context: Context,
+            commandLine: String,
+            startupLogListener: PrivilegeStartupLogListener?,
+        ): String = error("Unexpected platform start")
     }
 }

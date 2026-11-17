@@ -1,11 +1,5 @@
 <resources>
     <string name="sample_open_privilege_ui">Open UI</string>
-    <string name="sample_privilege_ui_shizuku_not_running">Shizuku is not running</string>
-    <string name="sample_privilege_ui_shizuku_pre_v11">Shizuku pre-v11 is not supported</string>
-    <string name="sample_privilege_ui_shizuku_version_unsupported">Shizuku needs to be updated</string>
-    <string name="sample_privilege_ui_shizuku_ready">Shizuku is authorized</string>
-    <string name="sample_privilege_ui_shizuku_permission_denied">Shizuku permission denied permanently</string>
-    <string name="sample_privilege_ui_shizuku_permission_required">Shizuku permission required</string>
 
     <string name="sample_home">Home</string>
     <string name="sample_files">Files</string>
@@ -108,9 +102,8 @@
     <string name="sample_yes">yes</string>
     <string name="sample_no">no</string>
     <string name="sample_granted">granted</string>
-    <string name="sample_version">version</string>
-    <string name="sample_start_with_shizuku">Start with Shizuku</string>
-    <string name="sample_authorize_and_start_shizuku">Authorize and Start Shizuku</string>
+    <string name="sample_start_with_shizuku">Start with %1$s</string>
+    <string name="sample_authorize_and_start_shizuku">Authorize and Start with %1$s</string>
     <string name="sample_fingerprint">Fingerprint: %1$s</string>
     <string name="sample_loading">loading…</string>
     <string name="sample_not_loaded">not loaded</string>
@@ -195,14 +188,8 @@
     <string name="sample_message_pairing_code_is_required">Pairing code is required</string>
     <string name="sample_pairing_intro">Enter the Wireless debugging pairing code, or reply from the pairing notification.</string>
     <string name="sample_message_starting_root_runtime">Starting Root Runtime…</string>
-    <string name="sample_message_starting_through_shizuku">Starting through Shizuku…</string>
-    <string name="sample_message_shizuku_binder_died">Shizuku binder died</string>
-    <string name="sample_message_shizuku_is_not_running">Shizuku is not running</string>
-    <string name="sample_message_shizuku_pre_v11_is_not_supported">Shizuku pre-v11 is not supported</string>
-    <string name="sample_message_shizuku_permission_denied_permanently">Shizuku permission denied permanently</string>
-    <string name="sample_message_shizuku_permission_requested">Shizuku permission requested</string>
-    <string name="sample_message_shizuku_permission_required">Shizuku permission required</string>
-    <string name="sample_message_shizuku_ready">Shizuku ready</string>
+    <string name="sample_message_starting_through_shizuku">Starting through %1$s…</string>
+    <string name="sample_message_shizuku_permission_requested">%1$s permission requested</string>
     <string name="sample_message_discovering_adb_connect_port_and_starting_wireless_adb">Discovering ADB connect port and starting Wireless ADB…</string>
     <string name="sample_message_stopping_adb_tcp_mode">Stopping ADB TCP mode…</string>
     <string name="sample_message_no_server_connected">No server connected</string>
@@ -219,14 +206,12 @@
     <string name="sample_message_wireless_adb_log_copied">Wireless ADB log copied</string>
     <string name="sample_binder_intro">Connect to a Privileged Server, then get IUserManager or probe IMQSNative.</string>
     <string name="sample_userservice_intro">Connect to a Privileged Server, then bind a UserService.</string>
-    <string name="sample_message_shizuku_status_not_checked">Shizuku status not checked</string>
+    <string name="sample_message_shizuku_status_not_checked">External authorization status not checked</string>
     <string name="sample_message_paired_port">Current persisted ADB key is paired on port %1$s.</string>
     <string name="sample_message_paired_identity">Paired as %1$s on port %2$d.</string>
     <string name="sample_message_opening_tcp">Opening or reusing ADB TCP port %1$d…</string>
     <string name="sample_message_restarting_tcp">Restarting through ADB TCP port %1$d…</string>
-    <string name="sample_message_shizuku_api">Shizuku UserService requires API %1$d, current=%2$d</string>
-    <string name="sample_message_shizuku_ready_details">Shizuku ready: uid=%1$s, version=%2$d</string>
-    <string name="sample_message_shizuku_error">Shizuku error: %1$s</string>
+    <string name="sample_message_shizuku_error">External authorization error: %1$s</string>
     <string name="sample_connected_cached_iusermanager_is_ready">Connected. Cached IUserManager is ready.</string>
     <string name="sample_connected_cached_imqsnative_remote_binder_is_ready">Connected. Cached IMQSNative remote Binder is ready.</string>
     <string name="sample_connected_get_iusermanager_or_run_imqsnative_to_test_binder_transact">Connected. Get IUserManager or run IMQSNative to test Binder transact.</string>
@@ -246,7 +231,7 @@
     <string name="sample_userservice_stopping">Stopping %1$s UserService…</string>
     <string name="sample_userservice_stopped">%1$s UserService stopped</string>
     <string name="sample_running_progress">Running…</string>
-    <string name="sample_shizuku_waiting">Shizuku command sent. Waiting for server handshake…</string>
+    <string name="sample_shizuku_waiting">Command sent. Waiting for server handshake…</string>
     <string name="sample_wireless_paired">Wireless ADB paired on port %1$d</string>
     <string name="sample_tcp_requested">ADB TCP mode requested on port %1$d</string>
     <string name="sample_tcp_stop_requested">ADB TCP mode stop requested</string>

@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import priv.kit.core.Privilege
+import priv.kit.core.PrivilegeExternalStartProvider
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.adb.PrivilegeAdbConnectionOptions
 import priv.kit.core.adb.PrivilegeAdbWirelessDebuggingControl
@@ -12,7 +13,6 @@ import priv.kit.core.internal.runtime.PrivilegeRuntimeClientLaunch
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiConfig
-import priv.kit.ui.PrivilegeUiExternalStartProvider
 import priv.kit.ui.PrivilegeUiStartMethod
 import priv.kit.ui.PrivilegeUiStartupMode
 import priv.kit.ui.effectiveStartupModes
@@ -93,8 +93,7 @@ internal class PrivilegeUiSilentStartRunner(
         withTimeoutOrNull(config.startTimeoutMillis.milliseconds) {
             val provider = config.externalStartProviders.firstOrNull { it.id == providerId }
                 ?: return@withTimeoutOrNull null
-            val snapshot = provider.snapshot(applicationContext)
-            if (!snapshot.canStart) return@withTimeoutOrNull null
+            if (provider.checkAuthorization(applicationContext).authorized != true) return@withTimeoutOrNull null
             backend.startExternal(
                 launch = launch,
                 context = applicationContext,
@@ -120,7 +119,7 @@ internal interface PrivilegeUiSilentStartBackend {
     suspend fun startExternal(
         launch: PrivilegeRuntimeClientLaunch,
         context: Context,
-        provider: PrivilegeUiExternalStartProvider,
+        provider: PrivilegeExternalStartProvider,
         timeoutMillis: Long,
     ): PrivilegeServerInfo?
 }
@@ -151,13 +150,13 @@ private object PrivilegeUiPlatformSilentStartBackend : PrivilegeUiSilentStartBac
     override suspend fun startExternal(
         launch: PrivilegeRuntimeClientLaunch,
         context: Context,
-        provider: PrivilegeUiExternalStartProvider,
+        provider: PrivilegeExternalStartProvider,
         timeoutMillis: Long,
     ): PrivilegeServerInfo? {
         return withTimeoutOrNull(timeoutMillis.milliseconds) {
             val commandLine =
                 PrivilegeRuntimeStartCoordinator.createNativeStarterCommand(launch)
-            provider.start(context, commandLine)
+            provider.runStarter(context, commandLine)
             Privilege.serverState.filterNotNull().first()
         }
     }

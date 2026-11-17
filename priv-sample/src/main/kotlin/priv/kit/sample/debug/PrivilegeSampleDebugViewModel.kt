@@ -17,7 +17,6 @@ import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeUserServiceConnection
-import priv.kit.sample.startup.PrivilegeSampleShizukuExternalStarter
 import priv.kit.sample.userservice.IPrivilegeSampleDedicatedUserService
 import priv.kit.sample.userservice.IPrivilegeSampleEmbeddedUserService
 import java.util.UUID
@@ -29,6 +28,8 @@ internal class PrivilegeSampleDebugViewModel : ViewModel() {
     )
     var selectedStartupTab by mutableStateOf<PrivilegeStartupTab>(PrivilegeStartupTab.Root)
     var serverWatcherJob: Job? = null
+    var shizukuWatcherJob: Job? = null
+    var shizukuAuthorizationJob: Job? = null
     private var deniedPermissionsJob: Job? = null
     private var deniedPermissionsServer: PrivilegeServerInfo? = null
 
@@ -78,11 +79,8 @@ internal class PrivilegeSampleDebugViewModel : ViewModel() {
     var embeddedUserServiceConnection: PrivilegeUserServiceConnection? = null
     var dedicatedUserService: IPrivilegeSampleDedicatedUserService? = null
     var embeddedUserService: IPrivilegeSampleEmbeddedUserService? = null
-    @Volatile
-    var shizukuExternalStarter: PrivilegeSampleShizukuExternalStarter? = null
     var startNotificationPairingAfterPermission = false
     val notificationPairingOwnerId: String = UUID.randomUUID().toString()
-    var startShizukuExternalAfterPermission = false
 
     fun selectDebugDestination(destination: PrivilegeSampleDebugDestination) {
         selectedDebugDestination = destination
@@ -107,15 +105,16 @@ internal class PrivilegeSampleDebugViewModel : ViewModel() {
         sampleMqsNativeBinder = null
         sampleUserManager = null
         clearSampleUserServices()
-        shizukuExternalStarter?.close()
-        shizukuExternalStarter = null
-        startShizukuExternalAfterPermission = false
         closeHostObservers()
     }
 
     fun closeHostObservers() {
         serverWatcherJob?.cancel()
         serverWatcherJob = null
+        shizukuWatcherJob?.cancel()
+        shizukuWatcherJob = null
+        shizukuAuthorizationJob?.cancel()
+        shizukuAuthorizationJob = null
     }
 
     private fun clearSampleUserServices() {

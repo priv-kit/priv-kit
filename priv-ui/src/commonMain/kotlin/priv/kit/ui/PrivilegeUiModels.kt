@@ -86,24 +86,16 @@ public enum class PrivilegeUiAdbTcpAuthorizationStatus {
     FAILED,
 }
 
-public data class PrivilegeUiExternalStartSnapshot public constructor(
-    public val available: Boolean = false,
-    public val authorized: Boolean = false,
-    public val uid: Int? = null,
-    public val version: Int? = null,
-    public val message: CharSequence = "",
-    public val exceptionText: String = "",
-) {
-    public val canStart: Boolean
-        get() = available && authorized
-}
-
 public data class PrivilegeUiExternalStartItemState(
     public val id: String,
     public val label: CharSequence,
-    public val snapshot: PrivilegeUiExternalStartSnapshot = PrivilegeUiExternalStartSnapshot(),
+    /** Null when unavailable, false when unauthorized, and true when authorized. */
+    public val authorized: Boolean? = null,
     public val statusLoaded: Boolean = false,
-)
+) {
+    public val canStart: Boolean
+        get() = authorized == true
+}
 
 public data class PrivilegeUiStaticTcpState(
     public val activePort: Int? = null,

@@ -43,7 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import priv.kit.ui.PrivilegeUiPermissionRestrictionStatus
-import priv.kit.ui.PrivilegeUiExternalStartSnapshot
+import priv.kit.ui.PrivilegeUiExternalStartItemState
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
 import priv.kit.ui.PrivilegeUiRuntimeStatus
 import priv.kit.ui.PrivilegeUiScreenScope
@@ -606,11 +606,11 @@ internal fun StatusText(text: String) {
 }
 
 @Composable
-internal fun PrivilegeUiExternalStartSnapshot.externalStartStatusText(): String =
-    when {
-        canStart -> stringResource(Res.string.priv_ui_external_ready)
-        available -> stringResource(Res.string.priv_ui_external_permission_required)
-        else -> stringResource(Res.string.priv_ui_external_unavailable)
+internal fun PrivilegeUiExternalStartItemState.externalStartStatusText(): String =
+    when (authorized) {
+        true -> stringResource(Res.string.priv_ui_external_ready)
+        false -> stringResource(Res.string.priv_ui_external_permission_required)
+        null -> stringResource(Res.string.priv_ui_external_unavailable)
     }
 
 private data class StatusUi(

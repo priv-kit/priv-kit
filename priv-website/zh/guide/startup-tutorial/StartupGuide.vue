@@ -102,8 +102,28 @@ onBeforeUnmount(() => { window.removeEventListener('hashchange', syncLocation); 
     <section v-show="scene === 'start' || !mounted" id="choose-method" class="scene-section">
       <div class="section-heading"><div><p class="eyebrow">{{ t('选择一种方式', 'CHOOSE A METHOD') }}</p><h2>{{ t('你准备怎么启动？', 'How will you start?') }}</h2></div><button type="button" class="text-button" @click="go('tcp-ip')">{{ t('进阶：静态端口 →', 'Advanced: static port →') }}</button></div>
       <div class="method-grid grid gap-4 sm:grid-cols-2">
-        <button type="button" class="method-card" :aria-pressed="method === 'phone'" @click="choose('phone')"><span class="method-symbol" aria-hidden="true">▯</span><strong>{{ t('只用手机', 'Phone only') }}</strong><span>{{ t('Android 11 及以上 · Wi-Fi', 'Android 11+ · Wi-Fi') }}</span><b>{{ t('查看操作步骤 →', 'View the steps →') }}</b></button>
-        <button type="button" class="method-card" :aria-pressed="method === 'computer'" @click="choose('computer')"><span class="method-symbol" aria-hidden="true">▱</span><strong>{{ t('使用电脑', 'Use a computer') }}</strong><span>{{ t('电脑 · USB 数据线 · 无需下载工具', 'Computer · USB data cable · No tool download') }}</span><b>{{ t('查看操作步骤 →', 'View the steps →') }}</b></button>
+        <button type="button" class="method-card" :aria-pressed="method === 'phone'" @click="choose('phone')">
+          <span class="method-symbol" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" focusable="false">
+              <rect x="6" y="2" width="12" height="20" rx="3" />
+              <path d="M11 18h2" />
+            </svg>
+          </span>
+          <strong>{{ t('只用手机', 'Phone only') }}</strong>
+          <span>{{ t('Android 11 及以上 · Wi-Fi', 'Android 11+ · Wi-Fi') }}</span>
+          <b>{{ t('查看操作步骤 →', 'View the steps →') }}</b>
+        </button>
+        <button type="button" class="method-card" :aria-pressed="method === 'computer'" @click="choose('computer')">
+          <span class="method-symbol" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" focusable="false">
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <path d="M12 17v4m-4 0h8" />
+            </svg>
+          </span>
+          <strong>{{ t('使用电脑', 'Use a computer') }}</strong>
+          <span>{{ t('电脑 · USB 数据线 · 无需下载工具', 'Computer · USB data cable · No tool download') }}</span>
+          <b>{{ t('查看操作步骤 →', 'View the steps →') }}</b>
+        </button>
       </div>
       <p v-if="!method" class="muted">{{ t('不知道 Android 版本？在设置中搜索“Android 版本”，或进入“关于手机”查看。没有无线调试时，选择电脑方式。', 'Not sure of your Android version? Search Settings for “Android version” or check About phone. Use a computer if wireless debugging is unavailable.') }}</p>
       <template v-if="method === 'phone' || method === 'computer'">
@@ -113,7 +133,8 @@ onBeforeUnmount(() => { window.removeEventListener('hashchange', syncLocation); 
         </nav>
         <section id="developer-options" class="preparation">
           <p class="eyebrow">{{ t('首次使用前', 'BEFORE YOU BEGIN') }}</p><h2>{{ t('开启开发者模式', 'Enable Developer options') }}</h2>
-          <p>{{ t('选择品牌找到版本号，连续点击 7 次；随后回到设置，搜索“开发者选项”，开启总开关（若有）。', 'Find your version field below and tap it 7 times. Then search Settings for Developer options and enable its main switch, if shown.') }}</p>
+          <p>{{ t('选择手机品牌，按路径找到版本号，连续点击 7 次，直到看到“您已处于开发者模式”之类的提示。如果系统要求验证，请输入锁屏密码。', 'Select your phone’s brand and follow the path to the version field. Tap it 7 times until Android says Developer options are enabled. Enter your screen lock PIN or password if asked.') }}</p>
+          <p>{{ t('回到设置首页，搜索“开发者选项”并打开。页面顶部有总开关时，先打开它。', 'Go back to the main Settings screen and search for Developer options. Open it and turn on the main switch if one appears.') }}</p>
           <BrandSettings :model-value="brand" :chinese="!!chinese" @update:model-value="selectBrand" />
           <button type="button" class="primary-button" @click="go(steps[0])">{{ t('已经开启，查看启动步骤 ↓', 'Already enabled? Continue ↓') }}</button>
         </section>

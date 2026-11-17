@@ -39,6 +39,7 @@ private object Cfg {
 private val publishedModuleNames = setOf(
     "priv-shared",
     "priv-core",
+    "priv-external-shizuku",
     "priv-input",
     "priv-evdev",
     "priv-adb-crypto",

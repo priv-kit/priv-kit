@@ -1,13 +1,11 @@
-package priv.kit.sample.startup
+package priv.kit.external.shizuku.internal
 
 import android.os.ParcelFileDescriptor
 import android.os.ResultReceiver
-import androidx.annotation.Keep
-import priv.kit.core.PrivilegeExternalStartupHost
 import kotlin.system.exitProcess
+import priv.kit.core.PrivilegeExternalStartupHost
 
-internal class PrivilegeSampleShizukuStartService @Keep constructor() :
-    IPrivilegeSampleShizukuStartService.Stub() {
+internal class ShizukuStartService : IShizukuStartService.Stub() {
     private val host = PrivilegeExternalStartupHost()
 
     override fun start(
@@ -16,12 +14,7 @@ internal class PrivilegeSampleShizukuStartService @Keep constructor() :
         stderr: ParcelFileDescriptor,
         resultReceiver: ResultReceiver,
     ) {
-        host.start(
-            commandLine = commandLine,
-            stdout = stdout,
-            stderr = stderr,
-            resultReceiver = resultReceiver,
-        )
+        host.start(commandLine, stdout, stderr, resultReceiver)
     }
 
     override fun destroy() {

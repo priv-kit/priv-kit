@@ -135,15 +135,15 @@ internal data class PrivilegeSampleScreenState(
     val embeddedUserServiceMessage: String = "-",
     val userServiceMessage: String = "",
     val userServiceLastException: String = "",
-    val shizukuReady: Boolean = false,
-    val shizukuPermissionGranted: Boolean = false,
-    val shizukuUid: Int? = null,
-    val shizukuVersion: Int? = null,
+    val shizukuAuthorization: Boolean? = null,
     val shizukuMessage: String = "",
     val shizukuLastException: String = "",
     val message: String = "",
     val logText: String = "",
-)
+) {
+    val shizukuAuthorized: Boolean
+        get() = shizukuAuthorization == true
+}
 
 internal fun PrivilegeSampleScreenState.wirelessDebugLogText(): String =
     buildString {
@@ -182,10 +182,7 @@ internal fun PrivilegeSampleScreenState.wirelessDebugLogText(): String =
         appendLine("dedicatedUserServiceCached=$dedicatedUserServiceCached")
         appendLine("embeddedUserServiceCached=$embeddedUserServiceCached")
         appendLine("userServiceMessage=$userServiceMessage")
-        appendLine("shizukuReady=$shizukuReady")
-        appendLine("shizukuPermissionGranted=$shizukuPermissionGranted")
-        appendLine("shizukuUid=${shizukuUid ?: "none"}")
-        appendLine("shizukuVersion=${shizukuVersion ?: "none"}")
+        appendLine("shizukuAuthorization=$shizukuAuthorization")
         appendLine("shizukuMessage=$shizukuMessage")
         appendLine("serverInfo=${serverInfo ?: "none"}")
         appendLine()

@@ -3,6 +3,7 @@ package priv.kit.ui.state
 import android.content.Context
 import android.os.Process
 import androidx.annotation.StringRes
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -11,7 +12,6 @@ import kotlinx.coroutines.flow.update
 import priv.kit.core.PrivilegeStartupLogLine
 import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiExternalStartItemState
-import priv.kit.ui.PrivilegeUiExternalStartSnapshot
 import priv.kit.ui.PrivilegeUiStartupMode
 import priv.kit.ui.PrivilegeUiState
 import priv.kit.ui.PrivilegeUiText
@@ -65,16 +65,16 @@ internal class PrivilegeUiViewModelStore(
         }
     }
 
-    fun setExternalStartSnapshot(
+    fun setExternalStartAuthorization(
         id: String,
-        snapshot: PrivilegeUiExternalStartSnapshot,
+        authorized: Boolean?,
     ) {
         updateState { current ->
             current.copy(
                 externalStartItems = current.externalStartItems.map { item ->
                     if (item.id == id) {
                         item.copy(
-                            snapshot = snapshot,
+                            authorized = authorized,
                             statusLoaded = true,
                         )
                     } else {
@@ -84,6 +84,18 @@ internal class PrivilegeUiViewModelStore(
             )
         }
     }
+
+    fun refreshExternalStartLabels(context: Context) {
+        val labels = config.externalStartProviders.associate { it.id to it.getLabel(context) }
+        updateState { current ->
+            current.copy(externalStartItems = current.externalStartItems.map { item ->
+                item.copy(label = labels.getValue(item.id))
+            })
+        }
+    }
+
+    fun externalStartLabel(id: String): CharSequence =
+        state.value.externalStartItems.first { it.id == id }.label
 
     fun showSnackbar(text: PrivilegeUiText) {
         snackbarTextState.tryEmit(text)
@@ -147,6 +159,7 @@ private fun initialPrivilegeUiState(
 ): PrivilegeUiState {
     val startupModes = config.effectiveStartupModes()
     val scriptPath = config.manualShellScriptPath
+    val labelContext = context?.let(ContextCompat::getContextForLanguage)
     return PrivilegeUiState(
         selectedStartupMode = selectedStartupMode?.takeIf { it in startupModes }
             ?: PrivilegeUiStartupMode.ADB.takeIf { it in startupModes }
@@ -159,7 +172,7 @@ private fun initialPrivilegeUiState(
         externalStartItems = config.externalStartProviders.map { provider ->
             PrivilegeUiExternalStartItemState(
                 id = provider.id,
-                label = provider.label,
+                label = labelContext?.let(provider::getLabel) ?: provider.id,
             )
         },
     )

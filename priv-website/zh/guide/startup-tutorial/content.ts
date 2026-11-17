@@ -3,11 +3,11 @@ export default {
   "sections": {
     "restart": {
       "title": "下次怎么启动",
-      "html": "<ul>\n<li><strong>仍已连接：</strong>不用操作。</li>\n<li><strong>服务停止或手机重启：</strong>恢复 Wi-Fi、开启无线调试，再点启动；手动方式则重新执行当前命令。</li>\n<li><strong>配对失效、重装应用或撤销授权：</strong>再配对。</li>\n</ul>\n"
+      "html": "<ul>\n<li><strong>仍已连接：</strong>可以直接使用应用功能。</li>\n<li><strong>上次只用手机启动，现在已断开：</strong>连上 Wi-Fi，开启<strong>无线调试</strong>，再回到应用点<strong>ADB → 启动</strong>。应用提示未配对时才需要重新配对。</li>\n<li><strong>上次用电脑启动，现在已断开：</strong>连接手机，再执行应用<strong>手动</strong>页提供的命令。应用更新或重装后请重新复制。</li>\n</ul>\n"
     },
     "tcp-ip": {
       "title": "进阶：静态端口",
-      "html": "<p>新手可跳过。已有可用的无线配对时，点击 <strong>静态端口 → 启动</strong>，按提示开启端口；若显示“通过无线调试打开静态端口”，也可使用。是否支持、端口是多少，以应用为准。</p>\n<p>开启、重启或停止端口会中断其他 ADB 连接。只在可信网络使用；停止入口在<strong>控制 → 停止</strong>。配对端口不能当作静态端口。</p>\n<p>Tango <strong>终端</strong>不能执行 <code>adb tcpip</code>。电脑配置需要支持静态端口配置的功能或工具；也可直接用上面的手动启动。</p>\n"
+      "html": "<p>配对完成后，可用<strong>静态端口 → 启动</strong>按提示开启端口。只在可信网络使用，端口以应用显示为准。</p>\n<p>打开或关闭静态端口会中断其他 ADB 连接。停止入口在<strong>控制 → 停止</strong>。配对端口不能用作静态端口，Tango 终端也不能执行 <code>adb tcpip</code>。</p>\n"
     },
     "missing-wireless": {
       "title": "找不到无线调试",
@@ -23,7 +23,7 @@ export default {
     },
     "computer-problems": {
       "title": "Tango 连不上／命令执行失败",
-      "html": "<ul>\n<li><strong>看不到手机：</strong>用最新版 Chrome／Edge，检查 USB 调试、数据线和接口。</li>\n<li><strong>等待授权：</strong>解锁手机，允许 USB 调试。</li>\n<li><strong>设备被占用：</strong>关闭其他手机助手或调试工具；仍失败参阅 <a href=\"https://help.tangoapp.dev/features/troubleshooting/\" target=\"_blank\" rel=\"noreferrer\">Tango 连接排查</a>。</li>\n<li><strong>提示找不到 adb：</strong>删掉命令开头的 <code>adb shell </code>。</li>\n<li><strong>路径不存在：</strong>重新从当前应用复制命令。</li>\n</ul>\n"
+      "html": "<ul>\n<li><strong>找不到手机：</strong>在电脑的 Chrome 或 Edge 中打开 Tango，确认 USB 调试已开启。如果手机只能充电，试试更换数据线或 USB 接口。</li>\n<li><strong>等待授权：</strong>解锁手机，在 USB 调试提示里点击<strong>允许</strong>。没有弹窗时重新插拔数据线。</li>\n<li><strong>设备被占用：</strong>关闭其他调试工具，或查阅 <a href=\"https://help.tangoapp.dev/features/troubleshooting/\" target=\"_blank\" rel=\"noreferrer\">Tango 连接排查</a>。</li>\n<li><strong>找不到 adb：</strong>在 Tango 终端里，删掉命令开头的 <code>adb shell </code>。</li>\n<li><strong>路径不存在：</strong>从应用的<strong>手动</strong>页重新复制命令。</li>\n</ul>\n"
     },
     "feature-failed": {
       "title": "已连接，但功能不能用",
@@ -31,7 +31,7 @@ export default {
     },
     "permission-restrictions": {
       "title": "解决 ADB 权限限制",
-      "html": "<p>特权服务已启动，但修改应用权限、模拟点击等操作仍可能受到厂商系统限制。\n请按设备系统查找以下设置。选项名称和位置可能随系统版本变化。</p>\n"
+      "html": "<p>有些系统会限制修改应用权限或模拟点击。按品牌查找对应设置，名称可能随系统版本变化。</p>\n"
     }
   },
   "steps": {
@@ -44,7 +44,7 @@ export default {
         },
         {
           "device": "phone",
-          "html": "在<strong>开发者选项</strong>中开启<strong>无线调试</strong>，允许当前网络。"
+          "html": "在<strong>设置</strong>中搜索<strong>无线调试</strong>，进入<strong>开发者选项</strong>并打开无线调试开关。若系统询问是否允许在当前网络上调试，请在可信网络上点击<strong>允许</strong>。"
         }
       ]
     },
@@ -61,7 +61,7 @@ export default {
         },
         {
           "device": "phone",
-          "html": "<strong>保持配对码窗口打开</strong>，下拉通知栏，在本应用的通知中输入六位配对码。"
+          "html": "<strong>保持配对码窗口打开</strong>，从屏幕顶部下拉通知栏，在本应用的配对通知中输入六位配对码。配对码过期后，重新打开配对窗口获取新码。"
         }
       ]
     },
@@ -70,7 +70,7 @@ export default {
       "actions": [
         {
           "device": "phone",
-          "html": "点击<strong>启动</strong>，确认服务显示<strong>已连接</strong>。"
+          "html": "应用提示配对成功后，返回<strong>ADB</strong>页点击<strong>启动</strong>。保持无线调试开启，等服务显示<strong>已连接</strong>，再使用应用功能。"
         }
       ]
     },
@@ -104,7 +104,7 @@ export default {
         },
         {
           "device": "computer",
-          "html": "<strong>删除开头的 <code>adb shell </code>，其余内容不变</strong>，粘贴到 Tango 终端，按回车。"
+          "html": "将命令粘贴到 Tango 终端，只删除开头的 <code>adb shell </code>，保留其余空格和引号，然后按<strong>回车</strong>。"
         },
         {
           "device": "phone",
@@ -260,9 +260,8 @@ export default {
       "仍搜索不到时，重新打开配对窗口，或换一个可信的 Wi-Fi。"
     ],
     "pairing-failed": [
-      "重新打开系统配对窗口，获取新的六位配对码。",
-      "输入“使用配对码配对设备”窗口中显示的配对码。",
-      "输入期间保持窗口打开，可使用通知栏、分屏或小窗。"
+      "重新打开「使用配对码配对设备」，获取新的六位配对码。",
+      "保持配对窗口打开，通过通知、分屏或小窗输入配对码。"
     ]
   },
   "startChecks": {

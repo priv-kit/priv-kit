@@ -48,7 +48,7 @@ internal class PrivilegeUiSimulation(
             externalStartItems = listOf(PrivilegeUiExternalStartItemState(
                 id = "simulation",
                 label = externalLabel,
-                snapshot = PrivilegeUiExternalStartSnapshot(available = true, uid = 2000, version = 1),
+                authorized = false,
                 statusLoaded = true,
             )),
         ),
@@ -171,7 +171,7 @@ internal class PrivilegeUiSimulation(
                 pendingStart = request
                 state = state.copy(busy = true, staticTcpSwitchConfirmation = PrivilegeUiStaticTcpSwitchAction.START_SERVICE)
             }
-            request is PrivilegeUiServerRestartRequest.External && !state.externalStartItems.first { it.id == request.providerId }.snapshot.authorized -> {
+            request is PrivilegeUiServerRestartRequest.External && !state.externalStartItems.first { it.id == request.providerId }.canStart -> {
                 pendingStart = request
                 state = state.copy(busy = true)
                 externalAuthorizationRequested = true
@@ -252,7 +252,7 @@ internal class PrivilegeUiSimulation(
         if (!externalAuthorizationRequested) return
         val request = pendingStart ?: return
         externalAuthorizationRequested = false
-        state = state.copy(externalStartItems = state.externalStartItems.map { it.copy(snapshot = it.snapshot.copy(authorized = true)) })
+        state = state.copy(externalStartItems = state.externalStartItems.map { it.copy(authorized = true) })
         beginStart(request)
     }
 

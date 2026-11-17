@@ -6,6 +6,9 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.joinAll
 import priv.kit.core.Privilege
+import priv.kit.core.PrivilegeExternalStartProvider
+import priv.kit.core.PrivilegeExternalStartResult
+import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.core.internal.runtime.PrivilegeContext
 import android.content.Context
 import kotlinx.coroutines.CompletableDeferred
@@ -179,13 +182,13 @@ class PrivilegeUiEffectsCoordinatorTest {
         }
     }
 
-    private class Provider : PrivilegeUiExternalStartProvider {
+    private class Provider : PrivilegeExternalStartProvider {
         override val id = "test"
-        override val label = "Test"
+        override fun getLabel(context: Context): CharSequence = "Test"
         var calls = 0
         var cancelled = 0
         var blocker: CompletableDeferred<Unit>? = null
-        override suspend fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot {
+        override suspend fun checkAuthorization(context: Context): PrivilegeExternalStartResult {
             calls++
             try {
                 blocker?.await()
@@ -193,9 +196,17 @@ class PrivilegeUiEffectsCoordinatorTest {
                 cancelled++
                 throw exception
             }
-            return PrivilegeUiExternalStartSnapshot(available = true, authorized = true)
+            return PrivilegeExternalStartResult(authorized = true)
         }
-        override suspend fun start(context: Context, commandLine: String) = Unit
+
+        override suspend fun requestAuthorization(context: Context): PrivilegeExternalStartResult =
+            error("Unexpected authorization request")
+
+        override suspend fun runStarter(
+            context: Context,
+            commandLine: String,
+            startupLogListener: PrivilegeStartupLogListener?,
+        ): String = error("Unexpected start")
     }
 
     private class Fixture(

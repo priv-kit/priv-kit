@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="priv_external_shizuku_unavailable">Shizuku is not connected</string>
+    <string name="priv_external_shizuku_unsupported">Shizuku API v13 or later is required</string>
+    <string name="priv_external_shizuku_permission_required">Shizuku permission required</string>
+    <string name="priv_external_shizuku_denied">Shizuku authorization request denied</string>
+    <string name="priv_external_shizuku_authorized">Shizuku is authorized</string>
+</resources>

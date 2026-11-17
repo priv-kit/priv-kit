@@ -1,9 +1,7 @@
 package priv.kit.ui
 
-import android.content.Context
+import priv.kit.core.PrivilegeExternalStartProvider
 import priv.kit.core.PrivilegeServerInfo
-import priv.kit.core.PrivilegeStartupException
-import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.core.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
 import priv.kit.ui.adb.pairing.PrivilegeAdbPairingIntentContract
 import priv.kit.shared.PRIVILEGE_INTERNAL_DEFAULT_ADB_AUTHORIZATION_TIMEOUT_MILLIS
@@ -18,7 +16,7 @@ public data class PrivilegeUiConfig public constructor(
         PrivilegeUiStartupMode.ADB,
         PrivilegeUiStartupMode.MANUAL_SHELL,
     ),
-    public val externalStartProviders: List<PrivilegeUiExternalStartProvider> = emptyList(),
+    public val externalStartProviders: List<PrivilegeExternalStartProvider> = emptyList(),
     public val adbDeviceName: String? = null,
     public val tcpPort: Int = PRIVILEGE_ADB_DEFAULT_TCP_PORT,
     public val adbTcpPolicy: PrivilegeUiAdbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
@@ -100,34 +98,6 @@ public data class PrivilegeUiConfig public constructor(
         const val DEFAULT_WIRELESS_STATUS_DISCOVERY_TIMEOUT_MILLIS: Long = 1_500L
         const val DEFAULT_EXTERNAL_START_STATUS_POLL_INTERVAL_MILLIS: Long = 3_000L
     }
-}
-
-public interface PrivilegeUiExternalStartProvider {
-    /** Stable identifier used to restore this provider across process restarts and app upgrades. */
-    public val id: String
-
-    public val label: CharSequence
-
-    public suspend fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot =
-        PrivilegeUiExternalStartSnapshot()
-
-    public suspend fun requestAuthorization(context: Context): PrivilegeUiExternalStartSnapshot =
-        snapshot(context)
-
-    @Throws(PrivilegeStartupException::class)
-    public suspend fun start(
-        context: Context,
-        commandLine: String,
-    )
-}
-
-public interface PrivilegeUiStreamingExternalStartProvider : PrivilegeUiExternalStartProvider {
-    @Throws(PrivilegeStartupException::class)
-    public suspend fun start(
-        context: Context,
-        commandLine: String,
-        startupLogListener: PrivilegeStartupLogListener,
-    )
 }
 
 internal data class PrivilegeUiState(

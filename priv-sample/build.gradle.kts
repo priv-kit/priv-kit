@@ -71,6 +71,7 @@ androidComponents.onVariants { variant ->
 dependencies {
     compileOnly(project(":hidden-api"))
     implementation(project(":priv-core"))
+    implementation(project(":priv-external-shizuku"))
     implementation(project(":priv-input"))
     implementation(project(":priv-evdev"))
     implementation(libs.kotlinx.serialization.json)
@@ -87,7 +88,5 @@ dependencies {
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.hiddenapibypass)
-    implementation(libs.shizuku.api)
-    implementation(libs.shizuku.provider)
     testImplementation(libs.junit)
 }

@@ -24,7 +24,7 @@ internal fun PrivilegeUiState.directStartTargets(
                 }
                 PrivilegeUiStartupMode.EXTERNAL -> {
                     externalStartItems
-                        .filter { it.snapshot.canStart }
+                        .filter { it.canStart }
                         .forEach { add(PrivilegeUiDirectStartTarget.External(it.id)) }
                 }
                 PrivilegeUiStartupMode.MANUAL_SHELL -> Unit

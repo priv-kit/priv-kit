@@ -31,6 +31,7 @@ if (!providers.environmentVariable("PRIV_KIT_SKIP_ANDROID").isPresent) {
     include(
         ":priv-shared",
         ":priv-core",
+        ":priv-external-shizuku",
         ":priv-input",
         ":priv-evdev",
         ":priv-adb-crypto",

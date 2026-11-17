@@ -122,10 +122,7 @@ class PrivilegeUiDirectStartTest {
                 PrivilegeUiExternalStartItemState(
                     id = "provider",
                     label = "Provider",
-                    snapshot = PrivilegeUiExternalStartSnapshot(
-                        available = true,
-                        authorized = true,
-                    ),
+                    authorized = true,
                 ),
             ),
         )

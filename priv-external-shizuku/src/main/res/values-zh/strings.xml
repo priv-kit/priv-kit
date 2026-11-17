@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="priv_external_shizuku_unavailable">Shizuku 未连接</string>
+    <string name="priv_external_shizuku_unsupported">需要 Shizuku API v13 或更高版本</string>
+    <string name="priv_external_shizuku_permission_required">需要 Shizuku 授权</string>
+    <string name="priv_external_shizuku_denied">Shizuku 授权申请被拒绝</string>
+    <string name="priv_external_shizuku_authorized">Shizuku 已授权</string>
+</resources>

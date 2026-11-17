@@ -19,7 +19,7 @@
 .method-card strong { font-size: 21px; }
 .method-card > span:not(.method-symbol) { font-size: 14px; color: var(--vp-c-text-2); }
 .method-card b { font-size: 14px; color: var(--g-brand); margin-top: auto; }
-.method-symbol { display: grid; place-items: center; width: 40px; height: 40px; font-size: 30px; border-radius: 12px; background: var(--g-soft); color: var(--g-brand); }
+.method-symbol { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--g-soft); color: var(--g-brand); }
 .step-nav { position: sticky; top: 64px; z-index: 5; display: flex; overflow-x: auto; gap: 6px; padding: 10px 0; margin: 24px 0; background: var(--vp-c-bg); border-bottom: 1px solid var(--g-border); }
 .step-nav button { flex-shrink: 0; font-size: 13px; padding: 8px 12px; border-radius: 8px; }
 .step-nav button[aria-current] { background: var(--vp-c-brand-soft); color: var(--g-brand); }

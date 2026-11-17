@@ -4,12 +4,11 @@ description: Run commands and read their output.
 
 # Commands {#commands}
 
-The command API executes an argument list directly in the connected server, returning stdout and stderr separately.
+Run a command in the connected server and read stdout and stderr separately.
 
 ## Start a process {#start-process}
 
-`Privilege.startCommand` suspends until the remote process starts and returns a single-use
-`PrivilegeCommandProcess`:
+Pass the executable and its arguments directly. To use shell syntax, explicitly invoke `/system/bin/sh -c`.
 
 ```kotlin
 val process = Privilege.startCommand(
@@ -21,8 +20,6 @@ val process = Privilege.startCommand(
 )
 ```
 
-The executable is the first argument. To opt into shell parsing, pass the shell explicitly:
-
 ```kotlin
 val process = Privilege.startCommand(
     PrivilegeCommand(
@@ -33,8 +30,7 @@ val process = Privilege.startCommand(
 
 ## Read output {#consume-once}
 
-A process permits exactly one output-consumption path. Use `awaitResult()` when output is needed
-only after exit:
+Choose `awaitResult()` for captured output or `stream()` for live output. Each process permits one consumer.
 
 ```kotlin
 val result = process.use { it.awaitResult() }
@@ -42,10 +38,6 @@ println(result.exitCode)
 println(result.stdout.toString(Charsets.UTF_8))
 println(result.stderr.toString(Charsets.UTF_8))
 ```
-
-Each stream is capped at 1 MiB by default. Excess output is drained but not retained; `stdoutTruncated` or `stderrTruncated` indicates truncation. Set a positive `maxBytesPerStream` to change the limit.
-
-Use `stream()` for live output:
 
 ```kotlin
 process.use {
@@ -59,25 +51,12 @@ process.use {
 }
 ```
 
-The flow can be collected once. Byte chunks preserve order within their own stream but are not
-lines or text boundaries; use an incremental decoder when displaying UTF-8. The exit event is
-always last, after both output pipes reach EOF. A nonzero exit code is a normal exit event.
+Captured output defaults to 1 MiB per stream. Check `stdoutTruncated` and `stderrTruncated` or change `maxBytesPerStream`. Live output arrives in byte chunks, so use incremental decoding for text. A nonzero exit code is returned as a result.
 
 ## Timeout and cancellation {#timeout-cancellation}
 
-The default timeout is a fixed 30-second deadline from remote process startup. Pass a longer value for slow commands or `null` to disable the deadline. Cancelling stream
-collection, cancelling `awaitResult`, calling `cancel()` or `close()`, owner death, and server
-shutdown terminate unfinished commands.
-
-Up to four commands run concurrently; additional starts fail immediately.
-
-Command execution failures use `IOException`. A configured deadline expiring throws
-`PrivilegeCommandTimeoutException`, an `IOException` with `timeoutMillis`.
-Coroutine cancellation and Binder transport failures retain their own exception types.
-Executor death reaches the caller as `DeadObjectException`, including during `stream()`
-collection or `awaitResult()`. Wrap the operation with `PrivilegeBinderCall.orElse(...)`
-when an explicit fallback is appropriate.
+The default deadline is 30 seconds. Set a longer timeout or pass `null` to disable it. Cancellation, closing the handle, owner death, or server shutdown terminates an unfinished command. A deadline throws `PrivilegeCommandTimeoutException`.
 
 ## Limits {#limits}
 
-No stdin, PTY, interactive shell, or daemon management is provided. Programs may buffer output to pipes, so streamed data can still arrive in batches.
+At most four commands can run at once. The API supports non-interactive commands with no stdin or PTY.

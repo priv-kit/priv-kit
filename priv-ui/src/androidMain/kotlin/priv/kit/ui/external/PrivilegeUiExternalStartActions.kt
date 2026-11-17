@@ -9,6 +9,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import priv.kit.core.PrivilegeExternalStartProvider
+import priv.kit.core.PrivilegeExternalStartResult
 import priv.kit.core.internal.runtime.PrivilegeRuntimeClientLaunch
 import priv.kit.core.internal.runtime.PrivilegeRuntimeStartCoordinator
 import kotlin.time.Duration.Companion.milliseconds
@@ -41,9 +43,7 @@ internal class PrivilegeUiExternalStartActions(
         store.config.externalStartProviders.filter { providerId == null || it.id == providerId }
             .forEach { provider ->
                 statusRefreshes.getValue(provider.id).run {
-                    val snapshot = provider.snapshotOrFailure(context)
-                    store.setExternalStartSnapshot(provider.id, snapshot)
-                    if (snapshot.exceptionText.isNotBlank()) store.appendStartupLog(snapshot.exceptionText)
+                    checkAuthorization(provider, context)
                 }
             }
         return true
@@ -59,27 +59,22 @@ internal class PrivilegeUiExternalStartActions(
             if (store.state.value.busy) return
             val context = store.requireContext()
             val provider = store.config.externalStartProviders.firstOrNull { it.id == providerId } ?: return
-            val snapshot = provider.snapshotOrFailure(context)
-            store.setExternalStartSnapshot(provider.id, snapshot)
-            if (!snapshot.canStart) {
-                val requested = try {
+            val checked = readAuthorization(provider.id) { provider.checkAuthorization(context) }
+            if (checked.getOrNull()?.authorized != true) {
+                val requested = readAuthorization(provider.id) {
                     systemPromptCoordinator.withPrompt(
-                        privilegeUiExternalAuthorizationPrompt(provider.label),
+                        privilegeUiExternalAuthorizationPrompt(store.externalStartLabel(provider.id)),
                     ) {
                         provider.requestAuthorization(context)
                     }
-                } catch (exception: CancellationException) {
-                    throw exception
-                } catch (throwable: Throwable) {
-                    PrivilegeUiExternalStartSnapshot(
-                        message = throwable.failureMessage(),
-                        exceptionText = throwable.toPrivilegeUiDiagnosticString(),
-                    )
                 }
-                store.setExternalStartSnapshot(provider.id, requested)
-                if (!requested.canStart) {
-                    if (requested.message.isNotBlank()) store.appendStartupLog(requested.message.toString())
-                    if (requested.exceptionText.isNotBlank()) store.appendStartupLog(requested.exceptionText)
+                if (requested.getOrNull()?.authorized != true) {
+                    requested.onSuccess { result ->
+                        result.message?.let { store.appendStartupLog(it.toString()) }
+                    }.onFailure { throwable ->
+                        store.appendStartupLog(throwable.failureMessage())
+                        store.appendStartupLog(throwable.toPrivilegeUiDiagnosticString())
+                    }
                     return
                 }
             }
@@ -94,15 +89,12 @@ internal class PrivilegeUiExternalStartActions(
         if (PrivilegeUiStartGate.isSilentStartInProgress) return null
         val context = store.requireContext()
         val provider = store.config.externalStartProviders.firstOrNull { it.id == providerId } ?: return null
-        val snapshot = provider.snapshotOrFailure(context)
-        store.setExternalStartSnapshot(provider.id, snapshot)
-        if (snapshot.exceptionText.isNotBlank()) store.appendStartupLog(snapshot.exceptionText)
-        if (!snapshot.canStart) return null
+        if (checkAuthorization(provider, context) != true) return null
         return externalStartAttempt(provider, context)
     }
 
     private fun startExternal(
-        provider: PrivilegeUiExternalStartProvider,
+        provider: PrivilegeExternalStartProvider,
         context: Context,
         replaceConnectedServer: Boolean,
     ): Boolean = runtimeActions.runServerStartRequest(
@@ -111,39 +103,44 @@ internal class PrivilegeUiExternalStartActions(
     )
 
     private fun externalStartAttempt(
-        provider: PrivilegeUiExternalStartProvider,
+        provider: PrivilegeExternalStartProvider,
         context: Context,
     ): PrivilegeUiRuntimeStartAttempt.Request =
         PrivilegeUiRuntimeStartAttempt.Request(
             progressText = store.resourceText(R.string.priv_ui_external_starting),
             startedText = store.resourceText(R.string.priv_ui_external_start_requested),
-            startupSource = provider.label.toString(),
+            startupSource = store.externalStartLabel(provider.id).toString(),
             runtimeStartSource = PrivilegeUiRuntimeStartSource.EXTERNAL,
             runtimeStartProviderId = provider.id,
         ) {
             val commandLine = createNativeStarterCommand(requireRuntimeClientLaunch())
-            if (provider is PrivilegeUiStreamingExternalStartProvider) {
-                provider.start(
-                    context = context,
-                    commandLine = commandLine,
-                    startupLogListener = startupLogListener,
-                )
-            } else {
-                provider.start(context, commandLine)
-            }
+            provider.runStarter(
+                context = context,
+                commandLine = commandLine,
+                startupLogListener = startupLogListener,
+            )
         }
 
-    private suspend fun PrivilegeUiExternalStartProvider.snapshotOrFailure(
+    private suspend fun checkAuthorization(
+        provider: PrivilegeExternalStartProvider,
         context: Context,
-    ): PrivilegeUiExternalStartSnapshot = try {
-        snapshot(context)
-    } catch (exception: CancellationException) {
-        throw exception
-    } catch (throwable: Throwable) {
-        PrivilegeUiExternalStartSnapshot(
-            message = throwable.failureMessage(),
-            exceptionText = throwable.toPrivilegeUiDiagnosticString(),
-        )
+    ): Boolean? = readAuthorization(provider.id) { provider.checkAuthorization(context) }
+        .onFailure { store.appendStartupLog(it.toPrivilegeUiDiagnosticString()) }
+        .getOrNull()?.authorized
+
+    private suspend fun readAuthorization(
+        providerId: String,
+        read: suspend () -> PrivilegeExternalStartResult,
+    ): Result<PrivilegeExternalStartResult> {
+        val result = try {
+            Result.success(read())
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (throwable: Throwable) {
+            Result.failure(throwable)
+        }
+        store.setExternalStartAuthorization(providerId, result.getOrNull()?.authorized)
+        return result
     }
 
 }

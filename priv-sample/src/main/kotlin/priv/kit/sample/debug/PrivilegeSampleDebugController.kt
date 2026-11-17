@@ -1,21 +1,18 @@
 package priv.kit.sample.debug
 
 import androidx.activity.ComponentActivity
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import priv.kit.external.shizuku.PrivilegeExternalShizuku
 import priv.kit.sample.R
 import priv.kit.sample.startup.PrivilegeSampleNotificationPairingController
-import rikka.shizuku.Shizuku
 
 internal class PrivilegeSampleDebugController(
     override val activity: ComponentActivity,
     override val debugViewModel: PrivilegeSampleDebugViewModel,
 ) : PrivilegeSampleDebugHost {
     private var initialized = false
-    private val shizukuBinderReceivedListener = Shizuku.OnBinderReceivedListener {
-        refreshShizukuStatus(append = false)
-    }
-    private val shizukuBinderDeadListener = Shizuku.OnBinderDeadListener {
-        handleShizukuBinderDead()
-    }
     private val notificationPairingController = PrivilegeSampleNotificationPairingController(
         activity = activity,
         ownerId = { debugViewModel.notificationPairingOwnerId },
@@ -50,9 +47,10 @@ internal class PrivilegeSampleDebugController(
         if (initialized) return
         initialized = true
         try {
-            Shizuku.addBinderReceivedListenerSticky(shizukuBinderReceivedListener)
-            Shizuku.addBinderDeadListener(shizukuBinderDeadListener)
             initializePrivilegeSample()
+            debugViewModel.shizukuWatcherJob = debugViewModel.viewModelScope.launch {
+                PrivilegeExternalShizuku.connected.collectLatest { refreshShizukuStatus() }
+            }
             notificationPairingController.startObserving()
         } catch (throwable: Throwable) {
             dispose()
@@ -62,15 +60,13 @@ internal class PrivilegeSampleDebugController(
 
     fun onHostResumed() {
         if (initialized) {
-            handleShizukuHostVisible()
+            debugViewModel.viewModelScope.launch { refreshShizukuStatus() }
         }
     }
 
     fun dispose() {
         if (!initialized) return
         initialized = false
-        Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
-        Shizuku.removeBinderDeadListener(shizukuBinderDeadListener)
         debugViewModel.closeHostObservers()
         notificationPairingController.dispose()
     }

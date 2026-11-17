@@ -38,7 +38,7 @@ internal fun PrivilegeUiScreenScope.ExternalStartPanel() {
                         fontWeight = FontWeight.SemiBold,
                     )
                     if (item.statusLoaded) {
-                        StatusText(item.snapshot.externalStartStatusText())
+                        StatusText(item.externalStartStatusText())
                     }
                 }
                 Button(
@@ -61,7 +61,7 @@ internal fun PrivilegeUiScreenScope.ExternalStartPanel() {
                         stringResource(
                             privilegeUiStartActionLabel(
                                 action = action,
-                                startLabel = if (item.snapshot.canStart) {
+                                startLabel = if (item.canStart) {
                                     Res.string.priv_ui_external_start
                                 } else {
                                     Res.string.priv_ui_external_authorize_start

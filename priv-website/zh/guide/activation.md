@@ -4,56 +4,35 @@ description: 优先使用 Privilege UI，或通过 priv-core 构建自定义授�
 
 # 启动方式 {#startup-methods}
 
-使用应用时遇到启动或配对问题？请阅读[启动使用教程](./startup-tutorial)。
-
-各方式都启动应用自己的 Privileged Server 并返回 Binder，区别在于如何获得特权进程。
+如果你正在使用某个应用，请看[启动教程](./startup-tutorial)。本页面向在 Android 应用中接入特权服务的开发者。
 
 ## 优先使用 Privilege UI {#privilege-ui}
 
-嵌入 `PrivilegeScaffold` 即可使用启动、权限请求、配对、确认和错误提示，见 [Privilege UI](./priv-ui)。
-
-下面的 API 只面向需要替换自带授权页面的应用。
+使用 [Privilege UI](./priv-ui) 接入 Compose 启动页，页面负责启动、配对和权限提示。
 
 ## 使用 priv-core 构建自定义界面 {#priv-core-custom-interface}
 
-使用 `priv-core` 时，应用自行实现权限请求、配对输入、确认、状态检查和错误展示。
+如果由你的应用负责授权、配对和错误提示，可以直接使用下面的 API。
 
 ### 监听连接状态 {#connection-state}
 
-`Privilege.serverState` 是进程级的 `StateFlow<PrivilegeServerInfo?>`。
-非 `null` 表示 Privileged Server 已连接，`null` 表示已断开。每个新的收集者
-都会立即收到当前值。
-
-`PrivilegeServerInfo` 描述连接。`selinuxContext` 按服务端进程缓存，仅用于诊断，无法读取时为 `null`。
+`Privilege.serverState` 是 `StateFlow<PrivilegeServerInfo?>`。非空表示已连接。连接变化时，重新获取绑定到服务端的资源。
 
 #### 应用级持续监听 {#application-observation}
 
-连接变化需要在应用进程存活期间持续触发工作时，在 Application 创建的协程
-作用域中收集：
+需要在页面退出后继续监听时，从应用级协程作用域收集状态。
 
 ```kotlin
-val appScope = MainScope()
-
-class App : Application() {
-    override fun onCreate() {
-        super.onCreate()
-
-        appScope.launch {
-            Privilege.serverState.collect { serverInfo ->
-                if (serverInfo != null) {
-                    // 已连接，初始化应用级特权功能。
-                } else {
-                    // 已断开，暂停依赖服务端的功能。
-                }
-            }
-        }
+appScope.launch {
+    Privilege.serverState.collect { serverInfo ->
+        updatePrivilegedFeatures(serverInfo)
     }
 }
 ```
 
 #### 页面级状态展示 {#screen-state}
 
-Compose 页面只需展示当前状态时，使用生命周期感知的收集方式：
+在 Compose 中按页面生命周期收集。
 
 ```kotlin
 val serverInfo by Privilege.serverState.collectAsStateWithLifecycle()
@@ -61,8 +40,7 @@ val serverInfo by Privilege.serverState.collectAsStateWithLifecycle()
 
 ### 协调 owner 进程重启 {#owner-process-restart}
 
-应用主动重启 owner 进程时，先安排自己的重启任务，再在结束进程前立即通知已经连接的
-服务端：
+先安排应用重启，再在退出前通知已连接的服务端。宿主退出后，服务端会等待应用返回，等待超时后恢复主动重连。
 
 ```kotlin
 scheduleApplicationRestart()
@@ -72,14 +50,9 @@ Privilege.prepareOwnerRestart(
 Process.killProcess(Process.myPid())
 ```
 
-调用等待服务端确认。计划仅匹配五秒内的 owner 死亡，且不计入 crash-loop。服务端先按指定时间被动等待，再在 `followDeathDelayMillis` 剩余时间内恢复配置的主动重连。等待时间应足够应用完成重启。
-
 ### 检查服务端被拒绝的权限 {#denied-server-permissions}
 
-内置界面的**查看受限权限**展示可选择、复制的列表，返回页面时刷新。
-
-服务端连接后，自定义界面可以读取其 UID 关联包已经声明、但服务端进程实际未获授予的
-权限：
+内置界面可点「查看受限权限」。自定义界面可以在连接后查询。
 
 ```kotlin
 val deniedPermissions = withContext(Dispatchers.IO) {
@@ -87,38 +60,11 @@ val deniedPermissions = withContext(Dispatchers.IO) {
 }
 ```
 
-结果去重、排序并过滤系统未定义的权限。Root 返回空列表；非 Root 的关联包查询失败会报错。
-
-实际访问还受 AppOps、SELinux 和服务内部规则影响。检查单项 Android 权限使用 `Privilege.checkServerPermission(permission)`。
+结果是被拒绝的 Manifest 权限。AppOps、SELinux 和具体系统服务也可能限制访问。检查单项权限用 `Privilege.checkServerPermission(permission)`。
 
 #### Redmi K40 实测示例 {#denied-permissions-device-example}
 
-以下结果来自同一台设备，以 Shell 身份（UID `2000`）运行服务端：
-
-| 项目 | 实测环境 |
-| --- | --- |
-| 设备市场名 | Redmi K40（型号 `M2012K11AC`） |
-| 系统名称与版本 | Xiaomi HyperOS 1.0（小米澎湃 OS），`OS1.0.10.0.TKHCNXM` |
-| Android 版本 | Android 13（API 33） |
-
-连接服务端后，在协程中调用并按行输出：
-
-```kotlin
-val deniedPermissions = withContext(Dispatchers.IO) {
-    Privilege.getDeniedServerPermissions()
-}
-println(deniedPermissions.joinToString("\n"))
-```
-
-以下两组结果分别对应这个开关的开启和关闭：
-
-**开发者选项 - USB调试（安全设置） / 允许通过USB调试修改权限或模拟点击**。
-
-切换开关后，再次调用即可读取当前结果，无需重启特权进程。
-
-**关闭安全限制（开启“USB调试（安全设置）”）时：返回空列表，0 项权限被拒绝。**
-
-**开启安全限制（关闭“USB调试（安全设置）”）时：有 14 项权限被拒绝。**
+在运行 Android 13 / HyperOS 1.0 的 Redmi K40 上，关闭「USB 调试（安全设置）」时，查询返回了 Shell 被拒绝的以下 14 项权限。
 
 ```text
 android.permission.CALL_PHONE
@@ -137,30 +83,27 @@ android.permission.WRITE_SECURE_SETTINGS
 android.permission.WRITE_SETTINGS
 ```
 
-该列表仅代表此设备和系统版本被拒绝的权限，应用应实时查询。
+打开该设置后，查询返回空列表。切换设置后可重新查询。参见[各机型权限设置](./permission-restrictions)。
 
 ### Root {#root}
+
+在已获取 root 的设备上启动，如有提示，在 root 管理器中授权。
 
 ```kotlin
 val serverInfo = Privilege.startRoot()
 ```
 
-Root 启动会检查可用 `su` 路径，执行共享服务端命令，然后等待服务端建立 Binder
-连接。
-
 ### ADB {#adb}
 
-ADB 有两种模式：无线调试和 TCP/IP 静态端口。
+可以使用无线调试发现和配对，也可以连接固定的 TCP/IP 端口。
 
 #### 无线调试 {#wireless-debugging}
 
-无线调试要求 Android 11 或更高版本。Priv Kit 会为应用保存一组 ADB 密钥，设备
-授权这组密钥后，应用才能通过无线调试启动 Privileged Server。
+需要 Android 11 或更高版本。系统要求本地网络权限时，先申请 `ACCESS_LOCAL_NETWORK`。
 
 ##### 配对应用 {#pairing}
 
-让用户打开“开发者选项 > 无线调试 > 使用配对码配对设备”。配对页面保持打开时，
-将页面显示的六位配对码传给 `PrivilegeAdbManager.pair()`：
+打开「开发者选项 > 无线调试 > 使用配对码配对设备」，在配对页面仍打开时提交六位配对码。
 
 ```kotlin
 val adbManager = Privilege.createAdbManager()
@@ -170,58 +113,25 @@ val pairingResult = adbManager.pair(
 )
 ```
 
-`pair()` 默认自动发现无线调试的配对端口。应用已经取得端口时，可以直接传入：
-
-```kotlin
-val pairingPort = adbManager.discoverPairingPort()
-
-adbManager.pair(
-    pairingCode = pairingCode,
-    port = pairingPort,
-)
-```
-
-使用 `checkPairing()` 检查应用保存的 ADB 密钥是否已经获得授权：
-
-```kotlin
-val pairing = adbManager.checkPairing()
-if (!pairing.paired) {
-    // 启动前展示配对流程。
-}
-```
-
-需要反复检查状态时，使用 `openPairingCheckSession()` 保持同一条连接，并在停止
-检查时关闭会话。
+用 `adbManager.checkPairing()` 查询应用密钥是否已授权。
 
 ##### 通过无线调试启动 {#wireless-debugging-start}
+
+配对成功后启动服务端。
 
 ```kotlin
 val serverInfo = Privilege.startAdb()
 ```
 
-`pair()` 成功后，调用 `startAdb()` 启动服务端。
-
-如果应用仍然声明并已经持有 `WRITE_SECURE_SETTINGS`，默认值
-`PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE` 可以临时打开无线调试、发现
-连接端口，并在启动尝试结束后关闭无线调试。`NEVER` 会保持设置不变，`REQUIRE` 将
-托管无线调试作为启动前提。
-
-Privileged Server 连接成功后，如果 `WRITE_SECURE_SETTINGS` 仍被声明，且服务端
-是 Root 或拥有 `android.permission.GRANT_RUNTIME_PERMISSIONS`，运行时会尝试
-向应用授予 `WRITE_SECURE_SETTINGS`。缺少这项能力时，用户需要在发现端口前手动
-打开无线调试。
-
-在需要申请本地网络访问权限的 Android 版本上，直接使用 `priv-core` 的应用需要
-在配对或启动前请求 `ACCESS_LOCAL_NETWORK`。
+应用已持有 `WRITE_SECURE_SETTINGS` 并使用托管无线调试时可以自动切换开关，否则请让用户保持无线调试开启。设置 `wirelessDebuggingControl = NEVER` 可由用户管理开关。
 
 #### TCP/IP 启动 {#tcp-ip}
 
-TCP/IP 启动连接固定的本机 ADB 端口，不发现无线调试的动态连接端口。默认静态
-端口由 `PRIVILEGE_ADB_DEFAULT_TCP_PORT` 提供。
+使用固定本地端口，例如 `PRIVILEGE_ADB_DEFAULT_TCP_PORT`。
 
 ##### 打开或恢复静态端口 {#tcp-ip-setup}
 
-尚未配置端口时，通过一条已经授权的 ADB 连接切换到 TCP/IP 模式：
+打开静态端口需要已有授权的 ADB 连接。切换可能中断其他 ADB 会话，先让用户确认。
 
 ```kotlin
 val tcpPort = PRIVILEGE_ADB_DEFAULT_TCP_PORT
@@ -230,35 +140,9 @@ val adbManager = Privilege.createAdbManager()
 adbManager.switchToTcp(tcpPort = tcpPort)
 ```
 
-`switchToTcp()` 需要一条已经授权的无线调试或现有 TCP 连接，用于执行
-`adb tcpip`。打开或重启静态端口会影响其他依赖 ADB 的进程，自定义界面在调用前
-展示自己的确认交互。
-已经知道当前 ADB 连接使用的端口时，通过
-`options = PrivilegeAdbConnectionOptions(port = sourcePort)` 直接传入。
-
-之前已经配置静态端口时，启动前先检查并恢复该端口：
-
-```kotlin
-val authorization = adbManager.prepareTcpForStart(tcpPort = tcpPort)
-```
-
-`prepareTcpForStart()` 会检查端口。如果已保存的端口匹配，但 `adbd` 已停止监听，
-且应用能够控制 ADB，Priv Kit 可以恢复核心 ADB 服务。这个操作不会打开
-无线调试。
-
-如果结果是 `PrivilegeAdbAuthorizationStatus.UNAUTHORIZED`，请求授权并等待用户
-在系统弹窗中确认：
-
-```kotlin
-val request = adbManager.requestTcpAuthorization(tcpPort = tcpPort)
-check(request.authorized) {
-    request.failureMessage ?: "ADB 授权未完成"
-}
-```
+端口已配置时，先调用 `prepareTcpForStart(tcpPort)`。如果返回 `UNAUTHORIZED`，调用 `requestTcpAuthorization(tcpPort)` 并等待用户确认。
 
 ##### 通过静态端口启动 {#tcp-ip-start}
-
-指定 `port` 后直接连接该端口：
 
 ```kotlin
 val serverInfo = Privilege.startAdb(
@@ -268,13 +152,11 @@ val serverInfo = Privilege.startAdb(
 )
 ```
 
-只需检查一次授权状态时使用 `checkTcpAuthorization()`，需要反复检查时使用
-`openTcpAuthorizationCheckSession()`。`stopTcp(tcpPort)` 用于停止静态端口，
-`restartTcp(tcpPort)` 使用同一端口重启。两者都可以传入
-`PrivilegeAdbConnectionOptions`；它们优先连接静态端口，并且只会在控制命令尚未
-发送时回退到其它连接。
+只想查询授权时，调用 `checkTcpAuthorization(tcpPort)`。
 
 ### 手动 {#manual}
+
+生成命令交给用户在电脑上执行。首次读取命令应在后台线程进行。
 
 ```kotlin
 val nativeStarterCommand = withContext(Dispatchers.IO) {
@@ -283,111 +165,21 @@ val nativeStarterCommand = withContext(Dispatchers.IO) {
 YourApp.showCommandToUser("adb shell $nativeStarterCommand")
 ```
 
-`Privilege.nativeStarterCommand` 返回设备端命令，在电脑终端使用时添加 `adb shell`。首次读取需检查 APK，应放在工作线程。命令支持 root（0）、system（1000）和 shell（2000），非 0 用户会携带 owner user ID。见[原生库打包](./getting-started#native-library-packaging)。
-
-再次执行会结束当前包和 Android 用户的旧服务端，确认退出后再启动新进程。停止失败则不创建新进程，其他用户的服务端不受影响。
-
-Android 10 及以上版本使用现代打包时，实际命令可能如下：
-
-```shell
-adb shell /system/bin/linker64 '/data/app/.../base.apk!/lib/arm64-v8a/libprivkitstarter.so'
-```
-
-使用旧式打包时，命令如下：
-
-```shell
-adb shell /data/app/~~-YKUdRFBwGAwYBVzJRt7pA==/priv.kit.sample.debug-A-2guZlsvRZ-9e6xF-K0kQ==/lib/arm64/libprivkitstarter.so
-```
+再次运行命令会替换同一应用和 Android 用户的旧服务端。参见 [native 库打包](./getting-started#native-library-packaging)。
 
 ### 外部 {#external}
 
-外部启动通过授权器的特权进程执行同一条 native 命令。
+通过已获授权的 root、system 或 shell 进程执行启动协调器给出的命令。自定义授权器可使用 `PrivilegeExternalStartup.runThroughBridge()` 和 `PrivilegeExternalStartupHost`。
 
-授权器需以 root、system 或 shell 执行命令，应用负责授权、绑定和访问控制。下面使用已完成授权的 Shizuku UserService。
+#### Shizuku {#shizuku-v13}
 
-#### 定义 UserService {#define-user-service}
+使用内置页面时见[添加 Shizuku](./priv-ui#shizuku)。需要 Shizuku API v13 或更高版本。从官方客户端迁移时，移除原 Manifest Provider 以及 `dev.rikka.shizuku:api` 和 `dev.rikka.shizuku:provider` 依赖。
 
-通过应用定义的 AIDL 接口，把命令、标准输出、错误输出和完成回调传入 Shizuku
-UserService：
-
-```java
-interface IPrivilegeShizukuStartService {
-    void start(
-        String commandLine,
-        in ParcelFileDescriptor stdout,
-        in ParcelFileDescriptor stderr,
-        in ResultReceiver resultReceiver
-    ) = 1;
-    void destroy() = 16777114;
-}
-```
-
-使用 `PrivilegeExternalStartupHost` 实现 UserService：
-
-```kotlin
-class PrivilegeShizukuStartService @Keep constructor() :
-    IPrivilegeShizukuStartService.Stub() {
-    private val host = PrivilegeExternalStartupHost()
-
-    override fun start(
-        commandLine: String,
-        stdout: ParcelFileDescriptor,
-        stderr: ParcelFileDescriptor,
-        resultReceiver: ResultReceiver,
-    ) {
-        host.start(commandLine, stdout, stderr, resultReceiver)
-    }
-
-    override fun destroy() {
-        host.close()
-        exitProcess(0)
-    }
-}
-```
-
-#### 绑定 UserService 并启动 {#bind-user-service}
-
-为 Shizuku UserService 设置固定的 tag。实现或 AIDL 接口不再兼容时修改
-version：
-
-```kotlin
-val args = Shizuku.UserServiceArgs(
-    ComponentName(
-        context.packageName,
-        PrivilegeShizukuStartService::class.java.name,
-    ),
-)
-    .daemon(false)
-    .tag("priv-kit-external-start")
-    .processNameSuffix("priv-kit-shizuku-start")
-    .version(1)
-
-Shizuku.bindUserService(args, serviceConnection)
-```
-
-`ServiceConnection` 返回 AIDL 接口后，把它的 `start()` 方法传给 Priv Kit：
-
-```kotlin
-val nativeStarterCommand = withContext(Dispatchers.IO) {
-    Privilege.nativeStarterCommand
-}
-
-PrivilegeExternalStartup.runThroughBridge(
-    commandLine = nativeStarterCommand,
-    bridge = { commandLine, stdout, stderr, resultReceiver ->
-        shizukuService.start(commandLine, stdout, stderr, resultReceiver)
-    },
-)
-```
-
-请求结束后通过 `Shizuku.unbindUserService(...)` 关闭连接。完整实现见 sample：
-[Starter](https://github.com/priv-kit/priv-kit/blob/main/priv-sample/src/main/kotlin/priv/kit/sample/startup/PrivilegeSampleShizukuExternalStarter.kt)、
-[UserService 实现](https://github.com/priv-kit/priv-kit/blob/main/priv-sample/src/main/kotlin/priv/kit/sample/startup/PrivilegeSampleShizukuStartService.kt)
-和 [AIDL 接口](https://github.com/priv-kit/priv-kit/blob/main/priv-sample/src/main/aidl/priv/kit/sample/startup/IPrivilegeSampleShizukuStartService.aidl)。
+自定义界面可添加与 Core 同版本的 `priv-external-shizuku`。用 `PrivilegeExternalShizuku.status()` 检查状态，用户操作时申请授权，再把启动协调器给出的命令传给 `PrivilegeExternalShizuku.runStarter()`。
 
 ## 崩溃日志 {#crash-logs}
 
-在应用初始化阶段配置目录列表，早于启动服务端。
+在 `Application` 中设置输出目录，然后启动服务端。
 
 ```kotlin
 val internalCrashDir = File(context.filesDir, "privilege-crashes").apply { mkdirs() }
@@ -397,28 +189,9 @@ PrivilegeConfig.crashLogDirectories = listOfNotNull(
 )
 ```
 
-宿主创建各个目录并提供绝对路径。记录器按顺序尝试写入，首次成功即停止。列表为空或全部
-写入失败时，记录器创建并尝试 `/data/local/tmp/priv-kit/<appId>/<userId>/crashes/`。
-实际写入受文件系统和 SELinux 权限限制。
+这些目录无法写入时，服务端会尝试 `/data/local/tmp/priv-kit/<appId>/<userId>/crashes/`。可在后台线程用 `Privilege.listFallbackCrashLogFiles()` 查找回退报告，断线时也能调用。文件访问和清理由应用负责。
 
-应用内启动时传递目录列表。手动启动通过 owner 握手接收列表，已有服务端也在握手时刷新列表。
-独立 UserService 在业务构造函数执行前继承启动时的列表，并在本次运行中使用该列表。
-
-Java/Kotlin 致命异常会生成一个 UTF-8 JSON 文件，文件名为
-`priv-crash_uid<uid>_<yyyyMMddHHmmss>.json`。每个目录由单个应用和 Android 用户使用。
-文件名使用设备本地时区的崩溃时间，精确到秒，假定同一应用、用户和 UID 每秒最多一次崩溃。进程类型、PID 和毫秒时间戳保留在 JSON 中。
-记录器先写入 `.json.tmp` 临时文件，同步并关闭后原子重命名。宿主只扫描 `.json`，
-中途退出可能留下临时文件。宿主负责扫描和清理。调用 `Privilege.listFallbackCrashLogFiles()`
-可获取当前应用的兜底报告，返回绝对路径的 `File`。特权服务断开时也可以调用。该方法在
-调用线程上以应用身份执行阻塞式 I/O，打开或遍历目录失败时会尝试读取 `crashes/index.txt`。目录不存在，
-或成功列出但没有报告时返回空列表。两种列出方式都失败时抛出 `IOException`。
-
-兜底日志落盘后，记录器将文件名作为一行 UTF-8 文本追加到索引。索引写入失败时，
-已落盘的报告仍可通过目录扫描找到。能否打开返回的文件取决于文件系统和 SELinux 权限。
-
-日志对应公开的 `@Serializable` 数据类 `PrivilegeCrashLog`。Core 暴露
-`kotlinx-serialization-core` 和生成的序列化器，内部使用 Android `JSONObject` 写入。
-宿主需要用 Kotlin JSON 解码时，自行添加 `kotlinx-serialization-json`：
+添加 `kotlinx-serialization-json` 后，可以把报告读成 `PrivilegeCrashLog`。
 
 ```kotlin
 val json = Json { ignoreUnknownKeys = true }
@@ -428,8 +201,4 @@ if (report.schemaVersion == 1) {
 }
 ```
 
-字段包括宿主包名和 Android userId、特权进程 UID/PID 与类型、可空的服务类名、
-记录器初始化和崩溃时刻（Unix 毫秒时间戳）、线程名、异常类型、可空的异常消息，以及
-包含 cause 和 suppressed 异常的完整堆栈。不包含崩溃前的 Logcat。所有目录都写入失败时，
-记录器将原始异常和写入错误输出到 Logcat，进程随后退出。启动配置解析前的失败、Native 崩溃和
-`SIGKILL` 不在覆盖范围内。
+报告记录 Java/Kotlin 未捕获异常。

@@ -1,6 +1,7 @@
 package priv.kit.ui
 
 import android.content.Context
+import android.content.res.Configuration
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -21,10 +22,14 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import priv.kit.core.PrivilegeExternalStartProvider
+import priv.kit.core.PrivilegeExternalStartResult
+import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.ui.external.PrivilegeUiExternalStartActions
 import priv.kit.ui.runtime.PrivilegeUiRuntimeActions
 import priv.kit.ui.runtime.PrivilegeUiStartGate
 import priv.kit.ui.state.PrivilegeUiViewModelStore
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -32,10 +37,18 @@ import kotlin.time.Duration.Companion.milliseconds
 @Config(sdk = [36])
 class PrivilegeUiExternalStartActionsTest {
     @Test
+    @Config(qualifiers = "en")
     fun authorizationCallHoldsInteractivePermitUntilProviderReturns() = runBlocking {
         val provider = BlockingAuthorizationExternalStartProvider()
         val config = PrivilegeUiConfig(externalStartProviders = listOf(provider))
-        val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication(), config)
+        val application = RuntimeEnvironment.getApplication()
+        val store = PrivilegeUiViewModelStore(application, config)
+        assertEquals("Start", store.externalStartLabel(provider.id).toString())
+        val chineseContext = application.createConfigurationContext(
+            Configuration(application.resources.configuration).apply { setLocale(Locale.SIMPLIFIED_CHINESE) },
+        )
+        store.refreshExternalStartLabels(chineseContext)
+        assertEquals("启动", store.externalStartLabel(provider.id).toString())
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val runtimeActions = newRuntimeActions(store, scope)
         val promptCoordinator = PrivilegeUiSystemPromptCoordinator().also {
@@ -54,13 +67,14 @@ class PrivilegeUiExternalStartActionsTest {
             withTimeout(2_000.milliseconds) { provider.authorizationStarted.await() }
             assertNull(PrivilegeUiStartGate.tryAcquireSilent())
             promptCoordinator.onHostPaused("host")
-            assertEquals(
-                R.string.priv_ui_system_prompt_external_title,
-                (promptCoordinator.visiblePrompt.value?.prompt?.title as PrivilegeUiText.Resource).id,
-            )
+            val promptTitle = promptCoordinator.visiblePrompt.value?.prompt?.title as PrivilegeUiText.Resource
+            assertEquals(R.string.priv_ui_system_prompt_external_title, promptTitle.id)
+            assertEquals("启动", promptTitle.formatArgs.single().toString())
 
             provider.releaseAuthorization.complete(Unit)
             authorization.await()
+            assertEquals(false, store.state.value.externalStartItems.single().authorized)
+            assertTrue(store.state.value.startupLogLines.any { "Authorization request denied" in it })
             assertNotNull(promptCoordinator.visiblePrompt.value)
             promptCoordinator.onHostResumed("host", hasWindowFocus = true)
             assertNull(promptCoordinator.visiblePrompt.value)
@@ -120,6 +134,10 @@ class PrivilegeUiExternalStartActionsTest {
 
             assertTrue(refreshed)
             assertEquals(1, provider.snapshotCalls.get())
+            val item = store.state.value.externalStartItems.single()
+            assertTrue(item.statusLoaded)
+            assertNull(item.authorized)
+            assertTrue(store.state.value.startupLogLines.isEmpty())
         } finally {
             runtimeActions.close()
             scope.cancel()
@@ -227,60 +245,72 @@ class PrivilegeUiExternalStartActionsTest {
             acquireStartPermit = { AutoCloseable {} },
         )
 
-    private class CountingExternalStartProvider : PrivilegeUiExternalStartProvider {
+    private class CountingExternalStartProvider : PrivilegeExternalStartProvider {
         val snapshotCalls = AtomicInteger(0)
 
         override val id: String = "external"
-        override val label: CharSequence = "External"
+        override fun getLabel(context: Context): CharSequence = "External"
 
-        override suspend fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot {
+        override suspend fun checkAuthorization(context: Context): PrivilegeExternalStartResult {
             snapshotCalls.incrementAndGet()
-            return PrivilegeUiExternalStartSnapshot()
+            return PrivilegeExternalStartResult(
+                authorized = null,
+                message = "External service is unavailable",
+            )
         }
 
-        override suspend fun start(
+        override suspend fun requestAuthorization(context: Context): PrivilegeExternalStartResult =
+            error("Unexpected authorization request")
+
+        override suspend fun runStarter(
             context: Context,
             commandLine: String,
-        ) = Unit
+            startupLogListener: PrivilegeStartupLogListener?,
+        ): String = error("Unexpected start")
     }
 
-    private class CancellingExternalStartProvider : PrivilegeUiExternalStartProvider {
+    private class CancellingExternalStartProvider : PrivilegeExternalStartProvider {
         override val id: String = "cancelling-external"
-        override val label: CharSequence = "External"
+        override fun getLabel(context: Context): CharSequence = "External"
 
-        override suspend fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot =
+        override suspend fun checkAuthorization(context: Context): PrivilegeExternalStartResult =
             throw CancellationException("cancelled snapshot")
 
-        override suspend fun start(
+        override suspend fun requestAuthorization(context: Context): PrivilegeExternalStartResult =
+            error("Unexpected authorization request")
+
+        override suspend fun runStarter(
             context: Context,
             commandLine: String,
-        ) = Unit
+            startupLogListener: PrivilegeStartupLogListener?,
+        ): String = error("Unexpected start")
     }
 
-    private class BlockingAuthorizationExternalStartProvider : PrivilegeUiExternalStartProvider {
+    private class BlockingAuthorizationExternalStartProvider : PrivilegeExternalStartProvider {
         val authorizationStarted = CompletableDeferred<Unit>()
         val releaseAuthorization = CompletableDeferred<Unit>()
 
         override val id: String = "blocking-external"
-        override val label: CharSequence = "External"
+        override fun getLabel(context: Context): CharSequence = context.getText(R.string.priv_ui_external_start)
 
-        override suspend fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot =
-            PrivilegeUiExternalStartSnapshot(available = true)
+        override suspend fun checkAuthorization(context: Context): PrivilegeExternalStartResult =
+            PrivilegeExternalStartResult(authorized = false)
 
-        override suspend fun requestAuthorization(context: Context): PrivilegeUiExternalStartSnapshot {
+        override suspend fun requestAuthorization(context: Context): PrivilegeExternalStartResult {
             authorizationStarted.complete(Unit)
             releaseAuthorization.await()
-            return snapshot(context)
+            return PrivilegeExternalStartResult(authorized = false, message = "Authorization request denied")
         }
 
-        override suspend fun start(
+        override suspend fun runStarter(
             context: Context,
             commandLine: String,
-        ) = Unit
+            startupLogListener: PrivilegeStartupLogListener?,
+        ): String = error("Unexpected start")
     }
 
     private class SuspendingAuthorizationExternalStartProvider :
-        PrivilegeUiExternalStartProvider {
+        PrivilegeExternalStartProvider {
         val authorizationResult = CompletableDeferred<Boolean>()
         val authorizationCalls = AtomicInteger(0)
         val startedCommandLine = CompletableDeferred<String>()
@@ -288,44 +318,45 @@ class PrivilegeUiExternalStartActionsTest {
         var authorized: Boolean = false
 
         override val id: String = "suspending-external"
-        override val label: CharSequence = "External"
+        override fun getLabel(context: Context): CharSequence = "External"
 
-        override suspend fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot =
-            PrivilegeUiExternalStartSnapshot(
-                available = true,
-                authorized = authorized,
-            )
+        override suspend fun checkAuthorization(context: Context): PrivilegeExternalStartResult =
+            PrivilegeExternalStartResult(authorized = authorized)
 
         override suspend fun requestAuthorization(
             context: Context,
-        ): PrivilegeUiExternalStartSnapshot {
+        ): PrivilegeExternalStartResult {
             authorizationCalls.incrementAndGet()
             authorized = authorizationResult.await()
-            return snapshot(context)
+            return checkAuthorization(context)
         }
 
-        override suspend fun start(
+        override suspend fun runStarter(
             context: Context,
             commandLine: String,
-        ) {
+            startupLogListener: PrivilegeStartupLogListener?,
+        ): String {
+            checkNotNull(startupLogListener)
             startedCommandLine.complete(commandLine)
+            return ""
         }
     }
 
-    private class ThrowingExternalStartProvider : PrivilegeUiExternalStartProvider {
+    private class ThrowingExternalStartProvider : PrivilegeExternalStartProvider {
         override val id: String = "throwing-external"
-        override val label: CharSequence = "External"
+        override fun getLabel(context: Context): CharSequence = "External"
 
-        override suspend fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot =
-            PrivilegeUiExternalStartSnapshot(
-                available = true,
-                authorized = true,
-            )
+        override suspend fun checkAuthorization(context: Context): PrivilegeExternalStartResult =
+            PrivilegeExternalStartResult(authorized = true)
 
-        override suspend fun start(
+        override suspend fun requestAuthorization(context: Context): PrivilegeExternalStartResult =
+            error("Unexpected authorization request")
+
+        override suspend fun runStarter(
             context: Context,
             commandLine: String,
-        ): Unit = error("Injected external provider failure")
+            startupLogListener: PrivilegeStartupLogListener?,
+        ): String = error("Injected external provider failure")
     }
 
 }

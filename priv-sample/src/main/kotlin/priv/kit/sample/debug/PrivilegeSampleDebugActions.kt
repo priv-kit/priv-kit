@@ -9,10 +9,12 @@ import android.os.Build
 import androidx.lifecycle.viewModelScope
 import java.io.File
 import java.nio.charset.StandardCharsets
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
+import priv.kit.core.PrivilegeExternalStartResult
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeUserServiceConnection
 import priv.kit.core.adb.PRIVILEGE_ADB_DEFAULT_TCP_PORT
@@ -23,17 +25,15 @@ import priv.kit.core.binder.PrivilegeBinderCall
 import priv.kit.core.binder.PrivilegeBinderCallFailure
 import priv.kit.core.binder.PrivilegeSystemServiceSource
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
+import priv.kit.external.shizuku.PrivilegeExternalShizuku
 import priv.kit.sample.R
 import priv.kit.sample.common.toDiagnosticString
-import priv.kit.sample.startup.PrivilegeSampleShizukuExternalStarter
-import priv.kit.sample.startup.SHIZUKU_PERMISSION_REQUEST_CODE
 import priv.kit.sample.startup.startPrivilegeSampleNotificationPairing
 import priv.kit.sample.startup.stopPrivilegeSampleNotificationPairing
 import priv.kit.sample.userservice.IPrivilegeSampleDedicatedUserService
 import priv.kit.sample.userservice.IPrivilegeSampleEmbeddedUserService
 import priv.kit.sample.userservice.PrivilegeSampleDedicatedUserService
 import priv.kit.sample.userservice.PrivilegeSampleEmbeddedUserService
-import rikka.shizuku.Shizuku
 
 internal fun PrivilegeSampleDebugHost.initializePrivilegeSample() {
     val adbDeviceNameOverride = loadAdbDeviceNameOverride()
@@ -48,7 +48,6 @@ internal fun PrivilegeSampleDebugHost.initializePrivilegeSample() {
     )
     loadManualShellCommand()
     watchServerState()
-    refreshShizukuStatus(append = false)
     refreshAdbFingerprint()
 }
 
@@ -277,156 +276,65 @@ internal fun PrivilegeSampleDebugHost.startRootRuntime() {
     }
 }
 
-internal fun PrivilegeSampleDebugHost.refreshShizukuStatus(append: Boolean) {
-    val readiness = checkShizukuReadiness(requestPermission = false)
-    applyShizukuReadiness(readiness)
-    if (append) {
-        appendLog(readiness.message)
-    }
-    continuePendingShizukuExternalStart(readiness)
-}
-
-internal fun PrivilegeSampleDebugHost.handleShizukuHostVisible() {
-    refreshShizukuStatus(append = false)
-}
-
-private fun PrivilegeSampleDebugHost.continuePendingShizukuExternalStart(readiness: ShizukuReadiness) {
-    if (!sampleViewModel.startShizukuExternalAfterPermission) return
-    if (readiness.ready) {
-        sampleViewModel.startShizukuExternalAfterPermission = false
-        startShizukuExternal()
-    } else if (readiness.pendingStartTerminal) {
-        sampleViewModel.startShizukuExternalAfterPermission = false
-    }
-}
-
-internal fun PrivilegeSampleDebugHost.handleShizukuBinderDead() {
-    sampleViewModel.startShizukuExternalAfterPermission = false
-    sampleViewModel.shizukuExternalStarter?.close()
-    sampleViewModel.shizukuExternalStarter = null
-    val message = activity.getString(R.string.sample_message_shizuku_binder_died)
-    screenState = screenState.copy(
-        shizukuReady = false,
-        shizukuPermissionGranted = false,
-        shizukuUid = null,
-        shizukuVersion = null,
-        shizukuMessage = message,
-        message = message,
-    )
-    appendLog(message)
+internal suspend fun PrivilegeSampleDebugHost.refreshShizukuStatus() {
+    updateShizukuStatus { PrivilegeExternalShizuku.checkAuthorization(activity) }
 }
 
 internal fun PrivilegeSampleDebugHost.startShizukuExternal() {
-    if (screenState.busy) return
-    val readiness = checkShizukuReadiness(requestPermission = true)
-    applyShizukuReadiness(readiness)
-    appendLog(readiness.message)
-    if (!readiness.ready) return
-
-    val externalStarter = PrivilegeSampleShizukuExternalStarter(activity)
-    sampleViewModel.shizukuExternalStarter = externalStarter
-    runServerStartRequest(
-        message = activity.getString(R.string.sample_message_starting_through_shizuku),
-        startedMessage = activity.getString(R.string.sample_shizuku_waiting),
-        startupSource = "Shizuku",
-    ) {
-        val nativeStarterCommand = withContext(Dispatchers.IO) {
-            Privilege.nativeStarterCommand
-        }
-        try {
-            externalStarter.start(nativeStarterCommand)
-        } finally {
-            externalStarter.close()
-            if (sampleViewModel.shizukuExternalStarter === externalStarter) {
-                sampleViewModel.shizukuExternalStarter = null
+    if (screenState.busy || sampleViewModel.shizukuAuthorizationJob?.isActive == true) return
+    sampleViewModel.shizukuAuthorizationJob = sampleViewModel.viewModelScope.launch {
+        val source = activity.getString(R.string.sample_shizuku)
+        val result = updateShizukuStatus {
+            val current = PrivilegeExternalShizuku.checkAuthorization(activity)
+            if (current.authorized == false) {
+                appendLog(activity.getString(R.string.sample_message_shizuku_permission_requested, source))
+                PrivilegeExternalShizuku.requestAuthorization(activity)
+            } else {
+                current
             }
+        } ?: return@launch
+        appendLog(screenState.shizukuMessage)
+        if (result.authorized != true) return@launch
+
+        runServerStartRequest(
+            message = activity.getString(R.string.sample_message_starting_through_shizuku, source),
+            startedMessage = activity.getString(R.string.sample_shizuku_waiting),
+            startupSource = source,
+        ) {
+            val nativeStarterCommand = withContext(Dispatchers.IO) { Privilege.nativeStarterCommand }
+            PrivilegeExternalShizuku.runStarter(activity, nativeStarterCommand)
         }
     }
 }
 
-private fun PrivilegeSampleDebugHost.checkShizukuReadiness(requestPermission: Boolean): ShizukuReadiness {
-    return try {
-        if (!Shizuku.pingBinder()) {
-            return ShizukuReadiness(
-                message = activity.getString(R.string.sample_message_shizuku_is_not_running),
-                pendingStartTerminal = true,
-            )
-        }
-        if (Shizuku.isPreV11()) {
-            return ShizukuReadiness(
-                message = activity.getString(R.string.sample_message_shizuku_pre_v11_is_not_supported),
-                pendingStartTerminal = true,
-            )
-        }
-
-        val version = Shizuku.getVersion()
-        val uid = Shizuku.getUid().takeIf { it >= 0 }
-        val minVersion = PrivilegeSampleShizukuExternalStarter.SHIZUKU_USER_SERVICE_MIN_VERSION
-        if (version < minVersion) {
-            return ShizukuReadiness(
-                message = activity.getString(R.string.sample_message_shizuku_api, minVersion, version),
-                uid = uid,
-                version = version,
-                pendingStartTerminal = true,
-            )
-        }
-
-        if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
-            return ShizukuReadiness(
-                ready = true,
-                permissionGranted = true,
-                uid = uid,
-                version = version,
-                message = activity.getString(R.string.sample_message_shizuku_ready_details, uid ?: "-", version),
-            )
-        }
-
-        if (Shizuku.shouldShowRequestPermissionRationale()) {
-            return ShizukuReadiness(
-                uid = uid,
-                version = version,
-                message = activity.getString(R.string.sample_message_shizuku_permission_denied_permanently),
-                pendingStartTerminal = true,
-            )
-        }
-
-        if (requestPermission) {
-            sampleViewModel.startShizukuExternalAfterPermission = true
-            Shizuku.requestPermission(SHIZUKU_PERMISSION_REQUEST_CODE)
-            return ShizukuReadiness(
-                uid = uid,
-                version = version,
-                message = activity.getString(R.string.sample_message_shizuku_permission_requested),
-            )
-        }
-
-        ShizukuReadiness(
-            uid = uid,
-            version = version,
-            message = activity.getString(R.string.sample_message_shizuku_permission_required),
-        )
-    } catch (throwable: Throwable) {
-        ShizukuReadiness(
-            message = activity.getString(R.string.sample_message_shizuku_error, throwable.message ?: throwable.javaClass.name),
-            exceptionText = throwable.toDiagnosticString(),
-            pendingStartTerminal = true,
-        )
-    }
-}
-
-private fun PrivilegeSampleDebugHost.applyShizukuReadiness(readiness: ShizukuReadiness) {
+private suspend fun PrivilegeSampleDebugHost.updateShizukuStatus(
+    read: suspend () -> PrivilegeExternalStartResult,
+): PrivilegeExternalStartResult? = try {
+    val result = read()
+    val message = result.message?.toString().orEmpty()
     screenState = screenState.copy(
-        shizukuReady = readiness.ready,
-        shizukuPermissionGranted = readiness.permissionGranted,
-        shizukuUid = readiness.uid,
-        shizukuVersion = readiness.version,
-        shizukuMessage = readiness.message,
-        shizukuLastException = readiness.exceptionText,
-        message = if (readiness.ready) activity.getString(R.string.sample_message_shizuku_ready) else readiness.message,
+        shizukuAuthorization = result.authorized,
+        shizukuMessage = message,
+        shizukuLastException = "",
+        message = message,
     )
-    if (readiness.exceptionText.isNotBlank()) {
-        appendLog(readiness.exceptionText)
-    }
+    result
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (exception: Exception) {
+    val message = activity.getString(
+        R.string.sample_message_shizuku_error,
+        exception.message ?: exception.javaClass.name,
+    )
+    val diagnostic = exception.toDiagnosticString()
+    screenState = screenState.copy(
+        shizukuAuthorization = null,
+        shizukuMessage = message,
+        shizukuLastException = diagnostic,
+        message = message,
+    )
+    appendLog(diagnostic)
+    null
 }
 
 internal fun PrivilegeSampleDebugHost.pairWirelessAdb() {
@@ -1125,16 +1033,6 @@ private fun String.toSingleLineServiceName(): String =
     replace('\r', ' ')
         .replace('\n', ' ')
         .take(MAX_SERVICE_NAME_CHARS)
-
-private data class ShizukuReadiness(
-    val ready: Boolean = false,
-    val permissionGranted: Boolean = false,
-    val uid: Int? = null,
-    val version: Int? = null,
-    val message: String,
-    val exceptionText: String = "",
-    val pendingStartTerminal: Boolean = false,
-)
 
 private fun List<PrivilegeSampleUserInfo>.toBinderMessage(): String =
     buildString {

@@ -1,11 +1,5 @@
 <resources>
     <string name="sample_open_privilege_ui">打开界面</string>
-    <string name="sample_privilege_ui_shizuku_not_running">Shizuku 未运行</string>
-    <string name="sample_privilege_ui_shizuku_pre_v11">不支持 v11 之前的 Shizuku</string>
-    <string name="sample_privilege_ui_shizuku_version_unsupported">请更新 Shizuku</string>
-    <string name="sample_privilege_ui_shizuku_ready">Shizuku 已获授权</string>
-    <string name="sample_privilege_ui_shizuku_permission_denied">Shizuku 权限已被永久拒绝</string>
-    <string name="sample_privilege_ui_shizuku_permission_required">需要 Shizuku 权限</string>
     <string name="sample_home">首页</string>
     <string name="sample_files">文件</string>
     <string name="sample_test_file_api">测试文件 API</string>
@@ -107,9 +101,8 @@
     <string name="sample_yes">是</string>
     <string name="sample_no">否</string>
     <string name="sample_granted">已授予</string>
-    <string name="sample_version">版本</string>
-    <string name="sample_start_with_shizuku">通过 Shizuku 启动</string>
-    <string name="sample_authorize_and_start_shizuku">授权 Shizuku 并启动</string>
+    <string name="sample_start_with_shizuku">通过 %1$s 启动</string>
+    <string name="sample_authorize_and_start_shizuku">授权 %1$s 并启动</string>
     <string name="sample_fingerprint">指纹：%1$s</string>
     <string name="sample_loading">加载中…</string>
     <string name="sample_not_loaded">尚未加载</string>
@@ -191,14 +184,8 @@
     <string name="sample_message_pairing_code_is_required">请输入配对码</string>
     <string name="sample_pairing_intro">请输入无线调试配对码，或通过配对通知回复。</string>
     <string name="sample_message_starting_root_runtime">正在以 Root 启动运行时…</string>
-    <string name="sample_message_starting_through_shizuku">正在通过 Shizuku 启动…</string>
-    <string name="sample_message_shizuku_binder_died">Shizuku Binder 连接已断开</string>
-    <string name="sample_message_shizuku_is_not_running">Shizuku 未运行</string>
-    <string name="sample_message_shizuku_pre_v11_is_not_supported">不支持 v11 之前的 Shizuku</string>
-    <string name="sample_message_shizuku_permission_denied_permanently">Shizuku 权限已被永久拒绝</string>
-    <string name="sample_message_shizuku_permission_requested">已请求 Shizuku 权限</string>
-    <string name="sample_message_shizuku_permission_required">需要 Shizuku 权限</string>
-    <string name="sample_message_shizuku_ready">Shizuku 已就绪</string>
+    <string name="sample_message_starting_through_shizuku">正在通过 %1$s 启动…</string>
+    <string name="sample_message_shizuku_permission_requested">已请求 %1$s 权限</string>
     <string name="sample_message_discovering_adb_connect_port_and_starting_wireless_adb">正在发现 ADB 连接端口并启动无线 ADB…</string>
     <string name="sample_message_stopping_adb_tcp_mode">正在停止 ADB TCP 模式…</string>
     <string name="sample_message_no_server_connected">尚未连接服务端</string>
@@ -215,14 +202,12 @@
     <string name="sample_message_wireless_adb_log_copied">已复制无线 ADB 日志</string>
     <string name="sample_binder_intro">请连接特权服务端，再获取 IUserManager 或探测 IMQSNative。</string>
     <string name="sample_userservice_intro">请连接特权服务端，再绑定 UserService。</string>
-    <string name="sample_message_shizuku_status_not_checked">尚未检查 Shizuku 状态</string>
+    <string name="sample_message_shizuku_status_not_checked">尚未检查外部授权状态</string>
     <string name="sample_message_paired_port">当前保存的 ADB 密钥已在端口 %1$s 上配对。</string>
     <string name="sample_message_paired_identity">已使用 %1$s 在端口 %2$d 上配对。</string>
     <string name="sample_message_opening_tcp">正在打开或复用 ADB TCP 端口 %1$d…</string>
     <string name="sample_message_restarting_tcp">正在通过 ADB TCP 端口 %1$d 重启…</string>
-    <string name="sample_message_shizuku_api">Shizuku UserService 需要 API %1$d，当前为 %2$d</string>
-    <string name="sample_message_shizuku_ready_details">Shizuku 已就绪：UID=%1$s，版本=%2$d</string>
-    <string name="sample_message_shizuku_error">Shizuku 错误：%1$s</string>
+    <string name="sample_message_shizuku_error">外部授权错误：%1$s</string>
     <string name="sample_connected_cached_iusermanager_is_ready">已连接，缓存的 IUserManager 已就绪。</string>
     <string name="sample_connected_cached_imqsnative_remote_binder_is_ready">已连接，缓存的 IMQSNative 远端 Binder 已就绪。</string>
     <string name="sample_connected_get_iusermanager_or_run_imqsnative_to_test_binder_transact">已连接。请获取 IUserManager 或运行 IMQSNative 以测试 Binder 事务。</string>
@@ -242,7 +227,7 @@
     <string name="sample_userservice_stopping">正在停止%1$s UserService…</string>
     <string name="sample_userservice_stopped">%1$s UserService 已停止</string>
     <string name="sample_running_progress">运行中…</string>
-    <string name="sample_shizuku_waiting">已发送 Shizuku 命令，正在等待服务端握手…</string>
+    <string name="sample_shizuku_waiting">已发送启动命令，正在等待服务端握手…</string>
     <string name="sample_wireless_paired">无线 ADB 已在端口 %1$d 上配对</string>
     <string name="sample_tcp_requested">已请求在端口 %1$d 上启用 ADB TCP 模式</string>
     <string name="sample_tcp_stop_requested">已请求停止 ADB TCP 模式</string>

@@ -6,5 +6,3 @@ internal data class PrivilegeSamplePrivilegeUiCallbacks(
     val config: PrivilegeUiConfig,
     val back: () -> Unit,
 )
-
-internal const val SHIZUKU_PERMISSION_REQUEST_CODE = 42

@@ -4,59 +4,35 @@ description: Start with Privilege UI, or use priv-core to build a custom authori
 
 # Startup methods {#startup-methods}
 
-Using an app and need help starting or pairing? Read the [startup tutorial](./startup-tutorial).
-
-All methods start the app's Privileged Server and return its Binder. They differ only in how they obtain the privileged process.
+If you’re using an app, see the [startup tutorial](./startup-tutorial). This guide is for Android developers integrating the privileged server.
 
 ## Start with Privilege UI {#privilege-ui}
 
-Embed `PrivilegeScaffold` for startup, permissions, pairing, confirmations, and errors. See [Privilege UI](./priv-ui).
-
-The APIs below are for applications that replace the supplied authorization
-page.
+Use [Privilege UI](./priv-ui) for a Compose startup page with pairing and permission prompts.
 
 ## Build a custom interface with priv-core {#priv-core-custom-interface}
 
-With `priv-core`, your app implements permission prompts, pairing input, confirmations, polling, and error display.
+Use the APIs below when your app handles authorization, pairing, and startup errors.
 
 ### Observe the connection state {#connection-state}
 
-`Privilege.serverState` is a process-wide
-`StateFlow<PrivilegeServerInfo?>`. A non-null value means the Privileged Server
-is connected; `null` means it is disconnected. Every new collector immediately
-receives the current value.
-
-`PrivilegeServerInfo` describes the connection. Its nullable `selinuxContext` is cached per server process for diagnostics.
+`Privilege.serverState` is a `StateFlow<PrivilegeServerInfo?>`. A non-null value means the server is connected. Reacquire server-bound resources when the connection changes.
 
 #### Application-wide observation {#application-observation}
 
-When connection changes must trigger work for the lifetime of the application
-process, collect from an application-owned coroutine scope:
+Collect from an application-owned scope for work that must continue outside a screen.
 
 ```kotlin
-val appScope = MainScope()
-
-class App : Application() {
-    override fun onCreate() {
-        super.onCreate()
-
-        appScope.launch {
-            Privilege.serverState.collect { serverInfo ->
-                if (serverInfo != null) {
-                    // Connected. Initialize application-level privileged features.
-                } else {
-                    // Disconnected. Suspend features that require the server.
-                }
-            }
-        }
+appScope.launch {
+    Privilege.serverState.collect { serverInfo ->
+        updatePrivilegedFeatures(serverInfo)
     }
 }
 ```
 
 #### Screen-local rendering {#screen-state}
 
-When a Compose screen only needs to render the current state, use a
-lifecycle-aware collector:
+In Compose, use lifecycle-aware collection.
 
 ```kotlin
 val serverInfo by Privilege.serverState.collectAsStateWithLifecycle()
@@ -64,8 +40,7 @@ val serverInfo by Privilege.serverState.collectAsStateWithLifecycle()
 
 ### Coordinate an owner-process restart {#owner-process-restart}
 
-When the application deliberately restarts its owner process, schedule that restart first and
-then notify the connected server immediately before terminating the process:
+Schedule the app restart first, then notify the connected server before exiting. After the owner exits, the server waits up to the requested time for the app to return before resuming active reconnect.
 
 ```kotlin
 scheduleApplicationRestart()
@@ -75,14 +50,9 @@ Privilege.prepareOwnerRestart(
 Process.killProcess(Process.myPid())
 ```
 
-The call waits for server acknowledgement. The plan applies only if the owner dies within five seconds and excludes that death from crash-loop counting. The server waits passively for the requested interval, then resumes configured active reconnect for the remaining `followDeathDelayMillis`. Allow enough time for your app to restart.
-
 ### Inspect denied server permissions {#denied-server-permissions}
 
-The UI's **View restricted permissions** action opens a selectable, copyable list. Returning to the page refreshes it.
-
-After the server connects, a custom host can inspect permissions declared by
-packages associated with the server UID but denied to the server process:
+In the built-in UI, use **View restricted permissions**. In a custom interface, query the connected server.
 
 ```kotlin
 val deniedPermissions = withContext(Dispatchers.IO) {
@@ -90,41 +60,11 @@ val deniedPermissions = withContext(Dispatchers.IO) {
 }
 ```
 
-Results are deduplicated and sorted, excluding permissions undefined on the device. Root returns an empty list. Package lookup failures on non-root servers are reported as errors.
-
-Access also depends on AppOps, SELinux, and service-specific rules. Use `Privilege.checkServerPermission(permission)` to check one Android permission.
+This checks denied manifest permissions. AppOps, SELinux, and individual services can still restrict access. Use `Privilege.checkServerPermission(permission)` to check one permission.
 
 #### Redmi K40 example {#denied-permissions-device-example}
 
-These results were captured on the same device with the server running as Shell (UID `2000`):
-
-| Item | Test environment |
-| --- | --- |
-| Device market name | Redmi K40 (model `M2012K11AC`) |
-| System name and version | Xiaomi HyperOS 1.0, `OS1.0.10.0.TKHCNXM` |
-| Android version | Android 13 (API 33) |
-
-After connecting the server, call the method from a coroutine and print one permission per line:
-
-```kotlin
-val deniedPermissions = withContext(Dispatchers.IO) {
-    Privilege.getDeniedServerPermissions()
-}
-println(deniedPermissions.joinToString("\n"))
-```
-
-The two outputs below correspond to enabling and disabling this switch:
-
-**Developer options - USB debugging (Security settings) / Allow modifying permissions or simulating
-input via USB debugging**. On the tested device, its Chinese label and description are
-**开发者选项 - USB调试（安全设置） / 允许通过USB调试修改权限或模拟点击**.
-
-After changing the switch, call the method again for the current result; the privileged process
-does not need to restart.
-
-**Restrictions disabled (USB debugging (Security settings) enabled): the returned list is empty (0 denied permissions).**
-
-**Restrictions enabled (USB debugging (Security settings) disabled): 14 permissions are denied.**
+On a Redmi K40 running Android 13 / HyperOS 1.0, the query returned the following 14 denied permissions for Shell with **USB debugging (Security settings)** off.
 
 ```text
 android.permission.CALL_PHONE
@@ -143,32 +83,27 @@ android.permission.WRITE_SECURE_SETTINGS
 android.permission.WRITE_SETTINGS
 ```
 
-These are denied permissions on this device and OS version. Query the current device rather than hard-coding the list.
+With the setting on, the query returned an empty list. Query again after changing the setting. See [device permission settings](./permission-restrictions).
 
 ### Root {#root}
+
+On a rooted device, grant the `su` request if prompted.
 
 ```kotlin
 val serverInfo = Privilege.startRoot()
 ```
 
-Root startup checks the available `su` path, launches the shared server command,
-and waits for the normal Binder handoff.
-
 ### ADB {#adb}
 
-ADB supports two modes: Wireless Debugging and a static TCP/IP port.
+Use Wireless Debugging for discovery and pairing, or connect to a fixed TCP/IP port.
 
 #### Wireless Debugging {#wireless-debugging}
 
-Wireless Debugging requires Android 11 or later. Priv Kit stores one ADB key for
-the application. The device must authorize that key before it can start a
-Privileged Server.
+Requires Android 11 or later. Request `ACCESS_LOCAL_NETWORK` first on Android versions that require it.
 
 ##### Pair the application {#pairing}
 
-Ask the user to open **Developer options > Wireless debugging > Pair device
-with pairing code**. While the pairing screen is open, pass its six-digit code
-to `PrivilegeAdbManager.pair()`:
+Open **Developer options > Wireless debugging > Pair device with pairing code**. Pass the six-digit code while the screen is open.
 
 ```kotlin
 val adbManager = Privilege.createAdbManager()
@@ -178,64 +113,25 @@ val pairingResult = adbManager.pair(
 )
 ```
 
-`pair()` discovers the Wireless Debugging pairing port by default. A host that
-already discovered the port can make the endpoint explicit:
-
-```kotlin
-val pairingPort = adbManager.discoverPairingPort()
-
-adbManager.pair(
-    pairingCode = pairingCode,
-    port = pairingPort,
-)
-```
-
-Use `checkPairing()` to check whether the persisted application key is already
-authorized:
-
-```kotlin
-val pairing = adbManager.checkPairing()
-if (!pairing.paired) {
-    // Show the pairing flow before starting.
-}
-```
-
-For repeated status checks, `openPairingCheckSession()` keeps one connection
-alive between calls. Close the session when polling stops.
+Call `adbManager.checkPairing()` to check if the app key is already authorized.
 
 ##### Start with Wireless Debugging {#wireless-debugging-start}
+
+After pairing, start the server.
 
 ```kotlin
 val serverInfo = Privilege.startAdb()
 ```
 
-After `pair()` succeeds, call `startAdb()` to start the server.
-
-When the host declares and already holds `WRITE_SECURE_SETTINGS`, the default
-`PrivilegeAdbWirelessDebuggingControl.IF_AVAILABLE` policy can temporarily
-enable Wireless Debugging, discover the connect port, and disable Wireless
-Debugging after the start attempt. `NEVER` leaves the setting untouched.
-`REQUIRE` makes managed Wireless Debugging a startup prerequisite.
-
-After the Privileged Server connects, the runtime attempts to grant
-`WRITE_SECURE_SETTINGS` to the owner app when the permission remains declared
-and the server is root or holds
-`android.permission.GRANT_RUNTIME_PERMISSIONS`. Without this capability, the
-user must turn on Wireless Debugging before discovery.
-
-On Android releases that require runtime approval for local network access, a
-host must request `ACCESS_LOCAL_NETWORK` before pairing or startup.
+Keep Wireless Debugging enabled unless the app already has `WRITE_SECURE_SETTINGS` and uses managed Wireless Debugging. Set `wirelessDebuggingControl = NEVER` to leave the device setting under user control.
 
 #### TCP/IP startup {#tcp-ip}
 
-A TCP/IP start connects to a fixed local ADB port instead of discovering the
-dynamic Wireless Debugging connect port. The default static port is available
-as `PRIVILEGE_ADB_DEFAULT_TCP_PORT`.
+Use a fixed local port such as `PRIVILEGE_ADB_DEFAULT_TCP_PORT`.
 
 ##### Open or restore the static port {#tcp-ip-setup}
 
-If the port is not configured yet, switch an already authorized ADB endpoint to
-TCP/IP mode:
+To open a static port, switch from an authorized ADB connection. Ask the user to confirm first, since switching can interrupt other ADB sessions.
 
 ```kotlin
 val tcpPort = PRIVILEGE_ADB_DEFAULT_TCP_PORT
@@ -244,36 +140,9 @@ val adbManager = Privilege.createAdbManager()
 adbManager.switchToTcp(tcpPort = tcpPort)
 ```
 
-`switchToTcp()` needs an authorized Wireless Debugging or existing TCP
-connection from which it can issue `adb tcpip`. Starting or restarting this
-endpoint affects other ADB-backed processes, so a custom host presents its own
-confirmation before calling it.
-When the source connection port is already known, pass it through
-`options = PrivilegeAdbConnectionOptions(port = sourcePort)`.
-
-When a static port was configured earlier, prepare it before startup:
-
-```kotlin
-val authorization = adbManager.prepareTcpForStart(tcpPort = tcpPort)
-```
-
-`prepareTcpForStart()` probes the port. If a persisted port matches but `adbd`
-is no longer listening, Priv Kit can restore the core ADB service when the
-application has managed ADB capability. It does not enable Wireless Debugging.
-
-If the result is `PrivilegeAdbAuthorizationStatus.UNAUTHORIZED`, request
-authorization and wait for the user to accept the system prompt:
-
-```kotlin
-val request = adbManager.requestTcpAuthorization(tcpPort = tcpPort)
-check(request.authorized) {
-    request.failureMessage ?: "ADB authorization was not completed"
-}
-```
+For a previously configured port, call `prepareTcpForStart(tcpPort)`. If it reports `UNAUTHORIZED`, call `requestTcpAuthorization(tcpPort)` and wait for the user to approve.
 
 ##### Start on the static port {#tcp-ip-start}
-
-Set `port` to connect directly to that port:
 
 ```kotlin
 val serverInfo = Privilege.startAdb(
@@ -283,13 +152,11 @@ val serverInfo = Privilege.startAdb(
 )
 ```
 
-Use `checkTcpAuthorization()` when the host only needs a one-shot status check.
-Use `openTcpAuthorizationCheckSession()` for repeated polling. `stopTcp(tcpPort)`
-stops the static listener. `restartTcp(tcpPort)` restarts it on the same port.
-Both controls can accept `PrivilegeAdbConnectionOptions`; they try the static
-endpoint first and only fall back before the control command is dispatched.
+Use `checkTcpAuthorization(tcpPort)` to check authorization without prompting.
 
 ### Manual {#manual}
+
+Show the generated command to the user to run from a computer. First access should run off the main thread.
 
 ```kotlin
 val nativeStarterCommand = withContext(Dispatchers.IO) {
@@ -298,113 +165,21 @@ val nativeStarterCommand = withContext(Dispatchers.IO) {
 YourApp.showCommandToUser("adb shell $nativeStarterCommand")
 ```
 
-`Privilege.nativeStarterCommand` returns a device-side command; add `adb shell` for a computer terminal. Resolve it off the main thread because first access inspects APKs. It accepts root (0), system (1000), or shell (2000) and includes the owner user ID when nonzero. See [native library packaging](./getting-started#native-library-packaging).
-
-Re-running the starter kills the old server for this package and Android user, verifies its exit, then starts a replacement. If stopping fails, no replacement starts. Other users' servers are unaffected.
-
-With modern packaging on Android 10 or later, a rendered command can look like:
-
-```shell
-adb shell /system/bin/linker64 '/data/app/.../base.apk!/lib/arm64-v8a/libprivkitstarter.so'
-```
-
-With legacy packaging it looks like:
-
-```shell
-adb shell /data/app/~~-YKUdRFBwGAwYBVzJRt7pA==/priv.kit.sample.debug-A-2guZlsvRZ-9e6xF-K0kQ==/lib/arm64/libprivkitstarter.so
-```
+Running the command again replaces the server for the same app and Android user. See [native library packaging](./getting-started#native-library-packaging).
 
 ### External {#external}
 
-External startup runs the same native command through an authorizer's privileged process.
+Run the coordinator’s command through an authorized root, system, or shell process. For a custom authorizer, use `PrivilegeExternalStartup.runThroughBridge()` and `PrivilegeExternalStartupHost`.
 
-The authorizer must run the command as root, system, or shell. Your app handles authorization, binding, and access control. The example below uses an already-authorized Shizuku UserService.
+#### Shizuku {#shizuku-v13}
 
-#### Define the UserService {#define-user-service}
+For the built-in page, follow [Add Shizuku](./priv-ui#shizuku). Shizuku API v13 or later is required. When migrating from the official client, remove its Manifest provider and `dev.rikka.shizuku:api` and `dev.rikka.shizuku:provider` dependencies.
 
-The app-owned AIDL carries the command, output pipes, and completion receiver
-into the Shizuku UserService:
-
-```java
-interface IPrivilegeShizukuStartService {
-    void start(
-        String commandLine,
-        in ParcelFileDescriptor stdout,
-        in ParcelFileDescriptor stderr,
-        in ResultReceiver resultReceiver
-    ) = 1;
-    void destroy() = 16777114;
-}
-```
-
-Implement that endpoint with `PrivilegeExternalStartupHost`:
-
-```kotlin
-class PrivilegeShizukuStartService @Keep constructor() :
-    IPrivilegeShizukuStartService.Stub() {
-    private val host = PrivilegeExternalStartupHost()
-
-    override fun start(
-        commandLine: String,
-        stdout: ParcelFileDescriptor,
-        stderr: ParcelFileDescriptor,
-        resultReceiver: ResultReceiver,
-    ) {
-        host.start(commandLine, stdout, stderr, resultReceiver)
-    }
-
-    override fun destroy() {
-        host.close()
-        exitProcess(0)
-    }
-}
-```
-
-#### Bind the UserService and start {#bind-user-service}
-
-Describe the Shizuku UserService with a stable tag and a version that changes
-when its implementation or AIDL contract becomes incompatible:
-
-```kotlin
-val args = Shizuku.UserServiceArgs(
-    ComponentName(
-        context.packageName,
-        PrivilegeShizukuStartService::class.java.name,
-    ),
-)
-    .daemon(false)
-    .tag("priv-kit-external-start")
-    .processNameSuffix("priv-kit-shizuku-start")
-    .version(1)
-
-Shizuku.bindUserService(args, serviceConnection)
-```
-
-After `ServiceConnection` returns the AIDL interface, pass its `start()` method
-to the Priv Kit bridge:
-
-```kotlin
-val nativeStarterCommand = withContext(Dispatchers.IO) {
-    Privilege.nativeStarterCommand
-}
-
-PrivilegeExternalStartup.runThroughBridge(
-    commandLine = nativeStarterCommand,
-    bridge = { commandLine, stdout, stderr, resultReceiver ->
-        shizukuService.start(commandLine, stdout, stderr, resultReceiver)
-    },
-)
-```
-
-Close the connection with `Shizuku.unbindUserService(...)` when the request is
-finished. A complete implementation is available in the sample:
-[starter](https://github.com/priv-kit/priv-kit/blob/main/priv-sample/src/main/kotlin/priv/kit/sample/startup/PrivilegeSampleShizukuExternalStarter.kt),
-[privileged endpoint](https://github.com/priv-kit/priv-kit/blob/main/priv-sample/src/main/kotlin/priv/kit/sample/startup/PrivilegeSampleShizukuStartService.kt),
-and [AIDL contract](https://github.com/priv-kit/priv-kit/blob/main/priv-sample/src/main/aidl/priv/kit/sample/startup/IPrivilegeSampleShizukuStartService.aidl).
+For a custom interface, add `priv-external-shizuku` at the same version as Core. Use `PrivilegeExternalShizuku.status()` to check access, request authorization on user action, and pass the coordinator’s command to `PrivilegeExternalShizuku.runStarter()`.
 
 ## Crash logs {#crash-logs}
 
-Configure the directory list during application initialization, before starting the server.
+Set the output directories in your `Application` before starting the server.
 
 ```kotlin
 val internalCrashDir = File(context.filesDir, "privilege-crashes").apply { mkdirs() }
@@ -414,33 +189,9 @@ PrivilegeConfig.crashLogDirectories = listOfNotNull(
 )
 ```
 
-The host creates each directory and supplies its absolute path. The recorder tries the directories
-in order and stops after the first successful write. If the list is empty or all writes fail,
-the recorder creates and tries `/data/local/tmp/priv-kit/<appId>/<userId>/crashes/`.
-Writes remain subject to filesystem and SELinux permissions.
+If those directories are unwritable, the server tries `/data/local/tmp/priv-kit/<appId>/<userId>/crashes/`. Use `Privilege.listFallbackCrashLogFiles()` on a worker thread to find fallback reports, including while disconnected. The app handles storage access and cleanup.
 
-App-initiated launches pass the list at launch. Manual launches receive it on the owner handshake,
-which also refreshes the list for an existing server. A dedicated UserService inherits the list at
-launch, before its constructor runs, and keeps that snapshot.
-
-Fatal Java/Kotlin exceptions produce one UTF-8 JSON file named
-`priv-crash_uid<uid>_<yyyyMMddHHmmss>.json`. Each directory belongs to one app and Android user.
-The filename uses the crash time in the device local timezone, with second precision, assuming at most one crash per second for each app/user/UID. Process type, PID,
-and timestamps remain in the JSON. The recorder syncs and closes a temporary `.json.tmp` file before atomically renaming it. Scan only
-`.json` files; an interrupted write can leave a temporary file. The host owns scanning and cleanup.
-Use `Privilege.listFallbackCrashLogFiles()` to get absolute `File` paths for the app's
-fallback reports, including while disconnected. The call performs blocking I/O on the calling
-thread with the app's filesystem access. It tries `crashes/index.txt` if opening or listing the
-directory fails. A missing directory or a successful listing with no reports returns an empty list. If neither listing
-method succeeds, the API throws `IOException`.
-
-After publishing a fallback report, the recorder appends its filename to the index as one UTF-8
-line. An index write failure leaves the published report available for a directory scan.
-Opening the returned files depends on filesystem and SELinux permissions.
-
-Reports use the public `@Serializable` data class `PrivilegeCrashLog`. Core exposes
-`kotlinx-serialization-core` and a generated serializer, but uses Android `JSONObject` to write
-reports. To decode with Kotlin JSON, add `kotlinx-serialization-json` to the host:
+To decode a report, add `kotlinx-serialization-json` and read it as `PrivilegeCrashLog`.
 
 ```kotlin
 val json = Json { ignoreUnknownKeys = true }
@@ -450,9 +201,4 @@ if (report.schemaVersion == 1) {
 }
 ```
 
-The model contains the host application ID and Android user ID, process UID/PID and type,
-optional service class name, recorder initialization and crash times in epoch milliseconds,
-thread name, exception type, nullable message, and the stack trace with causes and suppressed
-exceptions. It does not contain preceding Logcat messages. If all destinations fail, the recorder
-logs the crash and write failure to Logcat and the process exits. Failures before launch configuration parsing,
-native crashes, and `SIGKILL` are not captured.
+Reports cover fatal Java/Kotlin exceptions.

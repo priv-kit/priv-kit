@@ -25,6 +25,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.Lifecycle
@@ -144,7 +145,10 @@ public fun PrivilegeScaffold(
         val batteryOptimizationPromptVisible by viewModel.batteryOptimizationPromptVisible.collectAsStateWithLifecycle()
         val staticTcpSwitchConfirmation by viewModel.staticTcpSwitchConfirmation.collectAsStateWithLifecycle()
         // Reading LocalConfiguration makes retained text follow application locale changes.
-        androidx.compose.ui.platform.LocalConfiguration.current
+        val configuration = LocalConfiguration.current
+        LaunchedEffect(viewModel, context, configuration) {
+            viewModel.refreshExternalStartLabels(context)
+        }
         val screenState = state.toScreenState { it.asString(context) }.copy(
             wirelessAdbSupported = priv.kit.ui.state.isPrivilegeUiWirelessAdbSupported(),
             adbTcpPolicy = viewModel.config.adbTcpPolicy,

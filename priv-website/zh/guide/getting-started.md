@@ -28,7 +28,7 @@ dependencies {
 
 ## 配置 native 库打包 {#native-library-packaging}
 
-支持 Android 10 以下版本时，将 `useLegacyPackaging` 设置为 `true`：
+应用支持 Android 8 或 9 时，设置 `useLegacyPackaging = true`。
 
 ```kotlin
 android {
@@ -40,29 +40,26 @@ android {
 }
 ```
 
-Android 10 及以上版本没有此限制。Priv Kit 会根据 `useLegacyPackaging` 的值使用
-对应的启动命令。
-
-以 arm64 设备为例：
-
-`useLegacyPackaging = true`：
-
-```shell
-adb shell /data/app/.../lib/arm64/libprivkitstarter.so
-```
-
-`useLegacyPackaging = false`：
-
-```shell
-adb shell /system/bin/linker64 '/data/app/.../base.apk!/lib/arm64-v8a/libprivkitstarter.so'
-```
+Android 10 及以上的启动命令支持两种打包方式。
 
 ## 配置 hidden API 访问 {#hidden-api-access}
 
-在应用中配置
-[HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass)：
+在应用模块添加 [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass)。下例使用 Sample 的版本。
 
 ```kotlin
+dependencies {
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.2")
+}
+```
+
+在应用的 `Application` 中初始化。
+
+```kotlin
+import android.app.Application
+import android.content.Context
+import android.os.Build
+import org.lsposed.hiddenapibypass.HiddenApiBypass
+
 class App : Application() {
     override fun attachBaseContext(base: Context?) {
         super.attachBaseContext(base)
@@ -73,40 +70,25 @@ class App : Application() {
 }
 ```
 
+如果在应用基础包中新建了 `App`，在现有的 `<application>` 元素上加 `android:name=".App"`。已有 `Application` 类时，把初始化代码加到现有类即可。
+
 ## 嵌入 Privilege UI {#embed-privilege-ui}
 
-在应用的 Compose 内容中放置 `PrivilegeScaffold`：
+在应用的 Compose Material 3 主题内放入启动页，即可使用 Root、ADB 和手动启动。配置见 [Privilege UI](./priv-ui)。
 
 ```kotlin
 PrivilegeScaffold()
 ```
 
-默认页面提供 Root、ADB 和手动启动，配对、配置及静默启动见 [Privilege UI](./priv-ui)。
-
 ## 使用 priv-core 自定义界面 {#custom-interface}
 
-使用 `priv-core` 时，应用自行处理权限、配对、确认、状态检查和错误。
-
-最短的 Root 与无线调试调用如下：
+如果应用自行处理授权和错误，按用户选择的启动方式调用对应的挂起 API。使用无线调试时，先完成配对再调用 `startAdb()`。见[启动方式](./activation)。
 
 ```kotlin
-val rootServer = Privilege.startRoot()
-val adbServer = Privilege.startAdb()
+val serverInfo = Privilege.startRoot()
+// 使用无线调试时改为：val serverInfo = Privilege.startAdb()
 ```
-
-两者都是 `suspend` 函数。取消调用它们的协程时，运行时会关闭当前进程、Socket
-或查找端口的任务。
-完整的 `priv-core` 流程见[启动方式](./activation)。
 
 ## 选择使用方式 {#usage-mode}
 
-- 使用 [Binder](./binder) 访问系统服务或执行底层 Binder 调用。
-- 使用[文件代理](./file-proxy)执行基础的绝对路径文件操作。
-- 使用[命令执行](./commands)启动有界的非交互进程，并流式读取或汇总输出。
-- 使用 [UserService](./user-service) 运行应用自定义 AIDL 服务。
-- 使用 [Privilege UI](./priv-ui) 接入自带授权页面。
-- 需要用 `priv-core` 替换该页面时阅读[启动方式](./activation)。
-
-::: warning 仍在活跃开发
-使用发布版本及文档中的公开 API。`priv-evdev` 为实验模块，内部类不承诺兼容性。
-:::
+连接后即可使用 [Binder](./binder)、[文件](./file-proxy)、[命令](./commands) 或 [UserService](./user-service)。`priv-evdev` 处于实验阶段。

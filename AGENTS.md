@@ -35,6 +35,16 @@ Simplified Chinese page under `priv-website/zh`. Internal or AI-readable Markdow
 belongs under `docs`, not `priv-website`. Run `pnpm check` and `pnpm build` from the
 `priv-website` directory after changing public documentation.
 
+The startup tutorial is for app users. Give concrete steps, the menu labels
+users should look for, and a visible way to confirm success. Keep common fixes
+next to the relevant step and put less common cases in troubleshooting. Keep
+developer APIs in the developer guides.
+
+For other user-facing documentation, add only information needed for
+integration and troubleshooting. Put internal implementation details in the
+maintainer documentation under `docs`. Include cautions and defensive guidance
+only when they address a concrete scenario the reader may encounter.
+
 User-facing copy in reusable product modules, including `:priv-ui`, must not
 contain the product name `Priv Kit`. Describe the action or capability without
 presenting the library as the host application. System-prompt text, dialogs,

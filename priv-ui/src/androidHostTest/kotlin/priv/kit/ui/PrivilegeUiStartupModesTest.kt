@@ -4,6 +4,9 @@ import android.content.Context
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import priv.kit.core.PrivilegeExternalStartProvider
+import priv.kit.core.PrivilegeExternalStartResult
+import priv.kit.core.PrivilegeStartupLogListener
 
 class PrivilegeUiStartupModesTest {
     @Test
@@ -82,13 +85,20 @@ class PrivilegeUiStartupModesTest {
         assertEquals("startup modes must be unique", exception.message)
     }
 
-    private object TestExternalStartProvider : PrivilegeUiExternalStartProvider {
+    private object TestExternalStartProvider : PrivilegeExternalStartProvider {
         override val id: String = "test"
-        override val label: CharSequence = "Test"
+        override fun getLabel(context: Context): CharSequence = "Test"
 
-        override suspend fun start(
+        override suspend fun checkAuthorization(context: Context): PrivilegeExternalStartResult =
+            PrivilegeExternalStartResult(authorized = null)
+
+        override suspend fun requestAuthorization(context: Context): PrivilegeExternalStartResult =
+            error("Unexpected authorization request")
+
+        override suspend fun runStarter(
             context: Context,
             commandLine: String,
-        ) = Unit
+            startupLogListener: PrivilegeStartupLogListener?,
+        ): String = error("Unexpected start")
     }
 }

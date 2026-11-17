@@ -18,7 +18,12 @@ const startupChecks = computed(() => content.startChecks[props.method === 'stati
       <ol class="check-list"><li v-for="(check, index) in startupChecks" :key="check"><span>{{ index + 1 }}</span>{{ check }}</li></ol>
       <div class="last-resort"><strong>{{ t('仍然失败？', 'Still failing?') }}</strong><p>{{ method === 'static' ? t('最后尝试重启设备，再按应用提示重新开启静态端口并启动。', 'As a last resort, restart the device, reopen the static port as prompted and start again.') : t('最后尝试重启设备，重新连接 Wi-Fi、开启无线调试，再尝试启动；配对失效时重新配对。', 'As a last resort, restart the device, reconnect Wi-Fi, enable wireless debugging and retry. Pair again if authorization has expired.') }}</p><p>{{ t('仍无效时，把错误信息或启动日志发给应用维护者。', 'If it still fails, send the error or startup log to the app maintainer.') }}</p></div>
     </template>
-    <template v-else-if="topic === 'no-notification'"><ol><li>{{ t('检查应用的通知权限是否开启。', 'Check that notifications are allowed for this app.') }}</li><li>{{ t('也可以选择继续配对，用分屏或小窗同时显示系统配对窗口和应用。', 'Alternatively, continue pairing using split screen or a floating window to keep both the system pairing window and the app visible.') }}</li></ol></template>
+    <template v-else-if="topic === 'no-notification'">
+      <ol>
+        <li>{{ t('打开「设置 → 应用 → 本应用 → 通知」，允许通知，然后回到应用重新点「配对」。', 'Open Settings → Apps → this app → Notifications, allow notifications, then return to the app and tap Pair again.') }}</li>
+        <li>{{ t('也可以用分屏或小窗同时显示应用和系统配对窗口，把六位配对码填进应用的配对框。', 'You can also use split screen or a floating window to keep the app and the system pairing window visible. Enter the six-digit code in the app’s pairing box.') }}</li>
+      </ol>
+    </template>
     <ol v-else-if="checks.length" class="check-list"><li v-for="(check, index) in checks" :key="check"><span>{{ index + 1 }}</span>{{ check }}</li></ol>
     <div v-else-if="entry" class="help-copy" v-html="entry.html" />
     <p v-if="topic === 'pairing-failed' || topic === 'pairing-discovery'" class="muted">{{ t('以上方法都无效时，最后尝试重启设备，再连接 Wi-Fi、开启无线调试并重新配对。仍失败时，将错误信息或日志发给应用维护者。', 'If none of these steps help, restart the device as a last resort, reconnect Wi-Fi, enable wireless debugging and pair again. Send the error or log to the app maintainer if it still fails.') }}</p>

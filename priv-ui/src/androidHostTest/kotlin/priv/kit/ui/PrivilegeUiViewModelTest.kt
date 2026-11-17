@@ -1,5 +1,8 @@
 package priv.kit.ui
 
+import priv.kit.core.PrivilegeExternalStartProvider
+import priv.kit.core.PrivilegeExternalStartResult
+import priv.kit.core.PrivilegeStartupLogListener
 import priv.kit.core.internal.runtime.PrivilegeContext
 import priv.kit.ui.adb.*
 import priv.kit.ui.runtime.*
@@ -117,23 +120,24 @@ class PrivilegeUiViewModelTest {
     fun slowExternalSnapshotDoesNotDelayPageInitialization() = runBlocking {
         val snapshotStarted = CompletableDeferred<Unit>()
         val releaseSnapshot = CompletableDeferred<Unit>()
-        val provider = object : PrivilegeUiExternalStartProvider {
+        val provider = object : PrivilegeExternalStartProvider {
             override val id: String = "slow"
-            override val label: CharSequence = "Slow"
+            override fun getLabel(context: Context): CharSequence = "Slow"
 
-            override suspend fun snapshot(context: Context): PrivilegeUiExternalStartSnapshot {
+            override suspend fun checkAuthorization(context: Context): PrivilegeExternalStartResult {
                 snapshotStarted.complete(Unit)
                 releaseSnapshot.await()
-                return PrivilegeUiExternalStartSnapshot(
-                    available = true,
-                    authorized = true,
-                )
+                return PrivilegeExternalStartResult(authorized = true)
             }
 
-            override suspend fun start(
+            override suspend fun requestAuthorization(context: Context): PrivilegeExternalStartResult =
+                error("Unexpected authorization request")
+
+            override suspend fun runStarter(
                 context: Context,
                 commandLine: String,
-            ) = Unit
+                startupLogListener: PrivilegeStartupLogListener?,
+            ): String = error("Unexpected start")
         }
         val viewModel = configuredViewModel(
             PrivilegeUiConfig(
@@ -165,7 +169,7 @@ class PrivilegeUiViewModelTest {
             }
         }
 
-        assertTrue(viewModel.state.value.externalStartItems.single().snapshot.canStart)
+        assertTrue(viewModel.state.value.externalStartItems.single().canStart)
         viewModel.unregisterPermissionHost("slow-provider-host", changingConfigurations = false)
     }
 
@@ -958,14 +962,21 @@ class PrivilegeUiViewModelTest {
         }
     }
 
-    private object TestExternalStartProvider : PrivilegeUiExternalStartProvider {
+    private object TestExternalStartProvider : PrivilegeExternalStartProvider {
         override val id: String = "test"
-        override val label: CharSequence = "Test"
+        override fun getLabel(context: Context): CharSequence = "Test"
 
-        override suspend fun start(
+        override suspend fun checkAuthorization(context: Context): PrivilegeExternalStartResult =
+            PrivilegeExternalStartResult(authorized = null)
+
+        override suspend fun requestAuthorization(context: Context): PrivilegeExternalStartResult =
+            error("Unexpected authorization request")
+
+        override suspend fun runStarter(
             context: Context,
             commandLine: String,
-        ) = Unit
+            startupLogListener: PrivilegeStartupLogListener?,
+        ): String = error("Unexpected start")
     }
 
     private fun configuredViewModel(config: PrivilegeUiConfig): ConfiguredPrivilegeUiViewModel =

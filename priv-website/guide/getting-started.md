@@ -28,8 +28,7 @@ dependencies {
 
 ## Configure native library packaging {#native-library-packaging}
 
-Apps that support Android versions below 10 must set `useLegacyPackaging` to
-`true`:
+Set `useLegacyPackaging = true` if the app supports Android 8 or 9.
 
 ```kotlin
 android {
@@ -41,29 +40,26 @@ android {
 }
 ```
 
-Android 10 and later have no such restriction. Priv Kit uses the startup command
-that matches the value of `useLegacyPackaging`.
-
-For example, on an arm64 device:
-
-`useLegacyPackaging = true`:
-
-```shell
-adb shell /data/app/.../lib/arm64/libprivkitstarter.so
-```
-
-`useLegacyPackaging = false`:
-
-```shell
-adb shell /system/bin/linker64 '/data/app/.../base.apk!/lib/arm64-v8a/libprivkitstarter.so'
-```
+On Android 10 and later, the generated startup command works with either packaging mode.
 
 ## Configure hidden API access {#hidden-api-access}
 
-Configure [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass)
-in the host app:
+Add [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass) to the app module. This is the version used by Sample.
 
 ```kotlin
+dependencies {
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.2")
+}
+```
+
+Initialize it in your `Application`.
+
+```kotlin
+import android.app.Application
+import android.content.Context
+import android.os.Build
+import org.lsposed.hiddenapibypass.HiddenApiBypass
+
 class App : Application() {
     override fun attachBaseContext(base: Context?) {
         super.attachBaseContext(base)
@@ -74,42 +70,25 @@ class App : Application() {
 }
 ```
 
+For a new `App` in your app’s base package, set `android:name=".App"` on the existing `<application>` element. If the app already has an `Application` class, add the initialization there.
+
 ## Embed Privilege UI {#embed-privilege-ui}
 
-Place `PrivilegeScaffold` in the app's Compose content:
+Place the page inside your app’s Compose Material 3 theme for Root, ADB, and manual startup. See [Privilege UI](./priv-ui) to configure it.
 
 ```kotlin
 PrivilegeScaffold()
 ```
 
-The default page provides Root, ADB, and Manual startup. See [Privilege UI](./priv-ui) for pairing, configuration, and silent startup.
-
 ## Build a custom interface with priv-core {#custom-interface}
 
-With `priv-core`, your app handles permissions, pairing, confirmations, polling, and errors.
-
-The shortest Root and Wireless Debugging calls are:
+If your app handles authorization and errors, choose one suspend API for the user’s startup method. Pair Wireless Debugging before calling `startAdb()`. See [startup methods](./activation).
 
 ```kotlin
-val rootServer = Privilege.startRoot()
-val adbServer = Privilege.startAdb()
+val serverInfo = Privilege.startRoot()
+// For Wireless Debugging instead: val serverInfo = Privilege.startAdb()
 ```
-
-Both are suspend APIs. Cancelling the owning coroutine closes the active
-process, socket, or discovery session. See [startup methods](./activation) for
-the complete `priv-core` flows.
 
 ## Choose a usage mode {#usage-mode}
 
-- Use [Binder](./binder) for explicit raw Binder access.
-- Use the [file proxy](./file-proxy) for basic absolute-path file access.
-- Use [commands](./commands) for a bounded non-interactive process with streaming
-  or captured output.
-- Use [UserService](./user-service) for an app-defined AIDL service.
-- Use [Privilege UI](./priv-ui) for the supplied authorization page.
-- Read [startup methods](./activation) before replacing that page with a custom
-  `priv-core` integration.
-
-::: warning Active development
-Use published versions and documented APIs. `priv-evdev` is experimental; internal classes have no compatibility guarantee.
-:::
+Use the connected server for [Binder](./binder), [files](./file-proxy), [commands](./commands), or [UserService](./user-service). `priv-evdev` is experimental.

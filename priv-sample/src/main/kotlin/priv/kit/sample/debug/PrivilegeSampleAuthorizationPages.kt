@@ -218,10 +218,14 @@ private fun ShizukuPage(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            RuntimeInfoRow(label = stringResource(R.string.sample_ready), value = if (state.shizukuReady) stringResource(R.string.sample_yes) else stringResource(R.string.sample_no))
-            RuntimeInfoRow(label = stringResource(R.string.sample_permission), value = if (state.shizukuPermissionGranted) stringResource(R.string.sample_granted) else "-")
-            RuntimeInfoRow(label = "uid", value = state.shizukuUid?.toString() ?: "-")
-            RuntimeInfoRow(label = stringResource(R.string.sample_version), value = state.shizukuVersion?.toString() ?: "-")
+            RuntimeInfoRow(
+                label = stringResource(R.string.sample_ready),
+                value = stringResource(if (state.shizukuAuthorized) R.string.sample_yes else R.string.sample_no),
+            )
+            RuntimeInfoRow(
+                label = stringResource(R.string.sample_permission),
+                value = if (state.shizukuAuthorized) stringResource(R.string.sample_granted) else "-",
+            )
             SelectionContainer {
                 BasicText(
                     text = state.shizukuMessage,
@@ -248,12 +252,12 @@ private fun ShizukuPage(
 }
 
 @Composable
-private fun PrivilegeSampleScreenState.shizukuExternalActionLabel(): String =
-    if (shizukuReady && shizukuPermissionGranted) {
-        stringResource(R.string.sample_start_with_shizuku)
-    } else {
-        stringResource(R.string.sample_authorize_and_start_shizuku)
-    }
+private fun PrivilegeSampleScreenState.shizukuExternalActionLabel(): String {
+    return stringResource(
+        if (shizukuAuthorized) R.string.sample_start_with_shizuku else R.string.sample_authorize_and_start_shizuku,
+        stringResource(R.string.sample_shizuku),
+    )
+}
 
 @Composable
 private fun PairingStatusPanel(

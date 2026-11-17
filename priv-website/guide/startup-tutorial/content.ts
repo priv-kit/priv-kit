@@ -3,11 +3,11 @@ export default {
   "sections": {
     "restart": {
       "title": "Start again",
-      "html": "<ul>\n<li><strong>Service connected:</strong> no need to pair or start again.</li>\n<li><strong>Service stopped, pairing valid:</strong> restore Wi-Fi and wireless debugging, then try Start before deleting any pairing record.</li>\n<li><strong>Phone rebooted:</strong> check service status and start again if needed.</li>\n<li><strong>App reinstalled or debugging authorization revoked:</strong> pairing may be required again.</li>\n<li><strong>Manual startup:</strong> run the app's current command again after the service stops.</li>\n</ul>\n"
+      "html": "<ul>\n<li><strong>Connected:</strong> continue using the app.</li>\n<li><strong>Disconnected after phone-only startup:</strong> reconnect to Wi-Fi, turn on <strong>Wireless debugging</strong>, then return to <strong>ADB → Start</strong>. Pair again only if the app asks.</li>\n<li><strong>Disconnected after computer startup:</strong> connect the phone and run the command from the app’s <strong>Manual</strong> page again. Copy a fresh command after an app update or reinstall.</li>\n</ul>\n"
     },
     "tcp-ip": {
       "title": "Advanced: Static port",
-      "html": "<p>Beginners can skip this. With an available wireless pairing, tap <strong>Static port → Start</strong> and follow the prompt to open a port. Use the separate wireless port setup action if shown. Availability and port depend on the app.</p>\n<p>Opening, restarting, or stopping the port interrupts other ADB connections. Use trusted networks; stop through <strong>Control → Stop</strong>. A pairing port is not a static port.</p>\n<p>Tango's <strong>terminal</strong> cannot run <code>adb tcpip</code>. Computer setup requires a feature or tool supporting static port configuration. You can instead use manual startup above.</p>\n"
+      "html": "<p>After pairing, use <strong>Static port → Start</strong> and follow the prompt. Use a trusted network and the port shown by the app.</p>\n<p>Opening or stopping the port interrupts other ADB connections. Stop it under <strong>Control → Stop</strong>. The pairing port is separate, and Tango’s terminal cannot run <code>adb tcpip</code>.</p>\n"
     },
     "missing-wireless": {
       "title": "Cannot find wireless debugging",
@@ -23,7 +23,7 @@ export default {
     },
     "computer-problems": {
       "title": "Computer cannot find the phone or command",
-      "html": "<ul>\n<li>Browser cannot select a USB device: use up-to-date Chrome or Edge on the computer and reopen Tango.</li>\n<li>Device list empty: check USB debugging, the data cable, and the USB port; unlock the phone and reconnect.</li>\n<li>Awaiting authorization: unlock the phone and accept the USB debugging prompt.</li>\n<li>Device in use: close phone management apps and other browser debugging tools using the connection. If an <code>adb</code> background process remains, follow <a href=\"https://help.tangoapp.dev/features/troubleshooting/\" target=\"_blank\" rel=\"noreferrer\">Tango's connection troubleshooting</a> to release it.</li>\n<li>Terminal reports <code>adb</code> not found: remove the initial <code>adb shell </code> from the copied command and keep the remainder.</li>\n<li>Missing startup path: copy the command again from the currently installed app.</li>\n</ul>\n"
+      "html": "<ul>\n<li><strong>Phone missing:</strong> open Tango in Chrome or Edge on the computer and check that USB debugging is on. If the phone only charges, try a USB data cable and another port.</li>\n<li><strong>Awaiting approval:</strong> unlock the phone and tap <strong>Allow</strong> on the USB debugging prompt. If there is no prompt, reconnect the cable.</li>\n<li><strong>Device busy:</strong> close other debugging tools or see <a href=\"https://help.tangoapp.dev/features/troubleshooting/\" target=\"_blank\" rel=\"noreferrer\">Tango troubleshooting</a>.</li>\n<li><strong>adb not found:</strong> remove the initial <code>adb shell </code> when using Tango’s terminal.</li>\n<li><strong>Path missing:</strong> copy a fresh command from the app’s <strong>Manual</strong> page.</li>\n</ul>\n"
     },
     "feature-failed": {
       "title": "Connected but features still fail",
@@ -31,7 +31,7 @@ export default {
     },
     "permission-restrictions": {
       "title": "Resolve ADB permission restrictions",
-      "html": "<p>A running privileged service may still be prevented from changing app permissions or simulating\ntaps by the device manufacturer's restrictions. Find your system below. Setting names and\nlocations can vary between system versions.</p>\n"
+      "html": "<p>Some systems restrict permission changes or simulated taps. Look up your device brand. Setting names vary by version.</p>\n"
     }
   },
   "steps": {
@@ -44,7 +44,7 @@ export default {
         },
         {
           "device": "phone",
-          "html": "In <strong>Developer options</strong>, enable <strong>Wireless debugging</strong> and allow the current network."
+          "html": "In <strong>Settings</strong>, search for <strong>Wireless debugging</strong> and turn it on in <strong>Developer options</strong>. If Android asks whether to allow debugging on this network, tap <strong>Allow</strong> on a network you trust."
         }
       ]
     },
@@ -61,7 +61,7 @@ export default {
         },
         {
           "device": "phone",
-          "html": "<strong>Keep the code window open.</strong> Pull down the notification shade and enter its six-digit code in this app's notification."
+          "html": "<strong>Keep the code window open.</strong> Swipe down from the top of the screen, find this app’s pairing notification, and enter the six-digit code. If it expires, reopen the pairing window for a new code."
         }
       ]
     },
@@ -70,7 +70,7 @@ export default {
       "actions": [
         {
           "device": "phone",
-          "html": "Tap <strong>Start</strong> and check that the service shows <strong>Connected</strong>."
+          "html": "Once the app confirms pairing, return to <strong>ADB</strong> and tap <strong>Start</strong>. Leave Wireless debugging on and wait for <strong>Connected</strong> before using the app’s features."
         }
       ]
     },
@@ -108,7 +108,7 @@ export default {
         },
         {
           "device": "computer",
-          "html": "<strong>Remove the initial <code>adb shell </code> and leave everything after it unchanged.</strong> Paste the remainder into Tango's terminal and press Enter. This terminal is already a phone shell."
+          "html": "Paste the command into Tango’s terminal. Remove only the initial <code>adb shell </code>, keeping the other spaces and quotation marks, then press <strong>Enter</strong>."
         },
         {
           "device": "phone",
@@ -264,9 +264,8 @@ export default {
       "Reopen the pairing window or try another trusted Wi-Fi network if discovery still fails."
     ],
     "pairing-failed": [
-      "Reopen the system pairing window to get a new six-digit code.",
-      "Enter the code shown in the Pair device with pairing code window.",
-      "Keep the window open while entering the code using the notification, split screen or a floating window."
+      "Reopen Pair device with pairing code to get a new six-digit code.",
+      "Keep the window open and enter the code using the notification, split-screen, or a floating window."
     ]
   },
   "startChecks": {
