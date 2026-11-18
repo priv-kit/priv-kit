@@ -55,9 +55,7 @@ Process.killProcess(Process.myPid())
 内置界面可点「查看受限权限」。自定义界面可以在连接后查询。
 
 ```kotlin
-val deniedPermissions = withContext(Dispatchers.IO) {
-    Privilege.getDeniedServerPermissions()
-}
+val deniedPermissions = Privilege.getDeniedServerPermissions()
 ```
 
 结果是被拒绝的 Manifest 权限。AppOps、SELinux 和具体系统服务也可能限制访问。检查单项权限用 `Privilege.checkServerPermission(permission)`。
@@ -156,12 +154,10 @@ val serverInfo = Privilege.startAdb(
 
 ### 手动 {#manual}
 
-生成命令交给用户在电脑上执行。首次读取命令应在后台线程进行。
+生成命令交给用户在电脑上执行。首次读取 `nativeStarterCommand` 时可能会检查应用的 APK 文件。
 
 ```kotlin
-val nativeStarterCommand = withContext(Dispatchers.IO) {
-    Privilege.nativeStarterCommand
-}
+val nativeStarterCommand = Privilege.nativeStarterCommand
 YourApp.showCommandToUser("adb shell $nativeStarterCommand")
 ```
 

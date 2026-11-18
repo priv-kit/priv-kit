@@ -8,18 +8,59 @@ description: 通过应用自有的 Priv Kit 服务端访问 Binder 服务。
 
 ## 访问系统服务 {#system-service}
 
-按名称查找服务，并使用应用中对应的 Android 接口声明。默认 `REMOTE_PROCESS` 在特权进程中查找，`CURRENT_PROCESS` 在应用进程中查找。同步服务调用放在后台线程。
+`fromSystemService()` 和 `hasSystemService()` 默认在应用进程中按名称查找服务（`CURRENT_PROCESS`）。Binder 事务默认由特权服务端转发。使用应用中对应的 Android 接口声明。
 
 ```kotlin
-val granted = withContext(Dispatchers.IO) {
-    val server = Privilege.getServerInfo()
-    val binder = checkNotNull(PrivilegeBinderWrapper.fromSystemService("activity"))
-    val activityManager = IActivityManager.Stub.asInterface(binder)
-    activityManager.checkPermission(
-        android.Manifest.permission.WRITE_SECURE_SETTINGS,
-        server.pid,
-        server.uid,
-    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+val server = Privilege.getServerInfo()
+val binder = checkNotNull(PrivilegeBinderWrapper.fromSystemService("activity"))
+val activityManager = IActivityManager.Stub.asInterface(binder)
+val granted = activityManager.checkPermission(
+    android.Manifest.permission.WRITE_SECURE_SETTINGS,
+    server.pid,
+    server.uid,
+) == android.content.pm.PackageManager.PERMISSION_GRANTED
+```
+
+## 何时使用 `REMOTE_PROCESS` {#remote-process}
+
+应用进程按名称查不到服务、特权服务端能查到时，使用 `REMOTE_PROCESS`。传入 `userService = connection` 时，由对应的 UserService 进程查找。部分小米 ROM 上的 `miui.mqsas.IMQSNative` 就是一个例子。
+
+```kotlin
+val binder = PrivilegeBinderWrapper.fromSystemService(
+    serviceName = "miui.mqsas.IMQSNative",
+    source = PrivilegeSystemServiceSource.REMOTE_PROCESS,
+)
+```
+
+要在设备上对比查找结果，连接示例应用的特权服务端，打开 **测试 Binder**，输入服务名并点击 **检查两个进程**。
+
+### 读取 `meminfo` {#dump-meminfo}
+
+按 AOSP Android 16 的默认策略，普通应用进程拿不到 `meminfo` 的 Binder。连接特权服务端后，向 `dump()` 传入 `-s` 和包名，读取该应用的内存摘要。
+
+```kotlin
+import android.os.ParcelFileDescriptor
+import java.util.concurrent.FutureTask
+import priv.kit.core.binder.PrivilegeBinderWrapper
+import priv.kit.core.binder.PrivilegeSystemServiceSource
+
+fun readMeminfo(packageName: String): String {
+    val binder = checkNotNull(
+        PrivilegeBinderWrapper.fromSystemService(
+            serviceName = "meminfo",
+            source = PrivilegeSystemServiceSource.REMOTE_PROCESS,
+        ),
+    )
+    val (readEnd, writeEnd) = ParcelFileDescriptor.createPipe()
+
+    return ParcelFileDescriptor.AutoCloseInputStream(readEnd).use { input ->
+        val output = FutureTask { input.bufferedReader().use { it.readText() } }
+        writeEnd.use { writer ->
+            Thread(output, "meminfo-reader").start()
+            binder.dump(writer.fileDescriptor, arrayOf("-s", packageName))
+        }
+        output.get()
+    }
 }
 ```
 

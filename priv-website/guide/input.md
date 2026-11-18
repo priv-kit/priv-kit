@@ -27,24 +27,20 @@ val input = PrivilegeInput(binder)
 
 ### shellCommand {#shell-command}
 
-Run the device’s `input` command on Android 12 or later. Call from a worker thread, pass each argument separately, and omit the `input` prefix.
+Run the device’s `input` command synchronously on Android 12 or later. Pass each argument separately and omit the `input` prefix.
 
 ```kotlin
-val output = withContext(Dispatchers.IO) {
-    input.shellCommand("-d", rearDisplayId.toString(), "tap", "300", "500")
-}
+val output = input.shellCommand("-d", rearDisplayId.toString(), "tap", "300", "500")
 ```
 
 Use `input.shellCommand("help")` to see supported arguments. Command failures throw `InputShellCommandException` with exit code and output.
 
 ### compatShellCommand {#compat-shell-command}
 
-Use `compatShellCommand()` for Android 8 or later. It fills in missing commands and options locally. Call it from a worker thread. Use suspend functions when you need cancellation.
+`compatShellCommand()` runs synchronously on Android 8 or later and fills in missing commands and options locally. Use suspend functions when you need cancellation.
 
 ```kotlin
-withContext(Dispatchers.IO) {
-    input.compatShellCommand("keyevent", "--duration", "1000", "A")
-}
+input.compatShellCommand("keyevent", "--duration", "1000", "A")
 ```
 
 ## Coroutine input functions {#android-input}

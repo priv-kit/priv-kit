@@ -50,7 +50,7 @@ val privilegeUiConfig = PrivilegeUiConfig(
 adb shell sh /sdcard/Android/data/<包名>/priv.sh
 ```
 
-其他用户或存储不可用时，页面展示 native 命令。若要在页面之外生成或刷新脚本，可在 `Dispatchers.IO` 上调用 `PrivilegeUi.prepareExternalShellScript("priv.sh")`。
+其他用户或存储不可用时，页面展示 native 命令。若要在页面之外生成或刷新脚本，可调用 `PrivilegeUi.prepareExternalShellScript("priv.sh")`。存储可用时，该调用会同步读写文件。
 
 ## 嵌入 Scaffold {#embed-scaffold}
 

@@ -29,6 +29,8 @@ try {
 }
 ```
 
+此示例在应用进程中查找 `launcherapps`，再通过 UserService 转发 Binder 调用。若要在 UserService 进程中查找服务，传入 `source = PrivilegeSystemServiceSource.REMOTE_PROCESS`。
+
 `bindUserService()` 会按需启动服务并返回可用连接。用完后解绑。自定义 UserService 也支持这种转发。
 
 ## 指定进程 UID {#process-uid}

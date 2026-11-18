@@ -8,18 +8,59 @@ Call Android system services through the privileged server. Your app supplies th
 
 ## Access a system service {#system-service}
 
-Resolve a service by name and use the matching Android interface declaration in your app. The default `REMOTE_PROCESS` resolves it in the privileged process. Use `CURRENT_PROCESS` for lookup in the app. Run synchronous service calls on a worker thread.
+`fromSystemService()` and `hasSystemService()` look up services by name in the app process by default (`CURRENT_PROCESS`). Binder transactions are forwarded through the privileged server by default. Use the matching Android interface declaration in your app.
 
 ```kotlin
-val granted = withContext(Dispatchers.IO) {
-    val server = Privilege.getServerInfo()
-    val binder = checkNotNull(PrivilegeBinderWrapper.fromSystemService("activity"))
-    val activityManager = IActivityManager.Stub.asInterface(binder)
-    activityManager.checkPermission(
-        android.Manifest.permission.WRITE_SECURE_SETTINGS,
-        server.pid,
-        server.uid,
-    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+val server = Privilege.getServerInfo()
+val binder = checkNotNull(PrivilegeBinderWrapper.fromSystemService("activity"))
+val activityManager = IActivityManager.Stub.asInterface(binder)
+val granted = activityManager.checkPermission(
+    android.Manifest.permission.WRITE_SECURE_SETTINGS,
+    server.pid,
+    server.uid,
+) == android.content.pm.PackageManager.PERMISSION_GRANTED
+```
+
+## When to use `REMOTE_PROCESS` {#remote-process}
+
+Use `REMOTE_PROCESS` when the app cannot find a service by name but the privileged server can. With `userService = connection`, lookup runs in that UserService process. One example is `miui.mqsas.IMQSNative` on some Xiaomi ROMs.
+
+```kotlin
+val binder = PrivilegeBinderWrapper.fromSystemService(
+    serviceName = "miui.mqsas.IMQSNative",
+    source = PrivilegeSystemServiceSource.REMOTE_PROCESS,
+)
+```
+
+To compare lookup results on your device, connect the sample app to its privileged server, open **Test Binder**, enter the service name, and tap **Check Both Processes**.
+
+### Read `meminfo` {#dump-meminfo}
+
+Under the default AOSP Android 16 policy, ordinary app processes cannot obtain the `meminfo` Binder. With the privileged server connected, call `dump()` with `-s` and a package name to read that app’s memory summary.
+
+```kotlin
+import android.os.ParcelFileDescriptor
+import java.util.concurrent.FutureTask
+import priv.kit.core.binder.PrivilegeBinderWrapper
+import priv.kit.core.binder.PrivilegeSystemServiceSource
+
+fun readMeminfo(packageName: String): String {
+    val binder = checkNotNull(
+        PrivilegeBinderWrapper.fromSystemService(
+            serviceName = "meminfo",
+            source = PrivilegeSystemServiceSource.REMOTE_PROCESS,
+        ),
+    )
+    val (readEnd, writeEnd) = ParcelFileDescriptor.createPipe()
+
+    return ParcelFileDescriptor.AutoCloseInputStream(readEnd).use { input ->
+        val output = FutureTask { input.bufferedReader().use { it.readText() } }
+        writeEnd.use { writer ->
+            Thread(output, "meminfo-reader").start()
+            binder.dump(writer.fileDescriptor, arrayOf("-s", packageName))
+        }
+        output.get()
+    }
 }
 ```
 

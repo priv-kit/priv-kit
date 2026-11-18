@@ -4,7 +4,7 @@ description: Read, write, and manage files through the connected server.
 
 # File proxy {#file-proxy}
 
-`Privilege.file()` provides file access through the connected server. Run synchronous file operations on a worker thread.
+`Privilege.file()` provides file access through the connected server. Synchronous file operations block the calling thread.
 
 ## Create a handle {#create-handle}
 
@@ -23,22 +23,20 @@ Log.d("file", child.parentFile.toString())
 Most operations follow `java.io.File` semantics. A disconnected server raises `PrivilegeServerUnavailableException` for operations that need it.
 
 ```kotlin
-withContext(Dispatchers.IO) {
-    if (!directory.mkdirs() && !directory.isDirectory()) {
-        error("Unable to create $directory")
-    }
-
-    if (child.createNewFile()) {
-        Log.d("file", "Created $child")
-    }
-
-    val renamed = directory.resolve("renamed.txt")
-    if (!child.renameTo(renamed)) {
-        error("Unable to rename $child")
-    }
-
-    renamed.delete()
+if (!directory.mkdirs() && !directory.isDirectory()) {
+    error("Unable to create $directory")
 }
+
+if (child.createNewFile()) {
+    Log.d("file", "Created $child")
+}
+
+val renamed = directory.resolve("renamed.txt")
+if (!child.renameTo(renamed)) {
+    error("Unable to rename $child")
+}
+
+renamed.delete()
 ```
 
 ## Delete a tree {#delete-recursively}
@@ -69,9 +67,7 @@ temporary.replaceAtomically(target)
 Use `metadata()` to read several attributes at once. It reports the link itself by default. Pass `followSymbolicLinks = true` to read its target.
 
 ```kotlin
-val metadata = withContext(Dispatchers.IO) {
-    child.metadata()
-}
+val metadata = child.metadata()
 
 Log.d("file", "${metadata.type} ${metadata.sizeBytes} ${metadata.uid}:${metadata.gid}")
 ```
@@ -81,13 +77,11 @@ Log.d("file", "${metadata.type} ${metadata.sizeBytes} ${metadata.uid}:${metadata
 Use `use` to close streams. Output close waits for the write and reports errors. `syncOnClose = true` also syncs the file. Up to four transfers can run at once.
 
 ```kotlin
-withContext(Dispatchers.IO) {
-    child.openOutputStream().bufferedWriter().use { writer ->
-        writer.write("hello")
-    }
-
-    val text = child.openInputStream().bufferedReader().use { it.readText() }
+child.openOutputStream().bufferedWriter().use { writer ->
+    writer.write("hello")
 }
+
+val text = child.openInputStream().bufferedReader().use { it.readText() }
 ```
 
 ## Walk a directory tree {#walk-directory}

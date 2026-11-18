@@ -34,7 +34,9 @@ Remap 随 AAR 生成隐藏类型和回调所需的 consumer rules。`:hidden-api
 
 ## Binder 与权限
 
-服务端不可用使用 `PrivilegeServerUnavailableException`。转发时的 `DeadObjectException` 也可能来自目标 Binder。回复丢失后，调用方根据操作是否可安全重复来决定是否重试。权限和服务发现从特权进程视角查询，实际访问仍受系统服务、AppOps 和 SELinux 限制。
+服务端不可用使用 `PrivilegeServerUnavailableException`。转发时的 `DeadObjectException` 也可能来自目标 Binder。回复丢失后，调用方根据操作是否可安全重复来决定是否重试。权限从特权进程视角查询，实际访问仍受系统服务、AppOps 和 SELinux 限制。
+
+`fromSystemService()` 和 `hasSystemService()` 默认在调用进程中查找服务，即使传入 `userService`。显式指定 `REMOTE_PROCESS` 时，由指定的 UserService 或主特权服务端查找。Binder 事务由 `userService` 指定的进程或主特权服务端发起。
 
 ## 文件与命令
 

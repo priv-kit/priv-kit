@@ -50,7 +50,7 @@ val privilegeUiConfig = PrivilegeUiConfig(
 adb shell sh /sdcard/Android/data/<package>/priv.sh
 ```
 
-Other users and storage failures use the native command. To prepare or refresh the script without opening the UI, call `PrivilegeUi.prepareExternalShellScript("priv.sh")` on `Dispatchers.IO`.
+Other users and storage failures use the native command. To prepare or refresh the script without opening the UI, call `PrivilegeUi.prepareExternalShellScript("priv.sh")`. The call performs synchronous file I/O when storage is available.
 
 ## Embed the scaffold {#embed-scaffold}
 

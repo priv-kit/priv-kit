@@ -55,9 +55,7 @@ Process.killProcess(Process.myPid())
 In the built-in UI, use **View restricted permissions**. In a custom interface, query the connected server.
 
 ```kotlin
-val deniedPermissions = withContext(Dispatchers.IO) {
-    Privilege.getDeniedServerPermissions()
-}
+val deniedPermissions = Privilege.getDeniedServerPermissions()
 ```
 
 This checks denied manifest permissions. AppOps, SELinux, and individual services can still restrict access. Use `Privilege.checkServerPermission(permission)` to check one permission.
@@ -156,12 +154,10 @@ Use `checkTcpAuthorization(tcpPort)` to check authorization without prompting.
 
 ### Manual {#manual}
 
-Show the generated command to the user to run from a computer. First access should run off the main thread.
+Show the generated command to the user to run from a computer. Reading `nativeStarterCommand` for the first time may inspect the app’s APKs.
 
 ```kotlin
-val nativeStarterCommand = withContext(Dispatchers.IO) {
-    Privilege.nativeStarterCommand
-}
+val nativeStarterCommand = Privilege.nativeStarterCommand
 YourApp.showCommandToUser("adb shell $nativeStarterCommand")
 ```
 

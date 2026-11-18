@@ -4,7 +4,7 @@ description: 通过已连接的服务端读写和管理文件。
 
 # 文件代理 {#file-proxy}
 
-用 `Privilege.file()` 通过已连接的服务端访问文件。同步文件操作应放在后台线程。
+用 `Privilege.file()` 通过已连接的服务端访问文件。同步文件操作会阻塞调用线程。
 
 ## 创建句柄 {#create-handle}
 
@@ -23,22 +23,20 @@ Log.d("file", child.parentFile.toString())
 多数操作遵循 `java.io.File` 的语义。需要服务端的操作会在断线时抛出 `PrivilegeServerUnavailableException`。
 
 ```kotlin
-withContext(Dispatchers.IO) {
-    if (!directory.mkdirs() && !directory.isDirectory()) {
-        error("无法创建 $directory")
-    }
-
-    if (child.createNewFile()) {
-        Log.d("file", "已创建 $child")
-    }
-
-    val renamed = directory.resolve("renamed.txt")
-    if (!child.renameTo(renamed)) {
-        error("无法重命名 $child")
-    }
-
-    renamed.delete()
+if (!directory.mkdirs() && !directory.isDirectory()) {
+    error("无法创建 $directory")
 }
+
+if (child.createNewFile()) {
+    Log.d("file", "已创建 $child")
+}
+
+val renamed = directory.resolve("renamed.txt")
+if (!child.renameTo(renamed)) {
+    error("无法重命名 $child")
+}
+
+renamed.delete()
 ```
 
 ## 删除目录树 {#delete-recursively}
@@ -69,9 +67,7 @@ temporary.replaceAtomically(target)
 用 `metadata()` 一次读取多项属性。默认读取符号链接自身，传入 `followSymbolicLinks = true` 可读取目标。
 
 ```kotlin
-val metadata = withContext(Dispatchers.IO) {
-    child.metadata()
-}
+val metadata = child.metadata()
 
 Log.d("file", "${metadata.type} ${metadata.sizeBytes} ${metadata.uid}:${metadata.gid}")
 ```
@@ -81,13 +77,11 @@ Log.d("file", "${metadata.type} ${metadata.sizeBytes} ${metadata.uid}:${metadata
 用 `use` 关闭流。输出流关闭时会等待写入完成并报告错误。`syncOnClose = true` 还会同步文件。同时最多进行四次内容传输。
 
 ```kotlin
-withContext(Dispatchers.IO) {
-    child.openOutputStream().bufferedWriter().use { writer ->
-        writer.write("hello")
-    }
-
-    val text = child.openInputStream().bufferedReader().use { it.readText() }
+child.openOutputStream().bufferedWriter().use { writer ->
+    writer.write("hello")
 }
+
+val text = child.openInputStream().bufferedReader().use { it.readText() }
 ```
 
 ## 遍历目录树 {#walk-directory}

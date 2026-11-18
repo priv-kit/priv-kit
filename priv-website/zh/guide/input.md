@@ -27,24 +27,20 @@ val input = PrivilegeInput(binder)
 
 ### shellCommand {#shell-command}
 
-在 Android 12 及以上运行设备自带的 `input` 命令。请在后台线程调用，逐个传入参数，省略 `input` 前缀。
+在 Android 12 及以上同步运行设备自带的 `input` 命令。逐个传入参数，省略 `input` 前缀。
 
 ```kotlin
-val output = withContext(Dispatchers.IO) {
-    input.shellCommand("-d", rearDisplayId.toString(), "tap", "300", "500")
-}
+val output = input.shellCommand("-d", rearDisplayId.toString(), "tap", "300", "500")
 ```
 
 用 `input.shellCommand("help")` 查看设备支持的参数。命令失败会抛出含退出码和输出的 `InputShellCommandException`。
 
 ### compatShellCommand {#compat-shell-command}
 
-Android 8 及以上可用 `compatShellCommand()`，缺少的命令和选项由本地实现补齐。在后台线程调用。需要取消手势时，使用挂起函数。
+`compatShellCommand()` 在 Android 8 及以上同步执行，缺少的命令和选项由本地实现补齐。需要取消手势时，使用挂起函数。
 
 ```kotlin
-withContext(Dispatchers.IO) {
-    input.compatShellCommand("keyevent", "--duration", "1000", "A")
-}
+input.compatShellCommand("keyevent", "--duration", "1000", "A")
 ```
 
 ## input 协程函数 {#android-input}

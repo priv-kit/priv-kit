@@ -122,7 +122,7 @@ public abstract class PrivilegeBinderWrapper internal constructor(
 
         public fun fromSystemService(
             serviceName: String,
-            source: PrivilegeSystemServiceSource = PrivilegeSystemServiceSource.REMOTE_PROCESS,
+            source: PrivilegeSystemServiceSource = PrivilegeSystemServiceSource.CURRENT_PROCESS,
             userService: PrivilegeUserServiceConnection? = null,
         ): PrivilegeBinderWrapper? {
             require(serviceName.isNotBlank()) { "serviceName must not be blank" }
@@ -146,7 +146,7 @@ public abstract class PrivilegeBinderWrapper internal constructor(
 
         public fun hasSystemService(
             serviceName: String,
-            source: PrivilegeSystemServiceSource = PrivilegeSystemServiceSource.REMOTE_PROCESS,
+            source: PrivilegeSystemServiceSource = PrivilegeSystemServiceSource.CURRENT_PROCESS,
             userService: PrivilegeUserServiceConnection? = null,
         ): Boolean {
             require(serviceName.isNotBlank()) { "serviceName must not be blank" }

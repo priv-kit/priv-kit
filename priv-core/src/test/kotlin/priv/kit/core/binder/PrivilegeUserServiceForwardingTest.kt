@@ -39,10 +39,15 @@ class PrivilegeUserServiceForwardingTest {
                 return true
             }
         }
-        val forwarder = PrivilegeBinderForwarder { name -> if (name == "test") target else null }
+        val serviceName = "priv.kit.test.user-service-only"
+        val forwarder = PrivilegeBinderForwarder { name -> if (name == serviceName) target else null }
         val connection = connection(forwarder)
-        val wrapper = PrivilegeBinderWrapper.fromSystemService("test", userService = connection)!!
-        assertNull(PrivilegeBinderWrapper.fromSystemService("missing", userService = connection))
+        val remote = PrivilegeSystemServiceSource.REMOTE_PROCESS
+        assertFalse(PrivilegeBinderWrapper.hasSystemService(serviceName, userService = connection))
+        assertNull(PrivilegeBinderWrapper.fromSystemService(serviceName, userService = connection))
+        assertTrue(PrivilegeBinderWrapper.hasSystemService(serviceName, source = remote, userService = connection))
+        val wrapper = PrivilegeBinderWrapper.fromSystemService(serviceName, source = remote, userService = connection)!!
+        assertNull(PrivilegeBinderWrapper.fromSystemService("missing", source = remote, userService = connection))
         val data = Parcel.obtain()
         val reply = Parcel.obtain()
         try {

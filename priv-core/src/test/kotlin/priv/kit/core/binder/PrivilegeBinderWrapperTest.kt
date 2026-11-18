@@ -66,11 +66,11 @@ class PrivilegeBinderWrapperTest {
             service,
         )
 
-        assertNotNull(PrivilegeBinderWrapper.fromSystemService(serviceName, PrivilegeSystemServiceSource.CURRENT_PROCESS))
+        assertNotNull(PrivilegeBinderWrapper.fromSystemService(serviceName))
         ShadowServiceManager.setServiceAvailability(serviceName, false)
 
-        assertTrue(PrivilegeBinderWrapper.hasSystemService(serviceName, PrivilegeSystemServiceSource.CURRENT_PROCESS))
-        assertNotNull(PrivilegeBinderWrapper.fromSystemService(serviceName, PrivilegeSystemServiceSource.CURRENT_PROCESS))
+        assertTrue(PrivilegeBinderWrapper.hasSystemService(serviceName))
+        assertNotNull(PrivilegeBinderWrapper.fromSystemService(serviceName))
     }
 
     @Test

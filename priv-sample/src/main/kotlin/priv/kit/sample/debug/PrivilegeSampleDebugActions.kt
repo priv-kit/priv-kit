@@ -667,7 +667,12 @@ internal fun PrivilegeSampleDebugHost.testUserServiceBinderForwarding(uid: Int?)
                 reply.recycle()
             }
             check(callingUid == connection.uid) { "Expected UID ${connection.uid}, got $callingUid" }
-            val packageBinder = checkNotNull(PrivilegeBinderWrapper.fromSystemService("package", userService = connection))
+            val packageBinder = checkNotNull(
+                PrivilegeBinderWrapper.fromSystemService(
+                    serviceName = "package",
+                    userService = connection,
+                ),
+            )
             UserServiceActionResult("Binder forwarding passed: uid=$callingUid, package=${connection.callingPackageName}, descriptor=${packageBinder.interfaceDescriptor}")
         } finally {
             connection.unbind()

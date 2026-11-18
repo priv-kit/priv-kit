@@ -29,6 +29,8 @@ try {
 }
 ```
 
+This example looks up `launcherapps` in the app process and forwards Binder calls through the UserService. If lookup needs to run in the UserService process too, pass `source = PrivilegeSystemServiceSource.REMOTE_PROCESS`.
+
 `bindUserService()` starts the service if needed and returns a usable connection. Unbind when finished. The same forwarding option works with a custom UserService.
 
 ## Select the process UID {#process-uid}
