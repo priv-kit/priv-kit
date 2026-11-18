@@ -5,6 +5,6 @@ Keep only the changes for the current release in this file.
 Replace the content when preparing the next release; release history is preserved by GitHub Releases.
 -->
 
-- Add the optional `priv-external-shizuku` module for authorization and service startup with Shizuku API v13 or later. The Sample now uses this module.
-- Register `PrivilegeExternalShizuku` in `PrivilegeUiConfig.externalStartProviders` to enable Shizuku in the built-in startup page. Apps with custom external startup providers must migrate from the previous UI interfaces to Core's `PrivilegeExternalStartProvider`.
-- Streamline the integration guides and expand the phone and computer instructions in the startup tutorial.
+- Restore `CURRENT_PROCESS` as the default for `fromSystemService()` and `hasSystemService()`, including when a UserService connection is supplied. Pass `REMOTE_PROCESS` explicitly when the service needs to be looked up by the privileged server or the supplied UserService.
+- Add a `meminfo` Binder dump example to the Binder guide and simplify the Kotlin examples in the integration guides.
+- Restore the root READMEs with links to the full documentation and playground.
