@@ -15,9 +15,9 @@ Priv Kit 让 Android 应用通过 Root、ADB、手动命令或外部授权服务
 - Android 输入事件注入
 - Linux evdev 访问（实验性）
 
-[阅读完整文档](https://priv-kit.pages.dev/zh/)
+[阅读完整文档](https://priv-kit.netlify.app/zh/)
 
-[在线体验 priv-playground](https://priv-kit.pages.dev/zh/playground/)
+[在线体验 priv-playground](https://priv-kit.netlify.app/zh/playground/)
 
 <table>
   <tr>
