@@ -21,11 +21,11 @@ Free your app from dependencies on standalone authorization apps such as Shizuku
 
 <table>
   <tr>
-    <td><img width="320" height="714" src="https://camo.githubusercontent.com/d04f3d204dc5988ddfa12855265b6b7d1aea3f96719327f6b450482c7f7aa530/687474703a2f2f652e676b642e6c692f65343762366337642d366137612d346264392d383631342d666565336661303266656339" /></td>
-    <td><img width="320" height="714" src="https://camo.githubusercontent.com/2b33fd1e27fef01878c80725ab16e5cc5ea0f618c62ad0e2346248bea9405eeb/687474703a2f2f652e676b642e6c692f61333965373435312d663932382d346664642d393132322d333236656339373164633336" /></td>
+    <td><img width="320" height="714" src="https://e.gkd.li/e47b6c7d-6a7a-4bd9-8614-fee3fa02fec9" /></td>
+    <td><img width="320" height="714" src="https://e.gkd.li/a39e7451-f928-4fdd-9122-326ec971dc36" /></td>
   </tr>
   <tr>
-    <td><img width="320" height="714" src="https://camo.githubusercontent.com/d819ccb9224b509111d7de52f150681664121cd16c1058380b6e814a639e0f4e/687474703a2f2f652e676b642e6c692f66623639303536652d316338332d343562342d616562362d393266396639343333623536" /></td>
-    <td><img width="320" height="714" src="https://camo.githubusercontent.com/c0c53fc5f08f4e2093a1222647c02b5fb81875e6017e41752cbdb1cf1a3322ea/687474703a2f2f652e676b642e6c692f38373330646431332d643430352d343365312d613361332d656234653661353333303635" /></td>
+    <td><img width="320" height="714" src="https://e.gkd.li/fb69056e-1c83-45b4-aeb6-92f9f9433b56" /></td>
+    <td><img width="320" height="714" src="https://e.gkd.li/8730dd13-d405-43e1-a3a3-eb4e6a533065" /></td>
   </tr>
 </table>
