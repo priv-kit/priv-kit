@@ -47,3 +47,17 @@ jobs:
         run: >-
           pnpm dlx --allow-build=sharp --allow-build=workerd wrangler@4
           pages deploy priv-website/.vitepress/dist --project-name=priv-kit
+
+      - name: deploy netlify
+        uses: nwtgck/actions-netlify@v4
+        with:
+          publish-dir: priv-website/.vitepress/dist
+          production-branch: main
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          deploy-message: 'Deploy from GitHub Actions'
+          enable-pull-request-comment: false
+          enable-commit-comment: false
+          fails-without-credentials: true
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
