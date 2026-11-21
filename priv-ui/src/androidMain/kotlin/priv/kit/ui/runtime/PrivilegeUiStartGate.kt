@@ -5,15 +5,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-internal enum class PrivilegeUiStartGateOwner {
+public enum class PrivilegeUiStartGateOwner {
     SILENT,
     INTERACTIVE,
 }
 
-internal data class PrivilegeUiStartGateState(
-    val owner: PrivilegeUiStartGateOwner? = null,
-    val interactiveLeaseCount: Int = 0,
-    val silentCompletionSerial: Long = 0L,
+public data class PrivilegeUiStartGateState(
+    public val owner: PrivilegeUiStartGateOwner? = null,
+    public val interactiveLeaseCount: Int = 0,
+    public val silentCompletionSerial: Long = 0L,
 )
 
 internal object PrivilegeUiStartGate {

@@ -75,7 +75,7 @@ class PrivilegeAdbPairingLocaleTest {
         withPairingService(Locale.SIMPLIFIED_CHINESE) { service ->
             assertEquals("正在配对", shadowOf(service).lastForegroundNotification
                 .extras.getCharSequence(Notification.EXTRA_TITLE).toString())
-            // The same resolver is used by PrivilegeScaffold with the host's LocalContext.
+            // The same resolver is used by rememberPrivilegeUi with the host's LocalContext.
             assertEquals("Pairing", privilegeUiText(R.string.priv_ui_pairing_working_title)
                 .asString(service))
             PrivilegeAdbPairingService.updateStatus(OWNER_ID, PrivilegeUiText.Literal("External status"))

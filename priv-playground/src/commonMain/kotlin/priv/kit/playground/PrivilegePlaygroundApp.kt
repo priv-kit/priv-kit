@@ -6,7 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import priv.kit.ui.PrivilegePreviewScaffold
+import priv.kit.ui.m3.PrivilegeM3Preview
 import androidx.compose.ui.text.font.FontFamily
 import org.jetbrains.compose.resources.Font
 import priv.kit.playground.resources.Res
@@ -44,7 +44,7 @@ internal fun PrivilegePlaygroundApp(
         colorScheme = if (dark) darkColorScheme() else lightColorScheme(),
         typography = typography,
     ) {
-        PrivilegePreviewScaffold(useLegacyPackaging = useLegacyPackaging, adbRestricted = adbRestricted,
+        PrivilegeM3Preview(useLegacyPackaging = useLegacyPackaging, adbRestricted = adbRestricted,
             batteryOptimizationExempt = batteryOptimizationExempt, localNetworkPermissionGranted = localNetworkPermissionGranted,
             onPermissionsChanged = onPermissionsChanged)
     }

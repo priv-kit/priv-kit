@@ -11,7 +11,8 @@
 | 模块 | 职责 |
 | --- | --- |
 | `priv-core` | 启动、连接、Binder、文件、命令和 UserService |
-| `priv-ui` | Compose 授权界面与恢复逻辑，Android 端依赖 Core |
+| `priv-ui` | 主题无关的状态、操作、Compose 宿主接入与恢复逻辑，Android 端依赖 Core |
+| `priv-ui-m3` | Material 3 页面、面板、弹窗和模拟预览，依赖 `priv-ui` |
 | `priv-external-shizuku` | 实现 Core 外部启动接口，通过 Shizuku 运行 starter |
 | `priv-shared`、`priv-adb-crypto` | 隐藏 API 兼容、ADB 加密及配对 |
 | `priv-input`、`priv-evdev` | 系统输入注入、Linux 输入设备访问 |
@@ -58,9 +59,15 @@ Evdev 控制器只接受一个远程 owner。取消或关闭时先结束在途�
 
 ## UI 与恢复
 
-`commonMain` 提供布局、状态与资源，`androidMain` 对接 Core 和 Android 生命周期。外部启动使用 Core 的 `PrivilegeExternalStartProvider`，卡片从三态授权结果派生，具体失败原因进入启动日志。
+`priv-ui` 提供主题无关的业务状态、操作和 Android 平台接入，负责启动、配对、授权请求、轮询和恢复。`priv-ui-m3` 提供默认 Material 3 页面、展示状态与页面文本。外部启动通过 Core 的 `PrivilegeExternalStartProvider` 接入。
 
-被动检查只在宿主处于 resumed 且选中对应 Tab 时运行。静默恢复使用上次成功的 UI 启动方式和已有授权。断连或启动失败保留恢复设置，用户确认停止或关闭恢复时清除。前台和静默启动互斥。
+页面使用一个 VM：`PrivilegeM3ViewModel` 继承 `PrivilegeUiViewModel`。业务层描述配对输入与确认请求，渲染层决定用弹窗或内联组件呈现。M3 VM 管理 Tab、展开状态、提示和说明，直接观察业务授权状态；Compose 保留派生状态与组件局部状态。跨平台预览复用 M3 展示控制器。
+
+`PrivilegeUiHost` 与 `rememberPrivilegeUi` 负责状态收集、本地化、生命周期和平台绑定，不绘制组件。授权流程由 VM 执行，业务协调器统一串行化并管理交互许可与取消；宿主可覆盖受保护的 `accessHandler`。Activity 只执行平台命令和交付结果，配置重建后重新绑定，真正离页或 VM 清理时取消授权流程。授权结果为 Boolean，取消通过 CancellationException 传播。
+
+ADB 与外部 Provider 检查在页面 resumed 时按配置、权限及启动互斥条件运行，与 Tab 选择或组件可见性无关。`startupModes` 控制默认方式、自动启动顺序和观察来源，不限制显式启动操作。外部 Provider 自动补入 EXTERNAL，显式配置可指定顺序；有效方式列表必须非空。
+
+静默恢复使用上次成功的 UI 启动方式和已有授权，与前台启动互斥。断连或启动失败保留恢复设置，用户确认停止或关闭恢复时清除。
 
 ## 文档与构建工具
 

@@ -10,10 +10,10 @@ public enum class PrivilegeUiTutorialTopic(public val anchor: String) {
     PERMISSION_RESTRICTIONS("permission-restrictions"),
 }
 
-internal fun privilegeUiTutorialUrl(baseUrl: String, topic: PrivilegeUiTutorialTopic): String =
+public fun privilegeUiTutorialUrl(baseUrl: String, topic: PrivilegeUiTutorialTopic): String =
     baseUrl.substringBefore('#') + "#" + topic.anchor
 
-internal fun openPrivilegeUiTutorial(
+public fun openPrivilegeUiTutorial(
     topic: PrivilegeUiTutorialTopic,
     baseUrl: String,
     onViewPermissionSolutions: (() -> Unit)?,

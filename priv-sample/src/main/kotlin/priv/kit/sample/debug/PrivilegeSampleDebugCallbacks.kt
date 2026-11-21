@@ -23,7 +23,7 @@ internal data class PrivilegeSampleConnectionCallbacks(
     val startShizukuExternal: () -> Unit,
     val pairWirelessAdb: () -> Unit,
     val startNotificationPairing: () -> Unit,
-    val stopNotificationPairing: () -> Unit,
+    val cancelPairing: () -> Unit,
     val startWirelessAdb: () -> Unit,
     val switchToTcp: () -> Unit,
     val restartTcp: () -> Unit,

@@ -96,7 +96,7 @@ internal class PrivilegeSampleDebugController(
                 startShizukuExternal = { startShizukuExternal() },
                 pairWirelessAdb = { pairWirelessAdb() },
                 startNotificationPairing = { startNotificationPairing() },
-                stopNotificationPairing = { stopNotificationPairing() },
+                cancelPairing = { cancelPairing() },
                 startWirelessAdb = { startWirelessAdb() },
                 switchToTcp = { switchToTcp() },
                 restartTcp = { restartTcp() },

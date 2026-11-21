@@ -23,7 +23,7 @@ internal class PrivilegeUiAdbActions(
     private val coroutineScope: CoroutineScope,
     private val acquireInteractivePermit: () -> AutoCloseable?,
     private val hasInteractionHost: () -> Boolean,
-    private val systemPromptCoordinator: PrivilegeUiSystemPromptCoordinator,
+    private val authorizationCoordinator: PrivilegeUiAuthorizationCoordinator,
 ) : AutoCloseable {
     private var permissionObserver: Job? = null
     private val staticTcpConfirmationController = PrivilegeUiStaticTcpConfirmationController()
@@ -33,7 +33,7 @@ internal class PrivilegeUiAdbActions(
     )
     private val tcpActions = PrivilegeUiAdbTcpActions(
         store = store,
-        systemPromptCoordinator = systemPromptCoordinator,
+        authorizationCoordinator = authorizationCoordinator,
     )
     private val pairingActions = PrivilegeUiAdbPairingActions(
         store = store,
@@ -57,16 +57,16 @@ internal class PrivilegeUiAdbActions(
     }
 
     suspend fun startNotificationPairing(
-        requestNotificationPermission: suspend () -> PrivilegeUiPermissionState?,
+        requestNotificationPermission: suspend () -> Boolean,
     ) {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
 
         pairingActions.startNotificationPairing(requestNotificationPermission)
     }
 
-    fun stopNotificationPairing() {
+    fun cancelPairing() {
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
-        pairingActions.stopNotificationPairing()
+        pairingActions.cancelPairing()
     }
 
     fun cancelPendingPairingStart() {
@@ -88,11 +88,6 @@ internal class PrivilegeUiAdbActions(
         if (PrivilegeUiStartGate.isSilentStartInProgress) return
 
         pairingActions.continuePendingPairingIfNotificationPermissionGranted()
-    }
-
-    fun closePairingDialog() {
-        if (PrivilegeUiStartGate.isSilentStartInProgress) return
-        pairingActions.closePairingDialog()
     }
 
     fun submitNotificationPairingCode() {
@@ -649,8 +644,8 @@ internal class PrivilegeUiAdbActions(
         options.port == null &&
         options.wirelessDebuggingControl != PrivilegeAdbWirelessDebuggingControl.NEVER
     ) {
-        systemPromptCoordinator.withPrompt(
-            prompt = privilegeUiWirelessDebuggingPrompt(),
+        authorizationCoordinator.withAuthorization(
+            authorization = privilegeUiWirelessDebuggingAuthorization(),
             action = action,
         )
     } else {

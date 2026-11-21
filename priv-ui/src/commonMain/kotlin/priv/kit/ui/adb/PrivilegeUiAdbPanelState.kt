@@ -3,13 +3,11 @@ package priv.kit.ui.adb
 import priv.kit.ui.PrivilegeUiAdbTcpAuthorizationStatus
 import priv.kit.ui.PrivilegeUiScreenState
 import priv.kit.ui.PrivilegeUiWirelessAdbStatus
-import priv.kit.ui.resources.*
-import org.jetbrains.compose.resources.StringResource
 import priv.kit.ui.component.PrivilegeUiStartAction
 import priv.kit.ui.component.privilegeUiStartActionEnabled
-import priv.kit.ui.component.privilegeUiStartActionLabel
 
-internal enum class PrivilegeUiWirelessAdbPanelStatus {
+@priv.kit.ui.ExperimentalPrivilegeUiApi
+public enum class PrivilegeUiWirelessAdbPanelStatus {
     WIFI_REQUIRED,
     OFF,
     UNPAIRED,
@@ -17,14 +15,16 @@ internal enum class PrivilegeUiWirelessAdbPanelStatus {
     PAIRED,
 }
 
-internal enum class PrivilegeUiStaticTcpPanelStatus {
+@priv.kit.ui.ExperimentalPrivilegeUiApi
+public enum class PrivilegeUiStaticTcpPanelStatus {
     PORT_NOT_CONFIGURED,
     ADB_SERVICE_STOPPED,
     UNAUTHORIZED,
     AUTHORIZED,
 }
 
-internal fun wirelessAdbPanelStatus(
+@priv.kit.ui.ExperimentalPrivilegeUiApi
+public fun wirelessAdbPanelStatus(
     wifiConnected: Boolean,
     wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus,
     wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus,
@@ -46,11 +46,9 @@ internal fun wirelessAdbPanelStatus(
     }
 }
 
-internal fun privilegeUiWirelessAdbStartActionLabel(
-    action: PrivilegeUiStartAction,
-): StringResource = privilegeUiStartActionLabel(action, Res.string.priv_ui_adb_wireless_start_action)
 
-internal fun staticTcpPanelStatus(
+@priv.kit.ui.ExperimentalPrivilegeUiApi
+public fun staticTcpPanelStatus(
     tcpModeConfigured: Boolean,
     tcpModeActive: Boolean,
     status: PrivilegeUiAdbTcpAuthorizationStatus,
@@ -63,7 +61,8 @@ internal fun staticTcpPanelStatus(
         else -> PrivilegeUiStaticTcpPanelStatus.UNAUTHORIZED
     }
 
-internal fun staticTcpActionEnabled(
+@priv.kit.ui.ExperimentalPrivilegeUiApi
+public fun staticTcpActionEnabled(
     action: PrivilegeUiStartAction,
     busy: Boolean,
     wirelessAdbSupported: Boolean,
@@ -75,7 +74,8 @@ internal fun staticTcpActionEnabled(
             (tcpModeConfigured || wirelessAdbSupported),
     )
 
-internal fun PrivilegeUiScreenState.staticTcpStartActionEnabled(
+@priv.kit.ui.ExperimentalPrivilegeUiApi
+public fun PrivilegeUiScreenState.staticTcpStartActionEnabled(
     action: PrivilegeUiStartAction,
     wirelessAdbSupported: Boolean,
     interactionEnabled: Boolean,
@@ -87,12 +87,3 @@ internal fun PrivilegeUiScreenState.staticTcpStartActionEnabled(
         tcpModeConfigured = staticTcp.configuredPort != null,
     ) &&
         interactionEnabled
-
-internal fun staticTcpCommandHelpVisible(
-    wirelessAdbSupported: Boolean,
-): Boolean =
-    !wirelessAdbSupported
-
-internal fun staticTcpActionLabel(
-    action: PrivilegeUiStartAction,
-): StringResource = privilegeUiStartActionLabel(action, Res.string.priv_ui_adb_static_start_action)

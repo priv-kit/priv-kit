@@ -19,8 +19,6 @@ import priv.kit.ui.R
 import priv.kit.ui.asString
 import priv.kit.ui.effectiveStartupModes
 import priv.kit.ui.privilegeUiText
-import priv.kit.ui.PrivilegeUiStartMethod
-import priv.kit.ui.runtime.PrivilegeUiStartMethodStore
 import java.util.UUID
 
 internal class PrivilegeUiViewModelStore(
@@ -31,7 +29,6 @@ internal class PrivilegeUiViewModelStore(
         initialPrivilegeUiState(
             context = context,
             config = config,
-            selectedStartupMode = persistedStartupMode(context, config),
         ),
     )
     private val snackbarTextState = MutableSharedFlow<PrivilegeUiText>(extraBufferCapacity = 1)
@@ -155,15 +152,11 @@ internal class PrivilegeUiViewModelStore(
 private fun initialPrivilegeUiState(
     context: Context?,
     config: PrivilegeUiConfig,
-    selectedStartupMode: PrivilegeUiStartupMode?,
 ): PrivilegeUiState {
     val startupModes = config.effectiveStartupModes()
     val scriptPath = config.manualShellScriptPath
     val labelContext = context?.let(ContextCompat::getContextForLanguage)
     return PrivilegeUiState(
-        selectedStartupMode = selectedStartupMode?.takeIf { it in startupModes }
-            ?: PrivilegeUiStartupMode.ADB.takeIf { it in startupModes }
-            ?: startupModes.first(),
         startupModes = startupModes,
         manualShellCommandLine = if (context != null && scriptPath != null && Process.myUserHandle().hashCode() == 0) {
             privilegeUiManualShellScriptCommand(context.packageName, scriptPath)
@@ -176,25 +169,6 @@ private fun initialPrivilegeUiState(
             )
         },
     )
-}
-
-private fun persistedStartupMode(
-    context: Context?,
-    config: PrivilegeUiConfig,
-): PrivilegeUiStartupMode? {
-    val applicationContext = context?.applicationContext ?: context ?: return null
-    return runCatching {
-        when (val method = PrivilegeUiStartMethodStore(applicationContext).read()) {
-            PrivilegeUiStartMethod.Root -> PrivilegeUiStartupMode.ROOT
-            PrivilegeUiStartMethod.AdbWireless,
-            PrivilegeUiStartMethod.AdbTcpip,
-            -> PrivilegeUiStartupMode.ADB
-            is PrivilegeUiStartMethod.External -> PrivilegeUiStartupMode.EXTERNAL.takeIf {
-                config.externalStartProviders.any { provider -> provider.id == method.providerId }
-            }
-            null -> null
-        }
-    }.getOrNull()
 }
 
 internal fun String.toPrivilegeUiStartupLogLines(): List<String> =

@@ -426,7 +426,7 @@ internal fun PrivilegeSampleDebugHost.startNotificationPairing() {
     }
 }
 
-internal fun PrivilegeSampleDebugHost.stopNotificationPairing() {
+internal fun PrivilegeSampleDebugHost.cancelPairing() {
     val message = activity.getString(R.string.sample_message_stopping_notification_pairing)
     screenState = screenState.copy(
         notificationPairingRunning = false,

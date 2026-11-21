@@ -8,7 +8,7 @@ import org.jetbrains.skia.Image
 import java.io.File
 import java.util.Locale
 import kotlin.test.Test
-import priv.kit.ui.PrivilegePreviewScaffold
+import priv.kit.ui.m3.PrivilegeM3Preview
 import androidx.compose.material3.MaterialTheme
 
 @OptIn(ExperimentalTestApi::class)
@@ -23,7 +23,7 @@ class PrivilegePlaygroundTest {
                 val networkGranted = androidx.compose.runtime.mutableStateOf(false)
                 setContent {
                     MaterialTheme {
-                        PrivilegePreviewScaffold(
+                        PrivilegeM3Preview(
                             batteryOptimizationExempt = batteryExempt.value,
                             localNetworkPermissionGranted = networkGranted.value,
                             onPermissionsChanged = { battery, network ->
@@ -61,7 +61,7 @@ class PrivilegePlaygroundTest {
         try {
             Locale.setDefault(Locale.ENGLISH)
             runSkikoComposeUiTest(size = Size(480f, 820f)) {
-                setContent { MaterialTheme { PrivilegePreviewScaffold() } }
+                setContent { MaterialTheme { PrivilegeM3Preview() } }
                 onNodeWithText("Root").performClick().assertIsSelected()
                 mainClock.autoAdvance = false
                 onNodeWithContentDescription("Start service").performClick()
@@ -89,7 +89,7 @@ class PrivilegePlaygroundTest {
         try {
             Locale.setDefault(Locale.ENGLISH)
             runSkikoComposeUiTest(size = Size(480f, 820f)) {
-                setContent { MaterialTheme { PrivilegePreviewScaffold() } }
+                setContent { MaterialTheme { PrivilegeM3Preview() } }
                 onNodeWithText("Not started").assertExists()
                 onNodeWithText("Root").performClick().assertIsSelected()
                 onNodeWithText("Start").performClick()

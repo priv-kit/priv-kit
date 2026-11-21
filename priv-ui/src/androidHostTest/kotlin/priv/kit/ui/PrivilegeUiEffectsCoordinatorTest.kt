@@ -68,15 +68,14 @@ class PrivilegeUiEffectsCoordinatorTest {
                     File(app.externalDirectory, "start.sh").readText())
             }
             testScheduler.runCurrent()
-            fixture.effects.setHostResumed("a", true)
+            fixture.effects.setHostResumed(true)
             testScheduler.runCurrent()
             fixture.effects.refreshHostResumeState()
             testScheduler.runCurrent()
-            fixture.store.updateState { it.copy(selectedStartupMode = PrivilegeUiStartupMode.MANUAL_SHELL) }
             testScheduler.runCurrent()
-            fixture.effects.setHostResumed("a", false)
+            fixture.effects.setHostResumed(false)
             testScheduler.runCurrent()
-            fixture.effects.setHostResumed("a", true)
+            fixture.effects.setHostResumed(true)
             testScheduler.runCurrent()
         } finally {
             fixture.close()
@@ -89,9 +88,9 @@ class PrivilegeUiEffectsCoordinatorTest {
 
     @Test
     fun missingPermissionStopsWirelessRefreshAndPollingUntilGranted() = runTest {
-        val fixture = Fixture(this)
+        val fixture = Fixture(this, listOf(PrivilegeUiStartupMode.ADB, PrivilegeUiStartupMode.EXTERNAL))
         fun resetStatus(missing: Boolean) = fixture.store.updateState {
-            it.copy(selectedStartupMode = PrivilegeUiStartupMode.ADB, localNetworkPermissionMissing = missing,
+            it.copy(localNetworkPermissionMissing = missing,
                 wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN)
         }
         fun poll() {
@@ -101,17 +100,20 @@ class PrivilegeUiEffectsCoordinatorTest {
         }
         try {
             resetStatus(true)
-            fixture.effects.setHostResumed("a", true)
+            fixture.effects.setHostResumed(true)
             fixture.effects.initialize()
             poll()
             assertEquals(PrivilegeUiWirelessAdbStatus.UNKNOWN, fixture.store.state.value.wirelessDebuggingStatus)
             resetStatus(false)
             poll()
             assertEquals(PrivilegeUiWirelessAdbStatus.OFF, fixture.store.state.value.wirelessDebuggingStatus)
+            val externalChecks = fixture.provider.calls
+            assertTrue(externalChecks > 0)
             // Reset only the observed value: the next polling tick must refresh it again.
             resetStatus(false)
             poll()
             assertEquals(PrivilegeUiWirelessAdbStatus.OFF, fixture.store.state.value.wirelessDebuggingStatus)
+            assertTrue(fixture.provider.calls > externalChecks)
             resetStatus(true)
             fixture.effects.refreshHostResumeState()
             poll()
@@ -123,7 +125,7 @@ class PrivilegeUiEffectsCoordinatorTest {
     }
 
     @Test
-    fun onlyVisibleSelectedPagePollsAndLastHostPauseStopsIt() = runTest {
+    fun pollingStopsOnPagePauseAndRestartsOnResume() = runTest {
         val fixture = Fixture(this)
         try {
             fixture.effects.initialize()
@@ -132,30 +134,27 @@ class PrivilegeUiEffectsCoordinatorTest {
             testScheduler.runCurrent()
             assertEquals(0, fixture.provider.calls)
 
-            fixture.effects.setHostResumed("a", true)
+            fixture.effects.setHostResumed(true)
             testScheduler.runCurrent()
             assertEquals(1, fixture.provider.calls)
-            fixture.effects.setHostResumed("b", true)
-            fixture.effects.setHostResumed("a", false)
             testScheduler.advanceTimeBy(100)
             testScheduler.runCurrent()
             assertEquals(2, fixture.provider.calls)
 
-            fixture.effects.setHostResumed("b", false)
+            fixture.effects.setHostResumed(false)
             testScheduler.runCurrent()
             fixture.effects.refreshHostResumeState()
             testScheduler.advanceTimeBy(500)
             testScheduler.runCurrent()
             assertEquals(2, fixture.provider.calls)
 
-            fixture.effects.setHostResumed("b", true)
+            fixture.effects.setHostResumed(true)
             testScheduler.runCurrent()
             assertEquals(3, fixture.provider.calls)
-            fixture.store.updateState { it.copy(selectedStartupMode = PrivilegeUiStartupMode.ROOT) }
             testScheduler.runCurrent()
             testScheduler.advanceTimeBy(500)
             testScheduler.runCurrent()
-            assertEquals(3, fixture.provider.calls)
+            assertTrue(fixture.provider.calls > 3)
         } finally {
             fixture.close()
         }
@@ -166,15 +165,15 @@ class PrivilegeUiEffectsCoordinatorTest {
         val fixture = Fixture(this)
         fixture.provider.blocker = CompletableDeferred()
         try {
-            fixture.effects.setHostResumed("a", true)
+            fixture.effects.setHostResumed(true)
             fixture.effects.initialize()
             testScheduler.runCurrent()
             assertEquals(1, fixture.provider.calls)
-            fixture.effects.removeHost("a")
+            fixture.effects.setHostResumed(false)
             testScheduler.runCurrent()
             assertEquals(1, fixture.provider.cancelled)
             fixture.provider.blocker = null
-            fixture.effects.setHostResumed("a", true)
+            fixture.effects.setHostResumed(true)
             testScheduler.runCurrent()
             assertEquals(2, fixture.provider.calls)
         } finally {
@@ -227,7 +226,7 @@ class PrivilegeUiEffectsCoordinatorTest {
             ),
         )
         private val owner = PrivilegeUiStartGate.newInteractiveOwner()
-        private val prompts = PrivilegeUiSystemPromptCoordinator()
+        private val prompts = PrivilegeUiAuthorizationCoordinator()
         private val runtime = PrivilegeUiRuntimeActions(
             store, scope.backgroundScope, owner::tryAcquire, prompts,
             operationDispatcher = StandardTestDispatcher(scope.testScheduler),
@@ -236,7 +235,7 @@ class PrivilegeUiEffectsCoordinatorTest {
             store, runtime, scope.backgroundScope, owner::tryAcquire, { false }, prompts,
         )
         private val external = PrivilegeUiExternalStartActions(
-            store, runtime, acquireInteractivePermit = owner::tryAcquire, systemPromptCoordinator = prompts,
+            store, runtime, acquireInteractivePermit = owner::tryAcquire, authorizationCoordinator = prompts,
         )
         val effects = PrivilegeUiEffectsCoordinator(
             store, owner, runtime, adb, external, scope.backgroundScope,

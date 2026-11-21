@@ -15,10 +15,10 @@ import java.util.Locale
 class PrivilegeUiTextTest {
     @Test
     fun resourceTextResolvesAgainstTheContextAtUseTime() {
-        val text = privilegeUiText(R.string.priv_ui_service_source, "Shell")
+        val text = privilegeUiText(R.string.priv_ui_startup_source, "Shell")
 
-        assertEquals("Source: Shell", text.asString(localizedContext("en")))
-        assertEquals("来源：Shell", text.asString(localizedContext("zh-CN")))
+        assertEquals("Startup source: Shell", text.asString(localizedContext("en")))
+        assertEquals("启动来源：Shell", text.asString(localizedContext("zh-CN")))
     }
 
     @Test
@@ -33,17 +33,15 @@ class PrivilegeUiTextTest {
     fun sharedScreenMappingResolvesRetainedTextForEachLocale() {
         val state = PrivilegeUiState(
             busy = true,
-            selectedStartupMode = PrivilegeUiStartupMode.ROOT,
-            runtimeProgressText = privilegeUiText(R.string.priv_ui_service_source, "Shell"),
+            runtimeProgressText = privilegeUiText(R.string.priv_ui_startup_source, "Shell"),
             pairingText = PrivilegeUiText.Literal("pairing details"),
         )
         val english = state.toScreenState { it.asString(localizedContext("en")) }
         val chinese = state.toScreenState { it.asString(localizedContext("zh-CN")) }
-        assertEquals("Source: Shell", english.runtimeProgressText)
-        assertEquals("来源：Shell", chinese.runtimeProgressText)
+        assertEquals("Startup source: Shell", english.runtimeProgressText)
+        assertEquals("启动来源：Shell", chinese.runtimeProgressText)
         assertEquals("pairing details", chinese.pairingText)
         assertEquals(true, chinese.busy)
-        assertEquals(PrivilegeUiStartupMode.ROOT, chinese.selectedStartupMode)
     }
 
     private fun localizedContext(languageTag: String): Context {

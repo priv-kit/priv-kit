@@ -2,16 +2,12 @@ package priv.kit.ui
 
 import android.app.Application
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -40,6 +36,7 @@ import priv.kit.ui.state.toPrivilegeUiDiagnosticString
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration.Companion.milliseconds
 
+@ExperimentalPrivilegeUiApi
 public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     application: Application,
     public val config: PrivilegeUiConfig = PrivilegeUiConfig(),
@@ -59,12 +56,12 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
     private val interactiveStartOwner = PrivilegeUiStartGate.newInteractiveOwner()
     private val acquireInteractivePermit = interactiveStartOwner::tryAcquire
-    private val systemPromptCoordinator = PrivilegeUiSystemPromptCoordinator()
+    private val authorizationCoordinator = PrivilegeUiAuthorizationCoordinator()
     private val runtimeActions = PrivilegeUiRuntimeActions(
         store = store,
         coroutineScope = viewModelScope,
         acquireStartPermit = acquireInteractivePermit,
-        systemPromptCoordinator = systemPromptCoordinator,
+        authorizationCoordinator = authorizationCoordinator,
     )
     private val adbActions = PrivilegeUiAdbActions(
         store = store,
@@ -72,13 +69,13 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         coroutineScope = viewModelScope,
         acquireInteractivePermit = acquireInteractivePermit,
         hasInteractionHost = ::hasPermissionInteractionHost,
-        systemPromptCoordinator = systemPromptCoordinator,
+        authorizationCoordinator = authorizationCoordinator,
     )
     private val externalStartActions = PrivilegeUiExternalStartActions(
         store = store,
         runtimeActions = runtimeActions,
         acquireInteractivePermit = acquireInteractivePermit,
-        systemPromptCoordinator = systemPromptCoordinator,
+        authorizationCoordinator = authorizationCoordinator,
     )
     private val ownerClosed = AtomicBoolean(false)
     private val effectsCoordinator = PrivilegeUiEffectsCoordinator(
@@ -94,7 +91,16 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         interactionsEnabled = { uiInteractionsEnabled },
         ownerClosed = ownerClosed::get,
         cancelPairingWithoutInteractionHost = adbActions::cancelPairingWithoutInteractionHost,
-        systemPromptCoordinator = systemPromptCoordinator,
+        handler = { request ->
+            try {
+                accessHandler.request(request)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                store.showSnackbar(PrivilegeUiText.Literal(error.message ?: error.toString()))
+                throw kotlinx.coroutines.CancellationException("Access request failed", error)
+            } finally { refreshPermissions() }
+        },
     )
     private var localNetworkPermissionJob: Job? = null
     private var notificationPairingStartJob: Job? = null
@@ -103,18 +109,21 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     private val serverRestartDecisionLock = Any()
     private var pendingServerRestartDecision: PendingServerRestartDecision? = null
     private var hostResumeDispatchInProgress = false
-    private val batteryOptimizationPromptVisibleState = MutableStateFlow(false)
-    internal val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
-    internal val startGateState: StateFlow<PrivilegeUiStartGateState> =
+    private val batteryOptimizationRestrictedState = MutableStateFlow(false)
+    public val state: StateFlow<PrivilegeUiState> = store.state.asStateFlow()
+    public val startGateState: StateFlow<PrivilegeUiStartGateState> =
         effectsCoordinator.startGateState
-    internal val uiInteractionsEnabled: Boolean
+    public val uiInteractionsEnabled: Boolean
         get() = effectsCoordinator.canInteract()
-    internal val snackbarTexts: SharedFlow<PrivilegeUiText> = store.snackbarTexts
-    internal val permissionRequests: Flow<PrivilegeUiPermissionRequest> = permissionCoordinator.requests
-    internal val visibleSystemPrompt: StateFlow<PrivilegeUiVisibleSystemPrompt?> =
-        systemPromptCoordinator.visiblePrompt
-    internal val batteryOptimizationPromptVisible: StateFlow<Boolean> =
-        batteryOptimizationPromptVisibleState.asStateFlow()
+    public val messages: SharedFlow<PrivilegeUiText> = store.snackbarTexts
+    internal val accessCommands = PrivilegeUiAccessCommands()
+    /** Stable, VM-owned handler. Overrides must not capture an Activity or a composition scope. */
+    protected open val accessHandler: PrivilegeUiAccessHandler = PrivilegeUiAccessHandler(::requestPlatformAccess)
+    private var batteryOptimizationRequestJob: Job? = null
+    public val authorization: StateFlow<PrivilegeUiAuthorization?> =
+        authorizationCoordinator.authorization
+    public val batteryOptimizationRestricted: StateFlow<Boolean> =
+        batteryOptimizationRestrictedState.asStateFlow()
     /**
      * The pending foreground action that requires confirmation before restarting ADB in TCP mode.
      * Custom UI surfaces should explain the restart impact, then call [confirmStaticTcpSwitch] or
@@ -126,7 +135,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     /**
      * A pending request to replace the currently connected Privileged Server.
      *
-     * The built-in [PrivilegeScaffold] presents this request as a confirmation dialog. Custom
+     * The built-in M3 page presents this request as a confirmation dialog. Custom
      * surfaces should collect it and call [confirmServerRestart] or [cancelServerRestart].
      * Merely observing the request has no startup or shutdown side effects.
      */
@@ -163,42 +172,12 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         refreshBatteryOptimizationState()
     }
 
-    internal fun canInteract(gateState: PrivilegeUiStartGateState): Boolean =
+    public fun canInteract(gateState: PrivilegeUiStartGateState): Boolean =
         effectsCoordinator.canInteract(gateState)
-
-    /** Return true when the host handled the back action; false uses the system back dispatcher. */
-    protected open fun onBackClick(): Boolean = false
-
-    /**
-     * Called when the built-in UI requests the host application's notification settings.
-     * Implementations must not retain [context].
-     */
-    protected open fun onNotificationPermissionSettingsRequested(context: Context) {
-        context.tryStartPrivilegeUiSettingsActivity(
-            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(
-                Settings.EXTRA_APP_PACKAGE,
-                context.packageName,
-            ),
-        )
-    }
-
-    internal fun dispatchBackClick(): Boolean = onBackClick()
-
-    internal fun dispatchNotificationPermissionSettingsRequest(context: Context) {
-        if (!uiInteractionsEnabled) return
-        onNotificationPermissionSettingsRequested(context)
-    }
 
     public open fun updatePairingCode(value: String) {
         if (!uiInteractionsEnabled) return
         adbActions.updatePairingCode(value)
-    }
-
-    public open fun selectStartupMode(mode: PrivilegeUiStartupMode) {
-        if (!uiInteractionsEnabled) return
-        if (mode !in store.state.value.startupModes) return
-        if (mode == PrivilegeUiStartupMode.ADB) store.refreshLocalNetworkPermission()
-        store.updateState { it.copy(selectedStartupMode = mode) }
     }
 
     public open fun startRoot() {
@@ -219,7 +198,9 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         ) {
             return
         }
-        adbActions.refreshAdbStartPrerequisites()
+        if (PrivilegeUiStartupMode.ADB in store.state.value.startupModes) {
+            adbActions.refreshAdbStartPrerequisites()
+        }
         externalStartActions.refreshExternalStartStatusNow(providerId = null)
         val directTargets = store.state.value.directStartTargets(
             tcpPolicy = store.config.adbTcpPolicy,
@@ -289,14 +270,14 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         }
     }
 
-    public open fun stopNotificationPairing() {
+    public open fun cancelPairing() {
         if (!uiInteractionsEnabled) return
-        adbActions.stopNotificationPairing()
+        adbActions.cancelPairing()
     }
 
     public open fun cancelPendingPairingStart() {
         if (!uiInteractionsEnabled) return
-        if (!store.state.value.pairingNotificationPermissionWarningVisible) {
+        if (store.state.value.pairingInteraction != PrivilegeUiPairingInteraction.CONFIRM_WITHOUT_NOTIFICATION) {
             notificationPairingStartJob?.cancel()
         }
         notificationPairingStartJob = null
@@ -308,73 +289,61 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         adbActions.continuePairingWithoutNotification()
     }
 
-    public open fun closePairingDialog() {
-        if (!uiInteractionsEnabled) return
-        adbActions.closePairingDialog()
-    }
-
-    internal fun dismissTcpAuthorizationFailureDialog() {
-        if (!uiInteractionsEnabled) return
-        store.updateState { current ->
-            current.copy(tcpAuthorizationFailureDialogVisible = false)
-        }
-    }
 
     public open fun submitNotificationPairingCode() {
         if (!uiInteractionsEnabled) return
         adbActions.submitNotificationPairingCode()
     }
 
-    internal fun completeNotificationPermissionRequest(
-        hostId: String,
-        permissionState: PrivilegeUiPermissionState,
-    ) = permissionCoordinator.completeNotificationPermissionRequest(hostId, permissionState)
-
-    internal fun completeUnlaunchedNotificationPermissionRequest(
-        hostId: String,
-        request: PrivilegeUiPermissionRequest.Notification,
-        permissionState: PrivilegeUiPermissionState,
-    ) = permissionCoordinator.completeUnlaunchedNotificationPermissionRequest(
-        hostId,
-        request,
-        permissionState,
-    )
-
-    internal fun completeLocalNetworkPermissionRequest(
-        hostId: String,
-        permissionState: PrivilegeUiPermissionState,
-    ) {
-        permissionCoordinator.completeLocalNetworkPermissionRequest(hostId, permissionState)
-        store.updateState {
-            it.copy(
-                localNetworkPermissionSettingsRequired =
-                    permissionState == PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
-            )
-        }
-        store.refreshLocalNetworkPermission()
-    }
-
-    internal fun requestAdbLocalNetworkPermission(context: Context) {
+    public fun requestAdbLocalNetworkPermission() {
         if (!uiInteractionsEnabled || localNetworkPermissionJob?.isActive == true) return
         if (store.refreshLocalNetworkPermission()) return
-        if (store.state.value.localNetworkPermissionSettingsRequired) {
-            context.tryStartPrivilegeUiSettingsActivity(
-                Intent(
-                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                    Uri.fromParts("package", context.packageName, null),
-                ),
-            )
-            return
-        }
         localNetworkPermissionJob = viewModelScope.launch {
-            val permission = privilegeUiRequiredLocalNetworkPermission(store.requireContext())
-                ?: return@launch
+            if (privilegeUiRequiredLocalNetworkPermission(store.requireContext()) == null) return@launch
             try {
-                permissionCoordinator.requestLocalNetworkPermission(permission)
+                permissionCoordinator.requestLocalNetworkPermission()
             } finally {
                 store.refreshLocalNetworkPermission()
             }
         }
+    }
+
+    public fun requestBatteryOptimization() {
+        if (!uiInteractionsEnabled || batteryOptimizationRequestJob?.isActive == true) return
+        batteryOptimizationRequestJob = viewModelScope.launch {
+            permissionCoordinator.request(PrivilegeUiAccessRequest.BatteryOptimization)
+        }
+    }
+
+    /** Android operations only; presentation subclasses may add guidance around them. */
+    protected suspend fun requestPlatformAccess(request: PrivilegeUiAccessRequest): Boolean = when (request) {
+        is PrivilegeUiAccessRequest.Permission ->
+            accessCommands.permission(request.permission) == PrivilegeUiPermissionState.Granted
+        PrivilegeUiAccessRequest.BatteryOptimization -> {
+            val application = getApplication<Application>()
+            if (isPrivilegeUiBatteryOptimizationRestricted(application)) {
+                check(openAccessSettings(PrivilegeUiSettingsDestination.BATTERY_OPTIMIZATION)) {
+                    application.getString(R.string.priv_ui_battery_optimization_settings_unavailable)
+                }
+            }
+            !isPrivilegeUiBatteryOptimizationRestricted(application)
+        }
+    }
+
+    protected suspend fun requiresAccessSettings(request: PrivilegeUiAccessRequest.Permission): Boolean =
+        accessCommands.permission(request.permission, checkOnly = true) ==
+            PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
+
+    protected fun isAccessGranted(request: PrivilegeUiAccessRequest.Permission): Boolean =
+        androidx.core.content.ContextCompat.checkSelfPermission(getApplication(), request.permission) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    protected suspend fun openAccessSettings(destination: PrivilegeUiSettingsDestination): Boolean =
+        accessCommands.openSettings(destination)
+
+    public fun refreshPermissions() {
+        store.refreshLocalNetworkPermission()
+        refreshBatteryOptimizationState()
     }
 
     public open fun startWirelessAdb() {
@@ -402,6 +371,7 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     internal fun dispatchHostResume() {
+        effectsCoordinator.setHostResumed(true)
         refreshHostInteractiveState()
         hostResumeDispatchInProgress = true
         try {
@@ -411,18 +381,9 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         }
     }
 
-    internal fun dispatchHostResume(
-        hostId: String,
-        hasWindowFocus: Boolean,
-    ) {
-        effectsCoordinator.setHostResumed(hostId, true)
-        systemPromptCoordinator.onHostResumed(hostId, hasWindowFocus)
-        dispatchHostResume()
-    }
 
-    internal fun dispatchHostPause(hostId: String) {
-        effectsCoordinator.setHostResumed(hostId, false)
-        systemPromptCoordinator.onHostPaused(hostId)
+    internal fun dispatchHostPause() {
+        effectsCoordinator.setHostResumed(false)
     }
 
     internal fun dispatchHostWindowFocus() {
@@ -430,23 +391,17 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
     }
 
     internal fun dispatchHostWindowFocus(
-        hostId: String,
         hasWindowFocus: Boolean,
         resumed: Boolean,
     ) {
-        systemPromptCoordinator.onHostWindowFocusChanged(
-            hostId = hostId,
-            hasWindowFocus = hasWindowFocus,
-            resumed = resumed,
-        )
         if (hasWindowFocus && resumed) {
             dispatchHostWindowFocus()
         }
     }
 
     private fun refreshBatteryOptimizationState() {
-        batteryOptimizationPromptVisibleState.value = store.requireContext()
-            .isPrivilegeUiBatteryOptimizationPromptVisible()
+        batteryOptimizationRestrictedState.value = store.requireContext()
+            .isBatteryOptimizationRestricted()
     }
 
     private fun scheduleBatteryOptimizationStateRechecks() {
@@ -464,12 +419,12 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         viewModelScope.launch { adbActions.enableTcpMode() }
     }
 
-    internal fun disableTcpMode() {
+    public fun disableTcpMode() {
         if (!uiInteractionsEnabled) return
         adbActions.disableTcpMode()
     }
 
-    internal fun restartTcpMode() {
+    public fun restartTcpMode() {
         if (!uiInteractionsEnabled) return
         adbActions.restartTcpMode()
     }
@@ -627,28 +582,22 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         permissionCoordinator.hasInteractionHost()
 
     internal fun registerPermissionHost(
-        hostId: String,
         resumed: Boolean = true,
-        hasWindowFocus: Boolean = true,
     ) {
-        effectsCoordinator.setHostResumed(hostId, resumed)
-        systemPromptCoordinator.registerHost(hostId, resumed, hasWindowFocus)
-        permissionCoordinator.registerHost(hostId)
+        effectsCoordinator.setHostResumed(resumed)
+        permissionCoordinator.registerHost()
     }
 
     internal fun unregisterPermissionHost(
-        hostId: String,
         changingConfigurations: Boolean,
     ) {
-        effectsCoordinator.removeHost(hostId)
-        systemPromptCoordinator.unregisterHost(hostId, changingConfigurations)
-        permissionCoordinator.unregisterHost(hostId, changingConfigurations)
+        effectsCoordinator.setHostResumed(false)
+        permissionCoordinator.unregisterHost(changingConfigurations)
+        if (!changingConfigurations) {
+            batteryOptimizationRequestJob?.cancel()
+            accessCommands.cancelPending()
+        }
     }
-
-    internal fun cancelPermissionRequest(
-        hostId: String,
-        request: PrivilegeUiPermissionRequest,
-    ) = permissionCoordinator.cancelRequest(hostId, request)
 
     private fun closeOwner() {
         ownerClosed.set(true)
@@ -659,7 +608,8 @@ public open class PrivilegeUiViewModel @JvmOverloads public constructor(
         runtimeActions.close()
         runCatching { adbActions.close() }
         permissionCoordinator.close()
-        systemPromptCoordinator.close()
+        accessCommands.cancelPending()
+        authorizationCoordinator.close()
     }
 
     private data class PendingServerRestartDecision(

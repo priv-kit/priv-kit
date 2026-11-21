@@ -26,8 +26,8 @@ internal class PrivilegeUiRuntimeActions(
     private val store: PrivilegeUiViewModelStore,
     private val coroutineScope: CoroutineScope,
     private val acquireStartPermit: () -> AutoCloseable?,
-    private val systemPromptCoordinator: PrivilegeUiSystemPromptCoordinator =
-        PrivilegeUiSystemPromptCoordinator(),
+    private val authorizationCoordinator: PrivilegeUiAuthorizationCoordinator =
+        PrivilegeUiAuthorizationCoordinator(),
     private val shutdownServer: () -> Unit = { Privilege.shutdownServer() },
     private val isPermissionRestricted: () -> Boolean =
         Privilege::isPermissionRestricted,
@@ -60,7 +60,7 @@ internal class PrivilegeUiRuntimeActions(
             startupSource = store.text(R.string.priv_ui_auth_method_root),
             runtimeStartSource = PrivilegeUiRuntimeStartSource.ROOT,
         ) {
-            systemPromptCoordinator.withPrompt(privilegeUiRootAuthorizationPrompt()) {
+            authorizationCoordinator.withAuthorization(privilegeUiRootAuthorization()) {
                 PrivilegeRuntimeStartCoordinator.startRoot(
                     launch = requireRuntimeClientLaunch(),
                     timeoutMillis = store.config.startTimeoutMillis,

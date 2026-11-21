@@ -1,5 +1,7 @@
 package priv.kit.ui
 
+import kotlinx.coroutines.*
+import kotlinx.coroutines.test.*
 import android.Manifest
 import android.app.Activity
 import android.app.Application
@@ -24,49 +26,54 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class PrivilegeUiBatteryOptimizationTest {
     @Test
-    fun promptVisibilityReflectsBatteryOptimizationExemption() {
+    fun restrictionReflectsBatteryOptimizationExemption() {
         val application = application()
         val powerManager = application.getSystemService(PowerManager::class.java)
         val shadowPowerManager = shadowOf(powerManager)
 
         shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, false)
-        assertTrue(application.isPrivilegeUiBatteryOptimizationPromptVisible())
+        assertTrue(application.isBatteryOptimizationRestricted())
 
         shadowPowerManager.setIgnoringBatteryOptimizations(application.packageName, true)
-        assertFalse(application.isPrivilegeUiBatteryOptimizationPromptVisible())
+        assertFalse(application.isBatteryOptimizationRestricted())
     }
 
     @Test
-    fun requestActionDirectlyTargetsHostPackageInANewTask() {
+    fun settingsIntentTargetsHostPackageWithoutStartingANewTask() {
         val application = application()
-
-        assertTrue(application.requestPrivilegeUiBatteryOptimizationExemption())
-
-        val intent = shadowOf(application).nextStartedActivity
+        val intent = application.privilegeUiBatteryOptimizationIntents().first()
         assertEquals(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, intent.action)
         assertEquals("package", intent.data?.scheme)
         assertEquals(application.packageName, intent.data?.schemeSpecificPart)
-        assertTrue(intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
+        assertFalse(intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
     }
 
     @Test
-    fun requestActionDoesNotCreateANewTaskFromAnActivityContext() {
-        val controller = Robolectric.buildActivity(Activity::class.java).setup()
-        val context = RecordingSettingsContext(controller.get())
-
-        try {
-            assertTrue(context.requestPrivilegeUiBatteryOptimizationExemption())
-
-            assertEquals(
-                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                context.startedIntent?.action,
-            )
-            assertFalse(
-                context.startedIntent?.flags?.and(Intent.FLAG_ACTIVITY_NEW_TASK) != 0,
-            )
-        } finally {
-            controller.pause().stop().destroy()
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun settingsNavigationAwaitsReturnAndPropagatesCancellation() = runTest {
+        val returned = CompletableDeferred<Unit>()
+        val result = async {
+            launchPrivilegeUiSettings(application().privilegeUiBatteryOptimizationIntents()) {
+                returned.await()
+            }
         }
+        runCurrent()
+        assertFalse(result.isCompleted)
+        returned.complete(Unit)
+        assertTrue(result.await())
+
+        var attempts = 0
+        var cancelled = false
+        val waiting = launch {
+            launchPrivilegeUiSettings(application().privilegeUiBatteryOptimizationIntents()) {
+                attempts++
+                try { awaitCancellation() } finally { cancelled = true }
+            }
+        }
+        runCurrent()
+        waiting.cancelAndJoin()
+        assertTrue(cancelled)
+        assertEquals(1, attempts)
     }
 
     @Test
@@ -186,6 +193,10 @@ class PrivilegeUiBatteryOptimizationTest {
 
         assertFalse(context.requestPrivilegeUiBatteryOptimizationExemption())
         assertEquals(actions.toList(), context.attemptedActions)
+    }
+
+    private fun Context.requestPrivilegeUiBatteryOptimizationExemption(): Boolean = runBlocking {
+        launchPrivilegeUiSettings(privilegeUiBatteryOptimizationIntents()) { startActivity(it) }
     }
 
     private fun application(): Application =

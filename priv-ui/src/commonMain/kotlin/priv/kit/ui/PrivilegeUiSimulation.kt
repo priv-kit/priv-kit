@@ -13,15 +13,16 @@ import kotlin.io.encoding.Base64
 import kotlin.random.Random
 
 /** In-memory preview data. No Core, process, network, permission, or settings access. */
-internal class PrivilegeUiSimulation(
+public class PrivilegeUiSimulation(
     private val scope: CoroutineScope,
     externalLabel: String,
     private val startingText: Map<PrivilegeUiRuntimeStartSource, String>,
     private val pairingText: String,
     private val requestBatteryOptimization: () -> Unit = {},
     private val requestLocalNetworkPermission: () -> Unit = {},
+    private val onPermissionsChanged: (Boolean, Boolean) -> Unit = { _, _ -> },
     private val copyText: (String) -> Unit,
-) {
+) : androidx.lifecycle.ViewModel() {
     private val installationDirectory = "/data/app/~~${randomInstallToken()}/priv.kit.sample-${randomInstallToken()}"
 
     private fun manualCommand(useLegacyPackaging: Boolean): String = if (useLegacyPackaging) {
@@ -32,7 +33,7 @@ internal class PrivilegeUiSimulation(
 
     private fun randomInstallToken(): String = Base64.UrlSafe.encode(Random.nextBytes(16))
 
-    var state by mutableStateOf(
+    public var state: PrivilegeUiScreenState by mutableStateOf(
         PrivilegeUiScreenState(
             startupModes = PrivilegeUiStartupMode.entries.toList(),
             wirelessAdbStatusLoaded = true,
@@ -55,14 +56,14 @@ internal class PrivilegeUiSimulation(
     )
         private set
 
-    var externalAuthorizationRequested by mutableStateOf(false)
+    public var externalAuthorizationRequested: Boolean by mutableStateOf(false)
         private set
 
     private var operation: Job? = null
     private var pendingStart: PrivilegeUiServerRestartRequest? = null
     private var adbRestricted = true
 
-    fun setAdbRestricted(value: Boolean) {
+    public fun setAdbRestricted(value: Boolean) {
         adbRestricted = value
         if (state.serverUid == 2000) {
             state = state.copy(
@@ -79,25 +80,29 @@ internal class PrivilegeUiSimulation(
         "android.permission.WRITE_SECURE_SETTINGS",
     )
 
-    fun setUseLegacyPackaging(value: Boolean) {
+    public fun setUseLegacyPackaging(value: Boolean) {
         state = state.copy(manualShellCommandLine = manualCommand(value))
     }
 
-    fun setPermissions(batteryExempt: Boolean, networkGranted: Boolean) {
-        state = state.copy(batteryOptimizationPromptVisible = !batteryExempt,
+    public fun setPermissions(batteryExempt: Boolean, networkGranted: Boolean) {
+        state = state.copy(batteryOptimizationRestricted = !batteryExempt,
             localNetworkPermissionMissing = !networkGranted)
     }
 
-    val actions = PrivilegeUiActions(
-        continuePairingWithoutNotification = { state = state.copy(pairingNotificationPermissionWarningVisible = false) },
-        dismissTcpAuthorizationFailureDialog = { state = state.copy(tcpAuthorizationFailureDialogVisible = false) },
-        // The preview has no system notification settings; dismiss its simulated warning.
-        openNotificationSettings = { state = state.copy(pairingNotificationPermissionWarningVisible = false) },
-        requestBatteryOptimization = { requestBatteryOptimization(); true },
-        requestLocalNetworkPermission = requestLocalNetworkPermission,
+    public val actions: PrivilegeUiActions = PrivilegeUiActions(
+        continuePairingWithoutNotification = { state = state.copy(pairingInteraction = null) },
+        requestBatteryOptimization = {
+            state = state.copy(batteryOptimizationRestricted = false)
+            requestBatteryOptimization()
+            onPermissionsChanged(true, !state.localNetworkPermissionMissing)
+        },
+        requestLocalNetworkPermission = {
+            state = state.copy(localNetworkPermissionMissing = false)
+            requestLocalNetworkPermission()
+            onPermissionsChanged(!state.batteryOptimizationRestricted, true)
+        },
         // Cancellation remains available while an operation is busy.
         canInteract = { true },
-        selectStartupMode = { if (!state.busy) state = state.copy(selectedStartupMode = it) },
         startRoot = { requestStart(PrivilegeUiServerRestartRequest.Root) },
         startWirelessAdb = { requestStart(PrivilegeUiServerRestartRequest.WirelessAdb) },
         startStaticTcpAdb = { requestStart(PrivilegeUiServerRestartRequest.StaticTcpAdb) },
@@ -106,7 +111,7 @@ internal class PrivilegeUiSimulation(
                 requestStart(PrivilegeUiServerRestartRequest.External(id))
             }
         },
-        startInteractive = ::startSelected,
+        startInteractive = ::startInteractive,
         confirmServerRestart = {
             state.restartConfirmationTarget?.let { request ->
                 state = state.copy(restartConfirmationTarget = null, runtimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED, serverUid = null, deniedServerPermissions = emptyList())
@@ -118,7 +123,7 @@ internal class PrivilegeUiSimulation(
         stopServer = ::stopServer,
         disableAutoRecovery = { state = state.copy(desiredEnabled = false) },
         startNotificationPairing = { if (!state.busy) openPairing() },
-        stopNotificationPairing = ::cancelOperation,
+        cancelPairing = ::cancelOperation,
         cancelPendingPairingStart = ::cancelOperation,
         updatePairingCode = { code ->
             if (state.pairingStatus != PrivilegeUiAdbPairingStatus.PAIRING) {
@@ -143,12 +148,12 @@ internal class PrivilegeUiSimulation(
         clearStartupLog = { state = state.copy(startupLogLines = emptyList()) },
     )
 
-    private fun startSelected() {
-        when (state.selectedStartupMode) {
+    private fun startInteractive() {
+        when (state.startupModes.firstOrNull { it != PrivilegeUiStartupMode.MANUAL_SHELL }) {
             PrivilegeUiStartupMode.ROOT -> requestStart(PrivilegeUiServerRestartRequest.Root)
             PrivilegeUiStartupMode.ADB -> requestStart(PrivilegeUiServerRestartRequest.WirelessAdb)
             PrivilegeUiStartupMode.EXTERNAL -> requestStart(PrivilegeUiServerRestartRequest.External("simulation"))
-            PrivilegeUiStartupMode.MANUAL_SHELL -> if (!state.busy && state.runtimeStatus != PrivilegeUiRuntimeStatus.CONNECTED) beginStart(null)
+            PrivilegeUiStartupMode.MANUAL_SHELL, null -> Unit
         }
     }
 
@@ -209,18 +214,18 @@ internal class PrivilegeUiSimulation(
     }
 
     private fun openPairing() {
-        state = state.copy(busy = true, pairingDialogVisible = true, pairingCode = "",
+        state = state.copy(busy = true, pairingInteraction = PrivilegeUiPairingInteraction.ENTER_CODE, pairingCode = "",
             pairingStatus = PrivilegeUiAdbPairingStatus.FOUND, pairingText = pairingText)
     }
 
     private fun submitPairingCode() {
-        if (!state.pairingDialogVisible || state.pairingStatus != PrivilegeUiAdbPairingStatus.FOUND || !state.pairingCode.isPrivilegeUiPairingCode()) return
+        if (state.pairingInteraction != PrivilegeUiPairingInteraction.ENTER_CODE || state.pairingStatus != PrivilegeUiAdbPairingStatus.FOUND || !state.pairingCode.isPrivilegeUiPairingCode()) return
         state = state.copy(pairingStatus = PrivilegeUiAdbPairingStatus.PAIRING)
         operation = scope.launch {
             delay(700)
             val next = pendingStart
             pendingStart = null
-            state = state.copy(busy = false, pairingDialogVisible = false, pairingCode = "", pairingText = null,
+            state = state.copy(busy = false, pairingInteraction = null, pairingCode = "", pairingText = null,
                 pairingStatus = PrivilegeUiAdbPairingStatus.PAIRED, wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.ON)
             log("Wireless ADB paired")
             if (next != null) beginStart(next)
@@ -248,7 +253,7 @@ internal class PrivilegeUiSimulation(
         }
     }
 
-    fun confirmExternalAuthorization() {
+    public fun confirmExternalAuthorization() {
         if (!externalAuthorizationRequested) return
         val request = pendingStart ?: return
         externalAuthorizationRequested = false
@@ -256,13 +261,13 @@ internal class PrivilegeUiSimulation(
         beginStart(request)
     }
 
-    fun cancelOperation() {
+    public fun cancelOperation() {
         val wasPending = state.busy || state.restartConfirmationTarget != null
         operation?.cancel()
         operation = null
         pendingStart = null
         externalAuthorizationRequested = false
-        state = state.copy(busy = false, pairingDialogVisible = false, pairingCode = "", pairingText = null,
+        state = state.copy(busy = false, pairingInteraction = null, pairingCode = "", pairingText = null,
             pairingStatus = if (state.wirelessPairingCheckStatus == PrivilegeUiWirelessAdbStatus.ON) PrivilegeUiAdbPairingStatus.PAIRED else PrivilegeUiAdbPairingStatus.NOT_PAIRED,
             staticTcpSwitchConfirmation = null, restartConfirmationTarget = null,
             runtimeStatus = if (state.runtimeStatus == PrivilegeUiRuntimeStatus.STARTING) PrivilegeUiRuntimeStatus.DISCONNECTED else state.runtimeStatus,

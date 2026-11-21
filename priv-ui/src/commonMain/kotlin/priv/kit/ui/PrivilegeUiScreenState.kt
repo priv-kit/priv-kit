@@ -4,13 +4,13 @@ package priv.kit.ui
  * [startupModes] must be nonempty. Text supplied by the host must already be localized.
  * [connectionSerial] changes when a connection is replaced, resetting connection-specific UI.
  */
+@ExperimentalPrivilegeUiApi
 public data class PrivilegeUiScreenState(
     public val localNetworkPermissionMissing: Boolean = false,
-    public val localNetworkPermissionSettingsRequired: Boolean = false,
     public val wirelessAdbSupported: Boolean = true,
     public val adbTcpPolicy: PrivilegeUiAdbTcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
     public val tcpPort: Int = 5555,
-    public val batteryOptimizationPromptVisible: Boolean = false,
+    public val batteryOptimizationRestricted: Boolean = false,
     public val staticTcpSwitchConfirmation: priv.kit.ui.adb.PrivilegeUiStaticTcpSwitchAction? = null,
     public val busy: Boolean = false,
     public val runtimeStatus: PrivilegeUiRuntimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
@@ -18,7 +18,6 @@ public data class PrivilegeUiScreenState(
     public val serverUid: Int? = null,
     public val connectionSerial: Long = 0L,
     public val deniedServerPermissions: List<String> = emptyList(),
-    public val selectedStartupMode: PrivilegeUiStartupMode = PrivilegeUiStartupMode.ADB,
     public val startupModes: List<PrivilegeUiStartupMode> = listOf(
         PrivilegeUiStartupMode.ROOT,
         PrivilegeUiStartupMode.ADB,
@@ -29,8 +28,7 @@ public data class PrivilegeUiScreenState(
     public val pairingCode: String = "",
     public val pairingStatus: PrivilegeUiAdbPairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
     public val pairingText: String? = null,
-    public val pairingDialogVisible: Boolean = false,
-    public val pairingNotificationPermissionWarningVisible: Boolean = false,
+    public val pairingInteraction: PrivilegeUiPairingInteraction? = null,
     public val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
     public val wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
@@ -39,7 +37,7 @@ public data class PrivilegeUiScreenState(
         PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
     public val wifiConnected: Boolean = false,
     public val staticTcp: PrivilegeUiStaticTcpState = PrivilegeUiStaticTcpState(),
-    public val tcpAuthorizationFailureDialogVisible: Boolean = false,
+    public val tcpAuthorizationFailureSerial: Long = 0,
     public val adbKeyFingerprint: String? = null,
     public val notificationPairingRunning: Boolean = false,
     public val externalStartItems: List<PrivilegeUiExternalStartItemState> = emptyList(),

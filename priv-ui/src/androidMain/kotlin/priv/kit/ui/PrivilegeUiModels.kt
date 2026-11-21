@@ -11,6 +11,10 @@ import priv.kit.shared.toPrivilegeAdbPairingCodeDigits
 import priv.kit.ui.runtime.requireValidManualShellScriptPath
 
 public data class PrivilegeUiConfig public constructor(
+    /**
+     * Default methods, automatic startup order and observed sources; explicit start actions remain available.
+     * Providers append EXTERNAL unless its position is specified. Effective modes must not be empty.
+     */
     public val startupModes: List<PrivilegeUiStartupMode> = listOf(
         PrivilegeUiStartupMode.ROOT,
         PrivilegeUiStartupMode.ADB,
@@ -64,6 +68,7 @@ public data class PrivilegeUiConfig public constructor(
     public val manualShellScriptPath: String? = null,
 ) {
     init {
+        require(effectiveStartupModes().isNotEmpty()) { "effective startup modes must not be empty" }
         requireValidManualShellScriptPath(manualShellScriptPath)
         require(startupModes.distinct().size == startupModes.size) {
             "startup modes must be unique"
@@ -100,47 +105,45 @@ public data class PrivilegeUiConfig public constructor(
     }
 }
 
-internal data class PrivilegeUiState(
-    val localNetworkPermissionMissing: Boolean = false,
-    val localNetworkPermissionSettingsRequired: Boolean = false,
-    val busy: Boolean = false,
-    val runtimeStatus: PrivilegeUiRuntimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
-    val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
-    val serverInfo: PrivilegeServerInfo? = null,
-    val selectedStartupMode: PrivilegeUiStartupMode = PrivilegeUiStartupMode.ADB,
-    val startupModes: List<PrivilegeUiStartupMode> = listOf(
+@ExperimentalPrivilegeUiApi
+public data class PrivilegeUiState(
+    public val localNetworkPermissionMissing: Boolean = false,
+    public val busy: Boolean = false,
+    public val runtimeStatus: PrivilegeUiRuntimeStatus = PrivilegeUiRuntimeStatus.DISCONNECTED,
+    public val runtimeStartSource: PrivilegeUiRuntimeStartSource? = null,
+    public val serverInfo: PrivilegeServerInfo? = null,
+    public val startupModes: List<PrivilegeUiStartupMode> = listOf(
         PrivilegeUiStartupMode.ROOT,
         PrivilegeUiStartupMode.ADB,
         PrivilegeUiStartupMode.MANUAL_SHELL,
     ),
-    val runtimeProgressText: PrivilegeUiText? = null,
-    val manualShellCommandLine: String? = null,
-    val pairingCode: String = "",
-    val pairingStatus: PrivilegeUiAdbPairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
-    val pairingText: PrivilegeUiText? = null,
-    val pairingDialogVisible: Boolean = false,
-    val pairingNotificationPermissionWarningVisible: Boolean = false,
-    val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
-    val wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
-    val wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
-    val wirelessAdbStatusLoaded: Boolean = false,
-    val managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus =
+    public val runtimeProgressText: PrivilegeUiText? = null,
+    public val manualShellCommandLine: String? = null,
+    public val pairingCode: String = "",
+    public val pairingStatus: PrivilegeUiAdbPairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
+    public val pairingText: PrivilegeUiText? = null,
+    public val pairingInteraction: PrivilegeUiPairingInteraction? = null,
+    public val wirelessDebuggingStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+    public val wirelessPairingServiceStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+    public val wirelessPairingCheckStatus: PrivilegeUiWirelessAdbStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
+    public val wirelessAdbStatusLoaded: Boolean = false,
+    public val managedWirelessAdbStatus: PrivilegeUiManagedWirelessAdbStatus =
         PrivilegeUiManagedWirelessAdbStatus.UNKNOWN,
-    val wifiConnected: Boolean = false,
-    val staticTcp: PrivilegeUiStaticTcpState = PrivilegeUiStaticTcpState(),
-    val tcpAuthorizationFailureDialogVisible: Boolean = false,
-    val adbKeyFingerprint: String? = null,
-    val notificationPairingRunning: Boolean = false,
-    val externalStartItems: List<PrivilegeUiExternalStartItemState> = emptyList(),
-    val startupLogLines: List<String> = emptyList(),
-    val connectionSerial: Long = 0L,
-    val deniedServerPermissions: List<String> = emptyList(),
-    val runtimeStartPhase: PrivilegeUiRuntimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
-    val runtimeStartProviderId: String? = null,
-    val permissionRestrictionStatus: PrivilegeUiPermissionRestrictionStatus =
+    public val wifiConnected: Boolean = false,
+    public val staticTcp: PrivilegeUiStaticTcpState = PrivilegeUiStaticTcpState(),
+    public val tcpAuthorizationFailureSerial: Long = 0,
+    public val adbKeyFingerprint: String? = null,
+    public val notificationPairingRunning: Boolean = false,
+    public val externalStartItems: List<PrivilegeUiExternalStartItemState> = emptyList(),
+    public val startupLogLines: List<String> = emptyList(),
+    public val connectionSerial: Long = 0L,
+    public val deniedServerPermissions: List<String> = emptyList(),
+    public val runtimeStartPhase: PrivilegeUiRuntimeStartPhase = PrivilegeUiRuntimeStartPhase.IDLE,
+    public val runtimeStartProviderId: String? = null,
+    public val permissionRestrictionStatus: PrivilegeUiPermissionRestrictionStatus =
         PrivilegeUiPermissionRestrictionStatus.UNKNOWN,
-    val desiredEnabled: Boolean = false,
-    val restartConfirmationTarget: PrivilegeUiServerRestartRequest? = null,
+    public val desiredEnabled: Boolean = false,
+    public val restartConfirmationTarget: PrivilegeUiServerRestartRequest? = null,
 )
 
 internal fun String.toPrivilegeUiPairingCodeDigits(): String =

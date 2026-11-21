@@ -75,7 +75,7 @@ dependencies {
     implementation(project(":priv-input"))
     implementation(project(":priv-evdev"))
     implementation(libs.kotlinx.serialization.json)
-    implementation(project(":priv-ui"))
+    implementation(project(":priv-ui-m3"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material3)
@@ -90,3 +90,5 @@ dependencies {
     implementation(libs.hiddenapibypass)
     testImplementation(libs.junit)
 }
+
+kotlin.compilerOptions { optIn.add("priv.kit.ui.ExperimentalPrivilegeUiApi") }

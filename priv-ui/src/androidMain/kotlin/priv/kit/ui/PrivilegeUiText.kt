@@ -15,27 +15,28 @@ import java.util.Locale
  * is intended for already-materialized external or diagnostic text that cannot be represented by
  * a library resource.
  */
-internal sealed interface PrivilegeUiText {
-    data class Resource(
-        @get:StringRes val id: Int,
-        val formatArgs: List<Any> = emptyList(),
+@ExperimentalPrivilegeUiApi
+public sealed interface PrivilegeUiText {
+    public data class Resource(
+        @get:StringRes public val id: Int,
+        public val formatArgs: List<Any> = emptyList(),
     ) : PrivilegeUiText
 
-    data class Literal(
-        val value: String,
+    public data class Literal(
+        public val value: String,
     ) : PrivilegeUiText
 }
 
 /** Resolves this text against the current Compose configuration. */
 @Composable
-internal fun PrivilegeUiText.asString(): String =
+public fun PrivilegeUiText.asString(): String =
     when (this) {
         is PrivilegeUiText.Resource -> stringResource(id, *formatArgs.toTypedArray())
         is PrivilegeUiText.Literal -> value
     }
 
 /** Resolves this text at a non-Compose presentation boundary. */
-internal fun PrivilegeUiText.asString(context: Context, locale: Locale? = null): String {
+public fun PrivilegeUiText.asString(context: Context, locale: Locale? = null): String {
     val localizedContext = if (locale == null) {
         ContextCompat.getContextForLanguage(context)
     } else {

@@ -121,38 +121,6 @@ class PrivilegeUiStartMethodStoreTest {
     }
 
     @Test
-    fun persistedMethodSelectsInitialTabDuringStateConstruction() {
-        store.write(PrivilegeUiStartMethod.Root)
-
-        val viewModelStore = PrivilegeUiViewModelStore(
-            context = application,
-            config = PrivilegeUiConfig(),
-        )
-
-        assertEquals(
-            PrivilegeUiStartupMode.ROOT,
-            viewModelStore.state.value.selectedStartupMode,
-        )
-    }
-
-    @Test
-    fun unavailablePersistedMethodFallsBackDuringStateConstruction() {
-        store.write(PrivilegeUiStartMethod.Root)
-
-        val viewModelStore = PrivilegeUiViewModelStore(
-            context = application,
-            config = PrivilegeUiConfig(
-                startupModes = listOf(PrivilegeUiStartupMode.ADB),
-            ),
-        )
-
-        assertEquals(
-            PrivilegeUiStartupMode.ADB,
-            viewModelStore.state.value.selectedStartupMode,
-        )
-    }
-
-    @Test
     fun concurrentStoreInstancesNeverLeaveATornMethodId() {
         val methods = listOf(
             PrivilegeUiStartMethod.Root,

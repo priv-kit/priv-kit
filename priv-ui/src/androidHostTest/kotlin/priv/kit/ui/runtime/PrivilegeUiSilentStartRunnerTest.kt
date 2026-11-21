@@ -129,18 +129,6 @@ class PrivilegeUiSilentStartRunnerTest {
     }
 
     @Test
-    fun emptyStartupModesUseSameRootFallbackAsForegroundUi() = runBlocking {
-        val backend = RecordingBackend(serverInfo)
-        val runner = runner(
-            config = PrivilegeUiConfig(startupModes = emptyList()),
-            backend = backend,
-        )
-
-        assertSame(serverInfo, runner.start(PrivilegeUiStartMethod.Root, clientLaunch))
-        assertEquals(1, backend.rootCalls)
-    }
-
-    @Test
     fun wirelessMethodDiscoversEndpointAndAllowsManagedEnable() = runBlocking {
         val backend = RecordingBackend(serverInfo)
         val runner = runner(

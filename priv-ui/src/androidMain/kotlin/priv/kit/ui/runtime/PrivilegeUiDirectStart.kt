@@ -33,14 +33,5 @@ internal fun PrivilegeUiState.directStartTargets(
         }
     }
 
-internal fun PrivilegeUiState.directStartModeOrder(): List<PrivilegeUiStartupMode> =
-    buildList {
-        if (selectedStartupMode in startupModes) {
-            add(selectedStartupMode)
-        }
-        startupModes.forEach { mode ->
-            if (mode !in this) {
-                add(mode)
-            }
-        }
-    }
+/** Automatic foreground startup follows configuration order, independently of any renderer. */
+internal fun PrivilegeUiState.directStartModeOrder(): List<PrivilegeUiStartupMode> = startupModes

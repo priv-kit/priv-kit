@@ -11,7 +11,6 @@ class PrivilegeUiDirectStartTest {
     fun missingLocalNetworkPermissionKeepsAdbAndRootFallback() {
         val state = PrivilegeUiState(
             localNetworkPermissionMissing = true,
-            selectedStartupMode = PrivilegeUiStartupMode.ADB,
             startupModes = listOf(PrivilegeUiStartupMode.ADB, PrivilegeUiStartupMode.ROOT),
         )
         assertEquals(
@@ -23,7 +22,6 @@ class PrivilegeUiDirectStartTest {
     @Test
     fun manualOnlyHasNoDirectStartTarget() {
         val state = PrivilegeUiState(
-            selectedStartupMode = PrivilegeUiStartupMode.MANUAL_SHELL,
             startupModes = listOf(PrivilegeUiStartupMode.MANUAL_SHELL),
         )
 
@@ -38,7 +36,6 @@ class PrivilegeUiDirectStartTest {
     @Test
     fun selectedAdbStartsWhenPaired() {
         val state = PrivilegeUiState(
-            selectedStartupMode = PrivilegeUiStartupMode.ADB,
             startupModes = listOf(
                 PrivilegeUiStartupMode.ADB,
                 PrivilegeUiStartupMode.ROOT,
@@ -59,7 +56,6 @@ class PrivilegeUiDirectStartTest {
     @Test
     fun wirelessAdbDirectStartRequiresSupportedPlatform() {
         val state = PrivilegeUiState(
-            selectedStartupMode = PrivilegeUiStartupMode.ADB,
             startupModes = listOf(PrivilegeUiStartupMode.ADB),
             wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
             wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.ON,
@@ -76,7 +72,6 @@ class PrivilegeUiDirectStartTest {
     @Test
     fun selectedAdbStartsWhenManagedWirelessAdbIsReady() {
         val state = PrivilegeUiState(
-            selectedStartupMode = PrivilegeUiStartupMode.ADB,
             startupModes = listOf(PrivilegeUiStartupMode.ADB),
             wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.OFF,
             wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.UNKNOWN,
@@ -96,7 +91,6 @@ class PrivilegeUiDirectStartTest {
     @Test
     fun wirelessAdbAttemptIsEnumeratedDespiteStaleUnpairedState() {
         val state = PrivilegeUiState(
-            selectedStartupMode = PrivilegeUiStartupMode.ADB,
             startupModes = listOf(PrivilegeUiStartupMode.ADB),
             wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
             wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.OFF,
@@ -116,7 +110,6 @@ class PrivilegeUiDirectStartTest {
     @Test
     fun externalStartTargetRequiresReadyProvider() {
         val state = PrivilegeUiState(
-            selectedStartupMode = PrivilegeUiStartupMode.EXTERNAL,
             startupModes = listOf(PrivilegeUiStartupMode.EXTERNAL),
             externalStartItems = listOf(
                 PrivilegeUiExternalStartItemState(
@@ -139,7 +132,6 @@ class PrivilegeUiDirectStartTest {
     @Test
     fun selectedAdbAttemptPrecedesRootDespiteUnknownCachedState() {
         val state = PrivilegeUiState(
-            selectedStartupMode = PrivilegeUiStartupMode.ADB,
             startupModes = listOf(
                 PrivilegeUiStartupMode.ADB,
                 PrivilegeUiStartupMode.MANUAL_SHELL,
@@ -160,9 +152,8 @@ class PrivilegeUiDirectStartTest {
     }
 
     @Test
-    fun selectedRootKeepsStaticAdbFallbackWithoutCachedReadiness() {
+    fun configuredOrderKeepsStaticAdbWithoutCachedReadiness() {
         val state = PrivilegeUiState(
-            selectedStartupMode = PrivilegeUiStartupMode.ROOT,
             startupModes = listOf(
                 PrivilegeUiStartupMode.ADB,
                 PrivilegeUiStartupMode.ROOT,
@@ -175,8 +166,8 @@ class PrivilegeUiDirectStartTest {
 
         assertEquals(
             listOf(
-                PrivilegeUiDirectStartTarget.Root,
                 PrivilegeUiDirectStartTarget.Adb,
+                PrivilegeUiDirectStartTarget.Root,
             ),
             state.directStartTargets(
                 tcpPolicy = PrivilegeUiAdbTcpPolicy.PREFER_EXISTING,
@@ -188,7 +179,6 @@ class PrivilegeUiDirectStartTest {
     @Test
     fun wirelessAdbAttemptIsEnumeratedWithoutCachedWifi() {
         val state = PrivilegeUiState(
-            selectedStartupMode = PrivilegeUiStartupMode.ADB,
             startupModes = listOf(PrivilegeUiStartupMode.ADB),
             wirelessDebuggingStatus = PrivilegeUiWirelessAdbStatus.ON,
             wirelessPairingCheckStatus = PrivilegeUiWirelessAdbStatus.ON,
@@ -207,7 +197,6 @@ class PrivilegeUiDirectStartTest {
     @Test
     fun staticTcpDirectStartDoesNotRequireCachedPortOrAuthorization() {
         val state = PrivilegeUiState(
-            selectedStartupMode = PrivilegeUiStartupMode.ADB,
             startupModes = listOf(PrivilegeUiStartupMode.ADB),
             staticTcp = PrivilegeUiStaticTcpState(
                 authorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAVAILABLE,

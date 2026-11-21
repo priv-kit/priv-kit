@@ -1,8 +1,6 @@
 package priv.kit.ui
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PrivilegeUiPermissionStateTest {
@@ -51,20 +49,6 @@ class PrivilegeUiPermissionStateTest {
                 requested = true,
                 shouldShowRequestPermissionRationale = false,
             ),
-        )
-    }
-
-    @Test
-    fun everyNotGrantedPermissionLaunchesAnotherRequest() {
-        assertFalse(
-            PrivilegeUiPermissionState.Granted.shouldLaunchPermissionRequest(),
-        )
-        assertTrue(
-            PrivilegeUiPermissionState.NotGranted.Denied.shouldLaunchPermissionRequest(),
-        )
-        assertTrue(
-            PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
-                .shouldLaunchPermissionRequest(),
         )
     }
 }

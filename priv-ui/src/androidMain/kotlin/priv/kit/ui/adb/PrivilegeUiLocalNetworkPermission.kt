@@ -30,7 +30,6 @@ internal fun PrivilegeUiViewModelStore.refreshLocalNetworkPermission(): Boolean 
     updateState {
         it.copy(
             localNetworkPermissionMissing = missing,
-            localNetworkPermissionSettingsRequired = missing && it.localNetworkPermissionSettingsRequired,
         )
     }
     return !missing

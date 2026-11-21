@@ -1,7 +1,5 @@
 package priv.kit.ui
 
-import priv.kit.ui.resources.*
-import org.jetbrains.compose.resources.StringResource
 
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -9,7 +7,6 @@ import kotlin.test.assertTrue
 import kotlin.test.Test
 import priv.kit.ui.component.PrivilegeUiStartAction
 import priv.kit.ui.component.privilegeUiStartActionEnabled
-import priv.kit.ui.component.privilegeUiStartActionLabel
 import priv.kit.ui.component.startActionFor
 import priv.kit.ui.component.startActionEnabled
 
@@ -107,23 +104,7 @@ class PrivilegeUiStartActionTest {
         )
     }
 
-    @Test
-    fun actionLabelsDistinguishCancelAndCancelling() {
-        assertEquals(
-            Res.string.priv_ui_start_cancel_action,
-            privilegeUiStartActionLabel(
-                action = PrivilegeUiStartAction.CANCEL,
-                startLabel = Res.string.priv_ui_root_authorization_action,
-            ),
-        )
-        assertEquals(
-            Res.string.priv_ui_start_cancelling_action,
-            privilegeUiStartActionLabel(
-                action = PrivilegeUiStartAction.CANCELLING,
-                startLabel = Res.string.priv_ui_root_authorization_action,
-            ),
-        )
-    }
+
 
     @Test
     fun connectedRuntimeEnablesIdleChildStartAction() {

@@ -1,6 +1,6 @@
 # priv-playground
 
-JVM and WasmJS preview of the authorization page. The preview simulates startup and pairing.
+JVM and WasmJS preview of the Material 3 authorization page from `priv-ui-m3`. The preview simulates startup and pairing.
 
 | Task | Command from the repository root |
 | --- | --- |

@@ -1,8 +1,6 @@
 package priv.kit.ui
 
-import android.content.Context
-
-internal fun PrivilegeUiViewModel.screenActions(context: Context): PrivilegeUiActions = PrivilegeUiActions(
+internal fun PrivilegeUiViewModel.screenActions(): PrivilegeUiActions = PrivilegeUiActions(
     authorizeOrStartExternal = this::authorizeOrStartExternal,
     canInteract = { uiInteractionsEnabled },
     cancelPendingPairingStart = this::cancelPendingPairingStart,
@@ -17,20 +15,17 @@ internal fun PrivilegeUiViewModel.screenActions(context: Context): PrivilegeUiAc
     copyStaticTcpCommand = this::copyStaticTcpCommand,
     disableAutoRecovery = this::disableAutoRecovery,
     disableTcpMode = this::disableTcpMode,
-    dismissTcpAuthorizationFailureDialog = this::dismissTcpAuthorizationFailureDialog,
     enableTcpMode = this::enableTcpMode,
-    openNotificationSettings = { dispatchNotificationPermissionSettingsRequest(context) },
-    requestLocalNetworkPermission = { requestAdbLocalNetworkPermission(context) },
-    requestBatteryOptimization = { context.requestPrivilegeUiBatteryOptimizationExemption() },
+    requestLocalNetworkPermission = this::requestAdbLocalNetworkPermission,
+    requestBatteryOptimization = this::requestBatteryOptimization,
     restartTcpMode = this::restartTcpMode,
-    selectStartupMode = this::selectStartupMode,
     startInteractive = this::startInteractive,
     startNotificationPairing = this::startNotificationPairing,
     startRoot = this::startRoot,
     startStaticTcpAdb = this::startStaticTcpAdb,
     startWirelessAdb = this::startWirelessAdb,
     stopCurrentStart = this::stopCurrentStart,
-    stopNotificationPairing = this::stopNotificationPairing,
+    cancelPairing = this::cancelPairing,
     stopServer = this::stopServer,
     submitNotificationPairingCode = this::submitNotificationPairingCode,
     updatePairingCode = this::updatePairingCode,

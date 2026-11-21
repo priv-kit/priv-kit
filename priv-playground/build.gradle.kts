@@ -16,9 +16,11 @@ kotlin {
         binaries.executable()
         generateTypeScriptDefinitions()
     }
+    compilerOptions { optIn.add("priv.kit.ui.ExperimentalPrivilegeUiApi") }
+
     sourceSets {
         commonMain.dependencies {
-            implementation(project(":priv-ui"))
+            implementation(project(":priv-ui-m3"))
             implementation(libs.compose.multiplatform.resources)
         }
         getByName("desktopMain").dependencies { implementation(compose.desktop.currentOs) }

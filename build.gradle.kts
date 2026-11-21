@@ -27,6 +27,7 @@ plugins {
 
 private object Cfg {
     const val compileSdk = 37
+    const val compileSdkMinor = 1
     const val buildToolsVersion = "37.0.0"
     const val ndkVersion = "30.0.14904198"
     const val cmakeVersion = "4.1.2"
@@ -44,6 +45,7 @@ private val publishedModuleNames = setOf(
     "priv-evdev",
     "priv-adb-crypto",
     "priv-ui",
+    "priv-ui-m3",
 )
 
 allprojects {
@@ -97,7 +99,11 @@ subprojects {
                 apiVersion.set(Cfg.kotlinLanguageVersion)
             }
             targets.withType(KotlinMultiplatformAndroidLibraryTarget::class.java).configureEach {
-                compileSdk = Cfg.compileSdk
+                compileSdk {
+                    version = release(Cfg.compileSdk) {
+                        minorApiLevel = Cfg.compileSdkMinor
+                    }
+                }
                 minSdk = Cfg.minSdk
                 compilerOptions.jvmTarget.set(Cfg.kotlinJvmTarget)
             }
@@ -108,7 +114,11 @@ subprojects {
         configureExplicitApi()
 
         extensions.getByType(ApplicationExtension::class.java).apply {
-            compileSdk = Cfg.compileSdk
+            compileSdk {
+                version = release(Cfg.compileSdk) {
+                    minorApiLevel = Cfg.compileSdkMinor
+                }
+            }
             buildToolsVersion = Cfg.buildToolsVersion
             ndkVersion = Cfg.ndkVersion
 
@@ -134,7 +144,11 @@ subprojects {
         configureExplicitApi()
 
         extensions.getByType(LibraryExtension::class.java).apply {
-            compileSdk = Cfg.compileSdk
+            compileSdk {
+                version = release(Cfg.compileSdk) {
+                    minorApiLevel = Cfg.compileSdkMinor
+                }
+            }
             buildToolsVersion = Cfg.buildToolsVersion
             ndkVersion = Cfg.ndkVersion
 

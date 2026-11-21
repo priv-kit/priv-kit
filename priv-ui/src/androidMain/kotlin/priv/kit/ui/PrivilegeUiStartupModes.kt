@@ -8,6 +8,5 @@ internal fun PrivilegeUiConfig.effectiveStartupModes(): List<PrivilegeUiStartupM
     if (externalEnabled && PrivilegeUiStartupMode.EXTERNAL !in modes) {
         modes += PrivilegeUiStartupMode.EXTERNAL
     }
-    if (modes.isEmpty()) modes += PrivilegeUiStartupMode.ROOT
     return modes
 }

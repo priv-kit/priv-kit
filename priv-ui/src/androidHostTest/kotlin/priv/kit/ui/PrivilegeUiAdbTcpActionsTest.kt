@@ -36,7 +36,7 @@ class PrivilegeUiAdbTcpActionsTest {
     }
 
     @Test
-    fun automaticTimeoutUsesPersistentDialog() = runBlocking {
+    fun automaticTimeoutRecordsFailureForRenderer() = runBlocking {
         assertAuthorizationFailureBoundary(
             result = authorizationRequestResult(
                 authorized = false,
@@ -44,7 +44,7 @@ class PrivilegeUiAdbTcpActionsTest {
             ),
             expectedMessage = null,
             expectedStatus = PrivilegeUiAdbTcpAuthorizationStatus.UNAUTHORIZED,
-            expectedDialogVisible = true,
+            expectedFailureRecorded = true,
         )
     }
 
@@ -58,7 +58,7 @@ class PrivilegeUiAdbTcpActionsTest {
             ),
             expectedMessage = "ADB 授权失败，请重试",
             expectedStatus = PrivilegeUiAdbTcpAuthorizationStatus.FAILED,
-            expectedDialogVisible = false,
+            expectedFailureRecorded = false,
         )
     }
 
@@ -66,7 +66,7 @@ class PrivilegeUiAdbTcpActionsTest {
         result: PrivilegeAdbAuthorizationRequestResult,
         expectedMessage: String?,
         expectedStatus: PrivilegeUiAdbTcpAuthorizationStatus,
-        expectedDialogVisible: Boolean,
+        expectedFailureRecorded: Boolean,
     ) = coroutineScope {
         val store = PrivilegeUiViewModelStore(RuntimeEnvironment.getApplication())
         val runtimeScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -75,10 +75,10 @@ class PrivilegeUiAdbTcpActionsTest {
             coroutineScope = runtimeScope,
             acquireStartPermit = { AutoCloseable {} },
         )
-        val promptCoordinator = PrivilegeUiSystemPromptCoordinator()
+        val promptCoordinator = PrivilegeUiAuthorizationCoordinator()
         val tcpActions = PrivilegeUiAdbTcpActions(
             store = store,
-            systemPromptCoordinator = promptCoordinator,
+            authorizationCoordinator = promptCoordinator,
         )
         try {
             val snackbar = async(start = CoroutineStart.UNDISPATCHED) {
@@ -104,8 +104,8 @@ class PrivilegeUiAdbTcpActionsTest {
                 assertTrue(store.state.value.startupLogLines.any { diagnostic in it })
             }
             assertEquals(
-                expectedDialogVisible,
-                store.state.value.tcpAuthorizationFailureDialogVisible,
+                if (expectedFailureRecorded) 1L else 0L,
+                store.state.value.tcpAuthorizationFailureSerial,
             )
         } finally {
             runtimeActions.close()

@@ -3,17 +3,17 @@ package priv.kit.ui.component
 import priv.kit.ui.PrivilegeUiRuntimeStartPhase
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
 import priv.kit.ui.PrivilegeUiScreenState
-import priv.kit.ui.resources.*
-import org.jetbrains.compose.resources.StringResource
 
-internal enum class PrivilegeUiStartAction {
+@priv.kit.ui.ExperimentalPrivilegeUiApi
+public enum class PrivilegeUiStartAction {
     START,
     CANCEL,
     CANCELLING,
     NONE,
 }
 
-internal fun privilegeUiStartAction(
+@priv.kit.ui.ExperimentalPrivilegeUiApi
+public fun privilegeUiStartAction(
     phase: PrivilegeUiRuntimeStartPhase,
     ownsRuntimeStart: Boolean,
 ): PrivilegeUiStartAction =
@@ -31,7 +31,8 @@ internal fun privilegeUiStartAction(
         }
     }
 
-internal fun PrivilegeUiScreenState.startActionFor(
+@priv.kit.ui.ExperimentalPrivilegeUiApi
+public fun PrivilegeUiScreenState.startActionFor(
     source: PrivilegeUiRuntimeStartSource,
     providerId: String?,
 ): PrivilegeUiStartAction {
@@ -41,7 +42,8 @@ internal fun PrivilegeUiScreenState.startActionFor(
     return privilegeUiStartAction(runtimeStartPhase, ownsRuntimeStart)
 }
 
-internal fun privilegeUiStartActionEnabled(
+@priv.kit.ui.ExperimentalPrivilegeUiApi
+public fun privilegeUiStartActionEnabled(
     action: PrivilegeUiStartAction,
     startEnabled: Boolean,
 ): Boolean =
@@ -53,7 +55,8 @@ internal fun privilegeUiStartActionEnabled(
         -> false
     }
 
-internal fun PrivilegeUiScreenState.startActionEnabled(
+@priv.kit.ui.ExperimentalPrivilegeUiApi
+public fun PrivilegeUiScreenState.startActionEnabled(
     action: PrivilegeUiStartAction,
     startAvailable: Boolean,
 ): Boolean =
@@ -61,15 +64,3 @@ internal fun PrivilegeUiScreenState.startActionEnabled(
         action = action,
         startEnabled = startAvailable && !busy,
     )
-
-internal fun privilegeUiStartActionLabel(
-    action: PrivilegeUiStartAction,
-    startLabel: StringResource,
-): StringResource =
-    when (action) {
-        PrivilegeUiStartAction.CANCEL -> Res.string.priv_ui_start_cancel_action
-        PrivilegeUiStartAction.CANCELLING -> Res.string.priv_ui_start_cancelling_action
-        PrivilegeUiStartAction.START,
-        PrivilegeUiStartAction.NONE,
-        -> startLabel
-    }

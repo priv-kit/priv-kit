@@ -36,7 +36,7 @@ jobs:
 
       - uses: pnpm/setup@v2
 
-      - run: ./gradlew :priv-ui:jvmTest :priv-ui:testAndroidHostTest :priv-playground:desktopTest
+      - run: ./gradlew :priv-ui:jvmTest :priv-ui:testAndroidHostTest :priv-ui-m3:jvmTest :priv-ui-m3:testAndroidHostTest :priv-playground:desktopTest
 
       - run: ./gradlew :priv-sample:assembleRelease
 

@@ -32,7 +32,6 @@ internal class PrivilegeUiEffectsCoordinator(
     private val externalStartActions: PrivilegeUiExternalStartActions,
     private val coroutineScope: CoroutineScope,
 ) : AutoCloseable {
-    private val resumedHosts = mutableSetOf<String>()
     private val pageVisible = MutableStateFlow(false)
     private val refreshRequests = Channel<Unit>(Channel.CONFLATED)
     private var initialLoadCompleted = false
@@ -67,12 +66,9 @@ internal class PrivilegeUiEffectsCoordinator(
     ): Boolean =
         interactiveStartOwner.canInteract(gateState)
 
-    fun setHostResumed(hostId: String, resumed: Boolean) {
-        if (resumed) resumedHosts.add(hostId) else resumedHosts.remove(hostId)
-        pageVisible.value = resumedHosts.isNotEmpty()
+    fun setHostResumed(resumed: Boolean) {
+        pageVisible.value = resumed
     }
-
-    fun removeHost(hostId: String) = setHostResumed(hostId, false)
 
     fun refreshHostResumeState() {
         refreshRequests.trySend(Unit)
@@ -80,7 +76,6 @@ internal class PrivilegeUiEffectsCoordinator(
 
     override fun close() {
         refreshRequests.close()
-        resumedHosts.clear()
         pageVisible.value = false
         observerJob?.cancel()
         observerJob = null
@@ -106,8 +101,9 @@ internal class PrivilegeUiEffectsCoordinator(
 
         combine(store.state, pageVisible) { state, visible ->
             if (visible) VisiblePage(
-                mode = state.selectedStartupMode,
-                wirelessDiscoveryAllowed = state.selectedStartupMode == PrivilegeUiStartupMode.ADB &&
+                adbEnabled = PrivilegeUiStartupMode.ADB in state.startupModes,
+                externalEnabled = store.config.externalStartProviders.isNotEmpty(),
+                wirelessDiscoveryAllowed = PrivilegeUiStartupMode.ADB in state.startupModes &&
                     !state.localNetworkPermissionMissing,
             ) else null
         }.distinctUntilChanged().collectLatest(::runVisiblePageEffects)
@@ -115,38 +111,29 @@ internal class PrivilegeUiEffectsCoordinator(
 
     private suspend fun runVisiblePageEffects(page: VisiblePage?): Unit = coroutineScope {
         if (page == null) return@coroutineScope
-        val mode = page.mode
         // A new visible page always refreshes. Merge resume/focus signals already queued.
         while (refreshRequests.tryReceive().isSuccess) { /* merged into the initial refresh */ }
         launch(CoroutineName("priv-ui-page-refresh")) {
-            refreshVisibleMode(page)
-            for (request in refreshRequests) refreshVisibleMode(page)
+            refreshVisibleSources(page)
+            for (request in refreshRequests) refreshVisibleSources(page)
         }
-        when (mode) {
-            PrivilegeUiStartupMode.ADB -> launch { pollAdbStatus(page.wirelessDiscoveryAllowed) }
-            PrivilegeUiStartupMode.EXTERNAL -> launch {
-                externalStartActions.pollExternalStartStatus()
-            }
-            else -> Unit
-        }
+        if (page.adbEnabled) launch { pollAdbStatus(page.wirelessDiscoveryAllowed) }
+        if (page.externalEnabled) launch { externalStartActions.pollExternalStartStatus() }
         awaitCancellation()
     }
 
-    private suspend fun refreshVisibleMode(page: VisiblePage): Unit = supervisorScope {
+    private suspend fun refreshVisibleSources(page: VisiblePage): Unit = supervisorScope {
         launch { runtimeActions.refreshPermissionRestrictionStatus() }
-        when (page.mode) {
-            PrivilegeUiStartupMode.ADB -> {
-                if (page.wirelessDiscoveryAllowed && isPrivilegeUiWirelessAdbSupported()) launch {
-                    adbActions.refreshWirelessAdbStatusNow(markChecking = false)
-                }
-                if (store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED) launch {
-                    adbActions.refreshTcpModeEnabledNow(markChecking = false)
-                }
+        if (page.adbEnabled) {
+            if (page.wirelessDiscoveryAllowed && isPrivilegeUiWirelessAdbSupported()) launch {
+                adbActions.refreshWirelessAdbStatusNow(markChecking = false)
             }
-            PrivilegeUiStartupMode.EXTERNAL -> launch {
-                externalStartActions.refreshExternalStartStatusNow(providerId = null)
+            if (store.config.adbTcpPolicy != PrivilegeUiAdbTcpPolicy.DISABLED) launch {
+                adbActions.refreshTcpModeEnabledNow(markChecking = false)
             }
-            else -> Unit
+        }
+        if (page.externalEnabled) launch {
+            externalStartActions.refreshExternalStartStatusNow(providerId = null)
         }
     }
 
@@ -168,7 +155,8 @@ internal class PrivilegeUiEffectsCoordinator(
     }
 
     private data class VisiblePage(
-        val mode: PrivilegeUiStartupMode,
+        val adbEnabled: Boolean,
+        val externalEnabled: Boolean,
         val wirelessDiscoveryAllowed: Boolean,
     )
 

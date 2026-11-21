@@ -98,9 +98,10 @@ internal fun PrivilegeSampleScreen(
                 )
             }
             entry<PrivilegeSampleRootDestination.PrivilegeUi> {
-                val viewModel = rememberPrivilegeSampleUiViewModel(privilegeUiCallbacks)
+                val viewModel = rememberPrivilegeSampleUiViewModel(privilegeUiCallbacks.config)
                 PrivilegeUiAuthorizationPage(
                     viewModel = viewModel,
+                    onBack = privilegeUiCallbacks.back,
                 )
             }
             entry<PrivilegeSampleRootDestination.FileApi> {

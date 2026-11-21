@@ -22,8 +22,8 @@ internal class PrivilegeUiExternalStartActions(
         PrivilegeRuntimeStartCoordinator::createNativeStarterCommand,
     private val acquireInteractivePermit: () -> AutoCloseable? =
         PrivilegeUiStartGate.newInteractivePermitAcquirer(),
-    private val systemPromptCoordinator: PrivilegeUiSystemPromptCoordinator =
-        PrivilegeUiSystemPromptCoordinator(),
+    private val authorizationCoordinator: PrivilegeUiAuthorizationCoordinator =
+        PrivilegeUiAuthorizationCoordinator(),
 ) {
     private val statusRefreshes = store.config.externalStartProviders.associate {
         it.id to PrivilegeUiRefreshTask()
@@ -62,8 +62,8 @@ internal class PrivilegeUiExternalStartActions(
             val checked = readAuthorization(provider.id) { provider.checkAuthorization(context) }
             if (checked.getOrNull()?.authorized != true) {
                 val requested = readAuthorization(provider.id) {
-                    systemPromptCoordinator.withPrompt(
-                        privilegeUiExternalAuthorizationPrompt(store.externalStartLabel(provider.id)),
+                    authorizationCoordinator.withAuthorization(
+                        privilegeUiExternalAuthorization(store.externalStartLabel(provider.id)),
                     ) {
                         provider.requestAuthorization(context)
                     }

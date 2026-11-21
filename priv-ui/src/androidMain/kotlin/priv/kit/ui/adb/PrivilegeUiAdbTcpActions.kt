@@ -12,9 +12,9 @@ import priv.kit.ui.PrivilegeUiAdbTcpAuthorizationStatus
 import priv.kit.ui.PrivilegeUiAdbTcpPolicy
 import priv.kit.ui.PrivilegeUiRuntimeStartSource
 import priv.kit.ui.PrivilegeUiStaticTcpState
-import priv.kit.ui.PrivilegeUiSystemPromptCoordinator
+import priv.kit.ui.PrivilegeUiAuthorizationCoordinator
 import priv.kit.ui.R
-import priv.kit.ui.privilegeUiTcpAuthorizationPrompt
+import priv.kit.ui.privilegeUiTcpAuthorization
 import priv.kit.ui.runtime.PrivilegeUiRuntimeStartAttempt
 import priv.kit.ui.runtime.PrivilegeUiRuntimeStartSession
 import priv.kit.ui.state.PrivilegeUiFailureKind
@@ -22,7 +22,7 @@ import priv.kit.ui.state.PrivilegeUiViewModelStore
 
 internal class PrivilegeUiAdbTcpActions(
     private val store: PrivilegeUiViewModelStore,
-    private val systemPromptCoordinator: PrivilegeUiSystemPromptCoordinator,
+    private val authorizationCoordinator: PrivilegeUiAuthorizationCoordinator,
 ) {
     suspend fun enableTcpMode() {
 
@@ -80,11 +80,10 @@ internal class PrivilegeUiAdbTcpActions(
                 staticTcp = current.staticTcp.copy(
                     authorizationStatus = PrivilegeUiAdbTcpAuthorizationStatus.AUTHORIZING,
                 ),
-                tcpAuthorizationFailureDialogVisible = false,
             )
         }
         val result = try {
-            systemPromptCoordinator.withPrompt(privilegeUiTcpAuthorizationPrompt()) {
+            authorizationCoordinator.withAuthorization(privilegeUiTcpAuthorization()) {
                 adbManager().requestTcpAuthorization(
                     tcpPort = tcpPort,
                     timeoutMillis = store.config.adbAuthorizationTimeoutMillis,
@@ -234,7 +233,7 @@ internal class PrivilegeUiAdbTcpActions(
             if (showFailure) {
                 if (result.endReason == PrivilegeAdbAuthorizationEndReason.AUTOMATIC_TIMEOUT) {
                     store.updateState { current ->
-                        current.copy(tcpAuthorizationFailureDialogVisible = true)
+                        current.copy(tcpAuthorizationFailureSerial = current.tcpAuthorizationFailureSerial + 1)
                     }
                     session.appendStartupLog(
                         store.text(R.string.priv_ui_tcp_authorization_timeout_message),

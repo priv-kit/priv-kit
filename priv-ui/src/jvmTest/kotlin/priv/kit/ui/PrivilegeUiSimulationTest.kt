@@ -20,11 +20,11 @@ class PrivilegeUiSimulationTest {
     fun missingPermissionIsAdvisoryAndDoesNotInterruptAdb() = runTest {
         val model = model(this)
         model.setPermissions(batteryExempt = false, networkGranted = false)
-        assertTrue(model.state.batteryOptimizationPromptVisible)
+        assertTrue(model.state.batteryOptimizationRestricted)
         assertTrue(model.state.localNetworkPermissionMissing)
         model.actions.startNotificationPairing()
-        assertTrue(model.state.pairingDialogVisible)
-        model.actions.stopNotificationPairing()
+        assertTrue(model.state.pairingInteraction == PrivilegeUiPairingInteraction.ENTER_CODE)
+        model.actions.cancelPairing()
         model.actions.startStaticTcpAdb()
         model.actions.confirmStaticTcpSwitch()
         runCurrent()
@@ -117,7 +117,7 @@ class PrivilegeUiSimulationTest {
     fun wirelessStartWaitsForValidPairingAndThenContinues() = runTest {
         val model = model(this)
         model.actions.startWirelessAdb()
-        assertTrue(model.state.pairingDialogVisible)
+        assertTrue(model.state.pairingInteraction == PrivilegeUiPairingInteraction.ENTER_CODE)
         model.actions.updatePairingCode("12abc3")
         model.actions.submitNotificationPairingCode()
         advanceUntilIdle()
@@ -126,7 +126,7 @@ class PrivilegeUiSimulationTest {
         model.actions.submitNotificationPairingCode()
         assertEquals(PrivilegeUiAdbPairingStatus.PAIRING, model.state.pairingStatus)
         advanceUntilIdle()
-        assertFalse(model.state.pairingDialogVisible)
+        assertFalse(model.state.pairingInteraction == PrivilegeUiPairingInteraction.ENTER_CODE)
         assertEquals(PrivilegeUiAdbPairingStatus.PAIRED, model.state.pairingStatus)
         assertEquals(PrivilegeUiRuntimeStartSource.ADB_WIRELESS, model.state.runtimeStartSource)
         assertEquals(PrivilegeUiRuntimeStatus.CONNECTED, model.state.runtimeStatus)
@@ -139,10 +139,10 @@ class PrivilegeUiSimulationTest {
         model.actions.updatePairingCode("654321")
         model.actions.submitNotificationPairingCode()
         runCurrent()
-        model.actions.stopNotificationPairing()
+        model.actions.cancelPairing()
         advanceUntilIdle()
         assertFalse(model.state.busy)
-        assertFalse(model.state.pairingDialogVisible)
+        assertFalse(model.state.pairingInteraction == PrivilegeUiPairingInteraction.ENTER_CODE)
         assertEquals(PrivilegeUiAdbPairingStatus.NOT_PAIRED, model.state.pairingStatus)
         assertEquals(PrivilegeUiRuntimeStatus.DISCONNECTED, model.state.runtimeStatus)
     }
@@ -204,19 +204,12 @@ class PrivilegeUiSimulationTest {
     }
 
     @Test
-    fun manualCopyDoesNotExecuteAndManualStartHasNoRecovery() = runTest {
+    fun manualCopyDoesNotExecute() = runTest {
         var copied = ""
         val model = model(this) { copied = it }
-        model.actions.selectStartupMode(PrivilegeUiStartupMode.MANUAL_SHELL)
         model.actions.copyManualCommand()
         assertEquals(model.state.manualShellCommandLine, copied)
         assertEquals(PrivilegeUiRuntimeStatus.DISCONNECTED, model.state.runtimeStatus)
-        model.actions.startInteractive()
-        advanceUntilIdle()
-        assertEquals(2000, model.state.serverUid)
-        assertFalse(model.state.desiredEnabled)
-        model.actions.copyStartupLog()
-        assertContains(copied, "MANUAL_SHELL")
         model.actions.clearStartupLog()
         assertTrue(model.state.startupLogLines.isEmpty())
     }

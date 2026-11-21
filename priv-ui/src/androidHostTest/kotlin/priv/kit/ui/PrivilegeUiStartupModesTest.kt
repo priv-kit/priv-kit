@@ -85,6 +85,25 @@ class PrivilegeUiStartupModesTest {
         assertEquals("startup modes must be unique", exception.message)
     }
 
+    @Test
+    fun emptyEffectiveModesAreRejectedWithoutRootFallback() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PrivilegeUiConfig(startupModes = emptyList())
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            PrivilegeUiConfig(startupModes = listOf(PrivilegeUiStartupMode.EXTERNAL))
+        }
+    }
+
+    @Test
+    fun providersAloneSupplyAnEffectiveMode() {
+        val config = PrivilegeUiConfig(
+            startupModes = emptyList(),
+            externalStartProviders = listOf(TestExternalStartProvider),
+        )
+        assertEquals(listOf(PrivilegeUiStartupMode.EXTERNAL), config.effectiveStartupModes())
+    }
+
     private object TestExternalStartProvider : PrivilegeExternalStartProvider {
         override val id: String = "test"
         override fun getLabel(context: Context): CharSequence = "Test"

@@ -25,7 +25,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "priv-kit"
 
-include(":priv-ui", ":priv-playground")
+include(":priv-ui", ":priv-ui-m3", ":priv-playground")
 
 if (!providers.environmentVariable("PRIV_KIT_SKIP_ANDROID").isPresent) {
     include(

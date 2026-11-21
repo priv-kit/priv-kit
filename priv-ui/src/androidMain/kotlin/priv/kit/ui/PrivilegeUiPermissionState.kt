@@ -41,9 +41,6 @@ internal fun markPrivilegeUiPermissionRequested(permission: String) {
 internal fun isPrivilegeUiNotificationPermissionSupported(): Boolean =
     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
 
-internal fun PrivilegeUiPermissionState.shouldLaunchPermissionRequest(): Boolean =
-    this is PrivilegeUiPermissionState.NotGranted
-
 internal fun privilegeUiPermissionState(
     granted: Boolean,
     requested: Boolean,
@@ -65,3 +62,11 @@ private object PrivilegeUiPermissionRequestHistory {
 
     fun contains(permission: String): Boolean = permission in requestedPermissions
 }
+
+@ExperimentalPrivilegeUiApi
+public fun isPrivilegeUiPermissionSettingsRequired(context: android.app.Activity, permission: String): Boolean =
+    privilegeUiPermissionState(context, permission) == PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
+
+@ExperimentalPrivilegeUiApi
+public fun isPrivilegeUiPermissionGranted(context: android.app.Activity, permission: String): Boolean =
+    privilegeUiPermissionState(context, permission) == PrivilegeUiPermissionState.Granted

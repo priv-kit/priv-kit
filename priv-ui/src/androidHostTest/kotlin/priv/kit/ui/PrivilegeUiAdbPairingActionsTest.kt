@@ -39,7 +39,7 @@ class PrivilegeUiAdbPairingActionsTest {
         withPairingActions(hasInteractionHost = { true }) { store, actions ->
             denyNotificationPermission()
             var permissionRequestCount = 0
-            val permissionResult = CompletableDeferred<PrivilegeUiPermissionState?>()
+            val permissionResult = CompletableDeferred<Boolean>()
             val start = async(start = CoroutineStart.UNDISPATCHED) {
                 actions.startNotificationPairing {
                     permissionRequestCount += 1
@@ -50,11 +50,11 @@ class PrivilegeUiAdbPairingActionsTest {
             assertNull(PrivilegeUiStartGate.tryAcquireSilent())
 
             permissionResult.complete(
-                PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
+                false,
             )
             yield()
 
-            assertTrue(store.state.value.pairingNotificationPermissionWarningVisible)
+            assertTrue(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.CONFIRM_WITHOUT_NOTIFICATION)
             assertTrue(start.isActive)
             assertNull(PrivilegeUiStartGate.tryAcquireSilent())
 
@@ -72,7 +72,7 @@ class PrivilegeUiAdbPairingActionsTest {
         withPairingActions(hasInteractionHost = { true }) { store, actions ->
             denyNotificationPermission()
             var permissionRequestCount = 0
-            val permissionResult = CompletableDeferred<PrivilegeUiPermissionState?>()
+            val permissionResult = CompletableDeferred<Boolean>()
 
             val firstStart = async(start = CoroutineStart.UNDISPATCHED) {
                 actions.startNotificationPairing {
@@ -82,8 +82,8 @@ class PrivilegeUiAdbPairingActionsTest {
             }
             assertEquals(1, permissionRequestCount)
             assertPairingNotStarted(store)
-            permissionResult.complete(null)
-            firstStart.await()
+            permissionResult.cancel()
+            kotlin.test.assertFailsWith<kotlinx.coroutines.CancellationException> { firstStart.await() }
         }
     }
 
@@ -92,7 +92,7 @@ class PrivilegeUiAdbPairingActionsTest {
         withPairingActions(hasInteractionHost = { true }) { store, actions ->
             denyNotificationPermission()
             var permissionRequestCount = 0
-            val permissionResult = CompletableDeferred<PrivilegeUiPermissionState?>()
+            val permissionResult = CompletableDeferred<Boolean>()
 
             val start = async(start = CoroutineStart.UNDISPATCHED) {
                 actions.startNotificationPairing {
@@ -105,11 +105,11 @@ class PrivilegeUiAdbPairingActionsTest {
             assertPairingNotStarted(store)
 
             permissionResult.complete(
-                PrivilegeUiPermissionState.NotGranted.PermanentlyDenied,
+                false,
             )
             yield()
 
-            assertTrue(store.state.value.pairingNotificationPermissionWarningVisible)
+            assertTrue(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.CONFIRM_WITHOUT_NOTIFICATION)
             assertTrue(start.isActive)
             assertPairingNotStarted(store)
 
@@ -122,14 +122,18 @@ class PrivilegeUiAdbPairingActionsTest {
     fun rejectedPermissionDispatchDoesNotLeavePairingRequestStuck() {
         withPairingActions(hasInteractionHost = { true }) { store, actions ->
             denyNotificationPermission()
-            actions.startNotificationPairing { null }
+            kotlin.test.assertFailsWith<kotlinx.coroutines.CancellationException> {
+                actions.startNotificationPairing { throw kotlinx.coroutines.CancellationException() }
+            }
 
             assertPairingNotStarted(store)
 
             var permissionRequestCount = 0
-            actions.startNotificationPairing {
-                permissionRequestCount += 1
-                null
+            kotlin.test.assertFailsWith<kotlinx.coroutines.CancellationException> {
+                actions.startNotificationPairing {
+                    permissionRequestCount += 1
+                    throw kotlinx.coroutines.CancellationException()
+                }
             }
             assertEquals(1, permissionRequestCount)
         }
@@ -139,11 +143,11 @@ class PrivilegeUiAdbPairingActionsTest {
     fun grantedNotificationPermissionStartsPairingSession() {
         withPairingActions(hasInteractionHost = { true }) { store, actions ->
             denyNotificationPermission()
-            actions.startNotificationPairing { PrivilegeUiPermissionState.Granted }
+            actions.startNotificationPairing { true }
 
-            assertFalse(store.state.value.pairingNotificationPermissionWarningVisible)
+            assertFalse(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.CONFIRM_WITHOUT_NOTIFICATION)
             assertEquals(PrivilegeUiAdbPairingStatus.SEARCHING, store.state.value.pairingStatus)
-            assertTrue(store.state.value.pairingDialogVisible)
+            assertTrue(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.ENTER_CODE)
         }
     }
 
@@ -153,7 +157,7 @@ class PrivilegeUiAdbPairingActionsTest {
             denyNotificationPermission()
             val start = async(start = CoroutineStart.UNDISPATCHED) {
                 actions.startNotificationPairing {
-                    PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
+                    false
                 }
             }
             assertTrue(start.isActive)
@@ -161,9 +165,9 @@ class PrivilegeUiAdbPairingActionsTest {
             actions.continuePairingWithoutNotification()
             start.await()
 
-            assertFalse(store.state.value.pairingNotificationPermissionWarningVisible)
+            assertFalse(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.CONFIRM_WITHOUT_NOTIFICATION)
             assertEquals(PrivilegeUiAdbPairingStatus.SEARCHING, store.state.value.pairingStatus)
-            assertTrue(store.state.value.pairingDialogVisible)
+            assertTrue(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.ENTER_CODE)
             assertFalse(store.state.value.notificationPairingRunning)
             assertTrue(store.state.value.startupLogLines.isNotEmpty())
         }
@@ -173,16 +177,16 @@ class PrivilegeUiAdbPairingActionsTest {
     fun cancellingPendingPermissionKeepsPairingStoppedWhenAStaleResultArrives() {
         withPairingActions(hasInteractionHost = { true }) { store, actions ->
             denyNotificationPermission()
-            val permissionResult = CompletableDeferred<PrivilegeUiPermissionState?>()
+            val permissionResult = CompletableDeferred<Boolean>()
             val start = async(start = CoroutineStart.UNDISPATCHED) {
                 actions.startNotificationPairing { permissionResult.await() }
             }
 
             actions.cancelPendingPairingStart()
             start.cancelAndJoin()
-            permissionResult.complete(PrivilegeUiPermissionState.Granted)
+            permissionResult.complete(true)
 
-            assertFalse(store.state.value.pairingNotificationPermissionWarningVisible)
+            assertFalse(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.CONFIRM_WITHOUT_NOTIFICATION)
             assertPairingNotStarted(store)
         }
     }
@@ -193,17 +197,17 @@ class PrivilegeUiAdbPairingActionsTest {
             denyNotificationPermission()
             val start = async(start = CoroutineStart.UNDISPATCHED) {
                 actions.startNotificationPairing {
-                    PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
+                    false
                 }
             }
-            assertTrue(store.state.value.pairingNotificationPermissionWarningVisible)
+            assertTrue(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.CONFIRM_WITHOUT_NOTIFICATION)
             assertNull(PrivilegeUiStartGate.tryAcquireSilent())
 
             start.cancel()
             actions.cancelPendingPairingStart()
             start.join()
 
-            assertFalse(store.state.value.pairingNotificationPermissionWarningVisible)
+            assertFalse(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.CONFIRM_WITHOUT_NOTIFICATION)
             assertPairingNotStarted(store)
             PrivilegeUiStartGate.tryAcquireSilent()!!.close()
         }
@@ -215,7 +219,7 @@ class PrivilegeUiAdbPairingActionsTest {
             store.updateState {
                 it.copy(
                     pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
-                    pairingDialogVisible = true,
+                    pairingInteraction = PrivilegeUiPairingInteraction.ENTER_CODE,
                     notificationPairingRunning = true,
                 )
             }
@@ -223,7 +227,7 @@ class PrivilegeUiAdbPairingActionsTest {
 
             val start = async(start = CoroutineStart.UNDISPATCHED) {
                 actions.startNotificationPairing {
-                    PrivilegeUiPermissionState.NotGranted.PermanentlyDenied
+                    false
                 }
             }
 
@@ -232,22 +236,26 @@ class PrivilegeUiAdbPairingActionsTest {
             actions.cancelPendingPairingStart()
             start.await()
 
-            assertFalse(store.state.value.pairingNotificationPermissionWarningVisible)
+            assertFalse(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.CONFIRM_WITHOUT_NOTIFICATION)
             assertPairingNotStarted(store)
         }
     }
 
     @Test
-    fun ordinaryNotificationDenialStartsPairingWithoutNotification() {
+    fun deniedPermissionAwaitsDecisionBeforePairingWithoutNotification() {
         withPairingActions(hasInteractionHost = { true }) { store, actions ->
             denyNotificationPermission()
-            actions.startNotificationPairing {
-                PrivilegeUiPermissionState.NotGranted.Denied
+            val start = async(start = CoroutineStart.UNDISPATCHED) {
+                actions.startNotificationPairing { false }
             }
+            assertTrue(start.isActive)
+            assertPairingNotStarted(store)
+            actions.continuePairingWithoutNotification()
+            start.await()
 
-            assertFalse(store.state.value.pairingNotificationPermissionWarningVisible)
+            assertFalse(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.CONFIRM_WITHOUT_NOTIFICATION)
             assertEquals(PrivilegeUiAdbPairingStatus.SEARCHING, store.state.value.pairingStatus)
-            assertTrue(store.state.value.pairingDialogVisible)
+            assertTrue(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.ENTER_CODE)
             assertFalse(store.state.value.notificationPairingRunning)
             assertTrue(store.state.value.startupLogLines.isNotEmpty())
         }
@@ -259,7 +267,7 @@ class PrivilegeUiAdbPairingActionsTest {
             store.updateState {
                 it.copy(
                     pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
-                    pairingDialogVisible = true,
+                    pairingInteraction = PrivilegeUiPairingInteraction.ENTER_CODE,
                     notificationPairingRunning = true,
                 )
             }
@@ -269,7 +277,7 @@ class PrivilegeUiAdbPairingActionsTest {
             )
 
             assertEquals(PrivilegeUiAdbPairingStatus.NOT_PAIRED, store.state.value.pairingStatus)
-            assertFalse(store.state.value.pairingDialogVisible)
+            assertFalse(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.ENTER_CODE)
             assertFalse(store.state.value.notificationPairingRunning)
         }
     }
@@ -309,7 +317,7 @@ class PrivilegeUiAdbPairingActionsTest {
             store.updateState {
                 it.copy(
                     pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
-                    pairingDialogVisible = true,
+                    pairingInteraction = PrivilegeUiPairingInteraction.ENTER_CODE,
                     notificationPairingRunning = true,
                 )
             }
@@ -329,7 +337,7 @@ class PrivilegeUiAdbPairingActionsTest {
 
             assertEquals(expectedMessage, snackbar.await())
             assertEquals(PrivilegeUiAdbPairingStatus.SEARCHING, store.state.value.pairingStatus)
-            assertTrue(store.state.value.pairingDialogVisible)
+            assertTrue(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.ENTER_CODE)
             assertFalse(store.state.value.notificationPairingRunning)
         } finally {
             actions.close()
@@ -344,7 +352,7 @@ class PrivilegeUiAdbPairingActionsTest {
             store.updateState {
                 it.copy(
                     pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
-                    pairingDialogVisible = true,
+                    pairingInteraction = PrivilegeUiPairingInteraction.ENTER_CODE,
                     notificationPairingRunning = true,
                 )
             }
@@ -354,7 +362,7 @@ class PrivilegeUiAdbPairingActionsTest {
             )
 
             assertEquals(PrivilegeUiAdbPairingStatus.SEARCHING, store.state.value.pairingStatus)
-            assertTrue(store.state.value.pairingDialogVisible)
+            assertTrue(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.ENTER_CODE)
             assertTrue(store.state.value.notificationPairingRunning)
         }
     }
@@ -364,7 +372,7 @@ class PrivilegeUiAdbPairingActionsTest {
         shadowOf(RuntimeEnvironment.getApplication())
             .grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
         withPairingActions(hasInteractionHost = { false }) { store, actions ->
-            actions.startNotificationPairing(requestNotificationPermission = { null })
+            actions.startNotificationPairing(requestNotificationPermission = { error("Permission already granted") })
             store.updateState { it.copy(notificationPairingRunning = true) }
             assertNull(PrivilegeUiStartGate.tryAcquireSilent())
 
@@ -376,7 +384,7 @@ class PrivilegeUiAdbPairingActionsTest {
             )
 
             assertEquals(PrivilegeUiAdbPairingStatus.NOT_PAIRED, store.state.value.pairingStatus)
-            assertFalse(store.state.value.pairingDialogVisible)
+            assertFalse(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.ENTER_CODE)
             PrivilegeUiStartGate.tryAcquireSilent()!!.close()
         }
     }
@@ -398,7 +406,7 @@ class PrivilegeUiAdbPairingActionsTest {
 
     private fun assertPairingNotStarted(store: PrivilegeUiViewModelStore) {
         assertEquals(PrivilegeUiAdbPairingStatus.NOT_PAIRED, store.state.value.pairingStatus)
-        assertFalse(store.state.value.pairingDialogVisible)
+        assertFalse(store.state.value.pairingInteraction == PrivilegeUiPairingInteraction.ENTER_CODE)
         assertFalse(store.state.value.notificationPairingRunning)
         assertTrue(store.state.value.startupLogLines.isEmpty())
     }

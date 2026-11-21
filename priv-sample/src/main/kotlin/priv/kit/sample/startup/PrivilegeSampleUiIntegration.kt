@@ -6,18 +6,12 @@ import priv.kit.external.shizuku.PrivilegeExternalShizuku
 import priv.kit.ui.PrivilegeAdbPairingService
 import priv.kit.ui.PrivilegeUiConfig
 import priv.kit.ui.PrivilegeUiStartupMode
-import priv.kit.ui.PrivilegeUiViewModel
+import priv.kit.ui.m3.PrivilegeM3ViewModel
 
 internal class PrivilegeSamplePrivilegeUiViewModel(
     application: Application,
-    private val host: PrivilegeSamplePrivilegeUiCallbacks,
-) : PrivilegeUiViewModel(application, host.config) {
-    override fun onBackClick(): Boolean {
-        host.back()
-        return true
-    }
-
-}
+    config: PrivilegeUiConfig,
+) : PrivilegeM3ViewModel(application, config)
 
 internal val privilegeUiConfig by lazy {
     PrivilegeUiConfig(

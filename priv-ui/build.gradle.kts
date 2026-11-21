@@ -25,14 +25,16 @@ kotlin {
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs { browser() }
 
+    compilerOptions { optIn.add("priv.kit.ui.ExperimentalPrivilegeUiApi") }
+
     sourceSets {
         commonMain.dependencies {
+            api(libs.androidx.lifecycle.viewmodel)
             api(libs.compose.multiplatform.foundation)
-            api(libs.compose.multiplatform.material3)
             api(libs.compose.multiplatform.runtime)
             api(libs.compose.multiplatform.ui)
-            implementation(libs.compose.multiplatform.resources)
-            implementation(libs.kotlinx.coroutines.core)
+            api(libs.compose.multiplatform.resources)
+            api(libs.kotlinx.coroutines.core)
         }
         commonTest.dependencies { implementation(libs.kotlin.test) }
         jvmTest.dependencies {
@@ -45,7 +47,6 @@ kotlin {
                 implementation(project(":priv-shared"))
                 implementation(libs.androidx.activity.compose)
                 implementation(libs.androidx.core.ktx)
-                api(libs.androidx.lifecycle.viewmodel)
                 implementation(libs.androidx.lifecycle.runtime.compose)
                 implementation(libs.androidx.lifecycle.runtime.ktx)
                 implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -63,6 +64,7 @@ kotlin {
 
 compose.resources {
     packageOfResClass = "priv.kit.ui.resources"
+    publicResClass = true
 }
 
 // The same XML strings serve Compose resources and Android's synchronous notification text.

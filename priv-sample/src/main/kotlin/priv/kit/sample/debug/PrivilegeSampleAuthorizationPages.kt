@@ -77,7 +77,7 @@ internal fun ConnectionTestPage(
                 onCopyLog = callbacks.log.copy,
                 onPairWirelessAdb = callbacks.connection.pairWirelessAdb,
                 onStartNotificationPairing = callbacks.connection.startNotificationPairing,
-                onStopNotificationPairing = callbacks.connection.stopNotificationPairing,
+                onStopNotificationPairing = callbacks.connection.cancelPairing,
                 onStartWirelessAdb = callbacks.connection.startWirelessAdb,
             )
             PrivilegeStartupTab.Tcp -> TcpPage(

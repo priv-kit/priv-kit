@@ -51,13 +51,11 @@ class PrivilegeUiExternalStartActionsTest {
         assertEquals("启动", store.externalStartLabel(provider.id).toString())
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val runtimeActions = newRuntimeActions(store, scope)
-        val promptCoordinator = PrivilegeUiSystemPromptCoordinator().also {
-            it.registerHost("host", resumed = true, hasWindowFocus = true)
-        }
+        val promptCoordinator = PrivilegeUiAuthorizationCoordinator()
         val actions = PrivilegeUiExternalStartActions(
             store = store,
             runtimeActions = runtimeActions,
-            systemPromptCoordinator = promptCoordinator,
+            authorizationCoordinator = promptCoordinator,
         )
         try {
             val authorization = async(Dispatchers.Default) {
@@ -66,18 +64,14 @@ class PrivilegeUiExternalStartActionsTest {
 
             withTimeout(2_000.milliseconds) { provider.authorizationStarted.await() }
             assertNull(PrivilegeUiStartGate.tryAcquireSilent())
-            promptCoordinator.onHostPaused("host")
-            val promptTitle = promptCoordinator.visiblePrompt.value?.prompt?.title as PrivilegeUiText.Resource
-            assertEquals(R.string.priv_ui_system_prompt_external_title, promptTitle.id)
-            assertEquals("启动", promptTitle.formatArgs.single().toString())
+            assertEquals(PrivilegeUiAuthorizationKind.EXTERNAL, promptCoordinator.authorization.value?.kind)
+            assertEquals("启动", promptCoordinator.authorization.value?.providerLabel)
 
             provider.releaseAuthorization.complete(Unit)
             authorization.await()
             assertEquals(false, store.state.value.externalStartItems.single().authorized)
             assertTrue(store.state.value.startupLogLines.any { "Authorization request denied" in it })
-            assertNotNull(promptCoordinator.visiblePrompt.value)
-            promptCoordinator.onHostResumed("host", hasWindowFocus = true)
-            assertNull(promptCoordinator.visiblePrompt.value)
+            assertNull(promptCoordinator.authorization.value)
             val silentPermit = PrivilegeUiStartGate.tryAcquireSilent()
             assertNotNull(silentPermit)
             silentPermit!!.close()
@@ -291,7 +285,7 @@ class PrivilegeUiExternalStartActionsTest {
         val releaseAuthorization = CompletableDeferred<Unit>()
 
         override val id: String = "blocking-external"
-        override fun getLabel(context: Context): CharSequence = context.getText(R.string.priv_ui_external_start)
+        override fun getLabel(context: Context): CharSequence = if (context.resources.configuration.locales[0].language == "zh") "启动" else "Start"
 
         override suspend fun checkAuthorization(context: Context): PrivilegeExternalStartResult =
             PrivilegeExternalStartResult(authorized = false)

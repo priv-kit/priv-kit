@@ -1,5 +1,6 @@
 package priv.kit.ui.adb.pairing
 
+import priv.kit.ui.PrivilegeUiPairingInteraction
 import priv.kit.ui.PrivilegeUiAdbPairingStatus
 import priv.kit.ui.PrivilegeUiState
 import priv.kit.ui.PrivilegeUiText
@@ -9,15 +10,15 @@ internal fun PrivilegeUiState.resetPairing(text: PrivilegeUiText? = pairingText)
     pairingStatus = PrivilegeUiAdbPairingStatus.NOT_PAIRED,
     pairingText = text,
     pairingCode = "",
-    pairingDialogVisible = false,
-    pairingNotificationPermissionWarningVisible = false,
+    pairingInteraction = null,
+
     notificationPairingRunning = false,
 )
 
 internal fun PrivilegeUiState.searchingPairing(text: PrivilegeUiText): PrivilegeUiState =
     resetPairing(text).copy(
         pairingStatus = PrivilegeUiAdbPairingStatus.SEARCHING,
-        pairingDialogVisible = true,
+        pairingInteraction = PrivilegeUiPairingInteraction.ENTER_CODE,
     )
 
 internal fun PrivilegeUiState.completedPairing(

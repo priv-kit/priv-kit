@@ -10,11 +10,11 @@ description: 将 Priv Kit 接入 Android 应用。
 
 ## 添加依赖 {#add-dependencies}
 
-`priv-ui` 包含 Compose 授权页面并传递依赖 `priv-core`，无需重复声明 Core。
+`priv-ui-m3` 提供 Material 3 授权页面，传递依赖 `priv-ui` 和 `priv-core`，无需重复声明 Core。自定义渲染时只需依赖 `priv-ui`。
 
 ```kotlin
 dependencies {
-    implementation("io.github.priv-kit:priv-ui:<version>")
+    implementation("io.github.priv-kit:priv-ui-m3:<version>")
 }
 ```
 
@@ -77,7 +77,7 @@ class App : Application() {
 在应用的 Compose Material 3 主题内放入启动页，即可使用 Root、ADB 和手动启动。配置见 [Privilege UI](./priv-ui)。
 
 ```kotlin
-PrivilegeScaffold()
+priv.kit.ui.m3.PrivilegeM3Page()
 ```
 
 ## 使用 priv-core 自定义界面 {#custom-interface}

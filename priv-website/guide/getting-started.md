@@ -10,11 +10,11 @@ Requires Android API 26 or later.
 
 ## Add the dependencies {#add-dependencies}
 
-`priv-ui` includes the Compose authorization page and exposes `priv-core`; no separate Core dependency is needed.
+`priv-ui-m3` provides the Material 3 authorization page and exposes `priv-ui` and `priv-core`; no separate Core dependency is needed. For your own renderer, depend on `priv-ui` instead.
 
 ```kotlin
 dependencies {
-    implementation("io.github.priv-kit:priv-ui:<version>")
+    implementation("io.github.priv-kit:priv-ui-m3:<version>")
 }
 ```
 
@@ -77,7 +77,7 @@ For a new `App` in your app’s base package, set `android:name=".App"` on the e
 Place the page inside your app’s Compose Material 3 theme for Root, ADB, and manual startup. See [Privilege UI](./priv-ui) to configure it.
 
 ```kotlin
-PrivilegeScaffold()
+priv.kit.ui.m3.PrivilegeM3Page()
 ```
 
 ## Build a custom interface with priv-core {#custom-interface}
