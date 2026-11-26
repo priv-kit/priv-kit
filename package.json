@@ -6,6 +6,7 @@
   "scripts": {
     "build": "pnpm --filter @priv-kit/website build",
     "check": "pnpm -r --sort check",
+    "clang-format": "node --use-env-proxy scripts/clang-format.ts",
     "dev": "pnpm --filter @priv-kit/website dev",
     "preview": "pnpm --filter @priv-kit/website preview"
   },
