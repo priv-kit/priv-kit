@@ -23,7 +23,7 @@ Remap 随 AAR 生成隐藏类型和回调所需的 consumer rules。`:hidden-api
 
 ## 启动与连接
 
-所有入口执行同一 native starter，校验 root、system 或 shell UID，再经 Binder 交付连接。重复启动必须确认同一个 app/user 的旧进程已经退出，才启动替代进程。前台、静默启动和 owner 重连共用进程内仲裁器，以 `launchCorrelationId` 区分启动结果。跨进程协调由宿主负责。
+所有入口执行同一 native starter，校验 root、system 或 shell UID，再经 Binder 交付连接。重复启动会尽力清理同一个 app/user 的旧进程，跳过无法识别的 PID，不等待旧进程退出；清理仅在 `kill` 返回 `EPERM` 时中止启动。starter 在 fork 成功后返回，服务就绪由 Binder 连接确认。前台、静默启动和 owner 重连共用进程内仲裁器，以 `launchCorrelationId` 区分启动结果。跨进程协调由宿主负责。
 
 控制、生命周期、文件、命令和 UserService Binder 作为同一连接发布。用生命周期 Binder 区分服务端实例，换连接后重新获取资源。Android 8–9 需要解压 native starter。
 

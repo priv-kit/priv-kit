@@ -19,8 +19,6 @@ constexpr uid_t SYSTEM_UID = 1000;
 constexpr uid_t SHELL_UID = 2000;
 constexpr int UNSUPPORTED_UID_EXIT_CODE = 8;
 constexpr int STOP_EXISTING_SERVER_FAILED_EXIT_CODE = 9;
-constexpr int STOP_WAIT_ATTEMPTS = 20;
-constexpr useconds_t STOP_WAIT_INTERVAL_MICROS = 100000;
 constexpr const char *DEFAULT_MAIN_CLASS = "priv.kit.core.internal.server.PrivilegeServerMain";
 constexpr const char *DEFAULT_PROCESS_SUFFIX = ":priv-server";
 constexpr const char *SCOPED_PROCESS_USER_SUFFIX = "-u";
@@ -39,18 +37,6 @@ struct StarterConfig {
   char classpath[MAX_CLASSPATH_LENGTH] = {};
   char process_name[384] = {};
   char process_comm[16] = {};
-};
-
-enum ProcessMatch {
-  PROCESS_NO_MATCH,
-  PROCESS_MATCH,
-  PROCESS_INSPECTION_FAILED,
-};
-
-struct ProcessSnapshot {
-  pid_t *pids = nullptr;
-  size_t count = 0;
-  size_t capacity = 0;
 };
 
 bool string_copy(char *output, size_t output_size, const char *value) {
@@ -318,11 +304,17 @@ bool parse_pid_name(const char *name, pid_t *pid) {
 ssize_t read_process_file(pid_t pid, const char *file, char *output, size_t output_size) {
   char path[PATH_MAX] = {};
   snprintf(path, sizeof(path), "/proc/%d/%s", pid, file);
-  const int fd = open(path, O_RDONLY);
+  int fd;
+  do {
+    fd = open(path, O_RDONLY);
+  } while (fd < 0 && errno == EINTR);
   if (fd < 0) {
     return -1;
   }
-  const ssize_t length = read(fd, output, output_size - 1);
+  ssize_t length;
+  do {
+    length = read(fd, output, output_size - 1);
+  } while (length < 0 && errno == EINTR);
   const int read_errno = errno;
   close(fd);
   if (length < 0) {
@@ -333,16 +325,16 @@ ssize_t read_process_file(pid_t pid, const char *file, char *output, size_t outp
   return length;
 }
 
-bool read_process_comm(pid_t pid, char *output, size_t output_size) {
+ssize_t read_process_comm(pid_t pid, char *output, size_t output_size) {
   ssize_t length = read_process_file(pid, "comm", output, output_size);
   if (length < 0) {
-    return false;
+    return -1;
   }
   while (length > 0 && (output[length - 1] == '\n' || output[length - 1] == '\r')) {
     length--;
   }
   output[length] = '\0';
-  return true;
+  return length;
 }
 
 bool read_process_uid(pid_t pid, uid_t *uid) {
@@ -374,81 +366,36 @@ bool read_process_uid(pid_t pid, uid_t *uid) {
   return true;
 }
 
-ProcessMatch validate_process_uid(pid_t pid) {
-  uid_t uid = 0;
-  if (read_process_uid(pid, &uid)) {
-    return is_supported_starter_uid(uid) ? PROCESS_MATCH : PROCESS_NO_MATCH;
-  }
-  const int status_errno = errno;
-  if (status_errno == ENOENT || status_errno == ESRCH) {
-    return PROCESS_NO_MATCH;
-  }
-  fprintf(stderr, "fatal: failed to inspect /proc/%d/status: %s\n", pid, strerror(status_errno));
-  errno = status_errno;
-  return PROCESS_INSPECTION_FAILED;
-}
-
-ProcessMatch inspect_process(const StarterConfig &config, pid_t pid) {
+bool matches_server_process(const StarterConfig &config, pid_t pid) {
   char name[PATH_MAX] = {};
   const ssize_t name_length = read_process_file(pid, "cmdline", name, sizeof(name));
   if (name_length >= 0 && name[0] != '\0') {
     if (strcmp(name, config.process_name) != 0) {
-      return PROCESS_NO_MATCH;
-    }
-    return validate_process_uid(pid);
-  }
-  const int cmdline_errno = name_length < 0 ? errno : ENODATA;
-
-  char comm[sizeof(config.process_comm)] = {};
-  if (read_process_comm(pid, comm, sizeof(comm))) {
-    if (strcmp(comm, config.process_comm) != 0) {
-      return PROCESS_NO_MATCH;
-    }
-    return validate_process_uid(pid);
-  }
-  const int comm_errno = errno;
-  if (cmdline_errno == ENOENT || cmdline_errno == ESRCH || comm_errno == ENOENT || comm_errno == ESRCH) {
-    return PROCESS_NO_MATCH;
-  }
-  fprintf(stderr, "fatal: failed to inspect /proc/%d/cmdline: %s\n", pid, strerror(cmdline_errno));
-  fprintf(stderr, "fatal: failed to inspect /proc/%d/comm: %s\n", pid, strerror(comm_errno));
-  errno = comm_errno;
-  return PROCESS_INSPECTION_FAILED;
-}
-
-bool append_process(ProcessSnapshot *snapshot, pid_t pid) {
-  if (snapshot->count == snapshot->capacity) {
-    const size_t next_capacity = snapshot->capacity == 0 ? 4 : snapshot->capacity * 2;
-    if (next_capacity < snapshot->capacity || next_capacity > SIZE_MAX / sizeof(pid_t)) {
-      errno = ENOMEM;
       return false;
     }
-    void *resized = realloc(snapshot->pids, next_capacity * sizeof(pid_t));
-    if (resized == nullptr) {
-      errno = ENOMEM;
+  } else {
+    char comm[sizeof(config.process_comm)] = {};
+    if (read_process_comm(pid, comm, sizeof(comm)) <= 0 || strcmp(comm, config.process_comm) != 0) {
       return false;
     }
-    snapshot->pids = static_cast<pid_t *>(resized);
-    snapshot->capacity = next_capacity;
   }
-  snapshot->pids[snapshot->count++] = pid;
-  return true;
+  uid_t uid = 0;
+  return read_process_uid(pid, &uid) && is_supported_starter_uid(uid);
 }
 
-// A null snapshot only checks existence, without allocating or scanning past
-// the first match.
-int scan_existing_servers(const StarterConfig &config, ProcessSnapshot *snapshot = nullptr) {
+// Cleanup is best effort. Only a matched target refusing SIGKILL blocks startup.
+bool kill_existing_server(const StarterConfig &config) {
   DIR *proc = opendir("/proc");
   if (proc == nullptr) {
-    return -1;
+    fprintf(stderr, "warning: skipping old server cleanup: failed to open /proc: %s\n", strerror(errno));
+    return true;
   }
-  int result = 0;
   while (true) {
     errno = 0;
     dirent *entry = readdir(proc);
     if (entry == nullptr) {
       if (errno != 0) {
-        result = -1;
+        fprintf(stderr, "warning: stopped old server cleanup: failed to enumerate /proc: %s\n", strerror(errno));
       }
       break;
     }
@@ -456,101 +403,27 @@ int scan_existing_servers(const StarterConfig &config, ProcessSnapshot *snapshot
     if (!parse_pid_name(entry->d_name, &pid) || pid == getpid()) {
       continue;
     }
-    const ProcessMatch match = inspect_process(config, pid);
-    if (match == PROCESS_INSPECTION_FAILED) {
-      result = -1;
-      break;
-    }
-    if (match == PROCESS_MATCH) {
-      result = 1;
-      if (snapshot == nullptr) {
-        break;
-      }
-      if (!append_process(snapshot, pid)) {
-        result = -1;
-        break;
-      }
-    }
-  }
-  const int scan_errno = errno;
-  closedir(proc);
-  errno = scan_errno;
-  return result;
-}
-
-bool preflight_process_snapshot(const StarterConfig &config, ProcessSnapshot *snapshot) {
-  for (size_t index = 0; index < snapshot->count; ++index) {
-    const pid_t pid = snapshot->pids[index];
-    const ProcessMatch match = inspect_process(config, pid);
-    if (match == PROCESS_INSPECTION_FAILED) {
-      return false;
-    }
-    if (match != PROCESS_MATCH) {
-      snapshot->pids[index] = 0;
-      continue;
-    }
-    if (kill(pid, 0) != 0) {
-      if (errno == ESRCH) {
-        snapshot->pids[index] = 0;
-        continue;
-      }
-      return false;
-    }
-  }
-  return true;
-}
-
-bool kill_existing_server(const StarterConfig &config) {
-  ProcessSnapshot snapshot;
-  if (scan_existing_servers(config, &snapshot) < 0) {
-    fprintf(stderr, "fatal: %s: failed to inspect /proc before kill: %s\n", STOP_EXISTING_SERVER_FAILED_MARKER,
-            strerror(errno));
-    free(snapshot.pids);
-    return false;
-  }
-  if (!preflight_process_snapshot(config, &snapshot)) {
-    fprintf(stderr, "fatal: %s: failed to validate old servers before kill: %s\n", STOP_EXISTING_SERVER_FAILED_MARKER,
-            strerror(errno));
-    free(snapshot.pids);
-    return false;
-  }
-
-  bool failed = false;
-  for (size_t index = 0; index < snapshot.count; ++index) {
-    const pid_t pid = snapshot.pids[index];
-    if (pid == 0) {
+    if (!matches_server_process(config, pid)) {
       continue;
     }
     if (kill(pid, SIGKILL) == 0) {
       printf("info: killed existing server pid=%d\n", pid);
-    } else if (errno != ESRCH) {
-      failed = true;
-      fprintf(stderr, "fatal: %s: failed to kill existing server pid=%d: %s\n", STOP_EXISTING_SERVER_FAILED_MARKER, pid,
-              strerror(errno));
-      break;
     } else {
-      printf("info: existing server pid=%d already exited\n", pid);
+      const int kill_errno = errno;
+      if (kill_errno == EPERM) {
+        fprintf(stderr, "fatal: %s: failed to kill existing server pid=%d: %s\n", STOP_EXISTING_SERVER_FAILED_MARKER,
+                pid, strerror(kill_errno));
+        closedir(proc);
+        return false;
+      }
+      if (kill_errno != ESRCH) {
+        fprintf(stderr, "warning: failed to kill existing server pid=%d: %s\n", pid, strerror(kill_errno));
+      }
     }
   }
-  free(snapshot.pids);
-  if (failed) {
-    return false;
-  }
+  closedir(proc);
   fflush(stdout);
-  for (int attempt = 0; attempt < STOP_WAIT_ATTEMPTS; ++attempt) {
-    const int existing = scan_existing_servers(config);
-    if (existing == 0) {
-      return true;
-    }
-    if (existing < 0) {
-      fprintf(stderr, "fatal: %s: failed to verify old server exit: %s\n", STOP_EXISTING_SERVER_FAILED_MARKER,
-              strerror(errno));
-      return false;
-    }
-    usleep(STOP_WAIT_INTERVAL_MICROS);
-  }
-  fprintf(stderr, "fatal: %s: timed out waiting for old server exit\n", STOP_EXISTING_SERVER_FAILED_MARKER);
-  return false;
+  return true;
 }
 
 void redirect_child_io() {
@@ -578,35 +451,29 @@ void exec_app_process(const StarterConfig &config) {
       const_cast<char *>(DEFAULT_MAIN_CLASS),        nullptr,
   };
 
-  setenv("CLASSPATH", config.classpath, 1);
   execv(app_argv[0], app_argv);
   fprintf(stderr, "fatal: exec app_process failed: %s\n", strerror(errno));
   _exit(5);
 }
 
 int start_server(const StarterConfig &config) {
+  if (setenv("CLASSPATH", config.classpath, 1) != 0) {
+    fprintf(stderr, "fatal: failed to set CLASSPATH: %s\n", strerror(errno));
+    return 3;
+  }
   if (!kill_existing_server(config)) {
     return STOP_EXISTING_SERVER_FAILED_EXIT_CODE;
   }
 
   printf("info: starting server...\n");
   fflush(stdout);
-  int ready_pipe[2];
-  if (pipe(ready_pipe) != 0) {
-    fprintf(stderr, "fatal: pipe failed: %s\n", strerror(errno));
-    return 3;
-  }
-
   const pid_t pid = fork();
   if (pid < 0) {
     fprintf(stderr, "fatal: fork failed: %s\n", strerror(errno));
-    close(ready_pipe[0]);
-    close(ready_pipe[1]);
     return 3;
   }
 
   if (pid == 0) {
-    close(ready_pipe[0]);
     if (setsid() < 0) {
       fprintf(stderr, "fatal: setsid failed: %s\n", strerror(errno));
       _exit(6);
@@ -614,20 +481,7 @@ int start_server(const StarterConfig &config) {
     chdir("/");
     redirect_child_io();
 
-    const char ready = '1';
-    write(ready_pipe[1], &ready, 1);
-    close(ready_pipe[1]);
-
     exec_app_process(config);
-  }
-
-  close(ready_pipe[1]);
-  char ready = '\0';
-  const ssize_t read_count = read(ready_pipe[0], &ready, 1);
-  close(ready_pipe[0]);
-  if (read_count != 1) {
-    fprintf(stderr, "fatal: child did not report ready\n");
-    return 7;
   }
 
   printf("info: starter exit with 0\n");
