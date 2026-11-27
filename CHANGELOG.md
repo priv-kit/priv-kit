@@ -5,8 +5,9 @@ Keep only the changes for the current release in this file.
 Replace the content when preparing the next release; release history is preserved by GitHub Releases.
 -->
 
-- Split the default Material 3 UI into the new `priv-ui-m3` module. Use `PrivilegeM3Page()` for the default startup page, or build custom components with the theme-independent `priv-ui` module and `PrivilegeUiHost`.
-- Rework authorization around a shared coordinator with lifecycle-aware platform bindings, cancellation, and support for custom access handlers.
-- Keep ADB and external-provider checks active while the page is resumed, independently of the selected tab. Let `startupModes` configure defaults and automatic startup order without restricting explicit startup actions.
-- Update the sample app and playground for the new UI modules, refresh sample launcher icons, and revise the integration guides.
-- Upgrade Gradle to 9.9.2, Android Gradle Plugin to 9.5.1, compile SDK to 37.1, and Compose and other dependencies.
+- Rework UserService lifecycle APIs: replace `startUserService` with `bindUserService`, add `peekUserService` to reconnect without creating or replacing an instance, and make `stopUserService` destroy the service and invalidate every connection. Move `daemon` from the service spec to the bind argument and allow updates without recreating the instance.
+- Default UserServices to `EMBEDDED`, rename `DEDICATED` to `INHERIT`, and use typed process options for supported UIDs. Make `tag` nullable and remove the connection's `uid` field.
+- Add `connection.isConnected` to observe connection validity independently of Binder process death. Forward Binder calls directly through the UserService process and preserve death-listener removal after unbinding.
+- Unify unavailable-channel errors under `PrivilegeUnavailableException` and preserve remote Binder call failures.
+- Upgrade both native libraries to C++20, modularize the UserService launcher, and relax unnecessary startup checks.
+- Update dependencies, integration examples, and design documentation. Add real-device coverage for binding, unbinding, daemon reconnection, and Binder death callbacks.
