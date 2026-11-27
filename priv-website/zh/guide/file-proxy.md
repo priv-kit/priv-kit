@@ -20,7 +20,7 @@ Log.d("file", child.parentFile.toString())
 
 ## 调用常见文件操作 {#common-operations}
 
-多数操作遵循 `java.io.File` 的语义。需要服务端的操作会在断线时抛出 `PrivilegeServerUnavailableException`。
+多数操作遵循 `java.io.File` 的语义。需要服务端的操作会在断线时抛出 `PrivilegeUnavailableException`。
 
 ```kotlin
 if (!directory.mkdirs() && !directory.isDirectory()) {

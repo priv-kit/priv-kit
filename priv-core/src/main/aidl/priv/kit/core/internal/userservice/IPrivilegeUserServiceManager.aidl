@@ -5,16 +5,12 @@ import android.os.IBinder;
 import android.os.ResultReceiver;
 
 interface IPrivilegeUserServiceManager {
-    oneway void startUserService(
-        String operationId,
-        in Bundle request,
-        IBinder client,
-        in ResultReceiver receiver
-    );
     oneway void bindUserService(
         String operationId,
         in Bundle request,
+        boolean daemon,
         IBinder client,
+        in ResultReceiver disconnectedReceiver,
         in ResultReceiver receiver
     );
     oneway void cancelUserServiceOperation(String operationId);
@@ -29,6 +25,13 @@ interface IPrivilegeUserServiceManager {
         String operationId,
         in Bundle request,
         IBinder client,
+        in ResultReceiver receiver
+    );
+    oneway void peekUserService(
+        String operationId,
+        in Bundle request,
+        IBinder client,
+        in ResultReceiver disconnectedReceiver,
         in ResultReceiver receiver
     );
 }

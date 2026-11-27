@@ -9,6 +9,7 @@ import android.os.ShellCallback
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeUserServiceConnection
 import priv.kit.core.internal.binder.PrivilegeBinderForwarder
+import priv.kit.core.internal.binder.PrivilegeBinderReply
 import priv.kit.shared.transactShellCommand
 import java.io.FileDescriptor
 
@@ -20,8 +21,8 @@ public enum class PrivilegeSystemServiceSource {
 public abstract class PrivilegeBinderWrapper internal constructor(
     protected val userService: PrivilegeUserServiceConnection? = null,
 ) : IBinder {
-    protected fun forwardingBinder(): IBinder =
-        userService?.requireForwardingBinder() ?: Privilege.requireServerInterface().asBinder()
+    protected fun <T> callForwarder(call: (IBinder) -> T): T =
+        if (userService != null) userService.callForwarder(call) else call(Privilege.requireServerInterface().asBinder())
 
     override fun transact(
         code: Int,
@@ -29,7 +30,6 @@ public abstract class PrivilegeBinderWrapper internal constructor(
         reply: Parcel?,
         flags: Int,
     ): Boolean {
-        val serverBinder = forwardingBinder()
         val remoteData = Parcel.obtain()
         try {
             remoteData.writeInterfaceToken(DESCRIPTOR)
@@ -37,7 +37,9 @@ public abstract class PrivilegeBinderWrapper internal constructor(
             remoteData.writeInt(code)
             remoteData.writeInt(flags)
             remoteData.appendFrom(data, 0, data.dataSize())
-            return serverBinder.transact(TRANSACTION_TRANSACT_BINDER, remoteData, reply, 0)
+            return callForwarder { endpoint ->
+                PrivilegeBinderReply.transact(endpoint, TRANSACTION_TRANSACT_BINDER, remoteData, reply)
+            }
         } finally {
             remoteData.recycle()
         }
@@ -166,7 +168,7 @@ private fun hasSystemServiceUnchecked(
 
         PrivilegeSystemServiceSource.REMOTE_PROCESS -> {
             if (userService != null) {
-                PrivilegeBinderForwarder.hasSystemService(userService.requireForwardingBinder(), serviceName)
+                userService.callForwarder { PrivilegeBinderForwarder.hasSystemService(it, serviceName) }
             } else {
                 Privilege.callServer { server -> server.hasSystemService(serviceName) }
             }
@@ -195,24 +197,23 @@ private class TargetBinderWrapper(
         binder.interfaceDescriptor
 
     override fun pingBinder(): Boolean =
-        binder.pingBinder() && (userService?.isForwardingAlive() ?: true)
+        binder.pingBinder() && (userService?.binder?.isBinderAlive ?: true)
 
     override fun isBinderAlive(): Boolean =
-        binder.isBinderAlive && (userService?.isForwardingAlive() ?: true)
+        binder.isBinderAlive && (userService?.binder?.isBinderAlive ?: true)
 
     override fun linkToDeath(
         recipient: IBinder.DeathRecipient,
         flags: Int,
     ) {
-        userService?.requireForwardingBinder()
-        (userService?.lifecycleBinder ?: binder).linkToDeath(recipient, flags)
+        (userService?.requireForwardingBinder() ?: binder).linkToDeath(recipient, flags)
     }
 
     override fun unlinkToDeath(
         recipient: IBinder.DeathRecipient,
         flags: Int,
     ): Boolean =
-        (userService?.lifecycleBinder ?: binder).unlinkToDeath(recipient, flags)
+        (userService?.binder ?: binder).unlinkToDeath(recipient, flags)
 }
 
 private class RemoteProcessSystemServiceWrapper(
@@ -244,8 +245,7 @@ private class RemoteProcessSystemServiceWrapper(
         flags: Int,
     ) {
         if (userService != null) {
-            userService.requireForwardingBinder()
-            userService.lifecycleBinder.linkToDeath(recipient, flags)
+            userService.requireForwardingBinder().linkToDeath(recipient, flags)
         } else {
             Privilege.callServer { server -> server.asBinder().linkToDeath(recipient, flags) }
         }
@@ -256,6 +256,6 @@ private class RemoteProcessSystemServiceWrapper(
         flags: Int,
     ): Boolean =
         runCatching {
-            (userService?.lifecycleBinder ?: Privilege.requireServerInterface().asBinder()).unlinkToDeath(recipient, flags)
+            (userService?.binder ?: Privilege.requireServerInterface().asBinder()).unlinkToDeath(recipient, flags)
         }.getOrDefault(false)
 }

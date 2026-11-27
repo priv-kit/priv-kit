@@ -1,43 +1,40 @@
 package priv.kit.core
 
 import android.os.IBinder
-import android.os.DeadObjectException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import priv.kit.core.internal.userservice.PrivilegeUserServiceBinder
+import priv.kit.core.internal.userservice.PrivilegeUserServiceConnectionState
 
 public class PrivilegeUserServiceConnection internal constructor(
-    public val binder: IBinder,
-    private val forwardingBinder: IBinder,
-    internal val lifecycleBinder: IBinder,
-    public val uid: Int,
+    binder: IBinder,
     private val unbindAction: suspend () -> Unit,
+    private val connectionState: PrivilegeUserServiceConnectionState = PrivilegeUserServiceConnectionState(),
 ) {
     private val unbindMutex = Mutex()
-    @Volatile private var unbound = false
+    private val endpoint = binder
+    public val binder: IBinder = PrivilegeUserServiceBinder(binder, connectionState)
 
-    /** Package identity for system calls; this does not change the host application's Context. */
-    public val callingPackageName: String?
-        get() = when (uid) {
-            1000 -> "android"
-            2000 -> "com.android.shell"
-            else -> null
-        }
+    /**
+     * Whether this connection is still active. Becomes false on unbind, service stop or death.
+     * Remote disconnect notifications arrive asynchronously. A disconnected connection never
+     * reconnects; bind or peek again to obtain a new connection.
+     */
+    public val isConnected: StateFlow<Boolean> = connectionState.isConnected
 
-    internal fun requireForwardingBinder(): IBinder {
-        if (unbound) throw DeadObjectException("UserService connection has been unbound")
-        return forwardingBinder
-    }
+    internal fun <T> callForwarder(call: (IBinder) -> T): T = connectionState.call { call(endpoint) }
 
-    internal fun isForwardingAlive(): Boolean = !unbound && lifecycleBinder.isBinderAlive
+    internal fun requireForwardingBinder(): IBinder = callForwarder { it }
 
     public suspend fun unbind() {
         withContext(NonCancellable) {
             unbindMutex.withLock {
-                if (!unbound) {
+                if (isConnected.value) {
                     unbindAction()
-                    unbound = true
+                    connectionState.disconnect()
                 }
             }
         }

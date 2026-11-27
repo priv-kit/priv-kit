@@ -14,8 +14,8 @@ import priv.kit.core.internal.userservice.IPrivilegeUserServiceProcess
 import priv.kit.core.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.core.internal.userservice.PrivilegeUserServiceHost
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
+import priv.kit.core.userservice.PrivilegeUserServiceProcess
 import java.io.File
-import java.util.concurrent.ConcurrentHashMap
 
 internal class PrivilegeServerUserServiceHost(
     private val config: PrivilegeServerConfig,
@@ -25,7 +25,6 @@ internal class PrivilegeServerUserServiceHost(
     private val processStarter: (PrivilegeServerUserServiceProcessStartCommand) -> java.lang.Process =
         PrivilegeServerUserServiceHost::startProcess,
 ) : PrivilegeUserServiceHost {
-    private val startingProcesses = ConcurrentHashMap<String, Process>()
     override val packageName: String
         get() = config.packageName
 
@@ -49,22 +48,22 @@ internal class PrivilegeServerUserServiceHost(
             },
             crashLogDirectories = PrivilegeCrashRecorder.currentDirectories,
         )
-        return processStarter(command).also { startingProcesses[token] = it }
+        return processStarter(command)
     }
 
     override fun awaitDedicatedProcess(
         token: String,
+        handle: Process,
         timeoutMillis: Long,
     ): IPrivilegeUserServiceProcess {
-        val process = startingProcesses.remove(token)
         return processClaimer.await(
             config = config,
             token = token,
             timeoutMillis = timeoutMillis,
             checkProcess = {
-                if (process != null && !process.isAlive) {
-                    val output = process.inputStream.bufferedReader().readText().trim()
-                    error("UserService exited with code ${process.exitValue()}: $output")
+                if (!handle.isAlive) {
+                    val output = handle.inputStream.bufferedReader().readText().trim()
+                    error("UserService exited with code ${handle.exitValue()}: $output")
                 }
             },
         ).also { it.attachServer(serverLifecycle) }
@@ -100,10 +99,7 @@ internal object PrivilegeServerUserServiceProcessCommand {
         val providerAuthority = PrivilegeHandshakeContract.providerAuthority(config.packageName)
         val processName = buildProcessName(config.packageName, spec)
         require(!spec.process.isEmbedded) { "Embedded services do not have a dedicated process" }
-        val targetUid = spec.process.uid ?: currentUid
-        require(currentUid == 0 || currentUid == targetUid) {
-            "Cannot start UserService as UID $targetUid from UID $currentUid"
-        }
+        val targetUid = if (spec.process == PrivilegeUserServiceProcess.INHERIT) currentUid else spec.process.uid
         val launcher = if (targetUid == currentUid) emptyList() else uidLauncher() + listOf("--user-service", targetUid.toString())
         return PrivilegeServerUserServiceProcessStartCommand(
             arguments = launcher + listOf(
@@ -133,8 +129,7 @@ internal object PrivilegeServerUserServiceProcessCommand {
         packageName: String,
         spec: PrivilegeUserServiceSpec,
     ): String {
-        val tagSuffix = spec.tag.takeUnless { it == DEDICATED_PROCESS_TAG }
-        val suffix = listOfNotNull(spec.serviceClassName?.substringAfterLast('.') ?: "binder", tagSuffix)
+        val suffix = listOfNotNull(spec.serviceClassName?.substringAfterLast('.') ?: "binder", spec.tag)
             .joinToString("-")
             .map { char ->
                 if (char.isLetterOrDigit() || char == '_' || char == '-') char else '-'
@@ -146,7 +141,6 @@ internal object PrivilegeServerUserServiceProcessCommand {
     }
 
     private const val USER_SERVICE_MAIN_CLASS = "priv.kit.core.internal.userservice.PrivilegeUserServiceMain"
-    private const val DEDICATED_PROCESS_TAG = "dedicated"
 }
 
 internal class PrivilegeServerUserServiceProcessClaimer(
@@ -174,7 +168,6 @@ internal class PrivilegeServerUserServiceProcessClaimer(
                 ?.getBinder(PrivilegeUserServiceContract.EXTRA_PROCESS_BINDER)
             if (processBinder != null) {
                 return IPrivilegeUserServiceProcess.Stub.asInterface(processBinder)
-                    ?: throw IllegalStateException("UserService process returned an invalid Binder")
             }
             Thread.sleep(CLAIM_RETRY_DELAY_MILLIS)
         }

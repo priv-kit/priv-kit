@@ -6,6 +6,7 @@ import android.os.IInterface
 import android.os.Parcel
 import priv.kit.core.internal.userservice.IPrivilegeUserServiceProcess
 import priv.kit.core.internal.userservice.PrivilegeUserServiceHost
+import priv.kit.core.internal.userservice.PrivilegeUserServiceBindings
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
 import java.io.ByteArrayInputStream
 import java.io.FileDescriptor
@@ -89,19 +90,22 @@ open class TestProcess : Process() {
 
 open class TestUserServiceProcess : IPrivilegeUserServiceProcess {
     private val binder = TestBinder(localInterface = this)
+    private val bindings by lazy { PrivilegeUserServiceBindings() }
 
     override fun asBinder(): IBinder = binder
 
-    open override fun start() = Unit
-    override fun getUid(): Int = 2000
-    override fun getForwardingBinder(): IBinder = binder
     override fun attachServer(lifecycle: IBinder) = Unit
 
-    open override fun bind(): IBinder = binder
+    open override fun bind(connectionId: String): IBinder = bindings.bind(connectionId)
+
+    override fun unbind(connectionId: String) = bindings.unbind(connectionId)
+
+    override fun closeBindings() = bindings.close()
 
     open override fun destroy() = Unit
 
     fun killBinder() {
+        bindings.close()
         binder.killBinder(notifyDeathRecipients = true)
     }
 }
@@ -119,6 +123,7 @@ open class TestEmbeddedUserServiceHost : PrivilegeUserServiceHost {
 
     open override fun awaitDedicatedProcess(
         token: String,
+        handle: Process,
         timeoutMillis: Long,
     ): IPrivilegeUserServiceProcess {
         error("Dedicated process is not used by this test")
@@ -141,6 +146,7 @@ open class TestDedicatedUserServiceHost(
 
     open override fun awaitDedicatedProcess(
         token: String,
+        handle: Process,
         timeoutMillis: Long,
     ): IPrivilegeUserServiceProcess = process
 

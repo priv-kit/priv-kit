@@ -21,6 +21,7 @@ plugins {
     alias(libs.plugins.kotlin.multiplatform) apply false
     alias(libs.plugins.android.kotlin.multiplatform.library) apply false
     alias(libs.plugins.compose.multiplatform) apply false
+    alias(libs.plugins.compose.hot.reload) apply false
     alias(libs.plugins.maven.publish) apply false
     alias(libs.plugins.remap) apply false
 }
@@ -29,7 +30,7 @@ private object Cfg {
     const val compileSdk = 37
     const val compileSdkMinor = 1
     const val buildToolsVersion = "37.0.0"
-    const val ndkVersion = "30.0.14904198"
+    const val ndkVersion = "30.0.16248370"
     const val cmakeVersion = "4.1.2"
     const val minSdk = 26
     val javaTargetVersion = JavaVersion.VERSION_11

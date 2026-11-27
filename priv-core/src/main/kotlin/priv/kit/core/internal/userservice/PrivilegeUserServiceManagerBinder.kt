@@ -32,49 +32,56 @@ internal class PrivilegeUserServiceManagerBinder internal constructor(
     private val operationAdmissionLock = Any()
     private val cleanupSubmissionLock = Any()
 
-    override fun startUserService(
-        operationId: String,
-        request: Bundle,
-        client: IBinder?,
-        receiver: ResultReceiver?,
-    ) {
-        launchOperation(operationId, receiver, client) { operationClient ->
-            val result = registry.start(
-                spec = PrivilegeUserServiceContract.specFrom(request),
-                client = operationClient,
-            )
-            OperationResult(
-                response = PrivilegeUserServiceContract.successBundle(),
-                acceptance = result::accept,
-                cleanup = result::rollback,
-            )
-        }
-    }
-
     override fun bindUserService(
         operationId: String,
         request: Bundle,
+        daemon: Boolean,
         client: IBinder?,
+        disconnectedReceiver: ResultReceiver?,
         receiver: ResultReceiver?,
     ) {
         launchOperation(operationId, receiver, client) { operationClient ->
             val result = registry.bind(
                 spec = PrivilegeUserServiceContract.specFrom(request),
                 client = operationClient,
+                daemon = daemon,
+                onDisconnected = { disconnectedReceiver?.send(0, null) },
             )
-            OperationResult(
-                response = PrivilegeUserServiceContract.bindSuccessBundle(
-                    connectionId = result.connectionId,
-                    binder = result.binder,
-                    forwardingBinder = result.forwardingBinder,
-                    lifecycleBinder = result.lifecycleBinder,
-                    uid = result.uid,
+            bindingResult(result)
+        }
+    }
+
+    override fun peekUserService(
+        operationId: String,
+        request: Bundle,
+        client: IBinder?,
+        disconnectedReceiver: ResultReceiver?,
+        receiver: ResultReceiver?,
+    ) {
+        launchOperation(operationId, receiver, client) { operationClient ->
+            bindingResult(
+                registry.peek(
+                    spec = PrivilegeUserServiceContract.specFrom(request),
+                    client = operationClient,
+                    onDisconnected = { disconnectedReceiver?.send(0, null) },
                 ),
-                acceptance = result::accept,
-                cleanup = result::cancel,
             )
         }
     }
+
+    private fun bindingResult(result: PrivilegeUserServiceRegistry.BindResult?): OperationResult =
+        OperationResult(
+            response = if (result == null) {
+                PrivilegeUserServiceContract.successBundle()
+            } else {
+                PrivilegeUserServiceContract.bindSuccessBundle(
+                    connectionId = result.connectionId,
+                    binder = result.binder,
+                )
+            },
+            acceptance = result?.let { it::accept },
+            cleanup = result?.let { it::cancel },
+        )
 
     override fun cancelUserServiceOperation(operationId: String) {
         cancelOperation(operationId)

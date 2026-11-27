@@ -32,8 +32,8 @@ class PrivilegeBinderCallTest {
     }
 
     @Test
-    fun serverUnavailableInvokesTypedFallback() {
-        val exception = PrivilegeServerUnavailableException()
+    fun unavailableChannelInvokesTypedFallback() {
+        val exception = PrivilegeUnavailableException()
         var observedFailure: PrivilegeBinderCallFailure? = null
 
         val result = PrivilegeBinderCall.orElse(
@@ -46,7 +46,7 @@ class PrivilegeBinderCallTest {
         }
 
         assertEquals("fallback", result)
-        val failure = observedFailure as PrivilegeBinderCallFailure.ServerUnavailable
+        val failure = observedFailure as PrivilegeBinderCallFailure.Unavailable
         assertSame(exception, failure.exception)
     }
 
@@ -95,6 +95,18 @@ class PrivilegeBinderCallTest {
         }
 
         assertSame(exception, thrown)
+    }
+
+    @Test
+    fun businessExceptionsPropagateUnchanged() {
+        for (exception in listOf(IllegalStateException("business state"), SecurityException("permission denied"))) {
+            val thrown = assertThrows(exception.javaClass) {
+                PrivilegeBinderCall.orElse(
+                    fallback = { throw AssertionError("fallback should not be called") },
+                ) { throw exception }
+            }
+            assertSame(exception, thrown)
+        }
     }
 
     @Test

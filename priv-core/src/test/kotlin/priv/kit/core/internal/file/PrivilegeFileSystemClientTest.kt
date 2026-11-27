@@ -14,7 +14,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import priv.kit.core.binder.PrivilegeServerUnavailableException
+import priv.kit.core.binder.PrivilegeUnavailableException
 import priv.kit.core.testing.TestBinder
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -86,7 +86,7 @@ class PrivilegeFileSystemClientTest {
         fileSystem.binder.killBinder(notifyDeathRecipients = true)
 
         val failure = withTimeout(TEST_TIMEOUT_MILLIS) { result.await() }
-        assertTrue(failure is PrivilegeServerUnavailableException)
+        assertTrue(failure is PrivilegeUnavailableException)
     }
 
     private class RecordingFileSystem : IPrivilegeFileSystem {

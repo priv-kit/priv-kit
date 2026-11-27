@@ -17,7 +17,7 @@ import org.junit.Test
 import priv.kit.core.binder.PrivilegeBinderCall
 import priv.kit.core.binder.PrivilegeBinderCallFailure
 import priv.kit.core.internal.binder.IPrivilegeServer
-import priv.kit.core.binder.PrivilegeServerUnavailableException
+import priv.kit.core.binder.PrivilegeUnavailableException
 import priv.kit.core.internal.core.PrivilegeAndroidUsers
 import priv.kit.core.internal.core.PrivilegeHandshakeContract
 import priv.kit.core.internal.core.PrivilegeProtocol
@@ -55,9 +55,6 @@ class PrivilegeTest {
         val unbindCalls = AtomicInteger(0)
         val connection = PrivilegeUserServiceConnection(
             binder = TestBinder(),
-            forwardingBinder = TestBinder(),
-            lifecycleBinder = TestBinder(),
-            uid = 2000,
             unbindAction = { unbindCalls.incrementAndGet() },
         )
 
@@ -72,9 +69,6 @@ class PrivilegeTest {
         val unbindCalls = AtomicInteger(0)
         val connection = PrivilegeUserServiceConnection(
             binder = TestBinder(),
-            forwardingBinder = TestBinder(),
-            lifecycleBinder = TestBinder(),
-            uid = 2000,
             unbindAction = {
                 if (unbindCalls.incrementAndGet() == 1) {
                     throw IllegalStateException("unbind failed")
@@ -114,7 +108,7 @@ class PrivilegeTest {
 
     @Test
     fun getServerInfoWithoutServerThrowsDisconnectedException() {
-        assertThrows(PrivilegeServerUnavailableException::class.java) {
+        assertThrows(PrivilegeUnavailableException::class.java) {
             Privilege.getServerInfo()
         }
     }
@@ -319,7 +313,7 @@ class PrivilegeTest {
 
         assertSame(serverInfo, Privilege.getServerInfo())
         assertFalse(Privilege.pingServer())
-        assertThrows(PrivilegeServerUnavailableException::class.java) {
+        assertThrows(PrivilegeUnavailableException::class.java) {
             Privilege.getServerInfo()
         }
     }
@@ -354,9 +348,9 @@ class PrivilegeTest {
         }
 
         assertEquals(PackageManager.PERMISSION_DENIED, result)
-        val failure = observedFailure as PrivilegeBinderCallFailure.ServerUnavailable
+        val failure = observedFailure as PrivilegeBinderCallFailure.Unavailable
         assertSame(deadObjectException, failure.exception.cause)
-        assertThrows(PrivilegeServerUnavailableException::class.java) {
+        assertThrows(PrivilegeUnavailableException::class.java) {
             Privilege.getServerInfo()
         }
     }
@@ -462,7 +456,7 @@ class PrivilegeTest {
         assertFalse(worker.isAlive)
         assertNull(unexpected.get())
         assertEquals(PackageManager.PERMISSION_DENIED, result.get())
-        assertTrue(failure.get() is PrivilegeBinderCallFailure.ServerUnavailable)
+        assertTrue(failure.get() is PrivilegeBinderCallFailure.Unavailable)
         assertSame(replacementInfo, Privilege.getServerInfo())
     }
 
@@ -526,7 +520,7 @@ class PrivilegeTest {
 
     @Test
     fun permissionRestrictionWithoutConnectionThrowsDisconnectedException() {
-        assertThrows(PrivilegeServerUnavailableException::class.java) {
+        assertThrows(PrivilegeUnavailableException::class.java) {
             Privilege.isPermissionRestricted()
         }
     }
@@ -586,7 +580,7 @@ class PrivilegeTest {
 
     @Test
     fun deniedServerPermissionsWithoutConnectionThrowsDisconnectedException() {
-        assertThrows(PrivilegeServerUnavailableException::class.java) {
+        assertThrows(PrivilegeUnavailableException::class.java) {
             Privilege.getDeniedServerPermissions()
         }
     }

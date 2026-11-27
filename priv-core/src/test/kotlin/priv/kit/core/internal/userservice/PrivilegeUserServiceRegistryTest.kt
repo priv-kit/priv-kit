@@ -2,7 +2,7 @@ package priv.kit.core.internal.userservice
 
 import android.content.Context
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,11 +22,141 @@ import kotlin.concurrent.thread
 @Config(sdk = [28])
 class PrivilegeUserServiceRegistryTest {
     @Test
-    fun specDefaultsToDedicatedProcess() {
+    fun peekMissingServiceDoesNotCreateInstanceOrProcess() {
+        EmbeddedService.reset()
+        val registry = registry(TestEmbeddedUserServiceHost())
+        try {
+            assertNull(registry.peek(embeddedSpec("missing"), TestBinder()))
+            assertNull(registry.peek(dedicatedSpec(), TestBinder()))
+            assertNull(registry.peek(PrivilegeUserServiceSpec(), TestBinder()))
+            assertEquals(0, EmbeddedService.created)
+        } finally {
+            registry.destroyAll()
+        }
+    }
+
+    @Test
+    fun peekReusesMatchingInstanceWithoutChangingDaemon() {
+        EmbeddedService.reset()
+        val registry = registry(TestEmbeddedUserServiceHost())
+        val spec = embeddedSpec("existing")
+        try {
+            val original = registry.bind(spec, TestBinder())
+            assertNull(registry.peek(spec.copy(tag = "other"), TestBinder()))
+            assertNull(registry.peek(spec.copy(serviceClassName = "other.Service"), TestBinder()))
+            val connection = requireNotNull(registry.peek(
+                spec,
+                TestBinder(),
+            ))
+            connection.accept()
+            registry.unbind(original.connectionId)
+            val rebound = registry.bind(spec, TestBinder())
+            assertEquals(1, EmbeddedService.created)
+            registry.unbind(rebound.connectionId)
+            registry.unbind(connection.connectionId)
+            assertNull(registry.peek(spec, TestBinder()))
+        } finally {
+            registry.destroyAll()
+        }
+    }
+
+    @Test
+    fun peekRequiresMatchingProcessWithoutReplacingInstance() {
+        for (actualProcess in PrivilegeUserServiceProcess.entries) {
+            EmbeddedService.reset()
+            var starts = 0
+            val host = object : TestDedicatedUserServiceHost() {
+                override fun startDedicatedProcess(spec: PrivilegeUserServiceSpec, token: String): Process {
+                    starts += 1
+                    return TestProcess()
+                }
+            }
+            val registry = registry(host)
+            val spec = PrivilegeUserServiceSpec(
+                serviceClassName = EmbeddedService::class.java.name,
+                process = actualProcess,
+            )
+            try {
+                registry.bind(spec, TestBinder())
+                for (requestedProcess in PrivilegeUserServiceProcess.entries) {
+                    val connection = registry.peek(spec.copy(process = requestedProcess), TestBinder())
+                    if (requestedProcess == actualProcess) {
+                        requireNotNull(connection).accept()
+                        registry.unbind(connection.connectionId)
+                    } else {
+                        assertNull("$actualProcess must not match $requestedProcess", connection)
+                    }
+                }
+                val existing = requireNotNull(registry.peek(spec, TestBinder()))
+                registry.unbind(existing.connectionId)
+                assertEquals(if (actualProcess.isEmbedded) 1 else 0, EmbeddedService.created)
+                assertEquals(if (actualProcess.isEmbedded) 0 else 1, starts)
+            } finally {
+                registry.destroyAll()
+            }
+        }
+    }
+
+    @Test
+    fun peekReconnectsDedicatedDaemonAfterClientDeathWithoutStartingAnotherProcess() {
+        val process = TestUserServiceProcess()
+        var starts = 0
+        val host = object : TestDedicatedUserServiceHost(process) {
+            override fun startDedicatedProcess(spec: PrivilegeUserServiceSpec, token: String): Process {
+                starts += 1
+                return TestProcess()
+            }
+        }
+        val registry = registry(host)
+        val spec = dedicatedSpec()
+        try {
+            val oldClient = TestBinder()
+            val original = registry.bind(spec, oldClient, daemon = true)
+            original.accept()
+            oldClient.killBinder(notifyDeathRecipients = true)
+            registry.destroyOnOwnerDeath()
+
+            val connection = requireNotNull(registry.peek(spec, TestBinder()))
+            connection.accept()
+            assertEquals(1, starts)
+            registry.unbind(connection.connectionId)
+
+            process.killBinder()
+            assertNull(registry.peek(spec, TestBinder()))
+            assertEquals(1, starts)
+        } finally {
+            registry.destroyAll()
+        }
+    }
+
+    @Test
+    fun peekDoesNotReactivateStoppedDaemon() {
+        EmbeddedService.reset()
+        val registry = registry(TestEmbeddedUserServiceHost())
+        val spec = embeddedSpec("stopped")
+        try {
+            val original = registry.bind(spec, TestBinder(), daemon = true)
+            original.accept()
+            registry.stop(spec)
+            registry.unbind(original.connectionId)
+
+            assertNull(registry.peek(spec, TestBinder()))
+            assertEquals(1, EmbeddedService.created)
+        } finally {
+            registry.destroyAll()
+        }
+    }
+
+    @Test
+    fun specDefaultsToEmbeddedProcess() {
+        EmbeddedService.reset()
         val spec = PrivilegeUserServiceSpec(serviceClassName = EmbeddedService::class.java.name)
 
-        assertEquals(false, spec.process.isEmbedded)
-        assertEquals(false, spec.daemon)
+        assertEquals(PrivilegeUserServiceProcess.EMBEDDED, spec.process)
+        val registry = registry(TestEmbeddedUserServiceHost())
+        val connection = registry.bind(spec, TestBinder())
+        assertEquals(1, EmbeddedService.created)
+        registry.unbind(connection.connectionId)
     }
 
     @Test
@@ -34,13 +164,9 @@ class PrivilegeUserServiceRegistryTest {
         EmbeddedService.reset()
         val registry = registry(TestEmbeddedUserServiceHost())
         val owner = TestBinder()
-        val spec = embeddedSpec(
-            tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
-            version = 1,
-            daemon = false,
-        )
+        val spec = embeddedSpec()
 
-        registry.start(spec, owner)
+        registry.bind(spec, owner).accept()
         owner.killBinder(notifyDeathRecipients = true)
         val result = registry.bind(spec, TestBinder())
 
@@ -49,38 +175,32 @@ class PrivilegeUserServiceRegistryTest {
     }
 
     @Test
-    fun daemonServiceSurvivesOwnerDeath() {
+    fun daemonServiceSurvivesOwnerDeathAndReleasesOldConnections() {
         EmbeddedService.reset()
         val registry = registry(TestEmbeddedUserServiceHost())
         val owner = TestBinder()
-        val spec = embeddedSpec(
-            tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
-            version = 1,
-            daemon = true,
-        )
+        val spec = embeddedSpec("owner-death")
+        val original = registry.bind(spec, owner, daemon = true)
+        original.accept()
 
-        registry.start(spec, owner)
         owner.killBinder(notifyDeathRecipients = true)
-        val result = registry.bind(spec, TestBinder())
-
+        registry.destroyOnOwnerDeath()
+        val reconnected = requireNotNull(registry.peek(spec, TestBinder()))
         assertEquals(1, EmbeddedService.created)
-        registry.unbind(result.connectionId)
+        registry.unbind(reconnected.connectionId)
         registry.stop(spec)
+        assertNull(registry.peek(spec, TestBinder()))
     }
 
     @Test
     fun daemonBindKeepsServiceAfterUnbindUntilStop() {
         EmbeddedService.reset()
         val registry = registry(TestEmbeddedUserServiceHost())
-        val spec = embeddedSpec(
-            tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
-            version = 1,
-            daemon = true,
-        )
+        val spec = embeddedSpec()
 
-        val first = registry.bind(spec, TestBinder())
+        val first = registry.bind(spec, TestBinder(), daemon = true).also { it.accept() }
         registry.unbind(first.connectionId)
-        val second = registry.bind(spec, TestBinder())
+        val second = registry.bind(spec, TestBinder(), daemon = true).also { it.accept() }
 
         assertEquals(1, EmbeddedService.created)
         registry.unbind(second.connectionId)
@@ -103,16 +223,23 @@ class PrivilegeUserServiceRegistryTest {
     @Test
     fun dedicatedProcessDeathAllowsNextBindToCreateReplacement() {
         val firstProcess = TestUserServiceProcess()
-        val host = TestDedicatedUserServiceHost(firstProcess)
+        var starts = 0
+        val host = object : TestDedicatedUserServiceHost(firstProcess) {
+            override fun startDedicatedProcess(spec: PrivilegeUserServiceSpec, token: String): Process {
+                starts += 1
+                return TestProcess()
+            }
+        }
         val registry = registry(host)
         val spec = dedicatedSpec()
 
-        val first = registry.bind(spec, TestBinder())
+        registry.bind(spec, TestBinder())
         firstProcess.killBinder()
         host.process = TestUserServiceProcess()
         val result = registry.bind(spec, TestBinder())
 
-        assertNotSame(first.binder, result.binder)
+        assertEquals(2, starts)
+        registry.unbind(result.connectionId)
     }
 
     @Test
@@ -122,46 +249,38 @@ class PrivilegeUserServiceRegistryTest {
         val client = TestBinder()
 
         val first = registry.bind(
-            embeddedSpec(tag = "first", version = 1, daemon = false),
+            embeddedSpec(tag = "first"),
             client,
         )
         val second = registry.bind(
-            embeddedSpec(tag = "second", version = 1, daemon = false),
+            embeddedSpec(tag = "second"),
             client,
         )
 
         assertEquals(2, EmbeddedService.created)
-        assertNotSame(first.binder, second.binder)
 
         registry.unbind(first.connectionId)
         registry.unbind(second.connectionId)
     }
 
     @Test
-    fun embeddedVersionChangeDestroysPreviousInstance() {
+    fun embeddedInstanceCanBeRecreatedAfterUnbindAndStop() {
         EmbeddedService.reset()
         val registry = registry(TestEmbeddedUserServiceHost())
         val client = TestBinder()
+        val spec = embeddedSpec()
+        try {
+            val first = registry.bind(spec, client, daemon = true)
+            first.accept()
+            registry.unbind(first.connectionId)
+            registry.stop(spec)
+            assertNull(registry.peek(spec, client))
+            registry.bind(spec, client, daemon = true)
 
-        val first = registry.bind(
-            embeddedSpec(
-                tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
-                version = 1,
-                daemon = false,
-            ),
-            client,
-        )
-        val second = registry.bind(
-            embeddedSpec(
-                tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
-                version = 2,
-                daemon = false,
-            ),
-            client,
-        )
-
-        assertEquals(2, EmbeddedService.created)
-        assertNotSame(first.binder, second.binder)
+            assertEquals(2, EmbeddedService.created)
+        } finally {
+            registry.destroyAll()
+        }
     }
 
     @Test
@@ -177,6 +296,7 @@ class PrivilegeUserServiceRegistryTest {
 
             override fun awaitDedicatedProcess(
                 token: String,
+                handle: Process,
                 timeoutMillis: Long,
             ): IPrivilegeUserServiceProcess {
                 waitEntered.countDown()
@@ -186,7 +306,7 @@ class PrivilegeUserServiceRegistryTest {
         }
         val registry = registry(host)
         val dedicatedWorker = thread(name = "dedicated-registry-start") {
-            registry.start(dedicatedSpec(), TestBinder())
+            registry.bind(dedicatedSpec(), TestBinder()).cancel()
         }
         try {
             assertEquals(true, waitEntered.await(5, TimeUnit.SECONDS))
@@ -194,8 +314,6 @@ class PrivilegeUserServiceRegistryTest {
             val embedded = registry.bind(
                 embeddedSpec(
                     tag = "parallel-embedded",
-                    version = 1,
-                    daemon = false,
                 ),
                 TestBinder(),
             )
@@ -214,18 +332,14 @@ class PrivilegeUserServiceRegistryTest {
     fun cancelledDaemonBindRestoresPreviousKeepAliveState() {
         EmbeddedService.reset()
         val registry = registry(TestEmbeddedUserServiceHost())
-        val spec = embeddedSpec(
-            tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
-            version = 1,
-            daemon = true,
-        )
+        val spec = embeddedSpec()
 
-        val accepted = registry.bind(spec, TestBinder())
+        val accepted = registry.bind(spec, TestBinder(), daemon = true)
         accepted.accept()
-        val cancelled = registry.bind(spec, TestBinder())
+        val cancelled = registry.bind(spec, TestBinder(), daemon = true)
         cancelled.cancel()
         registry.unbind(accepted.connectionId)
-        val rebound = registry.bind(spec, TestBinder())
+        val rebound = registry.bind(spec, TestBinder(), daemon = true)
         rebound.accept()
 
         assertEquals(1, EmbeddedService.created)
@@ -234,43 +348,151 @@ class PrivilegeUserServiceRegistryTest {
     }
 
     @Test
-    fun cancellingOverlappingStartsOutOfOrderDoesNotLeakService() {
+    fun cancellingOverlappingDaemonBindsDoesNotLeakService() {
         val destroyed = CountDownLatch(1)
         val process = object : TestUserServiceProcess() {
-            override fun destroy() {
-                destroyed.countDown()
-            }
+            override fun destroy() { destroyed.countDown() }
         }
         val registry = registry(TestDedicatedUserServiceHost(process))
         val spec = dedicatedSpec()
+        val first = registry.bind(spec, TestBinder(), daemon = true)
+        val second = registry.bind(spec, TestBinder(), daemon = true)
+        first.cancel()
+        second.cancel()
 
-        val first = registry.start(spec, TestBinder())
-        val second = registry.start(spec, TestBinder())
-        first.rollback()
-        second.rollback()
+        assertEquals(true, destroyed.await(5, TimeUnit.SECONDS))
+        assertNull(registry.peek(spec, TestBinder()))
+    }
 
+    @Test
+    fun acceptedDaemonBindSurvivesOtherCancellation() {
+        val destroyed = CountDownLatch(1)
+        val process = object : TestUserServiceProcess() {
+            override fun destroy() { destroyed.countDown() }
+        }
+        val registry = registry(TestDedicatedUserServiceHost(process))
+        val spec = dedicatedSpec()
+        val first = registry.bind(spec, TestBinder(), daemon = true)
+        val second = registry.bind(spec, TestBinder(), daemon = true)
+        second.accept()
+        first.cancel()
+        registry.unbind(second.connectionId)
+
+        assertEquals(1L, destroyed.count)
+        registry.stop(spec)
         assertEquals(true, destroyed.await(5, TimeUnit.SECONDS))
     }
 
     @Test
-    fun acceptedOverlappingStartSurvivesOtherCancellation() {
-        val destroyed = CountDownLatch(1)
-        val process = object : TestUserServiceProcess() {
-            override fun destroy() {
-                destroyed.countDown()
+    fun daemonCanBeEnabledAndDisabledWithoutReplacingAnyProcessMode() {
+        for (mode in PrivilegeUserServiceProcess.entries) {
+            EmbeddedService.reset()
+            var launches = 0
+            val host = object : TestDedicatedUserServiceHost() {
+                override fun startDedicatedProcess(spec: PrivilegeUserServiceSpec, token: String): Process {
+                    launches += 1
+                    return TestProcess()
+                }
+            }
+            val registry = registry(host)
+            val spec = embeddedSpec("dynamic").copy(process = mode)
+            try {
+                val original = registry.bind(spec, TestBinder()).also { it.accept() }
+                val enabled = registry.bind(spec, TestBinder(), daemon = true).also { it.accept() }
+                assertEquals(true, original.binder.isBinderAlive)
+                registry.unbind(original.connectionId)
+                registry.unbind(enabled.connectionId)
+                val peeked = requireNotNull(registry.peek(spec, TestBinder()))
+                peeked.accept()
+                registry.unbind(peeked.connectionId)
+                val disabled = registry.bind(spec, TestBinder()).also { it.accept() }
+                assertEquals(if (mode.isEmbedded) 1 else 0, EmbeddedService.created)
+                assertEquals(if (mode.isEmbedded) 0 else 1, launches)
+                registry.unbind(disabled.connectionId)
+                assertNull(registry.peek(spec, TestBinder()))
+            } finally {
+                registry.destroyAll()
             }
         }
-        val registry = registry(TestDedicatedUserServiceHost(process))
-        val spec = dedicatedSpec()
+    }
 
-        val first = registry.start(spec, TestBinder())
-        val second = registry.start(spec, TestBinder())
-        first.rollback()
-        second.accept()
+    @Test
+    fun cancelledPolicyChangesPreservePreviousDaemonValue() {
+        for (initialDaemon in listOf(false, true)) {
+            val registry = registry(TestEmbeddedUserServiceHost())
+            val spec = embeddedSpec("cancel-change")
+            try {
+                val original = registry.bind(spec, TestBinder(), initialDaemon).also { it.accept() }
+                val cancelled = registry.bind(spec, TestBinder(), !initialDaemon)
+                cancelled.cancel()
+                registry.unbind(original.connectionId)
+                val remaining = registry.peek(spec, TestBinder())
+                assertEquals(initialDaemon, remaining != null)
+                remaining?.let { registry.unbind(it.connectionId) }
+            } finally {
+                registry.destroyAll()
+            }
+        }
+    }
 
-        assertEquals(false, destroyed.await(100, TimeUnit.MILLISECONDS))
+    @Test
+    fun stopClearsPendingBindingsAndLateAcknowledgementDoesNotAffectReplacement() {
+        EmbeddedService.reset()
+        val registry = registry(TestEmbeddedUserServiceHost())
+        val spec = embeddedSpec("stop-pending")
+        val original = registry.bind(spec, TestBinder(), daemon = true).also { it.accept() }
+        val pending = registry.bind(spec, TestBinder(), daemon = true)
         registry.stop(spec)
-        assertEquals(true, destroyed.await(5, TimeUnit.SECONDS))
+        assertNull(registry.peek(spec, TestBinder()))
+        val replacement = registry.bind(spec, TestBinder()).also { it.accept() }
+        pending.accept()
+        registry.unbind(original.connectionId)
+        registry.unbind(pending.connectionId)
+        assertEquals(2, EmbeddedService.created)
+        registry.unbind(replacement.connectionId)
+        assertNull(registry.peek(spec, TestBinder()))
+    }
+
+    @Test
+    fun lateAcknowledgementDoesNotOverrideNewerAcceptedDaemonPolicy() {
+        val registry = registry(TestEmbeddedUserServiceHost())
+        val spec = embeddedSpec("out-of-order")
+        val first = registry.bind(spec, TestBinder(), daemon = true)
+        val second = registry.bind(spec, TestBinder(), daemon = false)
+        second.accept()
+        first.accept()
+        registry.unbind(first.connectionId)
+        registry.unbind(second.connectionId)
+        assertNull(registry.peek(spec, TestBinder()))
+    }
+
+    @Test
+    fun cancelledNewerBindDoesNotDiscardEarlierAcceptedPolicy() {
+        val registry = registry(TestEmbeddedUserServiceHost())
+        val spec = embeddedSpec("cancel-newer")
+        val first = registry.bind(spec, TestBinder(), daemon = true)
+        val second = registry.bind(spec, TestBinder(), daemon = false)
+        first.accept()
+        second.cancel()
+        registry.unbind(first.connectionId)
+        val remaining = requireNotNull(registry.peek(spec, TestBinder()))
+        registry.unbind(remaining.connectionId)
+        registry.stop(spec)
+        assertNull(registry.peek(spec, TestBinder()))
+    }
+
+    @Test
+    fun disablingDaemonMakesServiceFollowOwnerDeath() {
+        EmbeddedService.reset()
+        val registry = registry(TestEmbeddedUserServiceHost())
+        val spec = embeddedSpec("disable-owner")
+        val owner = TestBinder()
+        registry.bind(spec, owner, daemon = true).accept()
+        registry.bind(spec, owner, daemon = false).accept()
+        assertEquals(1, EmbeddedService.created)
+        owner.killBinder(notifyDeathRecipients = true)
+        registry.destroyOnOwnerDeath()
+        assertNull(registry.peek(spec, TestBinder()))
     }
 
     @Test
@@ -286,7 +508,7 @@ class PrivilegeUserServiceRegistryTest {
             killBinder(notifyDeathRecipients = false)
         }
 
-        assertThrows(android.os.DeadObjectException::class.java) {
+        assertThrows(priv.kit.core.binder.PrivilegeUnavailableException::class.java) {
             registry.bind(dedicatedSpec(), deadClient)
         }
 
@@ -309,11 +531,7 @@ class PrivilegeUserServiceRegistryTest {
             val client = TestBinder()
 
             val result = registry.bind(
-                embeddedSpec(
-                    tag = PrivilegeUserServiceSpec.DEFAULT_TAG,
-                    version = 1,
-                    daemon = false,
-                ),
+                embeddedSpec(),
                 client,
             )
 
@@ -380,21 +598,18 @@ class PrivilegeUserServiceRegistryTest {
     }
 
     private fun embeddedSpec(
-        tag: String,
-        version: Int,
-        daemon: Boolean,
+        tag: String? = null,
     ): PrivilegeUserServiceSpec =
         PrivilegeUserServiceSpec(
             serviceClassName = EmbeddedService::class.java.name,
             tag = tag,
-            version = version,
             process = priv.kit.core.userservice.PrivilegeUserServiceProcess.EMBEDDED,
-            daemon = daemon,
         )
 
     private fun dedicatedSpec(): PrivilegeUserServiceSpec =
         PrivilegeUserServiceSpec(
             serviceClassName = EmbeddedService::class.java.name,
+            process = PrivilegeUserServiceProcess.INHERIT,
         )
 
     private fun registry(host: PrivilegeUserServiceHost): PrivilegeUserServiceRegistry =

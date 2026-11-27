@@ -1,7 +1,6 @@
 {
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "strict": true,
-    "target": "ESNext",
     "module": "ESNext",
     "lib": [
       "ESNext",
@@ -13,11 +12,6 @@
       "vite/client"
     ],
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "verbatimModuleSyntax": true,
-    "erasableSyntaxOnly": true,
     "rootDir": "./"
   },
   "include": [

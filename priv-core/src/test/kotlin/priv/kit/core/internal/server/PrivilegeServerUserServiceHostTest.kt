@@ -15,18 +15,20 @@ import priv.kit.core.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.core.testing.TestProcess
 import priv.kit.core.testing.TestUserServiceProcess
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
+import priv.kit.core.userservice.PrivilegeUserServiceProcess
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class PrivilegeServerUserServiceHostTest {
     @Test
     fun explicitUidUsesNativeLauncherOnlyWhenIdentityChanges() {
-        for (uid in listOf(1000, 2000)) {
+        for (process in listOf(PrivilegeUserServiceProcess.ROOT, PrivilegeUserServiceProcess.SYSTEM, PrivilegeUserServiceProcess.SHELL)) {
+            val uid = process.uid
             val spec = PrivilegeUserServiceSpec(
-                process = priv.kit.core.userservice.PrivilegeUserServiceProcess(uid),
+                process = process,
             )
             val command = PrivilegeServerUserServiceProcessCommand.build(
-                config(), spec, "token", currentUid = 0,
+                config(), spec, "token", currentUid = if (uid == 0) 2000 else 0,
                 uidLauncher = { listOf("/system/bin/linker64", "/app/base.apk!/lib/arm64-v8a/libprivkitstarter.so") },
             )
             assertEquals("--user-service", command.arguments[2])
@@ -39,26 +41,27 @@ class PrivilegeServerUserServiceHostTest {
     }
 
     @Test
-    fun nonRootCannotSwitchToDifferentUid() {
-        assertThrows(IllegalArgumentException::class.java) {
-            PrivilegeServerUserServiceProcessCommand.build(
-                config(), PrivilegeUserServiceSpec(process = priv.kit.core.userservice.PrivilegeUserServiceProcess(1000)),
-                "token", currentUid = 2000,
-            )
-        }
+    fun nonRootSwitchIsAttemptedByNativeLauncher() {
+        val command = PrivilegeServerUserServiceProcessCommand.build(
+            config(), PrivilegeUserServiceSpec(process = PrivilegeUserServiceProcess.SYSTEM),
+            "token", currentUid = 2000,
+            uidLauncher = { listOf("starter") },
+        )
+        assertEquals(listOf("starter", "--user-service", "1000"), command.arguments.take(3))
     }
     @Test
     fun buildsDedicatedProcessCommand() {
         val spec = PrivilegeUserServiceSpec(
             serviceClassName = $$"com.example.My$Service",
             tag = "tag with/slash",
+            process = PrivilegeUserServiceProcess.INHERIT,
         )
 
         val command = PrivilegeServerUserServiceProcessCommand.build(
             config = config(classpath = "/data/app/base.apk"),
             spec = spec,
             token = "token-1",
-            currentUid = 0,
+            currentUid = 2000,
         )
 
         assertEquals("/data/app/base.apk", command.environment["CLASSPATH"])
@@ -90,7 +93,7 @@ class PrivilegeServerUserServiceHostTest {
         val directories = listOf(File(root, "internal"), File(root, "external"))
         val command = PrivilegeServerUserServiceProcessCommand.build(
             config = config(classpath = "/data/app/base.apk"),
-            spec = PrivilegeUserServiceSpec(serviceClassName = "example.Service"),
+            spec = PrivilegeUserServiceSpec(serviceClassName = "example.Service", process = PrivilegeUserServiceProcess.INHERIT),
             token = "token",
             currentUid = 0,
             crashLogDirectories = directories,
@@ -100,10 +103,37 @@ class PrivilegeServerUserServiceHostTest {
     }
 
     @Test
-    fun processNameOmitsDedicatedTagAndTruncatesSuffix() {
+    fun processNameIncludesOnlyExplicitTags() {
+        val cases = listOf(
+            Triple(null, null, "binder"),
+            Triple("com.example.MyService", null, "MyService"),
+            Triple(null, "default", "binder-default"),
+            Triple(null, "dedicated", "binder-dedicated"),
+            Triple("com.example.MyService", "worker", "MyService-worker"),
+        )
+        for ((serviceClassName, tag, suffix) in cases) {
+            val command = PrivilegeServerUserServiceProcessCommand.build(
+                config = config(),
+                spec = PrivilegeUserServiceSpec(
+                    serviceClassName = serviceClassName,
+                    tag = tag,
+                    process = PrivilegeUserServiceProcess.INHERIT,
+                ),
+                token = "token-1",
+                currentUid = 2000,
+            )
+            assertEquals(
+                "--nice-name=priv.kit.sample:$suffix",
+                command.arguments.single { it.startsWith("--nice-name=") },
+            )
+        }
+    }
+
+    @Test
+    fun processNameTruncatesSuffix() {
         val spec = PrivilegeUserServiceSpec(
             serviceClassName = "com.example." + "VeryLongServiceName".repeat(4),
-            tag = "dedicated",
+            process = PrivilegeUserServiceProcess.INHERIT,
         )
 
         val command = PrivilegeServerUserServiceProcessCommand.build(
@@ -135,12 +165,33 @@ class PrivilegeServerUserServiceHostTest {
         )
 
         val startedProcess = host.startDedicatedProcess(
-            spec = PrivilegeUserServiceSpec(serviceClassName = "test.UserService"),
+            spec = PrivilegeUserServiceSpec(serviceClassName = "test.UserService", process = PrivilegeUserServiceProcess.INHERIT),
             token = "token-1",
         )
 
         assertSame(process, startedProcess)
         assertEquals("token-1", startedCommands.single().arguments[5])
+    }
+
+    @Test
+    fun nativePermissionFailureReachesCaller() {
+        val message = "UserService setresuid failed: Operation not permitted"
+        val process = object : TestProcess() {
+            override fun getInputStream() = message.byteInputStream()
+            override fun exitValue(): Int = 1
+        }
+        val host = PrivilegeServerUserServiceHost(
+            config = config(),
+            processStarter = { process },
+        )
+        val handle = host.startDedicatedProcess(PrivilegeUserServiceSpec(process = PrivilegeUserServiceProcess.INHERIT), "failed-process")
+        val failure = assertThrows(IllegalStateException::class.java) {
+            host.awaitDedicatedProcess("failed-process", handle, 1_000L)
+        }
+        val callerFailure = assertThrows(IllegalStateException::class.java) {
+            PrivilegeUserServiceContract.throwFailure(PrivilegeUserServiceContract.errorBundle(failure))
+        }
+        assertEquals("UserService exited with code 1: $message", callerFailure.message)
     }
 
     @Test

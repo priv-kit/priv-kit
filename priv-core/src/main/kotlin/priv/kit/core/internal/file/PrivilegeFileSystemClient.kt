@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import priv.kit.core.Privilege
-import priv.kit.core.binder.PrivilegeServerUnavailableException
+import priv.kit.core.binder.PrivilegeUnavailableException
 import priv.kit.core.file.PrivilegeFileEntry
 import priv.kit.core.file.PrivilegeFileMetadata
 import priv.kit.core.file.PrivilegeFileOperations
@@ -237,7 +237,7 @@ internal object PrivilegeFileSystemClient : PrivilegeFileOperations {
 
             deathRecipient = IBinder.DeathRecipient {
                 resumeFailure(
-                    PrivilegeServerUnavailableException(
+                    PrivilegeUnavailableException(
                         cause = DeadObjectException(
                             "File-system Binder died during recursive delete",
                         ),

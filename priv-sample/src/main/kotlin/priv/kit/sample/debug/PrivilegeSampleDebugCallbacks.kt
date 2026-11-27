@@ -1,5 +1,7 @@
 package priv.kit.sample.debug
 
+import priv.kit.core.userservice.PrivilegeUserServiceProcess
+
 internal data class PrivilegeSampleDebugCallbacks(
     val openPrivilegeUi: () -> Unit,
     val backToHome: () -> Unit,
@@ -40,7 +42,7 @@ internal data class PrivilegeSampleBinderCallbacks(
 )
 
 internal data class PrivilegeSampleUserServiceCallbacks(
-    val testBinderForwarding: (Int?) -> Unit,
+    val testBinderForwarding: (PrivilegeUserServiceProcess) -> Unit,
     val bindDedicated: () -> Unit,
     val callDedicated: () -> Unit,
     val stopDedicated: () -> Unit,

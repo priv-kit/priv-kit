@@ -26,6 +26,7 @@ import org.robolectric.shadows.ShadowServiceManager
 import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.internal.binder.IPrivilegeServer
+import priv.kit.core.internal.binder.PrivilegeBinderReply
 import priv.kit.core.internal.core.PrivilegeProtocol
 import priv.kit.core.internal.runtime.PrivilegeContext
 import priv.kit.core.testing.TestBinder
@@ -48,7 +49,7 @@ class PrivilegeBinderWrapperTest {
         val wrapper = PrivilegeBinderWrapper.fromBinder(Binder())
         val data = Parcel.obtain()
         try {
-            assertThrows(PrivilegeServerUnavailableException::class.java) {
+            assertThrows(PrivilegeUnavailableException::class.java) {
                 wrapper.transact(1, data, null, 0)
             }
         } finally { data.recycle() }
@@ -98,7 +99,7 @@ class PrivilegeBinderWrapperTest {
             val recipient = IBinder.DeathRecipient { }
             server.binder.kill()
 
-            assertThrows(PrivilegeServerUnavailableException::class.java) {
+            assertThrows(PrivilegeUnavailableException::class.java) {
                 wrapper.linkToDeath(recipient, 0)
             }
         }
@@ -284,7 +285,7 @@ class PrivilegeBinderWrapperTest {
     @Test
     fun rawTransactPropagatesTargetDeadObjectWhileServerIsAlive() {
         val deadObjectException = DeadObjectException("target died")
-        withServer(FakePrivilegeServer(transactException = deadObjectException)) {
+        withServer(FakePrivilegeServer(transactHandler = { _, _, _, _ -> throw deadObjectException })) {
             val wrapper = PrivilegeBinderWrapper.fromBinder(FakeBinder())
             val data = Parcel.obtain()
 
@@ -296,12 +297,12 @@ class PrivilegeBinderWrapperTest {
                 data.recycle()
             }
 
-            assertSame(deadObjectException, thrown)
+            assertEquals(deadObjectException.message, thrown.message)
         }
     }
 
     @Test
-    fun rawTransactServerDeathUsesBinderDiedFallbackWithoutGuessingOrigin() {
+    fun rawTransactServerDeathUsesUnavailableFallback() {
         val deadObjectException = DeadObjectException("server died")
         withServer(FakePrivilegeServer(transactException = deadObjectException)) { server ->
             val wrapper = PrivilegeBinderWrapper.fromBinder(FakeBinder())
@@ -323,8 +324,8 @@ class PrivilegeBinderWrapperTest {
             }
 
             assertFalse(result)
-            val failure = observedFailure as PrivilegeBinderCallFailure.BinderDied
-            assertSame(deadObjectException, failure.exception)
+            val failure = observedFailure as PrivilegeBinderCallFailure.Unavailable
+            assertSame(deadObjectException, failure.exception.cause)
         }
     }
 
@@ -413,7 +414,11 @@ class PrivilegeBinderWrapperTest {
         val binder = FakeBinder(
             localInterface = this,
             transactException = transactException,
-            transactHandler = transactHandler,
+            transactHandler = transactHandler?.let { handler ->
+                { code, data, reply, flags ->
+                    PrivilegeBinderReply.dispatch(reply) { targetReply -> handler(code, data, targetReply, flags) }
+                }
+            },
         )
         override fun asBinder(): IBinder = binder
 

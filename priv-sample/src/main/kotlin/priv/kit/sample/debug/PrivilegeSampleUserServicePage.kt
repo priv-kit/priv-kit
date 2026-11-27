@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import priv.kit.sample.R
+import priv.kit.core.userservice.PrivilegeUserServiceProcess
 
 @Composable
 internal fun UserServiceTestPage(
@@ -26,7 +27,7 @@ internal fun UserServiceTestPage(
     selectedDestination: PrivilegeSampleDebugDestination,
     onDestinationSelected: (PrivilegeSampleDebugDestination) -> Unit,
     onBackToHome: () -> Unit,
-    onTestBinderForwarding: (Int?) -> Unit,
+    onTestBinderForwarding: (PrivilegeUserServiceProcess) -> Unit,
     onBindDedicatedUserService: () -> Unit,
     onCallDedicatedUserService: () -> Unit,
     onStopDedicatedUserService: () -> Unit,
@@ -62,7 +63,7 @@ internal fun UserServiceTestPage(
 @Composable
 private fun UserServicePage(
     state: PrivilegeSampleScreenState,
-    onTestBinderForwarding: (Int?) -> Unit,
+    onTestBinderForwarding: (PrivilegeUserServiceProcess) -> Unit,
     onBindDedicatedUserService: () -> Unit,
     onCallDedicatedUserService: () -> Unit,
     onStopDedicatedUserService: () -> Unit,
@@ -75,13 +76,17 @@ private fun UserServicePage(
         UserServicePanel(state)
         SectionTitle(stringResource(R.string.sample_binder_forwarding))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf<Int?>(null, 1000, 2000).forEach { uid ->
+            listOf(
+                PrivilegeUserServiceProcess.INHERIT to stringResource(R.string.sample_inherit_uid),
+                PrivilegeUserServiceProcess.SYSTEM to "UID 1000",
+                PrivilegeUserServiceProcess.SHELL to "UID 2000",
+            ).forEach { (process, label) ->
                 SampleAction(
-                    label = uid?.let { "UID $it" } ?: stringResource(R.string.sample_inherit_uid),
+                    label = label,
                     enabled = !state.busy && state.status == PrivilegeSampleStatus.CONNECTED,
                     tone = SampleActionTone.Secondary,
                     modifier = Modifier.weight(1f),
-                    onClick = { onTestBinderForwarding(uid) },
+                    onClick = { onTestBinderForwarding(process) },
                 )
             }
         }

@@ -13,6 +13,7 @@ internal interface PrivilegeUserServiceHost {
 
     fun awaitDedicatedProcess(
         token: String,
+        handle: Process,
         timeoutMillis: Long,
     ): IPrivilegeUserServiceProcess
 

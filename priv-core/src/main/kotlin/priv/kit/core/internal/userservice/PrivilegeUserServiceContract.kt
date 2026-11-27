@@ -3,8 +3,9 @@ package priv.kit.core.internal.userservice
 import android.os.Bundle
 import android.os.IBinder
 import android.os.DeadObjectException
-import priv.kit.core.binder.PrivilegeServerUnavailableException
+import priv.kit.core.binder.PrivilegeUnavailableException
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
+import priv.kit.core.userservice.PrivilegeUserServiceProcess
 
 internal object PrivilegeUserServiceContract {
     const val METHOD_USER_SERVICE_READY: String = "privilege_user_service_ready"
@@ -15,12 +16,7 @@ internal object PrivilegeUserServiceContract {
 
     const val KEY_SERVICE_CLASS_NAME: String = "privilege_user_service_class_name"
     const val KEY_TAG: String = "privilege_user_service_tag"
-    const val KEY_VERSION: String = "privilege_user_service_version"
     const val KEY_PROCESS_UID: String = "privilege_user_service_process_uid"
-    const val KEY_FORWARDING_BINDER: String = "privilege_user_service_forwarding_binder"
-    const val KEY_LIFECYCLE_BINDER: String = "privilege_user_service_lifecycle_binder"
-    const val KEY_UID: String = "privilege_user_service_uid"
-    const val KEY_DAEMON: String = "privilege_user_service_daemon"
     const val KEY_SUCCESS: String = "privilege_user_service_success"
     const val KEY_ERROR_MESSAGE: String = "privilege_user_service_error_message"
     const val KEY_CONNECTION_FAILURE: String = "privilege_user_service_connection_failure"
@@ -31,21 +27,17 @@ internal object PrivilegeUserServiceContract {
         Bundle().apply {
             putString(KEY_SERVICE_CLASS_NAME, spec.serviceClassName)
             putString(KEY_TAG, spec.tag)
-            putInt(KEY_VERSION, spec.version)
-            spec.process.uid?.let { putInt(KEY_PROCESS_UID, it) }
-            putBoolean(KEY_DAEMON, spec.daemon)
+            putInt(KEY_PROCESS_UID, spec.process.uid)
         }
 
     fun specFrom(bundle: Bundle): PrivilegeUserServiceSpec =
         try {
             PrivilegeUserServiceSpec(
                 serviceClassName = bundle.getString(KEY_SERVICE_CLASS_NAME),
-                tag = requireString(bundle, KEY_TAG),
-                version = bundle.getInt(KEY_VERSION, 1),
-                process = priv.kit.core.userservice.PrivilegeUserServiceProcess(
-                    if (bundle.containsKey(KEY_PROCESS_UID)) bundle.getInt(KEY_PROCESS_UID) else null,
+                tag = bundle.getString(KEY_TAG),
+                process = PrivilegeUserServiceProcess.fromUid(
+                    bundle.getInt(KEY_PROCESS_UID, PrivilegeUserServiceProcess.EMBEDDED.uid),
                 ),
-                daemon = bundle.getBoolean(KEY_DAEMON, false),
             )
         } catch (exception: IllegalArgumentException) {
             throw IllegalStateException(
@@ -62,16 +54,10 @@ internal object PrivilegeUserServiceContract {
     fun bindSuccessBundle(
         connectionId: String,
         binder: IBinder,
-        forwardingBinder: IBinder,
-        lifecycleBinder: IBinder,
-        uid: Int,
     ): Bundle =
         successBundle().apply {
             putString(KEY_CONNECTION_ID, connectionId)
             putBinder(KEY_SERVICE_BINDER, binder)
-            putBinder(KEY_FORWARDING_BINDER, forwardingBinder)
-            putBinder(KEY_LIFECYCLE_BINDER, lifecycleBinder)
-            putInt(KEY_UID, uid)
         }
 
     fun errorBundle(message: String): Bundle =
@@ -83,7 +69,7 @@ internal object PrivilegeUserServiceContract {
     fun errorBundle(throwable: Throwable): Bundle =
         errorBundle(throwable.message ?: throwable.javaClass.name).apply {
             putInt(KEY_CONNECTION_FAILURE, when (throwable) {
-                is PrivilegeServerUnavailableException -> 1
+                is PrivilegeUnavailableException -> 1
                 is DeadObjectException -> 2
                 else -> 0
             })
@@ -92,16 +78,9 @@ internal object PrivilegeUserServiceContract {
     fun throwFailure(response: Bundle): Nothing {
         val message = response.getString(KEY_ERROR_MESSAGE) ?: "UserService operation failed"
         when (response.getInt(KEY_CONNECTION_FAILURE)) {
-            1 -> throw PrivilegeServerUnavailableException(message)
+            1 -> throw PrivilegeUnavailableException(message)
             2 -> throw DeadObjectException(message)
             else -> throw IllegalStateException(message)
         }
     }
-
-    private fun requireString(
-        bundle: Bundle,
-        key: String,
-    ): String =
-        bundle.getString(key)?.takeIf { it.isNotBlank() }
-            ?: throw IllegalStateException("UserService request is missing $key")
 }

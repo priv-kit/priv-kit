@@ -68,7 +68,7 @@ async function main(): Promise<void> {
       cwd: repositoryRoot,
       encoding: 'utf8',
     }).split('\0').filter((file) =>
-      /\.(?:c|cc|cpp|cxx|h|hh|hpp|hxx)$/iu.test(file) && existsSync(path.join(repositoryRoot, file)));
+      /\.(?:c|cc|cpp|cppm|cxx|h|hh|hpp|hxx)$/iu.test(file) && existsSync(path.join(repositoryRoot, file)));
     if (files.length === 0) {
       console.log('No C/C++ files to format.');
       return;

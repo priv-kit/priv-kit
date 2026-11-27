@@ -33,16 +33,129 @@ import kotlin.concurrent.thread
 @Config(sdk = [28])
 class PrivilegeUserServiceManagerBinderTest {
     @Test
+    fun untaggedServiceIsIndependentOfTaggedInstances() {
+        CountingEmbeddedService.reset()
+        val manager = manager(TestEmbeddedUserServiceHost())
+        val spec = PrivilegeUserServiceSpec(serviceClassName = CountingEmbeddedService::class.java.name)
+        val requests = listOf(null, "default", "worker").map { tag ->
+            PrivilegeUserServiceContract.requestBundle(spec.copy(tag = tag))
+        }
+        // An omitted tag and an explicit null must address the same instance.
+        requests.first().remove(PrivilegeUserServiceContract.KEY_TAG)
+        try {
+            requests.forEach { assertSuccess(bind(manager, it)) }
+            assertEquals(3, CountingEmbeddedService.created)
+            assertNotNull(peek(manager, PrivilegeUserServiceContract.requestBundle(spec))
+                .getBinder(PrivilegeUserServiceContract.KEY_SERVICE_BINDER))
+
+            assertSuccess(stop(manager, PrivilegeUserServiceContract.requestBundle(spec)))
+            assertFalse(peek(manager, requests[0]).containsKey(PrivilegeUserServiceContract.KEY_CONNECTION_ID))
+            for (index in 1..2) {
+                assertNotNull(peek(manager, requests[index]).getBinder(PrivilegeUserServiceContract.KEY_SERVICE_BINDER))
+            }
+            assertEquals(3, CountingEmbeddedService.created)
+        } finally {
+            manager.destroyAll()
+        }
+    }
+
+    @Test
+    fun bindUpdatesDaemonWithoutRecreatingServiceThroughManager() {
+        CountingEmbeddedService.reset()
+        val manager = manager(TestEmbeddedUserServiceHost())
+        val request = PrivilegeUserServiceContract.requestBundle(
+            PrivilegeUserServiceSpec(serviceClassName = CountingEmbeddedService::class.java.name),
+        )
+        try {
+            val original = bind(manager, request)
+            val enabled = bind(manager, request, daemon = true)
+            unbind(manager, requireNotNull(original.getString(PrivilegeUserServiceContract.KEY_CONNECTION_ID)))
+            unbind(manager, requireNotNull(enabled.getString(PrivilegeUserServiceContract.KEY_CONNECTION_ID)))
+            assertEquals(1L, CountingEmbeddedService.destroyed.count)
+
+            val reconnected = peek(manager, request)
+            val disabled = bind(manager, request)
+            unbind(manager, requireNotNull(reconnected.getString(PrivilegeUserServiceContract.KEY_CONNECTION_ID)))
+            assertEquals(1L, CountingEmbeddedService.destroyed.count)
+            unbind(manager, requireNotNull(disabled.getString(PrivilegeUserServiceContract.KEY_CONNECTION_ID)))
+            assertTrue(CountingEmbeddedService.destroyed.await(5, TimeUnit.SECONDS))
+            assertEquals(1, CountingEmbeddedService.created)
+        } finally {
+            manager.destroyAll()
+        }
+    }
+
+    @Test
+    fun peekReturnsMissingOrExistingConnectionWithoutCreatingOrReplacingService() {
+        CountingEmbeddedService.reset()
+        val manager = manager(TestEmbeddedUserServiceHost())
+        val spec = PrivilegeUserServiceSpec(serviceClassName = CountingEmbeddedService::class.java.name)
+        val request = PrivilegeUserServiceContract.requestBundle(spec)
+        try {
+            val missing = peek(manager, request)
+            assertSuccess(missing)
+            assertFalse(missing.containsKey(PrivilegeUserServiceContract.KEY_CONNECTION_ID))
+            assertEquals(0, CountingEmbeddedService.created)
+
+            val original = bind(manager, request)
+            val mismatched = peek(manager, PrivilegeUserServiceContract.requestBundle(
+                spec.copy(process = priv.kit.core.userservice.PrivilegeUserServiceProcess.ROOT),
+            ))
+            assertSuccess(mismatched)
+            assertFalse(mismatched.containsKey(PrivilegeUserServiceContract.KEY_CONNECTION_ID))
+            val existing = peek(manager, PrivilegeUserServiceContract.requestBundle(
+                spec,
+            ))
+            assertSuccess(existing)
+            assertEquals(1, CountingEmbeddedService.created)
+            assertSuccess(unbind(manager, requireNotNull(original.getString(PrivilegeUserServiceContract.KEY_CONNECTION_ID))))
+            assertSuccess(unbind(manager, requireNotNull(existing.getString(PrivilegeUserServiceContract.KEY_CONNECTION_ID))))
+            assertTrue(CountingEmbeddedService.destroyed.await(5, TimeUnit.SECONDS))
+            assertFalse(peek(manager, request).containsKey(PrivilegeUserServiceContract.KEY_CONNECTION_ID))
+            assertEquals(1, CountingEmbeddedService.created)
+        } finally {
+            manager.destroyAll()
+        }
+    }
+
+    @Test
+    fun cancellingDeliveredPeekReleasesOnlyItsConnection() {
+        CountingEmbeddedService.reset()
+        val manager = manager(TestEmbeddedUserServiceHost())
+        val request = PrivilegeUserServiceContract.requestBundle(
+            PrivilegeUserServiceSpec(serviceClassName = CountingEmbeddedService::class.java.name),
+        )
+        try {
+            val original = bind(manager, request)
+            val callback = ResultCallback()
+            manager.peekUserService("cancel-peek", request, TestBinder(), null, callback)
+            val response = callback.await()
+            assertSuccess(response)
+            assertNotNull(response.getBinder(PrivilegeUserServiceContract.KEY_SERVICE_BINDER))
+
+            manager.cancelUserServiceOperation("cancel-peek")
+
+            assertEquals(1L, CountingEmbeddedService.destroyed.count)
+            assertSuccess(unbind(manager, requireNotNull(original.getString(PrivilegeUserServiceContract.KEY_CONNECTION_ID))))
+            assertTrue(CountingEmbeddedService.destroyed.await(5, TimeUnit.SECONDS))
+            assertEquals(1, CountingEmbeddedService.created)
+        } finally {
+            manager.destroyAll()
+        }
+    }
+
+    @Test
     fun cancellingQueuedOperationReleasesExecutorCapacity() {
         val startEntered = CountDownLatch(1)
         val releaseStart = CountDownLatch(1)
         val startCalls = AtomicInteger(0)
         val process = object : TestUserServiceProcess() {
-            override fun start() {
+            override fun bind(connectionId: String): IBinder {
                 if (startCalls.incrementAndGet() == 1) {
                     startEntered.countDown()
                     releaseStart.await(5, TimeUnit.SECONDS)
                 }
+                return super.bind(connectionId)
             }
         }
         val executor = ThreadPoolExecutor(
@@ -57,15 +170,15 @@ class PrivilegeUserServiceManagerBinderTest {
         val cancelled = ResultCallback()
         val replacement = ResultCallback()
         try {
-            manager.startUserService("first", dedicatedRequest(), TestBinder(), first)
+            manager.bindUserService("first", dedicatedRequest(), false, TestBinder(), null, first)
             assertTrue(startEntered.await(5, TimeUnit.SECONDS))
-            manager.startUserService("cancelled", dedicatedRequest(), TestBinder(), cancelled)
+            manager.bindUserService("cancelled", dedicatedRequest(), false, TestBinder(), null, cancelled)
             assertEquals(1, executor.queue.size)
 
             manager.cancelUserServiceOperation("cancelled")
 
             assertEquals(0, executor.queue.size)
-            manager.startUserService("replacement", dedicatedRequest(), TestBinder(), replacement)
+            manager.bindUserService("replacement", dedicatedRequest(), false, TestBinder(), null, replacement)
             assertEquals(1, executor.queue.size)
             releaseStart.countDown()
             assertSuccess(first.await())
@@ -109,10 +222,12 @@ class PrivilegeUserServiceManagerBinderTest {
         val manager = manager(TestDedicatedUserServiceHost(TestUserServiceProcess()), executor)
         delayNextReturn.set(true)
         val launchThread = thread {
-            manager.startUserService(
+            manager.bindUserService(
                 "cancel-before-attach",
                 dedicatedRequest(),
+                false,
                 TestBinder(),
+                null,
                 ResultCallback(),
             )
         }
@@ -142,7 +257,7 @@ class PrivilegeUserServiceManagerBinderTest {
             for (index in 0 until 1_000) {
                 val operationId = "pending-$index"
                 val callback = ResultCallback()
-                manager.startUserService(operationId, dedicatedRequest(), TestBinder(), callback)
+                manager.bindUserService(operationId, dedicatedRequest(), false, TestBinder(), null, callback)
                 val response = callback.await()
                 if (response.getBoolean(PrivilegeUserServiceContract.KEY_SUCCESS, false)) {
                     operationIds += operationId
@@ -156,7 +271,7 @@ class PrivilegeUserServiceManagerBinderTest {
 
             manager.acknowledgeUserServiceOperation(operationIds.first())
             val replacement = ResultCallback()
-            manager.startUserService("replacement", dedicatedRequest(), TestBinder(), replacement)
+            manager.bindUserService("replacement", dedicatedRequest(), false, TestBinder(), null, replacement)
             assertSuccess(replacement.await())
 
             operationIds.drop(1).forEach(manager::acknowledgeUserServiceOperation)
@@ -171,10 +286,10 @@ class PrivilegeUserServiceManagerBinderTest {
         val manager = manager(TestDedicatedUserServiceHost(TestUserServiceProcess()))
         val callbacks = List(4) { ResultCallback() }
         try {
-            manager.startUserService("null-start", dedicatedRequest(), null, callbacks[0])
-            manager.bindUserService("null-bind", dedicatedRequest(), null, callbacks[1])
-            manager.unbindUserService("null-unbind", "missing", null, callbacks[2])
-            manager.stopUserService("null-stop", dedicatedRequest(), null, callbacks[3])
+            manager.bindUserService("null-bind", dedicatedRequest(), false, null, null, callbacks[0])
+            manager.unbindUserService("null-unbind", "missing", null, callbacks[1])
+            manager.stopUserService("null-stop", dedicatedRequest(), null, callbacks[2])
+            manager.peekUserService("null-peek", dedicatedRequest(), null, null, callbacks[3])
 
             callbacks.forEach { callback ->
                 val response = callback.await()
@@ -194,7 +309,7 @@ class PrivilegeUserServiceManagerBinderTest {
     fun declarationExceptionMapsToErrorBundle() {
         val manager = manager(TestEmbeddedUserServiceHost())
         try {
-            val response = start(
+            val response = bind(
                 manager,
                 PrivilegeUserServiceContract.requestBundle(
                     PrivilegeUserServiceSpec(
@@ -219,7 +334,7 @@ class PrivilegeUserServiceManagerBinderTest {
     fun malformedRequestMapsToDeclarationErrorBundle() {
         val manager = manager(TestEmbeddedUserServiceHost())
         try {
-            val response = start(manager, Bundle().apply {
+            val response = bind(manager, Bundle().apply {
                 putString(PrivilegeUserServiceContract.KEY_SERVICE_CLASS_NAME, "")
                 putString(PrivilegeUserServiceContract.KEY_TAG, "invalid")
             })
@@ -236,46 +351,22 @@ class PrivilegeUserServiceManagerBinderTest {
     }
 
     @Test
-    fun endpointDeathSurvivesManagerResponse() {
+    fun dedicatedChannelDeathSurvivesManagerResponse() {
         val host = TestDedicatedUserServiceHost(
             process = object : TestUserServiceProcess() {
-                override fun start() {
+                override fun bind(connectionId: String): IBinder {
                     throw android.os.DeadObjectException("endpoint died")
                 }
             },
         )
         val manager = manager(host)
         try {
-            val response = start(manager, dedicatedRequest())
+            val response = bind(manager, dedicatedRequest())
             val failure = priv.kit.core.binder.PrivilegeBinderCall.orElse(fallback = { it }) {
                 PrivilegeUserServiceContract.throwFailure(response)
             }
-            assertTrue(failure is priv.kit.core.binder.PrivilegeBinderCallFailure.BinderDied)
+            assertTrue(failure is priv.kit.core.binder.PrivilegeBinderCallFailure.Unavailable)
             assertEquals("endpoint died", failure.exception.message)
-        } finally {
-            manager.destroyAll()
-        }
-    }
-
-    @Test
-    fun startExceptionMapsToErrorBundle() {
-        val host = TestDedicatedUserServiceHost(
-            process = object : TestUserServiceProcess() {
-                override fun start() {
-                    throw IllegalStateException("start exploded")
-                }
-            },
-        )
-        val manager = manager(host)
-        try {
-            val response = start(manager, dedicatedRequest())
-
-            assertError(response)
-            assertTrue(
-                response.getString(PrivilegeUserServiceContract.KEY_ERROR_MESSAGE)
-                    .orEmpty()
-                    .contains("start exploded"),
-            )
         } finally {
             manager.destroyAll()
         }
@@ -285,7 +376,7 @@ class PrivilegeUserServiceManagerBinderTest {
     fun bindExceptionMapsToErrorBundle() {
         val host = TestDedicatedUserServiceHost(
             process = object : TestUserServiceProcess() {
-                override fun bind(): IBinder {
+                override fun bind(connectionId: String): IBinder {
                     throw IllegalStateException("bind exploded")
                 }
             },
@@ -330,7 +421,7 @@ class PrivilegeUserServiceManagerBinderTest {
     }
 
     @Test
-    fun stopUsesAsyncResponseAndDestroysStartedService() {
+    fun stopUsesAsyncResponseAndDestroysUnboundDaemon() {
         CountingEmbeddedService.reset()
         val manager = manager(TestEmbeddedUserServiceHost())
         val request = PrivilegeUserServiceContract.requestBundle(
@@ -340,7 +431,10 @@ class PrivilegeUserServiceManagerBinderTest {
             ),
         )
         try {
-            assertSuccess(start(manager, request))
+            val connection = bind(manager, request, daemon = true)
+            assertSuccess(connection)
+            assertSuccess(unbind(manager, requireNotNull(connection.getString(PrivilegeUserServiceContract.KEY_CONNECTION_ID))))
+            assertEquals(1L, CountingEmbeddedService.destroyed.count)
 
             assertSuccess(stop(manager, request))
 
@@ -351,7 +445,7 @@ class PrivilegeUserServiceManagerBinderTest {
     }
 
     @Test
-    fun startProcessFailureMapsToStartErrorBundle() {
+    fun processLaunchFailureMapsToErrorBundle() {
         val host = object : TestDedicatedUserServiceHost(TestUserServiceProcess()) {
             override fun startDedicatedProcess(
                 spec: PrivilegeUserServiceSpec,
@@ -362,7 +456,7 @@ class PrivilegeUserServiceManagerBinderTest {
         }
         val manager = manager(host)
         try {
-            val response = start(manager, dedicatedRequest())
+            val response = bind(manager, dedicatedRequest())
 
             assertError(response)
             assertTrue(
@@ -376,7 +470,7 @@ class PrivilegeUserServiceManagerBinderTest {
     }
 
     @Test
-    fun cancellingPendingStartInterruptsWaitAndKillsProcess() {
+    fun cancellingPendingBindInterruptsWaitAndKillsProcess() {
         val waitEntered = CountDownLatch(1)
         val processKilled = CountDownLatch(1)
         val host = object : TestDedicatedUserServiceHost(TestUserServiceProcess()) {
@@ -387,6 +481,7 @@ class PrivilegeUserServiceManagerBinderTest {
 
             override fun awaitDedicatedProcess(
                 token: String,
+                handle: Process,
                 timeoutMillis: Long,
             ): IPrivilegeUserServiceProcess {
                 waitEntered.countDown()
@@ -401,15 +496,17 @@ class PrivilegeUserServiceManagerBinderTest {
         val manager = manager(host)
         val callback = ResultCallback()
         try {
-            manager.startUserService(
-                "cancel-start",
+            manager.bindUserService(
+                "cancel-pending-bind",
                 dedicatedRequest(),
+                false,
                 TestBinder(),
+                null,
                 callback,
             )
             assertTrue(waitEntered.await(5, TimeUnit.SECONDS))
 
-            manager.cancelUserServiceOperation("cancel-start")
+            manager.cancelUserServiceOperation("cancel-pending-bind")
 
             assertTrue(processKilled.await(5, TimeUnit.SECONDS))
             assertNull(callback.results.poll(200, TimeUnit.MILLISECONDS))
@@ -430,7 +527,7 @@ class PrivilegeUserServiceManagerBinderTest {
         )
         val callback = ResultCallback()
         try {
-            manager.bindUserService("cancel-bind", request, TestBinder(), callback)
+            manager.bindUserService("cancel-bind", request, true, TestBinder(), null, callback)
             assertSuccess(callback.await())
 
             manager.cancelUserServiceOperation("cancel-bind")
@@ -455,7 +552,7 @@ class PrivilegeUserServiceManagerBinderTest {
         val client = TestBinder()
         val receiver = ResultCallback()
         try {
-            manager.bindUserService("dead-client-bind", request, client, receiver)
+            manager.bindUserService("dead-client-bind", request, true, client, null, receiver)
             assertSuccess(receiver.await())
 
             client.killBinder(notifyDeathRecipients = true)
@@ -467,25 +564,14 @@ class PrivilegeUserServiceManagerBinderTest {
         }
     }
 
-    private fun start(
-        manager: PrivilegeUserServiceManagerBinder,
-        request: Bundle,
-    ): Bundle {
-        val operationId = "start-${System.nanoTime()}"
-        val callback = ResultCallback()
-        manager.startUserService(operationId, request, TestBinder(), callback)
-        return callback.await().also {
-            manager.acknowledgeUserServiceOperation(operationId)
-        }
-    }
-
     private fun bind(
         manager: PrivilegeUserServiceManagerBinder,
         request: Bundle,
+        daemon: Boolean = false,
     ): Bundle {
         val operationId = "bind-${System.nanoTime()}"
         val callback = ResultCallback()
-        manager.bindUserService(operationId, request, TestBinder(), callback)
+        manager.bindUserService(operationId, request, daemon, TestBinder(), null, callback)
         return callback.await().also {
             manager.acknowledgeUserServiceOperation(operationId)
         }
@@ -498,6 +584,18 @@ class PrivilegeUserServiceManagerBinderTest {
         val operationId = "stop-${System.nanoTime()}"
         val callback = ResultCallback()
         manager.stopUserService(operationId, request, TestBinder(), callback)
+        return callback.await().also {
+            manager.acknowledgeUserServiceOperation(operationId)
+        }
+    }
+
+    private fun peek(
+        manager: PrivilegeUserServiceManagerBinder,
+        request: Bundle,
+    ): Bundle {
+        val operationId = "peek-${System.nanoTime()}"
+        val callback = ResultCallback()
+        manager.peekUserService(operationId, request, TestBinder(), null, callback)
         return callback.await().also {
             manager.acknowledgeUserServiceOperation(operationId)
         }
@@ -537,6 +635,7 @@ class PrivilegeUserServiceManagerBinderTest {
         PrivilegeUserServiceContract.requestBundle(
             PrivilegeUserServiceSpec(
                 serviceClassName = "test.UserService",
+                process = priv.kit.core.userservice.PrivilegeUserServiceProcess.INHERIT,
             ),
         )
 

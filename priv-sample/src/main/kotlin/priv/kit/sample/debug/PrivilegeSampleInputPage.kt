@@ -251,7 +251,7 @@ private suspend fun <T> withInputDevices(block: suspend (PrivilegeEvdevControlle
         PrivilegeUserServiceSpec(
             serviceClassName = PrivilegeSampleInputService::class.java.name,
             tag = UUID.randomUUID().toString(),
-            daemon = false,
+            process = priv.kit.core.userservice.PrivilegeUserServiceProcess.INHERIT,
         ),
     )
     try {

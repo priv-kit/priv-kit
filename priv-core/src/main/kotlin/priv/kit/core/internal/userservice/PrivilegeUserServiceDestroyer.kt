@@ -5,8 +5,8 @@ import android.os.Parcel
 import priv.kit.core.userservice.PrivilegeUserServiceTransactions
 
 internal object PrivilegeUserServiceDestroyer {
-    fun destroy(binder: IBinder): Throwable? {
-        val result = runCatching {
+    fun destroy(binder: IBinder) {
+        runCatching {
             val descriptor = binder.interfaceDescriptor ?: return@runCatching
             val data = Parcel.obtain()
             val reply = Parcel.obtain()
@@ -26,6 +26,5 @@ internal object PrivilegeUserServiceDestroyer {
                 reply.recycle()
             }
         }
-        return result.exceptionOrNull()
     }
 }

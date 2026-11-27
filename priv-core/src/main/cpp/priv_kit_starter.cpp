@@ -10,6 +10,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+import privkit.user_service;
+
 namespace {
 
 constexpr size_t MAX_CLASSPATH_LENGTH = 8192;
@@ -490,8 +492,6 @@ int start_server(const StarterConfig &config) {
 }
 
 } // namespace
-
-int start_user_service(int argc, char **argv);
 
 int main(int argc, char **argv) {
   if (argc > 1 && strcmp(argv[1], "--user-service") == 0) {

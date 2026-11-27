@@ -6,6 +6,12 @@
 
 每个应用和 Android 用户拥有各自的特权服务端。应用提供业务 AIDL 和所需的系统服务接口。公开包位于 `priv.kit.*`，Maven group 为 `io.github.priv-kit`。`priv-input` 和 `priv-evdev` 处于实验阶段。
 
+## 设计理念
+
+业务逻辑和状态尽量保存在应用主进程，特权侧尽量只做无状态转发，减少状态同步和重启恢复成本。连接、文件描述符和设备句柄按生命周期释放。
+
+优先使用内置 Binder、文件和命令 API。自定义 UserService 默认嵌入已有特权服务端，减少额外进程、启动和内存开销；需要隔离或指定不同 UID 时再使用独立进程。
+
 ## 模块
 
 | 模块 | 职责 |
@@ -35,7 +41,9 @@ Remap 随 AAR 生成隐藏类型和回调所需的 consumer rules。`:hidden-api
 
 ## Binder 与权限
 
-服务端不可用使用 `PrivilegeServerUnavailableException`。转发时的 `DeadObjectException` 也可能来自目标 Binder。回复丢失后，调用方根据操作是否可安全重复来决定是否重试。权限从特权进程视角查询，实际访问仍受系统服务、AppOps 和 SELinux 限制。
+特权通道断开或解绑使用 `PrivilegeUnavailableException`；目标或依赖 Binder 死亡及无法归类的 Binder 故障保留 `DeadObjectException`，不使健康连接断开。`PrivilegeBinderCall.orElse` 分别映射为 `Unavailable` 和 `BinderDied`，其他异常继续抛出。回复丢失后是否重试由调用方决定。权限从特权进程视角查询，仍受系统服务、AppOps 和 SELinux 限制。
+
+业务调用和转发各使用一层回复封装，以状态码传递通道故障和目标死亡，避免 `Parcel.writeException` 不支持的异常类型。目标 Parcel 中的业务异常、Binder 和文件描述符原样保留。
 
 `fromSystemService()` 和 `hasSystemService()` 默认在调用进程中查找服务，即使传入 `userService`。显式指定 `REMOTE_PROCESS` 时，由指定的 UserService 或主特权服务端查找。Binder 事务由 `userService` 指定的进程或主特权服务端发起。
 
@@ -47,9 +55,17 @@ Remap 随 AAR 生成隐藏类型和回调所需的 consumer rules。`:hidden-api
 
 ## UserService
 
-实例由 `serviceClassName + tag` 标识。没有类名时使用内置 Binder 转发。独立进程默认继承 UID，只有 root 服务端能切换 UID，SELinux 域保持继承。嵌入式服务只清理自身资源。
+实例由 `serviceClassName + tag` 标识，tag 默认为 `null`，省略类名时使用内置 Binder 转发。默认 `EMBEDDED` 共用特权服务端；`INHERIT` 启动继承 UID 的独立进程。指定 UID 限于 root、system、shell，以使用特权 Provider 握手。身份切换由系统调用判定权限，SELinux 域保持继承；切换时清空补充组，shell 则尽力采用 adbd 的补充组。
 
-应用通过 connection 访问服务 Binder 和转发 Binder。解绑关闭该连接的转发能力，取消回收未被调用方接收的资源。运行时反射调用的构造函数需要保留。
+`bindUserService(spec, daemon = false)` 创建或复用实例；标识和 process 相同时只更新 daemon 策略。非 daemon 实例在最后一个连接释放或 owner 死亡时销毁，daemon 实例继续保留。`peekUserService()` 仅连接标识和 process 匹配的已有实例，保留策略，否则返回 `null`。`stopUserService()` 停止整个实例；服务端退出时所有实例结束。
+
+daemon 变更在客户端确认绑定结果后按请求序号提交，旧确认不覆盖新策略，取消会回收未接收的连接。客户端死亡清理其连接，重连创建新登记。
+
+每个连接通过 ResultReceiver 接收断开通知，状态在发起请求前建立。`isConnected` 在解绑、实例停止/替换/死亡或服务端死亡后永久变为 false。
+
+每个连接共用一个 gate 处理业务 AIDL 和转发；业务事务编号封装在请求内，避免与转发协议冲突。gate 位于实际执行进程，独立模式的调用直达子进程，主服务端只交付 Binder 引用并管理生命周期。解绑关闭单个 gate；停止同步关闭全部入口并移除登记，再通知断开和执行 destroy，不等待通知送达、进程退出或已有调用结束。
+
+销毁通过约定的 Binder 事务调用服务的 `destroy()` 清理资源，运行时负责退出独立子进程，嵌入式服务保留共享进程。反射调用的构造函数需要保留。
 
 ## 输入
 

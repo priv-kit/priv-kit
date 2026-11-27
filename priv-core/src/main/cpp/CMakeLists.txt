@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 4.1)
 
 project("privkitcore")
 
-set(CMAKE_CXX_STANDARD 17)
-
 add_compile_options(
     -Werror=format
     -fdata-sections
@@ -20,9 +18,10 @@ endif ()
 
 add_executable(libprivkitstarter.so
     priv_kit_starter.cpp
-    priv_kit_user_service.cpp
 )
 
-target_link_libraries(libprivkitstarter.so
-    log
+target_compile_features(libprivkitstarter.so PRIVATE cxx_std_20)
+
+target_sources(libprivkitstarter.so
+    PRIVATE FILE_SET CXX_MODULES FILES priv_kit_user_service.cppm
 )

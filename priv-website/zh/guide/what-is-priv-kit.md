@@ -32,6 +32,12 @@ Priv Kit 让 Android 应用通过 Root、ADB、手动命令或 Shizuku 启动自
 
 每个应用管理自己的服务端、连接和恢复。
 
+## 设计理念 {#design-philosophy}
+
+业务逻辑和状态尽量保存在应用主进程。特权侧尽量只做无状态转发：接收参数、执行操作、返回结果，减少进程间状态同步和服务重启后的恢复成本。
+
+优先使用内置 API，自定义操作使用 [UserService](./user-service#default-process)，默认复用特权服务端进程。
+
 ## 从哪里开始 {#where-to-start}
 
 先看[快速接入](./getting-started)，再按需使用[内置页面](./priv-ui)或[自定义界面](./activation)。

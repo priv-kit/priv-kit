@@ -1,3 +1,5 @@
+module;
+
 #include <dirent.h>
 #include <errno.h>
 #include <grp.h>
@@ -8,6 +10,8 @@
 #include <string.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+
+export module privkit.user_service;
 
 namespace {
 // adbd installs supplementary groups before spawning its shell children.
@@ -100,7 +104,7 @@ int fail(const char *operation) {
 }
 } // namespace
 
-int start_user_service(int argc, char **argv) {
+export int start_user_service(int argc, char **argv) {
   if (argc < 3 || strcmp(argv[2], "/system/bin/app_process") != 0) {
     fprintf(stderr, "Usage: UserService launcher <uid> /system/bin/app_process ...\n");
     return 2;
@@ -113,18 +117,14 @@ int start_user_service(int argc, char **argv) {
   }
   const auto uid = static_cast<uid_t>(requested);
   if (getuid() != uid) {
-    if (getuid() != 0) {
-      fprintf(stderr, "Changing UserService UID requires root\n");
-      return 2;
-    }
     gid_t *groups = nullptr;
     size_t count = 0;
     if (uid == 2000 && !read_adbd_groups(&groups, &count)) {
-      fprintf(stderr, "Cannot obtain shell supplementary groups from device adbd\n");
-      return 3;
+      fprintf(stderr,
+              "Cannot obtain shell supplementary groups from device adbd; continuing with no supplementary groups\n");
     }
-    // system has no universal supplementary group profile. Never inherit root
-    // groups.
+    // Other UIDs have no universal supplementary group profile. Clear inherited
+    // groups when switching identity.
     const int group_result = setgroups(count, groups);
     free(groups);
     if (group_result != 0)

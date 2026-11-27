@@ -11,7 +11,7 @@ import priv.kit.core.adb.PrivilegeAdbIdentity
 import priv.kit.core.adb.PrivilegeAdbConnectionOptions
 import priv.kit.core.adb.PrivilegeAdbStartResult
 import priv.kit.core.adb.PrivilegeAdbManager
-import priv.kit.core.binder.serverUnavailable
+import priv.kit.core.binder.privilegeUnavailable
 import priv.kit.core.command.PrivilegeCommand
 import priv.kit.core.command.PrivilegeCommandProcess
 import priv.kit.core.internal.binder.IPrivilegeServer
@@ -446,7 +446,7 @@ public object Privilege {
      * The passive interval remains bounded by [PrivilegeConfig.followDeathDelayMillis].
      *
      * @throws IllegalArgumentException if [passiveReconnectTimeoutMillis] is not positive.
-     * @throws priv.kit.core.binder.PrivilegeServerUnavailableException if no live server is
+     * @throws priv.kit.core.binder.PrivilegeUnavailableException if no live server is
      * connected.
      */
     public fun prepareOwnerRestart(passiveReconnectTimeoutMillis: Long) {
@@ -458,13 +458,38 @@ public object Privilege {
         }
     }
 
-    public suspend fun startUserService(spec: PrivilegeUserServiceSpec) {
-        userServiceClient.start(spec)
-    }
+    /**
+     * Creates or reuses a UserService and connects to it.
+     * Updates the instance's lifecycle policy to [daemon] without recreating it when only
+     * that policy changes. The default false also updates an existing daemon service.
+     *
+     * Non-daemon services are destroyed when the last connection closes or the owner app dies.
+     * Daemon services survive both until stopped or the privileged server exits.
+     * Use [peekUserService] to connect without changing the lifecycle policy.
+     */
+    public suspend fun bindUserService(
+        spec: PrivilegeUserServiceSpec,
+        daemon: Boolean = false,
+    ): PrivilegeUserServiceConnection = userServiceClient.bind(spec, daemon)
 
-    public suspend fun bindUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceConnection =
-        userServiceClient.bind(spec)
+    /**
+     * Connects to a running UserService identified by [PrivilegeUserServiceSpec.serviceClassName]
+     * and [PrivilegeUserServiceSpec.tag], with the requested [PrivilegeUserServiceSpec.process].
+     * Returns null if no running instance matches.
+     *
+     * Does not create, replace, or reconfigure the service; it keeps its lifecycle policy.
+     * Unbind the returned connection when finished.
+     * Requires a connected privileged server; connection failures are still thrown.
+     */
+    public suspend fun peekUserService(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceConnection? =
+        userServiceClient.peek(spec)
 
+    /**
+     * Stops the UserService identified by its class name and tag, regardless of daemon mode or
+     * active connections. Removes the instance and invalidates all its connections before returning.
+     * Disconnect notifications and dedicated process exit are asynchronous; in-flight calls are
+     * not awaited. Does nothing if the instance no longer exists.
+     */
     public suspend fun stopUserService(spec: PrivilegeUserServiceSpec) {
         userServiceClient.stop(spec)
     }
@@ -637,7 +662,7 @@ public object Privilege {
                     return@synchronized current
                 }
                 currentServer = null
-                serverUnavailable(cause = null)
+                privilegeUnavailable(cause = null)
             }
 
             var next: ServerConnection? = null
@@ -647,7 +672,7 @@ public object Privilege {
             try {
                 binder.linkToDeath(deathRecipient, 0)
             } catch (e: RemoteException) {
-                serverUnavailable(e)
+                privilegeUnavailable(e)
             }
 
             val newConnection = ServerConnection(
@@ -658,7 +683,7 @@ public object Privilege {
             )
             if (!binder.pingBinder()) {
                 newConnection.unlink()
-                serverUnavailable(cause = null)
+                privilegeUnavailable(cause = null)
             }
             next = newConnection
             previous = current
@@ -674,7 +699,7 @@ public object Privilege {
     private fun requireServerConnection(): ServerConnection {
         return synchronized(serverLock) {
             currentServer
-        } ?: serverUnavailable(cause = null)
+        } ?: privilegeUnavailable(cause = null)
     }
 
     internal fun requireServerInterface(): IPrivilegeServer =
@@ -703,7 +728,7 @@ public object Privilege {
             block(connection)
         } catch (exception: DeadObjectException) {
             markServerDisconnected(connection)
-            serverUnavailable(exception)
+            privilegeUnavailable(exception)
         }
 
     private fun requireUserServiceManagerBinder(): IBinder =
@@ -816,7 +841,7 @@ public object Privilege {
             markServerDisconnected(connection)
         }
         if (synchronized(serverLock) { currentServer !== connection }) {
-            serverUnavailable(cause = null)
+            privilegeUnavailable(cause = null)
         }
         if (connection.serverInfo.uid == PRIVILEGE_INTERNAL_ROOT_UID) {
             return PackageManager.PERMISSION_GRANTED
@@ -840,7 +865,7 @@ public object Privilege {
     ) {
         if (!server.asBinder().isBinderAlive) {
             onUnavailable()
-            serverUnavailable(cause = null)
+            privilegeUnavailable(cause = null)
         }
     }
 

@@ -20,7 +20,7 @@ import priv.kit.core.Privilege
 import priv.kit.core.PrivilegeServerInfo
 import priv.kit.core.PrivilegeServerLaunchUncertainException
 import priv.kit.core.PrivilegeStartupException
-import priv.kit.core.binder.PrivilegeServerUnavailableException
+import priv.kit.core.binder.PrivilegeUnavailableException
 import priv.kit.core.internal.runtime.PrivilegeContext
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionEvent
 import priv.kit.core.internal.runtime.PrivilegeRuntimeConnectionOrigin
@@ -501,7 +501,7 @@ class PrivilegeUiRuntimeActionsTest {
             getDeniedServerPermissions = {
                 queries.incrementAndGet()
                 if (failQuery.get()) {
-                    throw PrivilegeServerUnavailableException(cause = android.os.DeadObjectException())
+                    throw PrivilegeUnavailableException(cause = android.os.DeadObjectException())
                 }
                 listOf("permission.TEST")
             },

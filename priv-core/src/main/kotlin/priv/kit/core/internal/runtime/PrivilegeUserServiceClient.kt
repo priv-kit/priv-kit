@@ -9,7 +9,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import priv.kit.core.PrivilegeUserServiceConnection
+import priv.kit.core.binder.PrivilegeUnavailableException
 import priv.kit.core.internal.userservice.IPrivilegeUserServiceManager
+import priv.kit.core.internal.userservice.PrivilegeUserServiceConnectionState
 import priv.kit.core.internal.userservice.PrivilegeUserServiceContract
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
 import java.util.UUID
@@ -20,46 +22,70 @@ internal class PrivilegeUserServiceClient(
 ) {
     private val ownerBinder = Binder()
 
-    suspend fun start(spec: PrivilegeUserServiceSpec) {
+    suspend fun bind(spec: PrivilegeUserServiceSpec, daemon: Boolean = false): PrivilegeUserServiceConnection =
+        withConnectionState { manager, state ->
+            execute(manager, { operationId, receiver ->
+                manager.bindUserService(
+                    operationId,
+                    PrivilegeUserServiceContract.requestBundle(spec),
+                    daemon,
+                    ownerBinder,
+                    state,
+                    receiver,
+                )
+            }) { response ->
+                decodeConnection(manager, response, state)
+            }
+        }
+
+    suspend fun peek(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceConnection? =
+        withConnectionState { manager, state ->
+            execute(manager, { operationId, receiver ->
+                manager.peekUserService(
+                    operationId,
+                    PrivilegeUserServiceContract.requestBundle(spec),
+                    ownerBinder,
+                    state,
+                    receiver,
+                )
+            }) { response ->
+                if (response.containsKey(PrivilegeUserServiceContract.KEY_CONNECTION_ID)) {
+                    decodeConnection(manager, response, state)
+                } else {
+                    state.disconnect()
+                    null
+                }
+            }
+        }
+
+    private suspend fun <T> withConnectionState(
+        block: suspend (IPrivilegeUserServiceManager, PrivilegeUserServiceConnectionState) -> T,
+    ): T {
         val manager = manager()
-        execute(manager) { operationId, receiver ->
-            manager.startUserService(
-                operationId,
-                PrivilegeUserServiceContract.requestBundle(spec),
-                ownerBinder,
-                receiver,
-            )
+        val state = PrivilegeUserServiceConnectionState()
+        state.observeServer(manager.asBinder())
+        return try {
+            block(manager, state)
+        } catch (throwable: Throwable) {
+            state.disconnect()
+            throw throwable
         }
     }
 
-    suspend fun bind(spec: PrivilegeUserServiceSpec): PrivilegeUserServiceConnection {
-        val manager = manager()
-        return execute(manager, { operationId, receiver ->
-            manager.bindUserService(
-                operationId,
-                PrivilegeUserServiceContract.requestBundle(spec),
-                ownerBinder,
-                receiver,
-            )
-        }) { response ->
-            val connectionId = response.getString(PrivilegeUserServiceContract.KEY_CONNECTION_ID)
-                ?: throw IllegalStateException("UserService bind response is missing a connection id")
-            val binder = response.getBinder(PrivilegeUserServiceContract.KEY_SERVICE_BINDER)
-                ?: throw IllegalStateException("UserService bind response is missing a service Binder")
-            PrivilegeUserServiceConnection(
-                binder = binder,
-                forwardingBinder = response.getBinder(PrivilegeUserServiceContract.KEY_FORWARDING_BINDER)
-                    ?: throw IllegalStateException("UserService response is missing a forwarding Binder"),
-                lifecycleBinder = response.getBinder(PrivilegeUserServiceContract.KEY_LIFECYCLE_BINDER)
-                    ?: throw IllegalStateException("UserService response is missing a lifecycle Binder"),
-                uid = if (response.containsKey(PrivilegeUserServiceContract.KEY_UID)) {
-                    response.getInt(PrivilegeUserServiceContract.KEY_UID)
-                } else {
-                    throw IllegalStateException("UserService response is missing its UID")
-                },
-                unbindAction = { unbind(manager, connectionId) },
-            )
-        }
+    private fun decodeConnection(
+        manager: IPrivilegeUserServiceManager,
+        response: Bundle,
+        state: PrivilegeUserServiceConnectionState,
+    ): PrivilegeUserServiceConnection {
+        val connectionId = response.getString(PrivilegeUserServiceContract.KEY_CONNECTION_ID)
+            ?: throw IllegalStateException("UserService bind response is missing a connection id")
+        val binder = response.getBinder(PrivilegeUserServiceContract.KEY_SERVICE_BINDER)
+            ?: throw IllegalStateException("UserService bind response is missing a service Binder")
+        return PrivilegeUserServiceConnection(
+            binder = binder,
+            unbindAction = { unbind(manager, connectionId) },
+            connectionState = state,
+        )
     }
 
     suspend fun stop(spec: PrivilegeUserServiceSpec) {
@@ -110,7 +136,11 @@ internal class PrivilegeUserServiceClient(
             )
             ensureSuccess(response)
             val result = decode(response)
-            manager.acknowledgeUserServiceOperation(operationId)
+            try {
+                manager.acknowledgeUserServiceOperation(operationId)
+            } catch (exception: DeadObjectException) {
+                throw PrivilegeUnavailableException(cause = exception)
+            }
             return result
         } catch (throwable: Throwable) {
             cancelOperation()
@@ -148,7 +178,12 @@ internal class PrivilegeUserServiceClient(
             val resumeFailure = { throwable: Throwable ->
                 if (completed.compareAndSet(false, true)) {
                     unlinkManagerDeath()
-                    continuation.resumeWith(Result.failure(throwable))
+                    val failure = if (throwable is DeadObjectException) {
+                        PrivilegeUnavailableException(cause = throwable)
+                    } else {
+                        throwable
+                    }
+                    continuation.resumeWith(Result.failure(failure))
                 }
                 Unit
             }
@@ -172,10 +207,6 @@ internal class PrivilegeUserServiceClient(
             } catch (throwable: Throwable) {
                 managerLinked.set(false)
                 resumeFailure(throwable)
-                return@suspendCancellableCoroutine
-            }
-            if (!managerBinder.pingBinder()) {
-                resumeFailure(DeadObjectException("UserService manager died during operation"))
                 return@suspendCancellableCoroutine
             }
             try {

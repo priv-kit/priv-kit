@@ -11,7 +11,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowServiceManager
-import priv.kit.core.binder.PrivilegeServerUnavailableException
+import priv.kit.core.binder.PrivilegeUnavailableException
 import priv.kit.core.internal.binder.IPrivilegeServer
 import priv.kit.core.internal.core.PrivilegeProtocol
 import priv.kit.core.testing.TestBinder
@@ -79,13 +79,13 @@ class PrivilegeProcessPermissionTest {
     @Test
     fun disconnectedAndDeadServerDoNotQueryActivityManager() {
         installService { _, _, _ -> error("No live server") }
-        assertThrows(PrivilegeServerUnavailableException::class.java) {
+        assertThrows(PrivilegeUnavailableException::class.java) {
             Privilege.checkServerPermission(GRANT)
         }
         val server = Server()
         connect(server)
         server.binder.killBinder(notifyDeathRecipients = false)
-        assertThrows(PrivilegeServerUnavailableException::class.java) {
+        assertThrows(PrivilegeUnavailableException::class.java) {
             Privilege.checkServerPermission(GRANT)
         }
         assertNull(Privilege.serverState.value)

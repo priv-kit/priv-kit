@@ -2,7 +2,6 @@ package priv.kit.sample.userservice
 
 import android.content.Context
 import androidx.annotation.Keep
-import kotlin.system.exitProcess
 
 internal class PrivilegeSampleDedicatedUserService private constructor(
     private val state: PrivilegeSampleUserServiceState,
@@ -15,7 +14,6 @@ internal class PrivilegeSampleDedicatedUserService private constructor(
 
     override fun destroy() {
         state.markDestroyed()
-        exitProcess(0)
     }
 
     override fun describe(label: String?): String = state.describe(label)

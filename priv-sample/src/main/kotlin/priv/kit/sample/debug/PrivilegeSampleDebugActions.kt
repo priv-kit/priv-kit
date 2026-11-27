@@ -25,6 +25,7 @@ import priv.kit.core.binder.PrivilegeBinderCall
 import priv.kit.core.binder.PrivilegeBinderCallFailure
 import priv.kit.core.binder.PrivilegeSystemServiceSource
 import priv.kit.core.userservice.PrivilegeUserServiceSpec
+import priv.kit.core.userservice.PrivilegeUserServiceProcess
 import priv.kit.external.shizuku.PrivilegeExternalShizuku
 import priv.kit.sample.R
 import priv.kit.sample.common.toDiagnosticString
@@ -638,12 +639,19 @@ internal fun PrivilegeSampleDebugHost.runImqsNative() {
     }
 }
 
-internal fun PrivilegeSampleDebugHost.testUserServiceBinderForwarding(uid: Int?) {
-    runUserServiceAction("Binder forwarding: uid=${uid ?: "inherit"}", requireConnected = true) {
+internal fun PrivilegeSampleDebugHost.testUserServiceBinderForwarding(process: PrivilegeUserServiceProcess) {
+    runUserServiceAction("Binder forwarding: process=$process", requireConnected = true) {
+        val expectedUid = when (process) {
+            PrivilegeUserServiceProcess.ROOT -> 0
+            PrivilegeUserServiceProcess.SYSTEM -> 1000
+            PrivilegeUserServiceProcess.SHELL -> 2000
+            PrivilegeUserServiceProcess.INHERIT,
+            PrivilegeUserServiceProcess.EMBEDDED -> Privilege.getServerInfo().uid
+        }
         val connection = Privilege.bindUserService(
             PrivilegeUserServiceSpec(
-                tag = "binder-${uid ?: "inherit"}",
-                process = priv.kit.core.userservice.PrivilegeUserServiceProcess(uid),
+                tag = "binder-${process.name}",
+                process = process,
             ),
         )
         try {
@@ -666,14 +674,14 @@ internal fun PrivilegeSampleDebugHost.testUserServiceBinderForwarding(uid: Int?)
                 data.recycle()
                 reply.recycle()
             }
-            check(callingUid == connection.uid) { "Expected UID ${connection.uid}, got $callingUid" }
+            check(callingUid == expectedUid) { "Expected UID $expectedUid, got $callingUid" }
             val packageBinder = checkNotNull(
                 PrivilegeBinderWrapper.fromSystemService(
                     serviceName = "package",
                     userService = connection,
                 ),
             )
-            UserServiceActionResult("Binder forwarding passed: uid=$callingUid, package=${connection.callingPackageName}, descriptor=${packageBinder.interfaceDescriptor}")
+            UserServiceActionResult("Binder forwarding passed: uid=$callingUid, descriptor=${packageBinder.interfaceDescriptor}")
         } finally {
             connection.unbind()
         }
@@ -733,7 +741,6 @@ private fun PrivilegeSampleDebugHost.bindSampleUserService(
     ) {
         clearSampleUserService(label)
         val spec = sampleUserServiceSpec(label, embedded)
-        Privilege.startUserService(spec)
         val connection = Privilege.bindUserService(spec)
         val serviceMessage = setSampleUserService(label, connection)
         UserServiceActionResult(
@@ -812,7 +819,7 @@ private fun PrivilegeSampleDebugHost.runUserServiceAction(
                 fallback = { failure ->
                     setUserServiceFailure(
                         failure.exception,
-                        disconnected = failure is PrivilegeBinderCallFailure.ServerUnavailable,
+                        disconnected = failure is PrivilegeBinderCallFailure.Unavailable,
                     )
                     return@launch
                 },
@@ -904,7 +911,7 @@ private fun PrivilegeSampleDebugHost.runBinderAction(
                 fallback = { failure ->
                     setBinderFailure(
                         failure.exception,
-                        disconnected = failure is PrivilegeBinderCallFailure.ServerUnavailable,
+                        disconnected = failure is PrivilegeBinderCallFailure.Unavailable,
                     )
                     return@launch
                 },
@@ -1255,9 +1262,8 @@ private fun sampleUserServiceSpec(
     PrivilegeUserServiceSpec(
         serviceClassName = sampleUserServiceClassName(label),
         tag = label,
-        version = 1,
         process = if (embedded) priv.kit.core.userservice.PrivilegeUserServiceProcess.EMBEDDED
-            else priv.kit.core.userservice.PrivilegeUserServiceProcess.DEDICATED,
+            else priv.kit.core.userservice.PrivilegeUserServiceProcess.INHERIT,
     )
 
 private fun sampleUserServiceClassName(label: String): String =

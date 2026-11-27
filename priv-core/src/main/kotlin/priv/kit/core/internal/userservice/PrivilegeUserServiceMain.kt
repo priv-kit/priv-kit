@@ -8,7 +8,6 @@ import androidx.annotation.RestrictTo
 import priv.kit.core.internal.core.PrivilegeContentProviderCall
 import priv.kit.core.internal.core.preparePrivilegeMainLooper
 import priv.kit.core.internal.runtime.PrivilegeCrashRecorder
-import android.os.Binder
 import kotlin.system.exitProcess
 
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
@@ -25,18 +24,18 @@ public object PrivilegeUserServiceMain {
                 config.serviceClassName ?: "built-in",
             )
             preparePrivilegeMainLooper()
-            val instance = if (config.serviceClassName == null) Binder() else PrivilegeUserServiceLoader.instantiate(
-                serviceClassName = config.serviceClassName,
-                contextConfig = PrivilegeUserServiceLoader.ContextConfig(
-                    packageName = config.packageName,
-                    userId = config.userId,
-                    mode = PrivilegeUserServiceLoader.ContextMode.APPLICATION_WITH_PACKAGE_FALLBACK,
-                ),
-            )
-            val processBinder = PrivilegeUserServiceProcessBinder(
-                serviceClassName = config.serviceClassName,
-                instance = instance,
-            )
+            val binder = config.serviceClassName?.let { serviceClassName ->
+                val instance = PrivilegeUserServiceLoader.instantiate(
+                    serviceClassName = serviceClassName,
+                    contextConfig = PrivilegeUserServiceLoader.ContextConfig(
+                        packageName = config.packageName,
+                        userId = config.userId,
+                        mode = PrivilegeUserServiceLoader.ContextMode.APPLICATION_WITH_PACKAGE_FALLBACK,
+                    ),
+                )
+                PrivilegeUserServiceRegistry.binderFrom(instance, serviceClassName)
+            }
+            val processBinder = PrivilegeUserServiceProcessBinder(binder)
             val accepted = sendReady(config, processBinder)
             if (!accepted) {
                 System.err.println("Privilege UserService handshake was rejected")

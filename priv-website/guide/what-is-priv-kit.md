@@ -32,6 +32,12 @@ Run your own AIDL implementation in a privileged [UserService](./user-service).
 
 Each app manages its own server, connection, and recovery.
 
+## Design philosophy {#design-philosophy}
+
+Keep business logic and state in the main application process. Keep the privileged side focused on stateless forwarding wherever possible: receive inputs, perform an operation, and return the result. This reduces state synchronization and recovery work after a server restart.
+
+Prefer the built-in APIs. Use a [UserService](./user-service#default-process) for custom operations; it shares the privileged server process by default.
+
 ## Where to start {#where-to-start}
 
 Follow [Getting started](./getting-started), then choose the [built-in page](./priv-ui) or a [custom interface](./activation).

@@ -3,10 +3,9 @@ package priv.kit.core.internal.userservice;
 import android.os.IBinder;
 
 interface IPrivilegeUserServiceProcess {
-    void start();
-    IBinder bind();
+    IBinder bind(String connectionId);
+    void unbind(String connectionId);
+    void closeBindings();
     void destroy();
-    IBinder getForwardingBinder();
-    int getUid();
     void attachServer(IBinder lifecycle);
 }

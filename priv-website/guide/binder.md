@@ -66,7 +66,7 @@ fun readMeminfo(packageName: String): String {
 
 ## Forward through a UserService {#user-service}
 
-Pass `userService = connection` to forward calls through a bound [UserService](./user-service#binder-forwarding). Use `connection.callingPackageName` when the system API expects a caller package. Unbinding invalidates the wrapper. Wrap any returned Binder explicitly if its calls also need forwarding.
+Pass `userService = connection` to forward calls through a bound [UserService](./user-service#binder-forwarding). Unbinding invalidates the wrapper. Wrap any returned Binder explicitly if its calls also need forwarding.
 
 ## Bind resources to the server lifetime {#server-lifecycle}
 
@@ -83,4 +83,25 @@ serverLifecycle.linkToDeath(
 
 ## Understand failures {#failure-semantics}
 
-`PrivilegeServerUnavailableException` means there is no usable server connection. `DeadObjectException` can also mean a forwarded target died. Use `PrivilegeBinderCall.orElse(...)` for a safe fallback. A lost reply can hide a completed operation, so retry mutating calls only when safe.
+Ordinary forwarding and UserService calls share two failure categories:
+
+- `PrivilegeUnavailableException`: the privileged channel disconnected, the service stopped, or the connection was unbound. Maps to `Unavailable`.
+- `DeadObjectException`: a target or dependency Binder died, or another unclassified Binder failure occurred. Maps to `BinderDied` without disconnecting a healthy UserService connection.
+
+Catch them directly or use `PrivilegeBinderCall.orElse(...)` for fallback. Business exceptions, ordinary `RemoteException`, and coroutine cancellation still propagate.
+
+```kotlin
+val granted = PrivilegeBinderCall.orElse(
+    fallback = { failure ->
+        when (failure) {
+            is PrivilegeBinderCallFailure.Unavailable -> Log.w("binder", "Privileged channel unavailable", failure.exception)
+            is PrivilegeBinderCallFailure.BinderDied -> Log.w("binder", "Target Binder failed", failure.exception)
+        }
+        false
+    },
+) {
+    activityManager.checkPermission(permission, server.pid, server.uid) == PackageManager.PERMISSION_GRANTED
+}
+```
+
+A lost reply can hide a completed operation, so retry mutating calls only when safe.

@@ -21,13 +21,17 @@ internal class PrivilegeBinderForwarder(
     fun handles(code: Int): Boolean =
         code == PrivilegeBinderWrapper.TRANSACTION_TRANSACT_BINDER || code == TRANSACTION_HAS_SERVICE
 
-    fun dispatch(code: Int, data: Parcel, reply: Parcel?): Boolean {
+    fun dispatch(code: Int, data: Parcel, reply: Parcel?): Boolean =
+        PrivilegeBinderReply.dispatch(reply) { targetReply -> dispatchTarget(code, data, targetReply) }
+
+    /** Dispatches inside the reply envelope owned by the server or a UserService gate. */
+    fun dispatchTarget(code: Int, data: Parcel, reply: Parcel): Boolean {
         data.enforceInterface(PrivilegeBinderWrapper.DESCRIPTOR)
         val identity = clearCallingIdentity()
         try {
             if (code == TRANSACTION_HAS_SERVICE) {
                 val exists = getSystemService(requireNotNull(data.readString())) != null
-                requireNotNull(reply).writeNoException()
+                reply.writeNoException()
                 reply.writeInt(if (exists) 1 else 0)
                 return true
             }
@@ -66,7 +70,7 @@ internal class PrivilegeBinderForwarder(
             return try {
                 data.writeInterfaceToken(PrivilegeBinderWrapper.DESCRIPTOR)
                 data.writeString(name)
-                check(endpoint.transact(TRANSACTION_HAS_SERVICE, data, reply, 0)) {
+                check(PrivilegeBinderReply.transact(endpoint, TRANSACTION_HAS_SERVICE, data, reply)) {
                     "Binder endpoint does not support system service lookup"
                 }
                 reply.readException()

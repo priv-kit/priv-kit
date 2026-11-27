@@ -17,7 +17,7 @@ import java.io.OutputStream
  * can run on any thread, but should normally run on a worker thread while waiting for dispatch and
  * server-side filesystem I/O. Methods that share a name with [java.io.File] retain its return-value
  * semantics. A missing or dead server instead throws
- * [priv.kit.core.binder.PrivilegeServerUnavailableException].
+ * [priv.kit.core.binder.PrivilegeUnavailableException].
  */
 public class PrivilegeFile internal constructor(
     public val absolutePath: String,

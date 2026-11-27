@@ -20,7 +20,7 @@ Log.d("file", child.parentFile.toString())
 
 ## Use familiar file operations {#common-operations}
 
-Most operations follow `java.io.File` semantics. A disconnected server raises `PrivilegeServerUnavailableException` for operations that need it.
+Most operations follow `java.io.File` semantics. A disconnected server raises `PrivilegeUnavailableException` for operations that need it.
 
 ```kotlin
 if (!directory.mkdirs() && !directory.isDirectory()) {
